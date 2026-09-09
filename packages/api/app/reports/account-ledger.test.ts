@@ -1,0 +1,220 @@
+import Database from "better-sqlite3";
+import { gridDatasetSchema } from "@sapporta/shared/grid-dataset";
+import { describe, expect, it } from "vitest";
+import {
+  loadAccountLedgerJournalEntries,
+  toAccountLedgerResult,
+} from "./account-ledger.js";
+
+describe("Account Ledger journal entry query", () => {
+  it("loads every scoped line for journals matched through a descendant account", () => {
+    const sqlite = new Database(":memory:");
+    sqlite.exec(`
+      CREATE TABLE accounts (
+        id INTEGER,
+        workspace_id TEXT,
+        scoped_to_user_id TEXT,
+        name TEXT,
+        parent_id INTEGER
+      );
+      CREATE TABLE journals (
+        id INTEGER,
+        workspace_id TEXT,
+        scoped_to_user_id TEXT,
+        date TEXT,
+        description TEXT
+      );
+      CREATE TABLE journal_entries (
+        id INTEGER,
+        workspace_id TEXT,
+        scoped_to_user_id TEXT,
+        journal_id INTEGER,
+        account_id INTEGER,
+        debit REAL,
+        credit REAL,
+        account_balance_assertion REAL,
+        comment TEXT
+      );
+      CREATE TABLE draft_transactions (
+        id INTEGER,
+        workspace_id TEXT,
+        scoped_to_user_id TEXT
+      );
+
+      INSERT INTO accounts VALUES
+        (1, 'workspace', 'user', 'Assets', NULL),
+        (2, 'workspace', 'user', 'Bank', 1),
+        (3, 'workspace', 'user', 'Groceries', NULL),
+        (4, 'workspace', 'other-user', 'Other user account', NULL);
+
+      INSERT INTO journals VALUES
+        (10, 'workspace', 'user', '2026-01-10', 'Matched descendant'),
+        (11, 'workspace', 'user', '2026-01-12', 'Unrelated account'),
+        (12, 'workspace', 'user', '2025-12-31', 'Outside date range'),
+        (13, 'workspace', 'other-user', '2026-01-15', 'Other user journal');
+
+      INSERT INTO journal_entries VALUES
+        (101, 'workspace', 'user', 10, 2, 100, 0, 900, 'Bank line'),
+        (102, 'workspace', 'user', 10, 3, 0, 100, NULL, 'Counterpart line'),
+        (103, 'workspace', 'other-user', 10, 4, 50, 0, NULL, 'Hidden line'),
+        (104, 'workspace', 'user', 11, 3, 25, 0, NULL, 'Unrelated line'),
+        (105, 'workspace', 'user', 12, 2, 40, 0, NULL, 'Old line'),
+        (106, 'workspace', 'other-user', 13, 4, 75, 0, NULL, 'Other user line');
+    `);
+
+    const rows = loadAccountLedgerJournalEntries(sqlite, {
+      workspaceId: "workspace",
+      userId: "user",
+      accountId: 1,
+      fromDate: "2026-01-01",
+      toDate: "2026-01-31",
+    });
+
+    expect(rows).toEqual([
+      {
+        entry_id: 101,
+        journal_id: 10,
+        account_id: 2,
+        account_name: "Bank",
+        debit: 100,
+        credit: 0,
+        assertion: 900,
+        comment: "Bank line",
+      },
+      {
+        entry_id: 102,
+        journal_id: 10,
+        account_id: 3,
+        account_name: "Groceries",
+        debit: 0,
+        credit: 100,
+        assertion: null,
+        comment: "Counterpart line",
+      },
+    ]);
+  });
+});
+
+describe("Account Ledger result", () => {
+  it("nests ordered journal entries without changing ledger balances", () => {
+    const result = toAccountLedgerResult(
+      {
+        id: 1,
+        name: "Bank",
+        account_type: "Asset",
+        opening_balance: 50,
+      },
+      [
+        {
+          journal_id: 10,
+          date: "2026-01-10",
+          description: "Deposit",
+          accounts: "Income",
+          debit: 20,
+          credit: 0,
+        },
+        {
+          journal_id: 11,
+          date: "2026-01-12",
+          description: "Fee",
+          accounts: "Bank Fees",
+          debit: 0,
+          credit: 5,
+        },
+      ],
+      [
+        {
+          entry_id: 102,
+          journal_id: 10,
+          account_id: 3,
+          account_name: "Income",
+          debit: 0,
+          credit: 20,
+          assertion: null,
+          comment: null,
+        },
+        {
+          entry_id: 101,
+          journal_id: 10,
+          account_id: 1,
+          account_name: "Bank",
+          debit: 20,
+          credit: 0,
+          assertion: 70,
+          comment: "Matched line",
+        },
+        {
+          entry_id: 201,
+          journal_id: 11,
+          account_id: 1,
+          account_name: "Bank",
+          debit: 0,
+          credit: 5,
+          assertion: null,
+          comment: "Monthly fee",
+        },
+      ],
+      "2026-01-01",
+    );
+
+    expect(() => gridDatasetSchema.parse(result)).not.toThrow();
+    expect(result.levels.entries).toMatchObject({
+      childLevels: ["journal_entries"],
+      defaultCollapsed: true,
+    });
+    expect(
+      result.levels.journal_entries?.columns.map((column) => column.id),
+    ).toEqual([
+      "entry_id",
+      "account_id",
+      "account_name",
+      "debit",
+      "credit",
+      "assertion",
+      "comment",
+    ]);
+
+    const account = result.nodes[0]!;
+    const ledgerRows = account.children?.entries ?? [];
+    expect(ledgerRows.map((row) => row.rowKey)).toEqual([
+      "opening:2026-01-01",
+      "journal:10",
+      "journal:11",
+    ]);
+    expect(ledgerRows[0]?.children).toBeUndefined();
+    expect(ledgerRows[1]?.columns.balance).toBe(70);
+    expect(ledgerRows[2]?.columns.balance).toBe(65);
+
+    const firstJournalEntries = ledgerRows[1]?.children?.journal_entries ?? [];
+    expect(firstJournalEntries.map((row) => row.rowKey)).toEqual([
+      "entry:101",
+      "entry:102",
+    ]);
+    expect(firstJournalEntries.map((row) => row.columns)).toEqual([
+      {
+        entry_id: 101,
+        journal_id: 10,
+        account_id: 1,
+        account_name: "Bank",
+        debit: 20,
+        credit: 0,
+        assertion: 70,
+        comment: "Matched line",
+      },
+      {
+        entry_id: 102,
+        journal_id: 10,
+        account_id: 3,
+        account_name: "Income",
+        debit: 0,
+        credit: 20,
+        assertion: null,
+        comment: null,
+      },
+    ]);
+
+    expect(
+      account.childFooterRows?.entries?.map((row) => row.columns.balance),
+    ).toEqual([65, 15]);
+  });
+});

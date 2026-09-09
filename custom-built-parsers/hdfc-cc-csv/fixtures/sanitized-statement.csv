@@ -1,0 +1,56 @@
+Name~|~SAMPLE CARDHOLDER 
+Address~|~1 SAMPLE STREET SAMPLE LAYOUT 
+Address~|~BANGALORE-560001 KAR
+Customer GSTN~|~ 
+Payment Due Date~|~08/07/2026 
+Statement Date~|~18/06/2026 
+Total Amount Due~|~1,630.00 
+Minimum Amount Due~|~100.00 
+Credit Limit~|~5,00,000.00 
+Available Limit~|~4,98,370.00 
+Available Cash limit~|~2,00,000.00 
+
+Account Summary 
+Opening Bal~|~-~|~Payment / Credit~|~+~|~Purchases / Debits~|~+~|~Finance Charges~|~=~|~Total Dues 
+1,000.37~|~-~|~600.00~|~+~|~1,200.00~|~+~|~30.00~|~=~|~1,630.00 
+
+Card No: 0505 05XX XXXX 0505 
+
+AAN: 0505050505050505050 
+
+Past Dues (if any) 
+Overlimit~|~3 Months~|~2 Months~|~1 Month~|~ Current Dues~|~Minimum Amount Due 
+0.00~|~0.00~|~0.00~|~0.00~|~99.67~|~100.00 
+
+Domestic / International Transactions
+Transaction type~|~Primary / Addon Customer Name~|~DATE~|~Description~|~AMT~|~Debit /Credit~|~REWARDS~|~
+Domestic~|~SAMPLE CARDHOLDER ~|~15/05/2026 10:00:00~|~SAMPLE MERCHANT ONE BANGALORE ~|~1,000.00~|~~|~+ 20~|~
+Domestic~|~SAMPLE CARDHOLDER ~|~20/05/2026 12:00:00~|~CREDIT CARD PAYMENT Net Banking (Ref# 00000000000050505050505)~|~500.00~|~Cr~|~~|~
+Domestic~|~SAMPLE CARDHOLDER ~|~18/06/2026 00:00:00~|~OFFUS EMI,INT NBR:01,0 0000050505050 (Ref# 05050500000000000000002)~|~30.00~|~~|~~|~
+International~|~SAMPLE CARDHOLDER ~|~16/05/2026 09:00:00~|~Sample Online www.sample  USD2.40~|~200.00~|~~|~+ 4~|~
+International~|~SAMPLE CARDHOLDER ~|~10/06/2026 00:00:00~|~SAMPLE REFUND AMSTERDAM (Ref# VT050505000000000000004) ~|~100.00~|~Cr~|~- 2~|~
+
+Reward Points Summary
+Opening Balance~|~Feature + Bonus Reward Points Earned~|~Disbursed~|~Adjusted/Lapsed~|~Closing Balance~|~Points expiring in next 30 days~|~Points expiring in next 60 days 
+1,000~|~24~|~0~|~2~|~1,022~|~0~|~0 
+
+Rewards Program Points Summary
+Programs~|~Bonus Points 
+FCYConversion~|~1 
+
+GST Summary
+IGST~|~CGST~|~SGST~|~Reversal~|~Total 
+36.00~|~0~|~0~|~0~|~36.00 
+
+*GST levied on statement date is always billed in the subsequent statement. 
+
+
+Loan Summary
+Loan Type~|~Loan Number~|~Loan Booked Date~|~Loan Amount~|~Tenure~|~Rate of Interest~|~Balance Principal outstanding~|~Balance Interest Payable~|~Balance Tenure 
+Smart EMI~|~050505050~|~12/05/2026~|~10,50,505.00~|~6 Months~|~15%~|~1,05,050.50~|~505.05~|~2 Months 
+
+*Pre-closure charges as applicable. 
+
+State account branch GSTN: 33AAACH2702H2Z6 [ State code : Tamilnadu ] 
+HSN Code : 997113 
+Registered Office Address: HDFC Bank Cards Division, Door No 94 SP, Estate Bus Stand, Wavin Main Road, Mogappair West, Chennai - 600058. 

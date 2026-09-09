@@ -1,0 +1,20 @@
+[vars]
+frontend_port = 2340
+api_port = 2345
+
+[env]
+SAPPORTA_API_TOKEN = 
+NUABASE_API_KEY = 
+SAPPORTA_FRONTEND_PORT = "{{ vars.frontend_port }}"
+SAPPORTA_API_PORT = "{{ vars.api_port }}"
+SAPPORTA_PUBLIC_APP_URL = "http://localhost:{{ vars.frontend_port }}"
+SAPPORTA_API_URL = "http://localhost:{{ vars.api_port }}"
+
+# Optional, only if you want to work on the Sapporta framework code locally,
+# and have dbu6 use that rather than the npm package. This lets you preview
+# framework level change immediately on the application. To use it run "pnpm package-sources use:local"
+# after configuring the directory here:
+SAPPORTA_PACKAGE_ROOT = "/absolute/path/to/sapporta"
+
+[tools]
+node = "24"

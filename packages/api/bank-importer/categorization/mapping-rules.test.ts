@@ -1,0 +1,135 @@
+import { describe, expect, it } from "vitest";
+import type { Abacus } from "../domain/Abacus.js";
+import {
+  classifyWith,
+  compileMappings,
+  mappingRulesSchema,
+  normalize,
+  type MappingRules,
+} from "./mapping-rules.js";
+
+const RULES: MappingRules = {
+  exact: {
+    "Corner Fuels": "expenses:vehicle",
+    "ACME SUPERMARKET": "expenses:grocery",
+  },
+  includes: [
+    {
+      account: "cc:example",
+      direction: "withdrawal",
+      values: ["CARD PAYMENT TO CARD 4000123412341234"],
+    },
+    { account: "expenses:fuel", direction: "withdrawal", values: ["FUELS"] },
+    {
+      account: "income:credit-interest",
+      direction: "deposit",
+      values: ["INTEREST PAID"],
+    },
+  ],
+};
+
+function transaction(
+  narration: string,
+  direction: "withdrawal" | "deposit" = "withdrawal",
+): Abacus {
+  return {
+    date: "2026-01-01",
+    narration,
+    withdrawal: direction === "withdrawal" ? 100 : 0,
+    deposit: direction === "deposit" ? 100 : 0,
+    balance: 0,
+  };
+}
+
+const classify = (
+  narration: string,
+  direction: "withdrawal" | "deposit" = "withdrawal",
+) => classifyWith(compileMappings(RULES), transaction(narration, direction));
+
+describe("normalize", () => {
+  it("folds case and collapses whitespace, preserving identifiers", () => {
+    expect(normalize("  card payment  to\tcard 4000 ")).toBe(
+      "CARD PAYMENT TO CARD 4000",
+    );
+  });
+});
+
+describe("classifyWith", () => {
+  it("prefers an exact mapping over a broader includes mapping", () => {
+    expect(classify("Corner Fuels")).toBe("expenses:vehicle");
+  });
+
+  it("matches normalized contains rules", () => {
+    expect(classify("  card payment to card   4000123412341234  ")).toBe(
+      "cc:example",
+    );
+  });
+
+  it("falls through to the broader includes rule", () => {
+    expect(classify("HIGHWAY FUELS PVT LTD")).toBe("expenses:fuel");
+  });
+
+  it("honors direction", () => {
+    expect(classify("Interest Paid", "deposit")).toBe("income:credit-interest");
+    expect(classify("Interest Paid", "withdrawal")).toBeNull();
+  });
+
+  it("leaves unknown transactions unmatched", () => {
+    expect(classify("Unknown Merchant")).toBeNull();
+  });
+});
+
+describe("compileMappings", () => {
+  it("rejects exact mappings that collide after normalization", () => {
+    expect(() =>
+      compileMappings({
+        exact: {
+          "acme supermarket": "expenses:grocery",
+          "ACME  SUPERMARKET": "expenses:food",
+        },
+        includes: [],
+      }),
+    ).toThrow(/Conflicting exact transaction mapping/);
+  });
+
+  it("accepts a collision that agrees on the account", () => {
+    expect(() =>
+      compileMappings({
+        exact: {
+          "acme supermarket": "expenses:grocery",
+          "ACME  SUPERMARKET": "expenses:grocery",
+        },
+        includes: [],
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("mappingRulesSchema", () => {
+  it("rejects an empty account name", () => {
+    expect(
+      mappingRulesSchema.safeParse({ exact: { FOO: "  " }, includes: [] })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects an includes rule with no values", () => {
+    expect(
+      mappingRulesSchema.safeParse({
+        exact: {},
+        includes: [{ account: "expenses:food", values: [] }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an unknown direction", () => {
+    expect(
+      mappingRulesSchema.safeParse({
+        exact: {},
+        includes: [
+          { account: "expenses:food", direction: "refund", values: ["X"] },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+});

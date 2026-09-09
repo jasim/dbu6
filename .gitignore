@@ -1,0 +1,21 @@
+node_modules
+.DS_Store
+dist
+.env*
+!.env.production.example
+mise.toml
+mise.local.toml
+.mise.local.toml
+packages/api/dist
+packages/frontend/dist
+packages/shared/dist
+packages/shared/*.tsbuildinfo
+# Everything private lives here: SQLite database + user-config/
+data
+.vite
+*.log
+.idea
+.pnpm-store
+tmp
+*.pyc
+.package-source-switch.json

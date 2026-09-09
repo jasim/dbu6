@@ -1,0 +1,11 @@
+Supervalue Savings a/c,'0505050505,INR,"1,150.00 CR"
+
+Account transactions shown:,01/08/2026 To 03/08/2026
+
+	Date,Transaction,Currency,Deposit,Withdrawal,Running Balance
+		03/08/2026,"Newest, deposit",INR,"200.00","","1,150.00"
+		02/08/2026,Older withdrawal,INR,"","50.00","950.00"
+		01/08/2026,Oldest deposit,INR,"100.00","","1,000.00"
+
+	Current Balance,"INR 1,150.00 CR"
+	Available Balance,"INR 1,140.00 CR"

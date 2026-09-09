@@ -1,0 +1,11 @@
+Credit Card Statement
+Previous Balance (INR)   Payments/Credits (INR)   Total Payment Due (INR)
+1,000.00                 400.00                   745.50
+
+Date   Description                         Transaction Reference       Rewards Earned   International Amount   Amount (INR)
+070526 NONPII MERCH, INC, SAMPLE            05050500000000000000001     13               USD 1.50               125.50
+       NONPII CITY01
+080526 PAYMENT RECEIVED                    PAY050505000000000000001    0                                       400.00 CR
+090526 BANK CHARGE                         FEE050505000000000000001                                            20.00
+Transactions marked with an asterisk use an exchange rate shown elsewhere.
+REWARDS POINTS SUMMARY

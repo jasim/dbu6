@@ -1,0 +1,31 @@
+{
+  "name": "dbu6",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.1.1",
+  "scripts": {
+    "clean": "node scripts/clean-dist.mjs",
+    "setup": "node scripts/setup-user-config.mjs",
+    "predev": "pnpm run setup && pnpm run clean && pnpm --filter ./packages/shared build",
+    "dev": "node --env-file=.env.development scripts/dev.mjs",
+    "dev:server": "pnpm --filter ./packages/api dev",
+    "dev:ui": "pnpm --filter ./packages/frontend dev",
+    "typecheck": "pnpm --filter ./packages/shared typecheck && pnpm --filter ./packages/api typecheck && pnpm --filter ./packages/frontend typecheck",
+    "format": "prettier --write \"packages/**/*.{ts,tsx,css,json}\"",
+    "format:check": "prettier --check \"packages/**/*.{ts,tsx,css,json}\"",
+    "test": "pnpm --filter ./packages/api test",
+    "test:watch": "pnpm --filter ./packages/api test:watch",
+    "prebuild": "pnpm run clean",
+    "build": "pnpm typecheck && pnpm --filter ./packages/shared build && pnpm --filter ./packages/api build && pnpm --filter ./packages/frontend build",
+    "start": "pnpm --filter ./packages/api start",
+    "package-sources": "node scripts/package-source-switch.mjs",
+    "package-sources:status": "node scripts/package-source-switch.mjs status",
+    "package-sources:update-npm": "node scripts/package-source-switch.mjs update-npm",
+    "package-sources:use-npm": "node scripts/package-source-switch.mjs use:npm",
+    "package-sources:use-local": "node scripts/package-source-switch.mjs use:local",
+    "package-sources:verify": "node scripts/package-source-switch.mjs verify"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6"
+  }
+}
