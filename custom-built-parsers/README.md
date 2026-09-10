@@ -23,6 +23,7 @@ one matching parser.
 - [stanc-cc-pdf](stanc-cc-pdf/) — Standard Chartered credit card PDF (parsed via `pdftotext -layout`); applies CC sign flip
 - [hdfc-cc-xls](hdfc-cc-xls/) — HDFC credit card billed-statement BIFF8 XLS; applies CC sign flip and preserves exact paise closing
 - [hdfc-cc-csv](hdfc-cc-csv/) — HDFC credit card billed-statement CSV (`~|~` delimited); applies CC sign flip and preserves exact paise closing
+- [hdfc-bank-xls](hdfc-bank-xls/) — HDFC Bank savings/current account netbanking BIFF8 XLS; no sign flip, surfaces STATEMENT SUMMARY opening/closing and checks every running balance
 
 ## Goal
 
