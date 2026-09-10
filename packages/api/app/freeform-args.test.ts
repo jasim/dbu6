@@ -35,6 +35,24 @@ describe("freeform multipart argument errors", () => {
     });
   });
 
+  it("threads the staged Google Pay takeout path into the import options", () => {
+    expect(
+      optionsFromMultipartBody({ base_account: "assets:bank" }).gpayHtmlPath,
+    ).toBeNull();
+    expect(
+      optionsFromMultipartBody(
+        { base_account: "assets:bank" },
+        "/tmp/gpay-statement-upload-1.html",
+      ).gpayHtmlPath,
+    ).toBe("/tmp/gpay-statement-upload-1.html");
+    expect(
+      jsonOptionsFromMultipartBody(
+        { base_account: "assets:bank" },
+        "/tmp/gpay-statement-upload-2.html",
+      ).gpayHtmlPath,
+    ).toBe("/tmp/gpay-statement-upload-2.html");
+  });
+
   it("keeps blank distinct from a zero balance", () => {
     expect(
       optionsFromMultipartBody({

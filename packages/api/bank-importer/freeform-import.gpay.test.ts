@@ -1,0 +1,224 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { parsePlainDate } from "@sapporta/shared/temporal";
+import type { Abacus } from "./domain/Abacus.js";
+import type { Chrono } from "./domain/Chrono.js";
+import { parseAccount } from "./domain/Account.js";
+import { normalizeChronological } from "./balance-math.js";
+import type { DraftImportInput, ImportSummary } from "./draft-import.js";
+import type { StatementData } from "./parsers/freeform-text.js";
+
+// Stub the persistence tail so the test can inspect exactly what reaches it.
+// Everything before it (key assignment, balance validation, reconciliation
+// filtering, GPay enrichment) runs for real.
+const draftImportCalls: DraftImportInput[] = [];
+vi.mock("./draft-import.js", () => ({
+  runDraftImport: async (input: DraftImportInput): Promise<ImportSummary> => {
+    draftImportCalls.push(input);
+    return {
+      hledger_journal: "",
+      transaction_count: input.transactions.length,
+      skipped_reconciled_count: 0,
+      draft_transaction_count: input.transactions.length,
+      duplicate_count: 0,
+      draft_duplicate_count: 0,
+      journal_duplicate_count: 0,
+      legacy_match_count: 0,
+      backfilled_count: 0,
+      same_account_skips: [],
+      gpay_enriched_count: 0,
+    };
+  },
+}));
+
+const { runStatementImport } = await import("./freeform-import.js");
+type ImportOptions = Parameters<typeof runStatementImport>[1];
+
+const BASE_ACCOUNT = parseAccount("assets:bank:federal");
+
+// A Federal-style statement: printed per-row balances, narrations already
+// cleaned to bare VPAs, no source references, so identity is the semantic key.
+function statement(): StatementData {
+  const rows: Abacus[] = [
+    {
+      date: "2026-07-01",
+      narration: "sample-grocer@okaxis",
+      withdrawal: 500,
+      deposit: 0,
+      balance: 99500,
+    },
+    {
+      date: "2026-07-02",
+      narration: "q050505@ybl",
+      withdrawal: 1200,
+      deposit: 0,
+      balance: 98300,
+    },
+    {
+      date: "2026-07-03",
+      narration: "UPI IN/050505000007/sample-shop@okicici/sample/0000",
+      withdrawal: 0,
+      deposit: 75,
+      balance: 98375,
+    },
+  ];
+  return {
+    transactions: normalizeChronological(rows, "ascending"),
+    opening: null,
+    closing: null,
+  };
+}
+
+function options(gpayHtmlPath: string | null): ImportOptions {
+  return {
+    baseAccount: BASE_ACCOUNT,
+    accountKind: "bank",
+    balanceOverrides: { opening: null, closing: null },
+    customMappingsFilenames: [],
+    gpayHtmlPath,
+  };
+}
+
+function stubImportDb(checkpoint?: { date: string; balance: number }): any {
+  const chain: any = {
+    select: () => chain,
+    from: () => chain,
+    innerJoin: () => chain,
+    where: () => chain,
+    orderBy: () => chain,
+    limit: () => chain,
+    all: () => [],
+    get: () =>
+      checkpoint
+        ? {
+            date: parsePlainDate(checkpoint.date),
+            assertion: checkpoint.balance,
+          }
+        : undefined,
+    transaction: (run: (tx: any) => unknown) => run(chain),
+  };
+  return chain;
+}
+
+function takeout(dir: string, entries: string): string {
+  const file = path.join(dir, "takeout.html");
+  writeFileSync(file, entries);
+  return file;
+}
+
+function keysOf(transactions: Chrono<Abacus>): (string | null | undefined)[] {
+  return transactions.map((t) => t.source_transaction_key);
+}
+
+describe("Google Pay enrichment on the universal statement import", () => {
+  let dir: string;
+  let log: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), "dbu6-gpay-import-"));
+    draftImportCalls.length = 0;
+    log = vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    log.mockRestore();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("enriches narrations without changing source_transaction_key", async () => {
+    const html = takeout(
+      dir,
+      `<div>Paid ₹1,200.00 to sample Cafe using Bank Account</div>
+       <div>Jul 2, 2026, 9:15 AM</div>`,
+    );
+
+    await runStatementImport([statement()], options(null), stubImportDb());
+    const plain = draftImportCalls[0].transactions;
+
+    const result = await runStatementImport(
+      [statement()],
+      options(html),
+      stubImportDb(),
+    );
+    const enriched = draftImportCalls[1].transactions;
+
+    expect(enriched.map((t) => t.narration)).toEqual([
+      "sample-grocer@okaxis",
+      "sample Cafe | q050505@ybl",
+      "UPI IN/050505000007/sample-shop@okicici/sample/0000",
+    ]);
+    // Keys were assigned before enrichment, so both runs agree row for row
+    // even though the narration handed to categorization differs.
+    expect(keysOf(enriched)).toEqual(keysOf(plain));
+    expect(keysOf(plain).every((key) => key?.startsWith("semantic:"))).toBe(
+      true,
+    );
+    expect(draftImportCalls[1].preFiltered).toBe(true);
+    expect(result.gpay_enriched_count).toBe(1);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "[freeform-import] GPay takeout: 1 (date,amount) keys; enriched 1 of 3 narration(s)",
+      ),
+    );
+  });
+
+  it("reports zero enrichments and no narration change without a takeout", async () => {
+    const result = await runStatementImport(
+      [statement()],
+      options(null),
+      stubImportDb(),
+    );
+    expect(result.gpay_enriched_count).toBe(0);
+    expect(draftImportCalls[0].transactions.map((t) => t.narration)).toEqual([
+      "sample-grocer@okaxis",
+      "q050505@ybl",
+      "UPI IN/050505000007/sample-shop@okicici/sample/0000",
+    ]);
+  });
+
+  it("lets survivors claim activities that an already-reconciled row would otherwise consume", async () => {
+    // Two 500 withdrawals on consecutive days; the first is already
+    // reconciled. A single takeout activity dated on the reconciled day must
+    // still reach the surviving row via the +1-day settlement fallback,
+    // which only works because enrichment runs after the filter.
+    const rows: Abacus[] = [
+      {
+        date: "2026-07-01",
+        narration: "sample-grocer@okaxis",
+        withdrawal: 500,
+        deposit: 0,
+        balance: 99500,
+      },
+      {
+        date: "2026-07-02",
+        narration: "sample-bakery@okaxis",
+        withdrawal: 500,
+        deposit: 0,
+        balance: 99000,
+      },
+    ];
+    const part: StatementData = {
+      transactions: normalizeChronological(rows, "ascending"),
+      opening: null,
+      closing: null,
+    };
+    const html = takeout(
+      dir,
+      `<div>Sent ₹500.00 to sample Bakery</div>
+       <div>Jul 1, 2026, 6:00 PM</div>`,
+    );
+
+    const result = await runStatementImport(
+      [part],
+      options(html),
+      stubImportDb({ date: "2026-07-01", balance: 99500 }),
+    );
+
+    expect(draftImportCalls[0].transactions.map((t) => t.narration)).toEqual([
+      "sample Bakery | sample-bakery@okaxis",
+    ]);
+    expect(result.gpay_enriched_count).toBe(1);
+  });
+});

@@ -22,6 +22,7 @@ interface ImportResult {
   journal_duplicate_count: number;
   legacy_match_count: number;
   backfilled_count: number;
+  gpay_enriched_count: number;
   opening_balance: number | null;
   closing_balance_from_statement: number | null;
   custom_statement_parser_paths?: string[];
@@ -41,6 +42,7 @@ interface BalanceMetadata {
 export function ImportStatement() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const [gpayFile, setGpayFile] = useState<File | null>(null);
   const [baseAccountId, setBaseAccountId] = useState<string | null>(null);
   const [isCreditCard, setIsCreditCard] = useState(false);
   const [extractionTool, setExtractionTool] =
@@ -81,6 +83,7 @@ export function ImportStatement() {
 
     const form = new FormData();
     for (const f of files) form.append("files", f);
+    if (gpayFile) form.append("gpay", gpayFile);
     form.append("base_account", account.name);
     if (isCreditCard) form.append("is_credit_card", "true");
     form.append("extraction_tool", extractionTool);
@@ -172,7 +175,8 @@ export function ImportStatement() {
             <p>
               Upload a bank or credit card statement, then choose the account it
               belongs to. PDF, text, CSV, XLS, and Abacus JSON files are
-              supported.
+              supported. A Google Pay Takeout export can be attached to any
+              import to name the recipients of UPI payments.
             </p>
             <p>
               Imported transactions stay in Draft entries until you review their
@@ -228,6 +232,36 @@ export function ImportStatement() {
               ))}
             </ul>
           )}
+
+          <div className="space-y-1">
+            <label htmlFor="gpay-takeout-file" className="text-sm font-medium">
+              Google Pay Takeout (optional)
+            </label>
+            <input
+              id="gpay-takeout-file"
+              type="file"
+              accept=".html,.htm"
+              disabled={loading}
+              aria-describedby="gpay-takeout-help"
+              onChange={(e) => {
+                setGpayFile(e.target.files?.[0] ?? null);
+                setResult(null);
+                setError(null);
+              }}
+              className="block w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 file:cursor-pointer"
+            />
+            <p id="gpay-takeout-help" className="text-xs text-muted-foreground">
+              The Takeout HTML prefixes matching UPI withdrawals with the
+              recipient's name before categorization. It never changes which
+              transactions are treated as duplicates.
+            </p>
+            {gpayFile && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-mono">{gpayFile.name}</span> (
+                {Math.round(gpayFile.size / 1024)} KB)
+              </p>
+            )}
+          </div>
 
           <AccountImportInputs
             accounts={accounts}
@@ -486,6 +520,14 @@ function ImportResultPanel({
               {result.backfilled_count}
             </dd>
           </div>
+          {result.gpay_enriched_count > 0 && (
+            <div>
+              <dt className="text-muted-foreground">GPay enriched</dt>
+              <dd className="font-medium tabular-nums">
+                {result.gpay_enriched_count}
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
 

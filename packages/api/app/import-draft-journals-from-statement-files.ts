@@ -20,7 +20,7 @@ import {
   type ExtractedStatementSource,
 } from "../bank-importer/freeform-import.js";
 import { abacusJsonSchema } from "../bank-importer/domain/Abacus.js";
-import { withTempUploads } from "./upload-tmp.js";
+import { uploadedFile, withTempUpload, withTempUploads } from "./upload-tmp.js";
 import {
   argsFromMultipartBody,
   optionsFromMultipartBody,
@@ -633,121 +633,146 @@ api.register(
       ),
     );
 
-    if (kind === "json") {
-      return respondWithImportErrors(async () => {
-        const opts = jsonOptionsFromMultipartBody(body);
-        const jsonTexts = await Promise.all(files.map((f) => f.text()));
-        return runAbacusJsonImport(jsonTexts, opts, c.get("db"), auth);
-      });
-    }
-
-    const customParserPath = customParserPathFromBody(body);
-    const autoDetectParser = autoDetectStatementParserFromBody(body);
-    if (customParserPath !== null && autoDetectParser) {
-      return badRequest(
-        "custom_statement_parser_conflict",
-        "Choose either a preset parser or automatic parser detection, not both.",
+    // The optional Google Pay Takeout HTML rides along as its own `gpay`
+    // field. It is staged outside `withTempUploads` so it outlives the
+    // statement work dir, and it never joins `files`, which `classifyBatch`
+    // would otherwise reject as a mixed batch.
+    const gpay = uploadedFile(uploadedFiles, "gpay");
+    if (gpay) {
+      console.log(
+        `[statement-upload] Google Pay takeout attached: name=${JSON.stringify(gpay.name)}, size=${gpay.size}B`,
       );
     }
+    const runImport = async (gpayHtmlPath: string | null) => {
+      if (kind === "json") {
+        return respondWithImportErrors(async () => {
+          const opts = jsonOptionsFromMultipartBody(body, gpayHtmlPath);
+          const jsonTexts = await Promise.all(files.map((f) => f.text()));
+          return runAbacusJsonImport(jsonTexts, opts, c.get("db"), auth);
+        });
+      }
 
-    if (autoDetectParser) {
-      return respondWithImportErrors(() =>
-        withTempUploads(files, "statement-upload", async (_workDir, paths) => {
-          const detected = {
-            jsonTexts: [] as string[],
-            parserPaths: [] as string[],
-          };
-          for (const inputPath of paths) {
-            const candidates = await savedCustomStatementParserPaths(
-              path.extname(inputPath),
-            );
-            const one = await autoDetectCustomStatementParsers(candidates, [
-              inputPath,
-            ]);
-            detected.jsonTexts.push(...one.jsonTexts);
-            detected.parserPaths.push(...one.parserPaths);
-          }
-          const result = await runAbacusJsonImport(
-            detected.jsonTexts,
-            optionsFromMultipartBody(body),
-            c.get("db"),
-            auth,
-          );
-          return {
-            ...result,
-            custom_statement_parser_paths: detected.parserPaths,
-          };
-        }),
-      );
-    }
-
-    if (customParserPath !== null) {
-      const allowedParserPaths = await configuredCustomStatementParserPaths();
-      const resolvedParserPath = resolveAllowedCustomStatementParserPath(
-        customParserPath,
-        allowedParserPaths,
-      );
-      if (resolvedParserPath === null) {
+      const customParserPath = customParserPathFromBody(body);
+      const autoDetectParser = autoDetectStatementParserFromBody(body);
+      if (customParserPath !== null && autoDetectParser) {
         return badRequest(
-          "custom_statement_parser_not_allowed",
-          "The requested custom statement parser path is not declared in import presets.",
+          "custom_statement_parser_conflict",
+          "Choose either a preset parser or automatic parser detection, not both.",
         );
       }
-      return respondWithImportErrors(() =>
-        withTempUploads(files, "statement-upload", async (_workDir, paths) => {
-          const jsonTexts = await runCustomStatementParsers(
-            resolvedParserPath,
-            paths,
+
+      if (autoDetectParser) {
+        return respondWithImportErrors(() =>
+          withTempUploads(
+            files,
+            "statement-upload",
+            async (_workDir, paths) => {
+              const detected = {
+                jsonTexts: [] as string[],
+                parserPaths: [] as string[],
+              };
+              for (const inputPath of paths) {
+                const candidates = await savedCustomStatementParserPaths(
+                  path.extname(inputPath),
+                );
+                const one = await autoDetectCustomStatementParsers(candidates, [
+                  inputPath,
+                ]);
+                detected.jsonTexts.push(...one.jsonTexts);
+                detected.parserPaths.push(...one.parserPaths);
+              }
+              const result = await runAbacusJsonImport(
+                detected.jsonTexts,
+                optionsFromMultipartBody(body, gpayHtmlPath),
+                c.get("db"),
+                auth,
+              );
+              return {
+                ...result,
+                custom_statement_parser_paths: detected.parserPaths,
+              };
+            },
+          ),
+        );
+      }
+
+      if (customParserPath !== null) {
+        const allowedParserPaths = await configuredCustomStatementParserPaths();
+        const resolvedParserPath = resolveAllowedCustomStatementParserPath(
+          customParserPath,
+          allowedParserPaths,
+        );
+        if (resolvedParserPath === null) {
+          return badRequest(
+            "custom_statement_parser_not_allowed",
+            "The requested custom statement parser path is not declared in import presets.",
           );
-          const result = await runAbacusJsonImport(
-            jsonTexts,
-            optionsFromMultipartBody(body),
+        }
+        return respondWithImportErrors(() =>
+          withTempUploads(
+            files,
+            "statement-upload",
+            async (_workDir, paths) => {
+              const jsonTexts = await runCustomStatementParsers(
+                resolvedParserPath,
+                paths,
+              );
+              const result = await runAbacusJsonImport(
+                jsonTexts,
+                optionsFromMultipartBody(body, gpayHtmlPath),
+                c.get("db"),
+                auth,
+              );
+              return {
+                ...result,
+                custom_statement_parser_paths: paths.map(
+                  () => customParserPath,
+                ),
+              };
+            },
+          ),
+        );
+      }
+
+      const extractionTool = parseExtractionTool(body.extraction_tool);
+      console.log(
+        kind === "pdf"
+          ? `[statement-upload] parser path: PDF extraction (${extractionTool}) -> freeform importer`
+          : kind === "xls"
+            ? `[statement-upload] parser path: XLS worksheets converted to CSV -> freeform importer`
+            : `[statement-upload] parser path: uploaded text passed directly to freeform importer`,
+      );
+      return respondWithImportErrors(() =>
+        withTempUploads(files, "statement-upload", async (workDir, paths) => {
+          if (kind === "pdf") {
+            const sources = await extractPdfs(paths, workDir, extractionTool);
+            return runFreeformSourceImport(
+              sources,
+              optionsFromMultipartBody(body, gpayHtmlPath),
+              c.get("db"),
+              auth,
+            );
+          }
+          if (kind === "xls") {
+            const sources = await extractXlsStatements(paths);
+            return runFreeformSourceImport(
+              sources,
+              optionsFromMultipartBody(body, gpayHtmlPath),
+              c.get("db"),
+              auth,
+            );
+          }
+          return runFreeformImport(
+            argsFromMultipartBody(body, paths, gpayHtmlPath),
             c.get("db"),
             auth,
           );
-          return {
-            ...result,
-            custom_statement_parser_paths: paths.map(() => customParserPath),
-          };
         }),
       );
-    }
+    };
 
-    const extractionTool = parseExtractionTool(body.extraction_tool);
-    console.log(
-      kind === "pdf"
-        ? `[statement-upload] parser path: PDF extraction (${extractionTool}) -> freeform importer`
-        : kind === "xls"
-          ? `[statement-upload] parser path: XLS worksheets converted to CSV -> freeform importer`
-          : `[statement-upload] parser path: uploaded text passed directly to freeform importer`,
-    );
-    return respondWithImportErrors(() =>
-      withTempUploads(files, "statement-upload", async (workDir, paths) => {
-        if (kind === "pdf") {
-          const sources = await extractPdfs(paths, workDir, extractionTool);
-          return runFreeformSourceImport(
-            sources,
-            optionsFromMultipartBody(body),
-            c.get("db"),
-            auth,
-          );
-        }
-        if (kind === "xls") {
-          const sources = await extractXlsStatements(paths);
-          return runFreeformSourceImport(
-            sources,
-            optionsFromMultipartBody(body),
-            c.get("db"),
-            auth,
-          );
-        }
-        return runFreeformImport(
-          argsFromMultipartBody(body, paths),
-          c.get("db"),
-          auth,
-        );
-      }),
-    );
+    if (gpay === null) return runImport(null);
+    return withTempUpload(gpay, "gpay-statement-upload", ".html", runImport);
   },
 );
 

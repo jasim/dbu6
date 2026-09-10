@@ -2,8 +2,9 @@ import { readFile } from "node:fs/promises";
 import { userConfigDir } from "../user-data.js";
 import type { Account } from "./domain/Account.js";
 import type { Abacus } from "./domain/Abacus.js";
-import type { Chrono } from "./domain/Chrono.js";
+import { unsafeAsChrono, type Chrono } from "./domain/Chrono.js";
 import { validateTransactions } from "./domain/Abacus.js";
+import { enrichWithGPayHtml } from "./domain/GPayIndex.js";
 import {
   extractStatementData,
   type StatementData,
@@ -61,6 +62,11 @@ export interface ImportOptions {
   accountKind: AccountKind;
   balanceOverrides: BalanceOverrides;
   customMappingsFilenames: string[];
+  // Path to a staged Google Pay Takeout HTML export. When set, withdrawals
+  // that survive the reconciliation filter get their narration prefixed with
+  // the GPay recipient before categorization. Applied after transaction keys
+  // are assigned, so the takeout never changes transaction identity.
+  gpayHtmlPath?: string | null;
 }
 
 export interface FreeformImportArgs extends ImportOptions {
@@ -471,9 +477,24 @@ export async function runStatementImport(
     );
   }
 
-  if (survivors.length > 0) {
+  // GPay enrichment runs here on purpose: after `assignSourceTransactionKeys`
+  // (so every survivor already carries its key and the takeout cannot change
+  // identity) and after the reconciliation filter (so already-reconciled rows
+  // do not consume activities a live row with the same date/amount needs).
+  let importable = survivors;
+  let gpayEnrichedCount = 0;
+  if (opts.gpayHtmlPath && survivors.length > 0) {
+    const enrichment = enrichWithGPayHtml(survivors, opts.gpayHtmlPath);
+    importable = unsafeAsChrono(enrichment.enriched);
+    gpayEnrichedCount = enrichment.matchCount;
     console.log(
-      `[freeform-import] handing ${survivors.length} validated transactions to draft-import`,
+      `[freeform-import] GPay takeout: ${enrichment.indexSize} (date,amount) keys; enriched ${gpayEnrichedCount} of ${survivors.length} narration(s)`,
+    );
+  }
+
+  if (importable.length > 0) {
+    console.log(
+      `[freeform-import] handing ${importable.length} validated transactions to draft-import`,
     );
   } else {
     console.log(
@@ -483,7 +504,7 @@ export async function runStatementImport(
 
   const summary = await runDraftImport({
     baseAccount: opts.baseAccount,
-    transactions: survivors,
+    transactions: importable,
     preFiltered: true,
     rawTransactionCount: withBalances.length,
     categorizationConfig: {
@@ -501,6 +522,7 @@ export async function runStatementImport(
   );
   return {
     ...summary,
+    gpay_enriched_count: gpayEnrichedCount,
     opening_balance: resolvedOpening.value,
     closing_balance_from_statement: closing,
     balance_metadata: {

@@ -116,8 +116,11 @@ function importErrorResponse(
   }
 }
 
+// `gpayHtmlPath` is the temp path of an already-staged Google Pay Takeout
+// HTML upload, produced by the route handler rather than read from `body`.
 export function optionsFromMultipartBody(
   body: Record<string, unknown>,
+  gpayHtmlPath: string | null = null,
 ): ImportOptions {
   if (typeof body.base_account !== "string" || body.base_account.length === 0) {
     throw new MultipartFieldMissingError("base_account");
@@ -141,23 +144,26 @@ export function optionsFromMultipartBody(
       typeof mappingsStr === "string" && mappingsStr !== ""
         ? mappingsStr.split(",").map((s: string) => s.trim())
         : [],
+    gpayHtmlPath,
   };
 }
 
 export function argsFromMultipartBody(
   body: Record<string, unknown>,
   filePaths: string[],
+  gpayHtmlPath: string | null = null,
 ): FreeformImportArgs {
   return {
-    ...optionsFromMultipartBody(body),
+    ...optionsFromMultipartBody(body, gpayHtmlPath),
     filePaths,
   };
 }
 
 export function jsonOptionsFromMultipartBody(
   body: Record<string, unknown>,
+  gpayHtmlPath: string | null = null,
 ): ImportOptions {
-  return optionsFromMultipartBody(body);
+  return optionsFromMultipartBody(body, gpayHtmlPath);
 }
 
 export function respondWithImportErrors<T>(

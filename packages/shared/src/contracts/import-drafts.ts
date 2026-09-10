@@ -89,7 +89,8 @@ export const importDraftsContract = c.router({
   uploadStatementBatch: c.mutation({
     method: "POST",
     path: "/import-draft/statement/upload",
-    summary: "Upload statement files and import draft transactions",
+    summary:
+      "Upload statement files (optionally with a Google Pay Takeout HTML as `gpay` to enrich UPI narrations) and import draft transactions",
     contentType: "multipart/form-data",
     body: z.any(),
     responses: {

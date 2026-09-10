@@ -1,0 +1,536 @@
+#!/usr/bin/env -S uv run --quiet
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["xlrd==2.0.2"]
+# ///
+from __future__ import annotations
+
+"""Federal Bank savings account statement XLS -> Abacus JSON.
+
+Usage: uv run parser.py <OpTransactionHistoryTprDD-MM-YYYY.xls>
+Writes <statement-basename>.abacus.json next to the input.
+
+The FedNet "Operative account transaction history" download is a genuine
+BIFF8 workbook with one sheet, ten columns, an eight-row name/address block,
+an account row, a statement-date row, a header row, the transactions, and a
+one-line footer. Every structural anchor below is enforced so that a
+different layout (including the HDFC bank and credit-card XLS exports) is
+rejected rather than misread.
+"""
+
+import json
+import re
+import sys
+from datetime import date
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from typing import Any, Optional
+
+import xlrd
+
+
+OLE_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
+SHEET_NAME = "OpTransactionHistoryTpr"
+EXPECTED_COLUMN_COUNT = 10  # A:J
+
+LETTERHEAD_TITLE = "Name and address of the account holder:"
+LETTERHEAD_LAST_ROW = 7  # zero-based; rows 0..7 are the name/address block
+ACCOUNT_ROW = 8  # Excel row 9
+STATEMENT_DATE_ROW = 9  # Excel row 10
+HEADER_ROW = 10  # Excel row 11
+TRANSACTION_START_ROW = 11  # Excel row 12
+
+(
+    COL_SERIAL,
+    COL_DATE,
+    COL_PARTICULARS,
+    COL_PARTICULARS_SPILL,  # merged with Particulars, always blank
+    COL_VALUE_DATE,
+    COL_TRAN_TYPE,
+    COL_CHEQUE,
+    COL_WITHDRAWAL,
+    COL_DEPOSIT,
+    COL_BALANCE,
+) = range(10)
+
+HEADER = {
+    COL_SERIAL: "Sl. No.",
+    COL_DATE: "Tran Date",
+    COL_PARTICULARS: "Particulars",
+    COL_VALUE_DATE: "Value Date",
+    COL_TRAN_TYPE: "Tran Type",
+    COL_CHEQUE: "Cheque Details",
+    COL_WITHDRAWAL: "Withdrawal",
+    COL_DEPOSIT: "Deposit",
+    COL_BALANCE: "Balance Amount",
+}
+ACCOUNT_LABELS = {
+    0: "Account No :",
+    3: "CustomerId:",
+    5: "Account Currency:",
+    7: "Account Category:",
+}
+ACCOUNT_DIGIT_COLUMNS = {2: "account number", 4: "customer id", 8: "account category"}
+ACCOUNT_CURRENCY_COLUMN = 6
+STATEMENT_DATE_LABEL_COLUMN = 7
+STATEMENT_DATE_VALUE_COLUMN = 8
+FOOTER_PREFIX = "This is a computer generated statement"
+
+DIGITS_RE = re.compile(r"^[0-9]+$")
+ROW_DATE_RE = re.compile(r"^(?P<d>[0-9]{2})-(?P<m>[0-9]{2})-(?P<y>[0-9]{4})$")
+STATEMENT_DATE_RE = re.compile(
+    r"^(?P<d>[0-9]{2})-(?P<m>[0-9]{2})-(?P<y>[0-9]{4}) [0-9]{2}:[0-9]{2}:[0-9]{2}$"
+)
+MONEY_TEXT_RE = re.compile(
+    r"^-?(?:0|[1-9][0-9]*|[1-9][0-9]{0,2}(?:,[0-9]{3})+|"
+    r"[1-9][0-9]?(?:,[0-9]{2})*,[0-9]{3})\.[0-9]{2}$"
+)
+CENT = Decimal("0.01")
+
+
+def excel_location(row: int, column: int) -> str:
+    """Return a compact A1-style location for zero-based row/column indexes."""
+    letters = ""
+    number = column + 1
+    while number:
+        number, remainder = divmod(number - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return f"{letters}{row + 1}"
+
+
+def cell_value(sheet: xlrd.sheet.Sheet, row: int, column: int) -> Any:
+    if row >= sheet.nrows or column >= sheet.ncols:
+        return ""
+    return sheet.cell_value(row, column)
+
+
+def is_blank(value: Any) -> bool:
+    return value == "" or value is None
+
+
+def row_is_blank(sheet: xlrd.sheet.Sheet, row: int) -> bool:
+    return all(is_blank(cell_value(sheet, row, column)) for column in range(sheet.ncols))
+
+
+def populated_columns(sheet: xlrd.sheet.Sheet, row: int) -> set[int]:
+    return {
+        column
+        for column in range(sheet.ncols)
+        if not is_blank(cell_value(sheet, row, column))
+    }
+
+
+def require_text(sheet: xlrd.sheet.Sheet, row: int, column: int, expected: str) -> None:
+    actual = cell_value(sheet, row, column)
+    if actual != expected:
+        raise ValueError(
+            f"{excel_location(row, column)}: fingerprint mismatch; "
+            f"expected {expected!r}, got {actual!r}"
+        )
+
+
+def require_digits(sheet: xlrd.sheet.Sheet, row: int, column: int, what: str) -> None:
+    value = cell_value(sheet, row, column)
+    if not isinstance(value, str) or not DIGITS_RE.fullmatch(value):
+        raise ValueError(
+            f"{excel_location(row, column)}: fingerprint mismatch; "
+            f"expected the {what} as a digit string, got {value!r}"
+        )
+
+
+def only_columns(sheet: xlrd.sheet.Sheet, row: int, allowed: set[int], what: str) -> None:
+    unexpected = populated_columns(sheet, row) - allowed
+    if unexpected:
+        cells = ", ".join(excel_location(row, column) for column in sorted(unexpected))
+        raise ValueError(f"row {row + 1}: unexpected populated cell(s) in {what}: {cells}")
+
+
+def parse_money(value: Any, *, location: str, field: str, allow_negative: bool) -> Decimal:
+    """Accept the formatted money text the export prints, or a numeric cell."""
+    if isinstance(value, bool):
+        raise ValueError(f"{location}: invalid {field} amount {value!r}")
+    if isinstance(value, (int, float)):
+        amount = Decimal(repr(value))
+    elif isinstance(value, str) and MONEY_TEXT_RE.fullmatch(value):
+        try:
+            amount = Decimal(value.replace(",", ""))
+        except InvalidOperation as exc:
+            raise ValueError(f"{location}: invalid {field} amount {value!r}") from exc
+    else:
+        raise ValueError(
+            f"{location}: invalid {field} amount {value!r}; expected a formatted "
+            "amount with exactly two decimal places or a number"
+        )
+    if amount != amount.quantize(CENT):
+        raise ValueError(
+            f"{location}: {field} amount {value!r} has more than two decimal places"
+        )
+    if amount < 0 and not allow_negative:
+        raise ValueError(f"{location}: negative {field} amount {value!r}")
+    return amount.quantize(CENT)
+
+
+def parse_row_date(value: Any, *, location: str, field: str) -> date:
+    """Parse the dd-mm-yyyy transaction-table dates."""
+    if not isinstance(value, str):
+        raise ValueError(f"{location}: invalid {field} {value!r}; expected dd-mm-yyyy text")
+    match = ROW_DATE_RE.fullmatch(value)
+    if not match:
+        raise ValueError(f"{location}: invalid {field} {value!r}; expected dd-mm-yyyy")
+    try:
+        return date(int(match.group("y")), int(match.group("m")), int(match.group("d")))
+    except ValueError as exc:
+        raise ValueError(f"{location}: invalid {field} {value!r}: {exc}") from exc
+
+
+def parse_serial(value: Any, *, location: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{location}: invalid Sl. No. {value!r}; expected a number")
+    if value != int(value) or value < 1:
+        raise ValueError(f"{location}: invalid Sl. No. {value!r}; expected a positive whole number")
+    return int(value)
+
+
+def clean_narration(particulars: str, is_withdrawal: bool) -> str:
+    """Reproduce the retired TypeScript parser's `cleanNarration` byte for byte.
+
+    Withdrawals whose Particulars start with `UPIOUT` are reduced to the third
+    slash-delimited field (the payee VPA). Deposits and every other narration
+    are kept verbatim. The importer's semantic transaction key and the user's
+    `exact` mappings both hash/match this text, so changing it would make every
+    previously imported Federal row re-import as a new draft. See fingerprint.md.
+    """
+    if is_withdrawal and particulars.startswith("UPIOUT"):
+        parts = particulars.split("/")
+        if len(parts) >= 3:
+            return parts[2]
+    return particulars
+
+
+def validate_workbook_fingerprint(book: xlrd.book.Book) -> xlrd.sheet.Sheet:
+    if book.biff_version != 80:
+        raise ValueError(
+            f"expected an Excel 97-2003 BIFF8 workbook, got BIFF {book.biff_version}"
+        )
+    if book.nsheets != 1 or book.sheet_names() != [SHEET_NAME]:
+        raise ValueError(
+            f"expected exactly one worksheet named {SHEET_NAME!r}, got "
+            f"{book.sheet_names()!r}; fingerprint mismatch"
+        )
+    sheet = book.sheet_by_index(0)
+    if sheet.ncols != EXPECTED_COLUMN_COUNT:
+        raise ValueError(
+            f"expected exactly {EXPECTED_COLUMN_COUNT} populated columns (A:J), "
+            f"got {sheet.ncols}; fingerprint mismatch"
+        )
+    if sheet.nrows <= TRANSACTION_START_ROW:
+        raise ValueError(
+            f"expected at least {TRANSACTION_START_ROW + 1} rows, got {sheet.nrows}; "
+            "fingerprint mismatch"
+        )
+    return sheet
+
+
+def parse_letterhead(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
+    """Validate the name/address block, the account row, and the statement-date row."""
+    require_text(sheet, 0, 0, LETTERHEAD_TITLE)
+    for row in range(0, LETTERHEAD_LAST_ROW + 1):
+        only_columns(sheet, row, {0}, "the account holder name/address block")
+        value = cell_value(sheet, row, 0)
+        if not isinstance(value, str) or not value:
+            raise ValueError(
+                f"{excel_location(row, 0)}: expected account holder text, got {value!r}"
+            )
+
+    only_columns(
+        sheet,
+        ACCOUNT_ROW,
+        set(ACCOUNT_LABELS) | set(ACCOUNT_DIGIT_COLUMNS) | {ACCOUNT_CURRENCY_COLUMN},
+        "the account row",
+    )
+    for column, expected in ACCOUNT_LABELS.items():
+        require_text(sheet, ACCOUNT_ROW, column, expected)
+    for column, what in ACCOUNT_DIGIT_COLUMNS.items():
+        require_digits(sheet, ACCOUNT_ROW, column, what)
+    require_text(sheet, ACCOUNT_ROW, ACCOUNT_CURRENCY_COLUMN, "INR")
+
+    # A10:G10 describe the period the user selected in FedNet ("Last" / "One"
+    # / "Month Transactions" in the tested export) and are not anchored beyond
+    # being text; H10:I10 are the statement timestamp.
+    only_columns(
+        sheet,
+        STATEMENT_DATE_ROW,
+        set(range(STATEMENT_DATE_LABEL_COLUMN)) | {STATEMENT_DATE_LABEL_COLUMN, STATEMENT_DATE_VALUE_COLUMN},
+        "the statement date row",
+    )
+    for column in range(STATEMENT_DATE_LABEL_COLUMN):
+        value = cell_value(sheet, STATEMENT_DATE_ROW, column)
+        if not is_blank(value) and not isinstance(value, str):
+            raise ValueError(
+                f"{excel_location(STATEMENT_DATE_ROW, column)}: expected period text, got {value!r}"
+            )
+    require_text(sheet, STATEMENT_DATE_ROW, STATEMENT_DATE_LABEL_COLUMN, "Statement Date:")
+    stamp = cell_value(sheet, STATEMENT_DATE_ROW, STATEMENT_DATE_VALUE_COLUMN)
+    location = excel_location(STATEMENT_DATE_ROW, STATEMENT_DATE_VALUE_COLUMN)
+    match = STATEMENT_DATE_RE.fullmatch(stamp) if isinstance(stamp, str) else None
+    if not match:
+        raise ValueError(
+            f"{location}: invalid statement date {stamp!r}; expected dd-mm-yyyy HH:MM:SS"
+        )
+    try:
+        statement_date = date(int(match.group("y")), int(match.group("m")), int(match.group("d")))
+    except ValueError as exc:
+        raise ValueError(f"{location}: invalid statement date {stamp!r}: {exc}") from exc
+    return {"statement_date": statement_date}
+
+
+def validate_header(sheet: xlrd.sheet.Sheet) -> None:
+    only_columns(sheet, HEADER_ROW, set(HEADER), "the header row")
+    for column, expected in HEADER.items():
+        require_text(sheet, HEADER_ROW, column, expected)
+
+
+def is_footer_row(sheet: xlrd.sheet.Sheet, row: int) -> bool:
+    value = cell_value(sheet, row, 0)
+    return isinstance(value, str) and value.startswith(FOOTER_PREFIX)
+
+
+def parse_transaction(
+    sheet: xlrd.sheet.Sheet, row: int, expected_serial: int, previous_date: Optional[date]
+) -> dict[str, Any]:
+    only_columns(sheet, row, set(range(EXPECTED_COLUMN_COUNT)) - {COL_PARTICULARS_SPILL}, "a transaction")
+    columns = populated_columns(sheet, row)
+    required = {COL_SERIAL, COL_DATE, COL_PARTICULARS, COL_VALUE_DATE, COL_TRAN_TYPE, COL_BALANCE}
+    missing = required - columns
+    if missing:
+        cells = ", ".join(excel_location(row, column) for column in sorted(missing))
+        raise ValueError(f"row {row + 1}: transaction is missing required cell(s): {cells}")
+
+    serial = parse_serial(
+        cell_value(sheet, row, COL_SERIAL), location=excel_location(row, COL_SERIAL)
+    )
+    if serial != expected_serial:
+        raise ValueError(
+            f"{excel_location(row, COL_SERIAL)}: Sl. No. {serial} out of sequence; "
+            f"expected {expected_serial}"
+        )
+    transaction_date = parse_row_date(
+        cell_value(sheet, row, COL_DATE),
+        location=excel_location(row, COL_DATE),
+        field="Tran Date",
+    )
+    if previous_date is not None and transaction_date < previous_date:
+        raise ValueError(
+            f"{excel_location(row, COL_DATE)}: transaction dates are not oldest-first "
+            f"({transaction_date.isoformat()} after {previous_date.isoformat()})"
+        )
+    particulars = cell_value(sheet, row, COL_PARTICULARS)
+    if not isinstance(particulars, str) or not particulars.strip():
+        raise ValueError(f"{excel_location(row, COL_PARTICULARS)}: empty Particulars")
+    parse_row_date(
+        cell_value(sheet, row, COL_VALUE_DATE),
+        location=excel_location(row, COL_VALUE_DATE),
+        field="Value Date",
+    )
+    tran_type = cell_value(sheet, row, COL_TRAN_TYPE)
+    if not isinstance(tran_type, str) or not tran_type.strip():
+        raise ValueError(f"{excel_location(row, COL_TRAN_TYPE)}: empty Tran Type")
+    cheque = cell_value(sheet, row, COL_CHEQUE)
+    if not is_blank(cheque) and not isinstance(cheque, (str, int, float)):
+        raise ValueError(
+            f"{excel_location(row, COL_CHEQUE)}: expected Cheque Details text, got {cheque!r}"
+        )
+
+    withdrawal_cell = cell_value(sheet, row, COL_WITHDRAWAL)
+    deposit_cell = cell_value(sheet, row, COL_DEPOSIT)
+    withdrawal = (
+        Decimal("0.00")
+        if is_blank(withdrawal_cell)
+        else parse_money(
+            withdrawal_cell,
+            location=excel_location(row, COL_WITHDRAWAL),
+            field="Withdrawal",
+            allow_negative=False,
+        )
+    )
+    deposit = (
+        Decimal("0.00")
+        if is_blank(deposit_cell)
+        else parse_money(
+            deposit_cell,
+            location=excel_location(row, COL_DEPOSIT),
+            field="Deposit",
+            allow_negative=False,
+        )
+    )
+    if (withdrawal > 0) == (deposit > 0):
+        raise ValueError(
+            f"row {row + 1}: expected exactly one positive amount across "
+            f"Withdrawal / Deposit, got ({withdrawal_cell!r}, {deposit_cell!r})"
+        )
+
+    # A bank account may legitimately print a negative balance (overdraft);
+    # that is a real asset balance below zero, not a credit-card convention.
+    balance = parse_money(
+        cell_value(sheet, row, COL_BALANCE),
+        location=excel_location(row, COL_BALANCE),
+        field="Balance Amount",
+        allow_negative=True,
+    )
+    narration = clean_narration(particulars.strip(), withdrawal > 0)
+    if not narration:
+        raise ValueError(
+            f"{excel_location(row, COL_PARTICULARS)}: Particulars {particulars!r} "
+            "cleans to an empty narration"
+        )
+    return {
+        "source_row": row + 1,
+        "date": transaction_date,
+        "narration": narration,
+        "withdrawal": withdrawal,
+        "deposit": deposit,
+        "balance": balance,
+    }
+
+
+def parse_transactions(sheet: xlrd.sheet.Sheet) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    row = TRANSACTION_START_ROW
+    previous_date: Optional[date] = None
+    while row < sheet.nrows and not is_footer_row(sheet, row):
+        transaction = parse_transaction(sheet, row, len(rows) + 1, previous_date)
+        previous_date = transaction["date"]
+        rows.append(transaction)
+        row += 1
+    if not rows:
+        raise ValueError(f"row {TRANSACTION_START_ROW + 1}: no transaction rows found")
+    if row >= sheet.nrows:
+        raise ValueError(
+            f"expected the {FOOTER_PREFIX!r} footer after the last transaction; "
+            "sheet ends early"
+        )
+    only_columns(sheet, row, {0}, "the footer row")
+    trailing = [r for r in range(row + 1, sheet.nrows) if not row_is_blank(sheet, r)]
+    if trailing:
+        raise ValueError(
+            f"row {trailing[0] + 1}: unexpected populated row after the footer; "
+            "fingerprint mismatch"
+        )
+    return rows
+
+
+def parse_workbook(book: xlrd.book.Book) -> dict[str, Any]:
+    sheet = validate_workbook_fingerprint(book)
+    letterhead = parse_letterhead(sheet)
+    validate_header(sheet)
+    rows = parse_transactions(sheet)
+    return {"letterhead": letterhead, "rows": rows}
+
+
+def parse_bytes(data: bytes) -> dict[str, Any]:
+    if data[: len(OLE_MAGIC)] != OLE_MAGIC:
+        raise ValueError("expected an OLE Compound File / BIFF8 .xls workbook")
+    book = xlrd.open_workbook(file_contents=data, on_demand=False)
+    try:
+        return parse_workbook(book)
+    finally:
+        book.release_resources()
+
+
+def parse(path: Path) -> dict[str, Any]:
+    if path.suffix.lower() != ".xls":
+        raise ValueError("expected a .xls input file")
+    if not path.is_file():
+        raise ValueError(f"input is not a file: {path}")
+    return parse_bytes(path.read_bytes())
+
+
+def validate(statement: dict[str, Any]) -> dict[str, Any]:
+    """Cross-check every printed running balance against the previous row."""
+    rows = statement["rows"]
+    first = rows[0]
+    # The export prints no opening balance; the one implied by the first row
+    # is reported for the audit line only and is never emitted.
+    implied_opening = first["balance"] - first["deposit"] + first["withdrawal"]
+    running = first["balance"]
+    for row in rows[1:]:
+        running = running + row["deposit"] - row["withdrawal"]
+        if running != row["balance"]:
+            raise ValueError(
+                f"row {row['source_row']}: running balance mismatch; walked "
+                f"{running:.2f} but the statement prints {row['balance']:.2f}"
+            )
+
+    withdrawals = sum((row["withdrawal"] for row in rows), Decimal("0.00"))
+    deposits = sum((row["deposit"] for row in rows), Decimal("0.00"))
+    return {
+        "row_count": len(rows),
+        "deposit_total": deposits,
+        "withdrawal_total": withdrawals,
+        "implied_opening": implied_opening,
+        "closing": rows[-1]["balance"],
+        "running_balance_checks": len(rows) - 1,
+        "statement_date": statement["letterhead"]["statement_date"],
+    }
+
+
+def json_number(value: Decimal) -> float:
+    return float(value)
+
+
+def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "kind": "abacus",
+        # The export labels neither an opening nor a closing balance. Per-row
+        # balances give the importer a `per-row` closing; nothing is derived.
+        "opening": None,
+        "closing": None,
+        "rows": [
+            {
+                "date": row["date"].isoformat(),
+                "narration": row["narration"],
+                "withdrawal": json_number(row["withdrawal"]),
+                "deposit": json_number(row["deposit"]),
+                "balance": json_number(row["balance"]),
+                # The UPI reference inside Particulars is deliberately not
+                # emitted: a source_reference would switch the importer's
+                # transaction identity from the narration-based semantic key
+                # to a reference-based key, and every previously imported
+                # Federal row would re-import as a new draft. See fingerprint.md.
+                "source_reference": None,
+            }
+            for row in statement["rows"]
+        ],
+    }
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        print(f"usage: {sys.argv[0]} <statement.xls>", file=sys.stderr)
+        sys.exit(2)
+
+    source = Path(sys.argv[1]).resolve()
+    try:
+        statement = parse(source)
+        audit = validate(statement)
+        output = to_abacus(statement)
+    except (OSError, UnicodeError, ValueError, xlrd.XLRDError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    destination = source.with_suffix(".abacus.json")
+    destination.write_text(
+        json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(
+        f"wrote {destination} ({audit['row_count']} rows; "
+        f"statement_date={audit['statement_date'].isoformat()}; "
+        f"deposits={audit['deposit_total']:.2f}; "
+        f"withdrawals={audit['withdrawal_total']:.2f}; "
+        f"implied_opening={audit['implied_opening']:.2f}; closing={audit['closing']:.2f}; "
+        f"running_balance_checks={audit['running_balance_checks']})"
+    )
+
+
+if __name__ == "__main__":
+    main()

@@ -28,7 +28,7 @@ export interface HtmlEnrichmentResult extends EnrichmentResult {
 }
 
 export function enrichWithGPayHtml(
-  txns: Abacus[],
+  txns: readonly Abacus[],
   htmlPath: string,
 ): HtmlEnrichmentResult {
   const idx = parseGPayHtml(htmlPath);
@@ -36,7 +36,7 @@ export function enrichWithGPayHtml(
 }
 
 export function enrichWithGPay(
-  txns: Abacus[],
+  txns: readonly Abacus[],
   idx: GPayIndex,
 ): EnrichmentResult {
   const available = new Map(
@@ -87,7 +87,7 @@ export function enrichWithGPay(
 }
 
 function groupUnassignedTransactions(
-  txns: Abacus[],
+  txns: readonly Abacus[],
   assigned: Set<number>,
   delta: number,
 ): Map<string, number[]> {
@@ -106,7 +106,7 @@ function groupUnassignedTransactions(
 }
 
 function chooseAssignment(
-  txns: Abacus[],
+  txns: readonly Abacus[],
   transactionIndexes: number[],
   recipients: string[],
 ): { transactionPosition: number; recipientPosition: number } {
