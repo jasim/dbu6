@@ -46,6 +46,7 @@ class ParserTests(unittest.TestCase):
         output = PARSER.to_abacus(statement)
 
         self.assertEqual(audit["row_count"], 8)
+        self.assertEqual(audit["referenced_count"], 6)
         self.assertEqual(audit["running_balance_checks"], 8)
         self.assertEqual(audit["deposit_total"], Decimal("31062"))
         self.assertEqual(audit["withdrawal_total"], Decimal("35283"))
@@ -64,12 +65,31 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(first["withdrawal"], 20000.0)
         self.assertEqual(first["deposit"], 0.0)
         self.assertEqual(first["balance"], 80000.0)
-        self.assertIsNone(first["source_reference"])
-        # Interest rows dated on the 1st of the next month keep their posting date.
+        self.assertEqual(first["source_reference"], "050505050505ABCD")
+        self.assertEqual(output["rows"][2]["source_reference"], "FDRLR050505050505050505")
+        # Interest rows dated on the 1st of the next month keep their posting
+        # date, and their all-zero Chq./Ref.No. placeholder is not a reference.
         self.assertEqual(output["rows"][-1]["date"], "2026-08-01")
         self.assertEqual(output["rows"][-1]["narration"], "INTEREST DEBITED TILL 31-JUL-2026")
+        self.assertEqual(
+            [row["source_reference"] is None for row in output["rows"]],
+            [False, False, False, False, False, False, True, True],
+        )
         self.assertTrue(all(row["balance"] is not None for row in output["rows"]))
-        self.assertTrue(all(row["source_reference"] is None for row in output["rows"]))
+
+    def test_reference_placeholders_and_blanks_yield_none(self) -> None:
+        import xlrd
+
+        parse = PARSER.parse_reference
+        self.assertEqual(parse("050505050505ABCD", xlrd.XL_CELL_TEXT, location="C23"), "050505050505ABCD")
+        self.assertEqual(parse(" 0505050505050505 ", xlrd.XL_CELL_TEXT, location="C23"), "0505050505050505")
+        self.assertEqual(parse(505050505.0, xlrd.XL_CELL_NUMBER, location="C23"), "505050505")
+        self.assertIsNone(parse("000000000000000", xlrd.XL_CELL_TEXT, location="C23"))
+        self.assertIsNone(parse("", xlrd.XL_CELL_EMPTY, location="C23"))
+        with self.assertRaisesRegex(ValueError, "expected Chq./Ref.No. text"):
+            parse(True, xlrd.XL_CELL_BOOLEAN, location="C23")
+        with self.assertRaisesRegex(ValueError, "expected a whole number"):
+            parse(5.5, xlrd.XL_CELL_NUMBER, location="C23")
 
     def test_generator_reproduces_the_committed_fixture(self) -> None:
         generated = FIXTURE.workbook_bytes(FIXTURE.sample_rows())

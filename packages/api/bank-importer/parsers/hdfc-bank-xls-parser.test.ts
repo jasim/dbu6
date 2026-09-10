@@ -63,6 +63,11 @@ describe("HDFC Bank statement XLS parser", () => {
         withdrawal: 20000,
         deposit: 0,
         balance: 80000,
+        source_reference: "050505050505ABCD",
+      });
+      // Interest rows carry an all-zero placeholder, not a reference.
+      expect(output.rows[7]).toMatchObject({
+        narration: "INTEREST DEBITED TILL 31-JUL-2026",
         source_reference: null,
       });
       expect(

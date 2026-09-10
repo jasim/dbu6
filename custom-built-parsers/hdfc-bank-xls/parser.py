@@ -69,6 +69,9 @@ ACCOUNT_NUMBER_RE = re.compile(r"^Account No :[0-9]{9,20}\b")
 IFSC_RE = re.compile(r"^RTGS/NEFT IFSC :HDFC0[0-9A-Z]{6}\b")
 CURRENCY_RE = re.compile(r"\bCurrency :INR$")
 ASTERISKS_RE = re.compile(r"^\*+$")
+# Interest rows carry an all-zero Chq./Ref.No. placeholder instead of a real
+# reference; it must not become a shared source_reference.
+PLACEHOLDER_REFERENCE_RE = re.compile(r"^0+$")
 ROW_DATE_RE = re.compile(r"^(?P<d>[0-9]{2})/(?P<m>[0-9]{2})/(?P<y>[0-9]{2})$")
 MONEY_TEXT_RE = re.compile(
     r"^-?(?:0|[1-9][0-9]*|[1-9][0-9]{0,2}(?:,[0-9]{3})+|"
@@ -203,6 +206,27 @@ def parse_long_date(value: str, *, location: str, field: str) -> date:
         raise ValueError(f"{location}: invalid {field} {value!r}: {exc}") from exc
 
 
+def parse_reference(value: Any, cell_kind: int, *, location: str) -> Optional[str]:
+    """Return the Chq./Ref.No. as the bank reference, or None for a placeholder.
+
+    Real rows carry a 16-character (RTGS: 22-character) reference; interest
+    rows print an all-zero placeholder, and a blank cell is tolerated. Both
+    yield None so the importer falls back to its narration-based identity.
+    """
+    if is_blank(value):
+        return None
+    if cell_kind == xlrd.XL_CELL_NUMBER and not isinstance(value, bool):
+        if value != int(value):
+            raise ValueError(f"{location}: invalid Chq./Ref.No. {value!r}; expected a whole number")
+        value = str(int(value))
+    if cell_kind not in (xlrd.XL_CELL_TEXT, xlrd.XL_CELL_NUMBER) or not isinstance(value, str):
+        raise ValueError(f"{location}: expected Chq./Ref.No. text, got {value!r}")
+    reference = value.strip()
+    if not reference or PLACEHOLDER_REFERENCE_RE.fullmatch(reference):
+        return None
+    return reference
+
+
 def parse_count(value: Any, *, location: str, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{location}: invalid {field} {value!r}; expected a number")
@@ -314,14 +338,11 @@ def parse_transaction(
     narration = cell_value(sheet, row, COL_NARRATION)
     if not isinstance(narration, str) or not narration.strip():
         raise ValueError(f"{excel_location(row, COL_NARRATION)}: empty Narration")
-    reference = cell_value(sheet, row, COL_REF)
-    if not is_blank(reference) and cell_type(sheet, row, COL_REF) not in (
-        xlrd.XL_CELL_TEXT,
-        xlrd.XL_CELL_NUMBER,
-    ):
-        raise ValueError(
-            f"{excel_location(row, COL_REF)}: expected Chq./Ref.No. text, got {reference!r}"
-        )
+    reference = parse_reference(
+        cell_value(sheet, row, COL_REF),
+        cell_type(sheet, row, COL_REF),
+        location=excel_location(row, COL_REF),
+    )
     parse_short_date(
         cell_value(sheet, row, COL_VALUE_DATE),
         location=excel_location(row, COL_VALUE_DATE),
@@ -370,7 +391,7 @@ def parse_transaction(
         # Preserve the Narration cell verbatim; the importer's identity hash and
         # the user's exact-match mappings both key on this text.
         "narration": narration,
-        "reference": reference if isinstance(reference, str) and reference else None,
+        "reference": reference,
         "withdrawal": withdrawal,
         "deposit": deposit,
         "balance": balance,
@@ -544,6 +565,7 @@ def validate(statement: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "row_count": len(rows),
+        "referenced_count": sum(1 for row in rows if row["reference"] is not None),
         "deposit_total": deposits,
         "withdrawal_total": withdrawals,
         "opening": summary["opening"],
@@ -573,12 +595,11 @@ def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
                 "withdrawal": json_number(row["withdrawal"]),
                 "deposit": json_number(row["deposit"]),
                 "balance": json_number(row["balance"]),
-                # Chq./Ref.No. is deliberately not emitted: a source_reference
-                # would switch the importer's transaction identity from the
-                # narration-based semantic key to a reference-based key, and
-                # every previously imported HDFC row would then re-import as a
-                # new draft. See fingerprint.md.
-                "source_reference": None,
+                # Chq./Ref.No. makes the importer's transaction identity
+                # independent of the narration text (a `ref:` key instead of
+                # the narration-hashed `semantic:` key). None for the all-zero
+                # placeholder on interest rows.
+                "source_reference": row["reference"],
             }
             for row in statement["rows"]
         ],
@@ -604,7 +625,8 @@ def main() -> None:
         json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     print(
-        f"wrote {destination} ({audit['row_count']} rows; "
+        f"wrote {destination} ({audit['row_count']} rows, "
+        f"{audit['referenced_count']} with a bank reference; "
         f"period={audit['period_from'].isoformat()}..{audit['period_to'].isoformat()}; "
         f"deposits={audit['deposit_total']:.2f}; "
         f"withdrawals={audit['withdrawal_total']:.2f}; "

@@ -39,16 +39,22 @@
 | `Withdrawal Amt.` (E) | `withdrawal` | Blank → 0 |
 | `Deposit Amt.` (F) | `deposit` | Blank → 0 |
 | `Closing Balance` (G) | `balance` | Printed running balance, required on every row |
-| `Chq./Ref.No.` (C) | — | Validated as present-or-blank text, **not emitted** (see below) |
+| `Chq./Ref.No.` (C) | `source_reference` | The bank reference (16 characters, 22 for RTGS); `null` for the all-zero placeholder on interest rows or a blank cell |
 | `Value Dt` (D) | — | Validated as `dd/mm/yy`, not emitted (Abacus has no value date) |
 
-`source_reference` is emitted as `null` on every row on purpose. The
-retired TypeScript parser (`packages/api/bank-importer/parsers/hdfc-bank.ts`)
-never emitted one, so every existing HDFC draft/journal row carries a
-narration-based `semantic:` transaction key. Emitting `Chq./Ref.No.` would
-switch identity to a `ref:` key and make previously imported statements
-re-import as new drafts. Promoting the reference is Phase 5.1 of
-`PLAN.md` and needs a key migration first.
+With `source_reference` present the importer keys the row as
+`ref:sha256(account|reference|date|direction|amount|occurrence)`, so identity
+no longer depends on the narration text. Interest rows (`INTEREST PAID TILL
+…`, `INTEREST DEBITED TILL …`) print `000000000000000` in `Chq./Ref.No.`;
+that placeholder is mapped to `null` so two interest rows on the same day
+never share a fabricated reference, and they fall back to the
+narration-based `semantic:` key instead.
+
+Rows imported through the retired TypeScript parser
+(`packages/api/bank-importer/parsers/hdfc-bank.ts`) carry `semantic:` keys,
+so re-importing one of those statements through this parser would not
+recognise them as duplicates. Old statements are not expected to be
+re-imported, so no key migration is shipped.
 
 ## Quirks / pitfalls
 

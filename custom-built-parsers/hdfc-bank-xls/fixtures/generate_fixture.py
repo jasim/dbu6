@@ -72,9 +72,10 @@ SAMPLE_TRANSACTIONS: list[tuple[str, str, str, str, Optional[str], Optional[str]
         None,
     ),
     # HDFC books month-end interest on the 1st of the next month with a
-    # value date inside the statement period.
-    ("01/08/26", "INTEREST PAID TILL 31-JUL-2026", "050505000000000", "31/07/26", None, "12"),
-    ("01/08/26", "INTEREST DEBITED TILL 31-JUL-2026", "050505000000000", "31/07/26", "33", None),
+    # value date inside the statement period and an all-zero Chq./Ref.No.
+    # placeholder (the real export's quirk, not an anonymized value).
+    ("01/08/26", "INTEREST PAID TILL 31-JUL-2026", "000000000000000", "31/07/26", None, "12"),
+    ("01/08/26", "INTEREST DEBITED TILL 31-JUL-2026", "000000000000000", "31/07/26", "33", None),
 ]
 SAMPLE_OPENING = Decimal("100000")
 SAMPLE_PERIOD = ("01/07/2026", "31/07/2026")
