@@ -12,6 +12,8 @@ const RULES: MappingRules = {
   exact: {
     "Corner Fuels": "expenses:vehicle",
     "ACME SUPERMARKET": "expenses:grocery",
+    "sample-grocer@okaxis": "expenses:grocery",
+    "x@psp": "expenses:misc",
   },
   includes: [
     {
@@ -76,6 +78,50 @@ describe("classifyWith", () => {
 
   it("leaves unknown transactions unmatched", () => {
     expect(classify("Unknown Merchant")).toBeNull();
+  });
+
+  it("matches a VPA exact key against the VPA embedded in a bank narration", () => {
+    // Federal: slash-delimited. HDFC: hyphen-delimited. GPay enrichment:
+    // recipient prefix. All keep the VPA intact between delimiters.
+    expect(classify("UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505")).toBe(
+      "expenses:grocery",
+    );
+    expect(
+      classify(
+        "UPI-SAMPLE GROCER-sample-grocer@okaxis-FDRL0050505-050505000001-sample",
+      ),
+    ).toBe("expenses:grocery");
+    expect(
+      classify(
+        "Sample Grocer | UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505",
+      ),
+    ).toBe("expenses:grocery");
+    expect(classify("sample-grocer@okaxis")).toBe("expenses:grocery");
+  });
+
+  it("requires the embedded VPA to be delimited, not a fragment of a longer one", () => {
+    expect(classify("UPIOUT/050505000001/x@psp/UPI/0000")).toBe(
+      "expenses:misc",
+    );
+    expect(classify("UPIOUT/050505000001/ax@psp/UPI/0000")).toBeNull();
+    expect(classify("UPIOUT/050505000001/x@psp.example/UPI/0000")).toBeNull();
+    expect(classify("UPIOUT/050505000001/x@pspbank/UPI/0000")).toBeNull();
+  });
+
+  it("prefers a whole-narration exact match over an embedded VPA match", () => {
+    const rules: MappingRules = {
+      exact: {
+        "UPIOUT/050505000001/x@psp/UPI/0000": "expenses:special",
+        "x@psp": "expenses:misc",
+      },
+      includes: [],
+    };
+    expect(
+      classifyWith(
+        compileMappings(rules),
+        transaction("UPIOUT/050505000001/x@psp/UPI/0000"),
+      ),
+    ).toBe("expenses:special");
   });
 });
 

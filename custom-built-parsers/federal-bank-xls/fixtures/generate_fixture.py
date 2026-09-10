@@ -48,10 +48,9 @@ FOOTER = (
 # Transactions as (Tran Date, Particulars, Tran Type, withdrawal, deposit).
 # Anonymized per AGENTS.md: whole-number amounts, `050505` in every numeric
 # identifier, `NOPII` / `sample` for stripped text. Every running balance
-# stays positive. The mix deliberately covers each `clean_narration` branch:
-# UPIOUT withdrawals (reduced to the VPA), a UPIOUT deposit (kept verbatim),
-# a UPIOUT withdrawal with fewer than three slash-delimited parts (kept
-# verbatim), and non-UPI rows.
+# stays positive. The mix covers every known reference layout (`UPIOUT`,
+# `UPI IN`, `TO ATM`, `FT IMPS/IFI`), a UPIOUT deposit, and rows with no
+# recognised reference at all.
 SAMPLE_TRANSACTIONS: list[tuple[str, str, str, Optional[str], Optional[str]]] = [
     ("01-07-2026", "UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505", "UPI", "500", None),
     ("01-07-2026", "TO ATM/050505000002/sample CITY 050505\\sample", "ATM", "5000", None),
@@ -60,7 +59,7 @@ SAMPLE_TRANSACTIONS: list[tuple[str, str, str, Optional[str], Optional[str]]] = 
     ("05-07-2026", "UPIOUT/050505000005/q050505@ybl/UPI/0505", "UPI", "1200", None),
     ("10-07-2026", "UPIOUT/050505000006/sample-cafe@okhdfcbank//0000", "UPI", "300", None),
     ("12-07-2026", "UPI IN/050505000007/sample-shop@okicici/sample/0000", "UPI", None, "75"),
-    ("20-07-2026", "UPIOUT/050505000008", "UPI", "60", None),
+    ("20-07-2026", "SMS CHARGES sample", "CHG", "60", None),
     ("31-07-2026", "NEFT/050505000009/NOPII EMPLOYER/sample salary", "NEFT", None, "10000"),
 ]
 SAMPLE_OPENING = Decimal("100000")

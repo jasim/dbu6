@@ -24,7 +24,7 @@ one matching parser.
 - [hdfc-cc-xls](hdfc-cc-xls/) — HDFC credit card billed-statement BIFF8 XLS; applies CC sign flip and preserves exact paise closing
 - [hdfc-cc-csv](hdfc-cc-csv/) — HDFC credit card billed-statement CSV (`~|~` delimited); applies CC sign flip and preserves exact paise closing
 - [hdfc-bank-xls](hdfc-bank-xls/) — HDFC Bank savings/current account netbanking BIFF8 XLS; no sign flip, surfaces STATEMENT SUMMARY opening/closing and checks every running balance
-- [federal-bank-xls](federal-bank-xls/) — Federal Bank savings account FedNet transaction-history BIFF8 XLS; no sign flip, checks every running balance, reproduces the retired parser's UPIOUT narration cleaning
+- [federal-bank-xls](federal-bank-xls/) — Federal Bank savings account FedNet transaction-history BIFF8 XLS; no sign flip, checks every running balance, verbatim narration with the bank reference surfaced as `source_reference`
 
 ## Goal
 

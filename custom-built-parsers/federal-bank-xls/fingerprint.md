@@ -34,7 +34,8 @@
 | Source column | Abacus field | Notes |
 | --- | --- | --- |
 | `Tran Date` (B) | `date` | `dd-mm-yyyy` text, converted to ISO |
-| `Particulars` (C) | `narration` | Trimmed, then `clean_narration` (see below) |
+| `Particulars` (C) | `narration` | Verbatim, untrimmed |
+| `Particulars` (C) | `source_reference` | The numeric bank reference at a fixed slash field (see below); `null` for layouts without one |
 | `Withdrawal` (H) | `withdrawal` | Formatted text with Indian grouping (`1,00,000.00`); blank → 0 |
 | `Deposit` (I) | `deposit` | Same format; blank → 0 |
 | `Balance Amount` (J) | `balance` | Printed running balance, required on every row |
@@ -48,35 +49,44 @@ per-row balances give the importer a `per-row` closing, and deriving an
 opening from the first row would change how the reconciliation filter
 treats the checkpoint day, so nothing is synthesized.
 
-`source_reference` is emitted as `null` on every row on purpose. The retired
-TypeScript parser (`packages/api/bank-importer/parsers/federal-bank.ts`)
-never emitted one, so every existing Federal draft/journal row carries a
-narration-based `semantic:` transaction key. Emitting the UPI reference from
-`Particulars` would switch identity to a `ref:` key and make previously
-imported statements re-import as new drafts. Promoting the reference is
-Phase 5.1 of `PLAN.md` and needs a key migration first.
+## Bank reference → `source_reference`
 
-## Narration is deliberately not verbatim
+`Particulars` embeds the bank's transaction reference (12 digits in every
+tested row) at a fixed `/`-delimited field, depending on the prefix:
 
-This parser reproduces the retired TypeScript parser's `cleanNarration`
-byte for byte, which deviates from the verbatim-narration rule in
-`custom-built-parsers/README.md`:
+| Prefix | Layout | Reference field |
+| --- | --- | --- |
+| `UPIOUT` | `UPIOUT/<ref>/<vpa or payee>/<remark>/<code>` | 2nd |
+| `UPI IN` | `UPI IN/<ref>/<vpa>/<remark>/<code>` | 2nd |
+| `TO ATM` | `TO ATM/<ref>/<location>` | 2nd |
+| `FT IMPS` | `FT IMPS/IFI/<ref>/<name>/<remark>` | 3rd |
 
-- `Particulars` is trimmed.
-- For **withdrawals** whose trimmed text starts with `UPIOUT` and contains at
-  least three `/`-delimited fields, the narration is the third field (the
-  payee VPA): `UPIOUT/<ref>/<vpa>/UPI/0000` → `<vpa>`.
-- Deposits (including `UPIOUT/<ref>/UPI…/<code>` refund credits), `UPI IN/…`,
-  `TO ATM/…`, `FT IMPS/…`, and every other row keep the trimmed text.
+A known prefix whose reference field is not numeric is rejected as a layout
+change. Any other prefix (`NEFT`, charges, interest, …) yields
+`source_reference: null` and the importer falls back to its narration-based
+identity key for that row. With a reference present the importer keys the
+row as `ref:sha256(account|reference|date|direction|amount|occurrence)`, so
+identity no longer depends on the narration text at all.
 
-The importer's semantic transaction key hashes this narration and
+## Narration is verbatim; VPA matching lives in the mapping layer
+
+The retired TypeScript parser (`packages/api/bank-importer/parsers/federal-bank.ts`)
+reduced `UPIOUT` withdrawals to the bare payee VPA, which is why
 `data/user-config/transaction_mappings.mjs` has many `exact` keys that are
-bare VPAs, so the cleaning must stay identical to keep both stable. Moving
-the cleaning out of the parser is Phase 5.4 of `PLAN.md`, after 5.1.
+bare VPAs. This parser emits `Particulars` untouched. Those keys keep
+working because `exact` keys containing `@` are matched against any UPI VPA
+embedded in the narration (see `categorization/mapping-rules.ts`), for every
+bank, not only Federal.
 
-One safe divergence: the TypeScript parser would have emitted `0` for a blank
-`Balance Amount` cell and an empty narration for degenerate `Particulars`;
-this parser rejects both instead of importing them.
+Consequence for anything imported through the old path: those drafts and
+journal rows carry narration-hashed `semantic:` keys built from the shortened
+narration, so re-importing an old statement through this parser would not
+recognise them as duplicates. Old statements are not expected to be
+re-imported (they would fail the running-balance checks against the ledger
+anyway), so no key migration is shipped.
+
+The TypeScript parser would also have emitted `0` for a blank `Balance
+Amount` cell; this parser rejects the row instead.
 
 ## Quirks / pitfalls
 
@@ -104,6 +114,8 @@ this parser rejects both instead of importing them.
 - Every transaction has a sequential `Sl. No.`, `dd-mm-yyyy` `Tran Date` and
   `Value Date`, non-empty `Particulars` and `Tran Type`, exactly one positive
   amount, a blank spill column `D`, and a printed balance.
+- Every `UPIOUT`, `UPI IN`, `TO ATM`, and `FT IMPS` row has a numeric bank
+  reference in its expected field.
 - Each printed `Balance Amount` equals the previous row's balance plus
   deposit minus withdrawal, to the paisa.
 - Output is written only after every check succeeds.

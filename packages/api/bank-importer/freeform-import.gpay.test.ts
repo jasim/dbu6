@@ -38,30 +38,33 @@ type ImportOptions = Parameters<typeof runStatementImport>[1];
 
 const BASE_ACCOUNT = parseAccount("assets:bank:federal");
 
-// A Federal-style statement: printed per-row balances, narrations already
-// cleaned to bare VPAs, no source references, so identity is the semantic key.
+// A Federal-style statement: printed per-row balances, verbatim narrations,
+// bank references on the UPI rows (reference-keyed identity) and none on the
+// charges row (narration-keyed identity).
 function statement(): StatementData {
   const rows: Abacus[] = [
     {
       date: "2026-07-01",
-      narration: "sample-grocer@okaxis",
+      narration: "UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505",
       withdrawal: 500,
       deposit: 0,
       balance: 99500,
+      source_reference: "050505000001",
     },
     {
       date: "2026-07-02",
-      narration: "q050505@ybl",
+      narration: "UPIOUT/050505000005/q050505@ybl/UPI/0505",
       withdrawal: 1200,
       deposit: 0,
       balance: 98300,
+      source_reference: "050505000005",
     },
     {
       date: "2026-07-03",
-      narration: "UPI IN/050505000007/sample-shop@okicici/sample/0000",
-      withdrawal: 0,
-      deposit: 75,
-      balance: 98375,
+      narration: "SMS CHARGES sample",
+      withdrawal: 60,
+      deposit: 0,
+      balance: 98240,
     },
   ];
   return {
@@ -145,16 +148,18 @@ describe("Google Pay enrichment on the universal statement import", () => {
     const enriched = draftImportCalls[1].transactions;
 
     expect(enriched.map((t) => t.narration)).toEqual([
-      "sample-grocer@okaxis",
-      "sample Cafe | q050505@ybl",
-      "UPI IN/050505000007/sample-shop@okicici/sample/0000",
+      "UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505",
+      "sample Cafe | UPIOUT/050505000005/q050505@ybl/UPI/0505",
+      "SMS CHARGES sample",
     ]);
     // Keys were assigned before enrichment, so both runs agree row for row
     // even though the narration handed to categorization differs.
     expect(keysOf(enriched)).toEqual(keysOf(plain));
-    expect(keysOf(plain).every((key) => key?.startsWith("semantic:"))).toBe(
-      true,
-    );
+    expect(keysOf(plain).map((key) => key?.split(":")[0])).toEqual([
+      "ref",
+      "ref",
+      "semantic",
+    ]);
     expect(draftImportCalls[1].preFiltered).toBe(true);
     expect(result.gpay_enriched_count).toBe(1);
     expect(log).toHaveBeenCalledWith(
@@ -172,9 +177,9 @@ describe("Google Pay enrichment on the universal statement import", () => {
     );
     expect(result.gpay_enriched_count).toBe(0);
     expect(draftImportCalls[0].transactions.map((t) => t.narration)).toEqual([
-      "sample-grocer@okaxis",
-      "q050505@ybl",
-      "UPI IN/050505000007/sample-shop@okicici/sample/0000",
+      "UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505",
+      "UPIOUT/050505000005/q050505@ybl/UPI/0505",
+      "SMS CHARGES sample",
     ]);
   });
 

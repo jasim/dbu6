@@ -64,17 +64,21 @@ describe("Federal Bank statement XLS parser", () => {
       expect(output.rows).toHaveLength(9);
       expect(output.rows[0]).toEqual({
         date: "2026-07-01",
-        // UPIOUT withdrawals are reduced to the payee VPA, exactly like the
-        // retired TypeScript parser, so existing transaction keys stay stable.
-        narration: "sample-grocer@okaxis",
+        narration: "UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505",
         withdrawal: 500,
         deposit: 0,
         balance: 99500,
-        source_reference: null,
+        source_reference: "050505000001",
       });
-      expect(output.rows[2]).toMatchObject({
-        narration: "UPIOUT/050505000003/UPI050505sample/0505",
-        deposit: 250,
+      expect(output.rows[3]).toMatchObject({
+        narration: "FT IMPS/IFI/050505000004/NOPII CUSTOMER/sample remark",
+        deposit: 40000,
+        source_reference: "050505000004",
+      });
+      // Layouts without a known reference field carry no source_reference.
+      expect(output.rows[7]).toMatchObject({
+        narration: "SMS CHARGES sample",
+        source_reference: null,
       });
       expect(
         output.rows.every((row: { balance: unknown }) => row.balance !== null),

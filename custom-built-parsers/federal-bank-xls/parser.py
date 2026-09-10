@@ -77,6 +77,12 @@ STATEMENT_DATE_VALUE_COLUMN = 8
 FOOTER_PREFIX = "This is a computer generated statement"
 
 DIGITS_RE = re.compile(r"^[0-9]+$")
+# Particulars prefix -> zero-based index of the slash-delimited field that
+# carries the bank's transaction reference (12 digits in every tested row).
+# Prefixes not listed here yield no reference; the importer then falls back to
+# its narration-based identity key for that row.
+REFERENCE_FIELD = {"UPIOUT": 1, "UPI IN": 1, "TO ATM": 1, "FT IMPS": 2}
+REFERENCE_RE = re.compile(r"^[0-9]{6,}$")
 ROW_DATE_RE = re.compile(r"^(?P<d>[0-9]{2})-(?P<m>[0-9]{2})-(?P<y>[0-9]{4})$")
 STATEMENT_DATE_RE = re.compile(
     r"^(?P<d>[0-9]{2})-(?P<m>[0-9]{2})-(?P<y>[0-9]{4}) [0-9]{2}:[0-9]{2}:[0-9]{2}$"
@@ -191,20 +197,24 @@ def parse_serial(value: Any, *, location: str) -> int:
     return int(value)
 
 
-def clean_narration(particulars: str, is_withdrawal: bool) -> str:
-    """Reproduce the retired TypeScript parser's `cleanNarration` byte for byte.
+def extract_reference(particulars: str, *, location: str) -> Optional[str]:
+    """Return the bank reference embedded in a known Particulars layout.
 
-    Withdrawals whose Particulars start with `UPIOUT` are reduced to the third
-    slash-delimited field (the payee VPA). Deposits and every other narration
-    are kept verbatim. The importer's semantic transaction key and the user's
-    `exact` mappings both hash/match this text, so changing it would make every
-    previously imported Federal row re-import as a new draft. See fingerprint.md.
+    `UPIOUT/<ref>/<vpa>/...`, `UPI IN/<ref>/...`, `TO ATM/<ref>/...`, and
+    `FT IMPS/IFI/<ref>/...` all carry a numeric reference at a fixed field. A
+    known prefix without a numeric reference there is a layout change and is
+    rejected; an unknown prefix simply has no reference.
     """
-    if is_withdrawal and particulars.startswith("UPIOUT"):
-        parts = particulars.split("/")
-        if len(parts) >= 3:
-            return parts[2]
-    return particulars
+    parts = particulars.split("/")
+    index = REFERENCE_FIELD.get(parts[0])
+    if index is None:
+        return None
+    if len(parts) <= index or not REFERENCE_RE.fullmatch(parts[index]):
+        raise ValueError(
+            f"{location}: {parts[0]!r} Particulars {particulars!r} has no numeric "
+            f"reference in field {index + 1}"
+        )
+    return parts[index]
 
 
 def validate_workbook_fingerprint(book: xlrd.book.Book) -> xlrd.sheet.Sheet:
@@ -377,16 +387,16 @@ def parse_transaction(
         field="Balance Amount",
         allow_negative=True,
     )
-    narration = clean_narration(particulars.strip(), withdrawal > 0)
-    if not narration:
-        raise ValueError(
-            f"{excel_location(row, COL_PARTICULARS)}: Particulars {particulars!r} "
-            "cleans to an empty narration"
-        )
+    reference = extract_reference(
+        particulars, location=excel_location(row, COL_PARTICULARS)
+    )
     return {
         "source_row": row + 1,
         "date": transaction_date,
-        "narration": narration,
+        # Preserve the Particulars cell verbatim. The mapping layer knows how
+        # to pick the UPI VPA out of it; the parser does not rewrite text.
+        "narration": particulars,
+        "reference": reference,
         "withdrawal": withdrawal,
         "deposit": deposit,
         "balance": balance,
@@ -465,6 +475,7 @@ def validate(statement: dict[str, Any]) -> dict[str, Any]:
     deposits = sum((row["deposit"] for row in rows), Decimal("0.00"))
     return {
         "row_count": len(rows),
+        "referenced_count": sum(1 for row in rows if row["reference"] is not None),
         "deposit_total": deposits,
         "withdrawal_total": withdrawals,
         "implied_opening": implied_opening,
@@ -492,12 +503,10 @@ def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
                 "withdrawal": json_number(row["withdrawal"]),
                 "deposit": json_number(row["deposit"]),
                 "balance": json_number(row["balance"]),
-                # The UPI reference inside Particulars is deliberately not
-                # emitted: a source_reference would switch the importer's
-                # transaction identity from the narration-based semantic key
-                # to a reference-based key, and every previously imported
-                # Federal row would re-import as a new draft. See fingerprint.md.
-                "source_reference": None,
+                # The bank reference makes the importer's transaction identity
+                # independent of the narration text (a `ref:` key instead of
+                # the narration-hashed `semantic:` key).
+                "source_reference": row["reference"],
             }
             for row in statement["rows"]
         ],
@@ -523,7 +532,8 @@ def main() -> None:
         json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     print(
-        f"wrote {destination} ({audit['row_count']} rows; "
+        f"wrote {destination} ({audit['row_count']} rows, "
+        f"{audit['referenced_count']} with a bank reference; "
         f"statement_date={audit['statement_date'].isoformat()}; "
         f"deposits={audit['deposit_total']:.2f}; "
         f"withdrawals={audit['withdrawal_total']:.2f}; "

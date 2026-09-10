@@ -7,7 +7,9 @@
 // case is convenient.
 
 export const mappings = {
-  // Whole-narration matches. Checked first, and they always win.
+  // Whole-narration matches. Checked first, and they always win. A key that
+  // is a UPI VPA (`payee@psp`) also matches when that VPA appears inside a
+  // longer narration, e.g. `UPIOUT/<ref>/payee@psp/UPI/0000`.
   exact: {
     "ACME SUPERMARKET": "expenses:grocery",
     "The Corner Cafe": "expenses:food",
