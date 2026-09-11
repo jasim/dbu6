@@ -118,9 +118,7 @@ export const autoImportResultSchema = z.object({
 });
 
 export type AutoImportPlanFile = z.infer<typeof autoImportPlanFileSchema>;
-export type AutoImportGroupResult = z.infer<
-  typeof autoImportGroupResultSchema
->;
+export type AutoImportGroupResult = z.infer<typeof autoImportGroupResultSchema>;
 export type AutoImportResult = z.infer<typeof autoImportResultSchema>;
 
 export const autoImportErrorSchema = importErrorSchema.extend({

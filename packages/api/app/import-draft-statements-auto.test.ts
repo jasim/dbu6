@@ -1,7 +1,104 @@
-import { describe, expect, it } from "vitest";
-import { TsRestApi, type SapportaEnv } from "@sapporta/server";
-import api from "./import-draft-statements-auto.js";
+import { readFile } from "node:fs/promises";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { TsRestApi, projectPath, type SapportaEnv } from "@sapporta/server";
+import type { ImportPreset } from "dbu6-shared";
+
+// Recognition and preset resolution run for real against the sanitized
+// fixtures; only the ledger write at the tail is stubbed, so the tests need
+// no database and never read data/user-config/import-presets.json.
+const { runStatementImport } = vi.hoisted(() => ({
+  runStatementImport: vi.fn(),
+}));
+vi.mock("../bank-importer/freeform-import.js", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../bank-importer/freeform-import.js")
+  >()),
+  runStatementImport,
+}));
+
+import api, {
+  importStatementsAutomatically,
+} from "./import-draft-statements-auto.js";
 import { loadApp } from "../app.js";
+import {
+  ClosingBalanceUnavailable,
+  type FreeformImportResult,
+} from "../bank-importer/freeform-import.js";
+
+const BANK_PARSER = "custom-built-parsers/hdfc-bank-xls/parser.py";
+const CARD_PARSER = "custom-built-parsers/hdfc-cc-xls/parser.py";
+const SECOND_BANK_PARSER = "custom-built-parsers/federal-bank-xls/parser.py";
+
+const bankPreset: ImportPreset = {
+  name: "Sample Bank",
+  base_account: "assets:bank:sample",
+  custom_mappings_filenames: ["sample_mappings.prompt"],
+  custom_statement_parser_path: BANK_PARSER,
+  statement_account_identifier: "05050505050505",
+};
+
+const cardPreset: ImportPreset = {
+  name: "Sample Card",
+  base_account: "liabilities:card:sample",
+  is_credit_card: true,
+  custom_mappings_filenames: [],
+  custom_statement_parser_path: CARD_PARSER,
+  statement_account_identifier: "050505XXXXXX0505",
+};
+
+const secondBankPreset: ImportPreset = {
+  name: "Sample Second Bank",
+  base_account: "assets:bank:sample-second",
+  custom_mappings_filenames: [],
+  custom_statement_parser_path: SECOND_BANK_PARSER,
+};
+
+const db = {} as never;
+const auth = {} as never;
+
+async function fixtureFile(parser: string, uploadedAs: string): Promise<File> {
+  const extension = uploadedAs.slice(uploadedAs.lastIndexOf("."));
+  const bytes = await readFile(
+    projectPath(
+      `custom-built-parsers/${parser}/fixtures/sanitized-statement${extension}`,
+    ),
+  );
+  return new File([bytes], uploadedAs);
+}
+
+function importedNothing(): FreeformImportResult {
+  return {
+    hledger_journal: "",
+    transaction_count: 0,
+    skipped_reconciled_count: 0,
+    draft_transaction_count: 0,
+    duplicate_count: 0,
+    draft_duplicate_count: 0,
+    journal_duplicate_count: 0,
+    legacy_match_count: 0,
+    backfilled_count: 0,
+    same_account_skips: [],
+    gpay_enriched_count: 0,
+    opening_balance: null,
+    closing_balance_from_statement: null,
+    balance_metadata: {
+      opening: { extracted: null, effective: null, source: "none" },
+      closing: { extracted: null, effective: null, source: "none" },
+    },
+    warnings: [],
+  };
+}
+
+// Narrows the handler's response union to a rejection, so a test that expects
+// one reads its body without restating the union.
+function rejection(
+  response: Awaited<ReturnType<typeof importStatementsAutomatically>>,
+) {
+  if (response.status === 200) {
+    throw new Error("expected the batch to be rejected, but it imported");
+  }
+  return response.body;
+}
 
 function openApiPaths(
   document: unknown,
@@ -39,4 +136,197 @@ describe("automatic statement upload route discovery", () => {
       openApiPaths(document)["/api/import-draft/statements/auto"]?.post,
     ).toBeDefined();
   });
+});
+
+describe("automatic statement import", () => {
+  beforeEach(() => {
+    runStatementImport.mockReset();
+  });
+
+  it("recognises each upload, groups it by preset, and imports once per account", async () => {
+    runStatementImport.mockResolvedValue(importedNothing());
+
+    const response = await importStatementsAutomatically(
+      [
+        await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
+        await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
+        await fixtureFile("federal-bank-xls", "second-jan.xls"),
+        await fixtureFile("hdfc-bank-xls", "bank-feb.xls"),
+      ],
+      [cardPreset, bankPreset, secondBankPreset],
+      db,
+      auth,
+    );
+
+    expect(response.status).toBe(200);
+    if (response.status !== 200) return;
+
+    expect(response.body.files).toEqual([
+      {
+        status: "resolved",
+        file_name: "bank-jan.xls",
+        parser_path: BANK_PARSER,
+        account: { kind: "bank", identifier: "05050505050505" },
+        institution: "HDFC BANK Ltd.",
+        preset_name: "Sample Bank",
+      },
+      {
+        status: "resolved",
+        file_name: "card-jan.xls",
+        parser_path: CARD_PARSER,
+        account: { kind: "card", identifier: "050505XXXXXX0505" },
+        institution: "HDFC Bank Cards Division",
+        preset_name: "Sample Card",
+      },
+      {
+        status: "resolved",
+        file_name: "second-jan.xls",
+        parser_path: SECOND_BANK_PARSER,
+        account: { kind: "bank", identifier: "050505000012" },
+        institution: null,
+        preset_name: "Sample Second Bank",
+      },
+      {
+        status: "resolved",
+        file_name: "bank-feb.xls",
+        parser_path: BANK_PARSER,
+        account: { kind: "bank", identifier: "05050505050505" },
+        institution: "HDFC BANK Ltd.",
+        preset_name: "Sample Bank",
+      },
+    ]);
+
+    // One group per preset, in the order the accounts first appear, with the
+    // two files of the same account kept together in one import.
+    expect(
+      response.body.groups.map((group) => [
+        group.preset_name,
+        group.base_account,
+        group.is_credit_card,
+        group.file_names,
+      ]),
+    ).toEqual([
+      [
+        "Sample Bank",
+        "assets:bank:sample",
+        false,
+        ["bank-jan.xls", "bank-feb.xls"],
+      ],
+      ["Sample Card", "liabilities:card:sample", true, ["card-jan.xls"]],
+      [
+        "Sample Second Bank",
+        "assets:bank:sample-second",
+        false,
+        ["second-jan.xls"],
+      ],
+    ]);
+    expect(
+      response.body.groups.map(
+        (group) => group.result.custom_statement_parser_paths,
+      ),
+    ).toEqual([[BANK_PARSER], [CARD_PARSER], [SECOND_BANK_PARSER]]);
+
+    expect(runStatementImport).toHaveBeenCalledTimes(3);
+    const [statements, options, , , sourceNames] =
+      runStatementImport.mock.calls[1];
+    expect(options).toEqual({
+      baseAccount: "liabilities:card:sample",
+      accountKind: "credit-card",
+      balanceOverrides: { opening: null, closing: null },
+      customMappingsFilenames: [],
+      gpayHtmlPath: null,
+    });
+    expect(sourceNames).toEqual(["card-jan.xls"]);
+    expect(statements).toMatchObject([
+      { account: { kind: "card", identifier: "050505XXXXXX0505" } },
+    ]);
+    expect(runStatementImport.mock.calls[0][1]).toMatchObject({
+      baseAccount: "assets:bank:sample",
+      accountKind: "bank",
+      customMappingsFilenames: ["sample_mappings.prompt"],
+    });
+  }, 120_000);
+
+  it("imports nothing when a recognised file has no preset, and explains every file", async () => {
+    const response = await importStatementsAutomatically(
+      [
+        await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
+        await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
+      ],
+      [bankPreset],
+      db,
+      auth,
+    );
+
+    expect(runStatementImport).not.toHaveBeenCalled();
+    expect(response.status).toBe(422);
+    const body = rejection(response);
+    expect(body.error).toBe("auto_import_files_unresolved");
+    expect(body.message).toContain("1 of 2");
+    expect(body.files?.[0]).toMatchObject({
+      status: "resolved",
+      file_name: "bank-jan.xls",
+      preset_name: "Sample Bank",
+    });
+    expect(body.files?.[1]).toMatchObject({
+      status: "unresolved",
+      file_name: "card-jan.xls",
+      parser_path: CARD_PARSER,
+      account: { kind: "card", identifier: "050505XXXXXX0505" },
+      reason: "no_preset_for_parser",
+      candidate_preset_names: [],
+    });
+  }, 120_000);
+
+  it("rejects a file no saved parser recognises, naming the parsers it tried", async () => {
+    const response = await importStatementsAutomatically(
+      [
+        new File(
+          ["date,narration,amount\n2026-01-01,NOPII sample payee,1000\n"],
+          "sample-notes.csv",
+        ),
+      ],
+      [bankPreset, cardPreset],
+      db,
+      auth,
+    );
+
+    expect(runStatementImport).not.toHaveBeenCalled();
+    expect(response.status).toBe(422);
+    const [file] = rejection(response).files ?? [];
+    expect(file).toMatchObject({
+      status: "unrecognized",
+      file_name: "sample-notes.csv",
+    });
+    expect(
+      file?.status === "unrecognized" ? file.candidate_parser_paths : [],
+    ).toContain("custom-built-parsers/hdfc-cc-csv/parser.py");
+  }, 120_000);
+
+  it("reports the accounts already imported when a later group fails", async () => {
+    runStatementImport
+      .mockResolvedValueOnce(importedNothing())
+      .mockRejectedValueOnce(new ClosingBalanceUnavailable());
+
+    const response = await importStatementsAutomatically(
+      [
+        await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
+        await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
+      ],
+      [bankPreset, cardPreset],
+      db,
+      auth,
+    );
+
+    // The failing group keeps the import error's own payload and status.
+    expect(response.status).toBe(400);
+    const body = rejection(response);
+    expect(body.error).toBe("closing_balance_unavailable");
+    expect(body.imported_groups?.map((one) => one.preset_name)).toEqual([
+      "Sample Bank",
+    ]);
+    expect(body.partial_import).toContain("Sample Bank");
+    expect(body.partial_import).toContain("Sample Card");
+    expect(body.files).toHaveLength(2);
+  }, 120_000);
 });

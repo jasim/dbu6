@@ -269,7 +269,8 @@ function FileAnnotation({ row }: { row: AutoImportPlanFile }) {
       return (
         <div className="mt-0.5 text-xs text-muted-foreground">
           {parserLabel(row.parser_path)}
-          {row.account ? ` · ${row.account.identifier}` : ""} → {row.preset_name}
+          {row.account ? ` · ${row.account.identifier}` : ""} →{" "}
+          {row.preset_name}
         </div>
       );
     case "unrecognized":

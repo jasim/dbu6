@@ -185,6 +185,7 @@ async function importGroups(
       ),
     );
     if (response.status !== 200) {
+      const done = imported.map((one) => one.preset_name).join(", ");
       return {
         status: response.status,
         body: {
@@ -194,9 +195,7 @@ async function importGroups(
             ? {}
             : {
                 imported_groups: imported,
-                partial_import: `${imported
-                  .map((one) => one.preset_name)
-                  .join(", ")} imported before "${group.preset.name}" failed. Those drafts are saved; drop their files before retrying.`,
+                partial_import: `${done} imported before "${group.preset.name}" failed. Those drafts are saved; drop their files before retrying.`,
               }),
         },
       };
