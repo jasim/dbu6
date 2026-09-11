@@ -29,10 +29,19 @@ import xlrd
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared import abacus  # noqa: E402
+from shared import abacus, xls  # noqa: E402
+from shared.xls import (  # noqa: E402
+    cell_value,
+    excel_location,
+    is_blank,
+    only_columns,
+    populated_columns,
+    require_digits,
+    require_text,
+    row_is_blank,
+)
 
 
-OLE_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
 SHEET_NAME = "OpTransactionHistoryTpr"
 EXPECTED_COLUMN_COUNT = 10  # A:J
 
@@ -84,7 +93,6 @@ STATEMENT_DATE_LABEL_COLUMN = 7
 STATEMENT_DATE_VALUE_COLUMN = 8
 FOOTER_PREFIX = "This is a computer generated statement"
 
-DIGITS_RE = re.compile(r"^[0-9]+$")
 # Particulars prefix -> zero-based index of the slash-delimited field that
 # carries the bank's transaction reference (12 digits in every tested row).
 # Prefixes not listed here yield no reference; the importer then falls back to
@@ -100,64 +108,6 @@ MONEY_TEXT_RE = re.compile(
     r"[1-9][0-9]?(?:,[0-9]{2})*,[0-9]{3})\.[0-9]{2}$"
 )
 CENT = Decimal("0.01")
-
-
-def excel_location(row: int, column: int) -> str:
-    """Return a compact A1-style location for zero-based row/column indexes."""
-    letters = ""
-    number = column + 1
-    while number:
-        number, remainder = divmod(number - 1, 26)
-        letters = chr(ord("A") + remainder) + letters
-    return f"{letters}{row + 1}"
-
-
-def cell_value(sheet: xlrd.sheet.Sheet, row: int, column: int) -> Any:
-    if row >= sheet.nrows or column >= sheet.ncols:
-        return ""
-    return sheet.cell_value(row, column)
-
-
-def is_blank(value: Any) -> bool:
-    return value == "" or value is None
-
-
-def row_is_blank(sheet: xlrd.sheet.Sheet, row: int) -> bool:
-    return all(is_blank(cell_value(sheet, row, column)) for column in range(sheet.ncols))
-
-
-def populated_columns(sheet: xlrd.sheet.Sheet, row: int) -> set[int]:
-    return {
-        column
-        for column in range(sheet.ncols)
-        if not is_blank(cell_value(sheet, row, column))
-    }
-
-
-def require_text(sheet: xlrd.sheet.Sheet, row: int, column: int, expected: str) -> None:
-    actual = cell_value(sheet, row, column)
-    if actual != expected:
-        raise ValueError(
-            f"{excel_location(row, column)}: fingerprint mismatch; "
-            f"expected {expected!r}, got {actual!r}"
-        )
-
-
-def require_digits(sheet: xlrd.sheet.Sheet, row: int, column: int, what: str) -> str:
-    value = cell_value(sheet, row, column)
-    if not isinstance(value, str) or not DIGITS_RE.fullmatch(value):
-        raise ValueError(
-            f"{excel_location(row, column)}: fingerprint mismatch; "
-            f"expected the {what} as a digit string, got {value!r}"
-        )
-    return value
-
-
-def only_columns(sheet: xlrd.sheet.Sheet, row: int, allowed: set[int], what: str) -> None:
-    unexpected = populated_columns(sheet, row) - allowed
-    if unexpected:
-        cells = ", ".join(excel_location(row, column) for column in sorted(unexpected))
-        raise ValueError(f"row {row + 1}: unexpected populated cell(s) in {what}: {cells}")
 
 
 def parse_money(value: Any, *, location: str, field: str, allow_negative: bool) -> Decimal:
@@ -227,21 +177,8 @@ def extract_reference(particulars: str, *, location: str) -> Optional[str]:
 
 
 def validate_workbook_fingerprint(book: xlrd.book.Book) -> xlrd.sheet.Sheet:
-    if book.biff_version != 80:
-        raise ValueError(
-            f"expected an Excel 97-2003 BIFF8 workbook, got BIFF {book.biff_version}"
-        )
-    if book.nsheets != 1 or book.sheet_names() != [SHEET_NAME]:
-        raise ValueError(
-            f"expected exactly one worksheet named {SHEET_NAME!r}, got "
-            f"{book.sheet_names()!r}; fingerprint mismatch"
-        )
-    sheet = book.sheet_by_index(0)
-    if sheet.ncols != EXPECTED_COLUMN_COUNT:
-        raise ValueError(
-            f"expected exactly {EXPECTED_COLUMN_COUNT} populated columns (A:J), "
-            f"got {sheet.ncols}; fingerprint mismatch"
-        )
+    sheet = xls.require_single_sheet(book, SHEET_NAME)
+    xls.require_column_count(sheet, EXPECTED_COLUMN_COUNT)
     if sheet.nrows <= TRANSACTION_START_ROW:
         raise ValueError(
             f"expected at least {TRANSACTION_START_ROW + 1} rows, got {sheet.nrows}; "
@@ -450,9 +387,7 @@ def parse_workbook(book: xlrd.book.Book) -> dict[str, Any]:
 
 
 def parse_bytes(data: bytes) -> dict[str, Any]:
-    if data[: len(OLE_MAGIC)] != OLE_MAGIC:
-        raise ValueError("expected an OLE Compound File / BIFF8 .xls workbook")
-    book = xlrd.open_workbook(file_contents=data, on_demand=False)
+    book = xls.open_biff8_workbook(data)
     try:
         return parse_workbook(book)
     finally:

@@ -195,6 +195,8 @@ custom-built-parsers/
   shared/
     abacus.py               # the Abacus contract; every parser emits through it
     abacus_test.py
+    xls.py                  # BIFF8 workbook opening and cell/anchor helpers
+    xls_test.py
   <bank-slug>/
     fingerprint.md
     parser.py
@@ -266,7 +268,10 @@ Each parser should:
   parser never re-implements the row XOR rule, the identifier normalization
   (`abacus.bank_account`, `abacus.card_account`), or the credit-card sign
   flip (`abacus.ledger_balance`).
-- Never import application code outside `shared/`.
+- Never import application code outside `shared/`. XLS parsers open the
+  workbook with `shared.xls.open_biff8_workbook` and use its cell and anchor
+  helpers (`require_text`, `require_matching_text`, `only_columns`, ...)
+  rather than re-implementing them.
 
 `run_cli` writes `<input-basename>.abacus.json` next to the input only after
 the statement was built.

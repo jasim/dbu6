@@ -22,10 +22,16 @@ import xlrd
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared import abacus  # noqa: E402
+from shared import abacus, xls  # noqa: E402
+from shared.xls import (  # noqa: E402
+    cell_value,
+    excel_location,
+    require_matching_text,
+    require_text,
+    row_is_blank,
+)
 
 
-OLE_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
 SHEET_NAME = "Statement"
 EXPECTED_COLUMN_COUNT = 24  # A:X as exposed by xlrd; later merged/styled cells are blank
 TRANSACTION_HEADER_ROW = 18  # zero-based; Excel row 19
@@ -49,50 +55,6 @@ REWARD_RE = re.compile(r"^[+-] [0-9]+(?:,[0-9]{3})*$")
 REGISTERED_OFFICE_RE = re.compile(r"^Registered Office Address:\s*(?P<name>[^,]+?)\s*(?:,|$)")
 REFERENCE_RE = re.compile(r"\(Ref#\s*([^)]+?)\)", re.IGNORECASE)
 TRANSACTION_COLUMNS = {0, 4, 9, 12, 18, 20, 23}
-
-
-def excel_location(row: int, column: int) -> str:
-    """Return a compact A1-style location for zero-based row/column indexes."""
-    letters = ""
-    number = column + 1
-    while number:
-        number, remainder = divmod(number - 1, 26)
-        letters = chr(ord("A") + remainder) + letters
-    return f"{letters}{row + 1}"
-
-
-def cell_value(sheet: xlrd.sheet.Sheet, row: int, column: int) -> Any:
-    if row >= sheet.nrows or column >= sheet.ncols:
-        return ""
-    return sheet.cell_value(row, column)
-
-
-def require_text(
-    sheet: xlrd.sheet.Sheet, row: int, column: int, expected: str
-) -> None:
-    actual = cell_value(sheet, row, column)
-    if actual != expected:
-        raise ValueError(
-            f"{excel_location(row, column)}: fingerprint mismatch; "
-            f"expected {expected!r}, got {actual!r}"
-        )
-
-
-def require_matching_text(
-    sheet: xlrd.sheet.Sheet,
-    row: int,
-    column: int,
-    pattern: re.Pattern[str],
-    label: str,
-) -> re.Match[str]:
-    value = cell_value(sheet, row, column)
-    match = pattern.fullmatch(value) if isinstance(value, str) else None
-    if match is None:
-        raise ValueError(
-            f"{excel_location(row, column)}: invalid {label}; "
-            f"fingerprint mismatch"
-        )
-    return match
 
 
 def parse_money(value: Any, *, location: str, field: str) -> Decimal:
@@ -138,24 +100,8 @@ def parse_transaction_date_time(
     return timestamp.date(), timestamp
 
 
-def row_is_blank(sheet: xlrd.sheet.Sheet, row: int) -> bool:
-    return all(cell_value(sheet, row, column) == "" for column in range(sheet.ncols))
-
-
-def validate_fingerprint(book: xlrd.book.Book, sheet: xlrd.sheet.Sheet) -> None:
-    if book.biff_version != 80:
-        raise ValueError(
-            f"expected an Excel 97-2003 BIFF8 workbook, got BIFF {book.biff_version}"
-        )
-    if book.nsheets != 1 or book.sheet_names() != [SHEET_NAME]:
-        raise ValueError(
-            "expected exactly one worksheet named 'Statement'; fingerprint mismatch"
-        )
-    if sheet.ncols != EXPECTED_COLUMN_COUNT:
-        raise ValueError(
-            f"expected exactly {EXPECTED_COLUMN_COUNT} populated columns (A:X), "
-            f"got {sheet.ncols}; fingerprint mismatch"
-        )
+def validate_fingerprint(sheet: xlrd.sheet.Sheet) -> None:
+    xls.require_column_count(sheet, EXPECTED_COLUMN_COUNT)
 
     anchors = {
         (0, 0): "Name",
@@ -196,14 +142,8 @@ def validate_fingerprint(book: xlrd.book.Book, sheet: xlrd.sheet.Sheet) -> None:
 
 def parse_institution(sheet: xlrd.sheet.Sheet) -> Optional[str]:
     """The issuer's name from a registered-office footer cell in column A, or None."""
-    for row in range(sheet.nrows):
-        value = cell_value(sheet, row, 0)
-        if not isinstance(value, str):
-            continue
-        match = REGISTERED_OFFICE_RE.match(value.strip())
-        if match and match.group("name"):
-            return match.group("name")
-    return None
+    match = xls.first_text_cell(sheet, 0, REGISTERED_OFFICE_RE)
+    return match.group("name") if match and match.group("name") else None
 
 
 def parse_card_number(sheet: xlrd.sheet.Sheet) -> abacus.AbacusAccount:
@@ -385,18 +325,10 @@ def parse(path: Path) -> dict[str, Any]:
 
 
 def parse_bytes(data: bytes) -> dict[str, Any]:
-    if data[: len(OLE_MAGIC)] != OLE_MAGIC:
-        raise ValueError("expected an OLE Compound File / BIFF8 .xls workbook")
-
-    book = xlrd.open_workbook(file_contents=data, on_demand=True)
+    book = xls.open_biff8_workbook(data, on_demand=True)
     try:
-        if book.nsheets != 1 or book.sheet_names() != [SHEET_NAME]:
-            raise ValueError(
-                "expected exactly one worksheet named 'Statement'; "
-                "fingerprint mismatch"
-            )
-        sheet = book.sheet_by_index(0)
-        validate_fingerprint(book, sheet)
+        sheet = xls.require_single_sheet(book, SHEET_NAME)
+        validate_fingerprint(sheet)
         card_account = parse_card_number(sheet)
         summary = parse_summary(sheet)
         rows = parse_transactions(sheet, summary["statement_date"])
