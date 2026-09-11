@@ -58,34 +58,6 @@ export const importErrorSchema = z
   .passthrough();
 
 export const importDraftsContract = c.router({
-  uploadHdfcStatement: c.mutation({
-    method: "POST",
-    path: "/import-draft/hdfc-bank/upload",
-    summary: "Upload an HDFC statement and import draft transactions",
-    contentType: "multipart/form-data",
-    body: z.any(),
-    responses: {
-      200: importSummarySchema,
-      400: importErrorSchema,
-      403: importErrorSchema,
-      422: importErrorSchema,
-      502: importErrorSchema,
-    },
-  }),
-  uploadFederalStatement: c.mutation({
-    method: "POST",
-    path: "/import-draft/federal-bank/upload",
-    summary: "Upload a Federal Bank statement and import draft transactions",
-    contentType: "multipart/form-data",
-    body: z.any(),
-    responses: {
-      200: importSummarySchema,
-      400: importErrorSchema,
-      403: importErrorSchema,
-      422: importErrorSchema,
-      502: importErrorSchema,
-    },
-  }),
   uploadStatementBatch: c.mutation({
     method: "POST",
     path: "/import-draft/statement/upload",

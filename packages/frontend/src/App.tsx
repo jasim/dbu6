@@ -13,13 +13,10 @@ import {
   Send,
   Settings2,
   Tags,
-  Upload,
 } from "lucide-react";
 import { Advanced } from "./Advanced";
 import { defaultReportPath, reportDefinitions } from "./reports/registry";
 import { Welcome } from "./Welcome";
-import { ImportHdfcBankStatement } from "./views/ImportHdfcBankStatement";
-import { ImportFederalBankStatement } from "./views/ImportFederalBankStatement";
 import { ImportStatement } from "./views/ImportStatement";
 import { DraftTransactionsTable } from "./views/draft-transactions/DraftTransactionsTable";
 import { JournalsTable } from "./views/JournalsTable";
@@ -56,16 +53,6 @@ export const appNavigation: Navigation = [
         label: "Import a statement",
         icon: FileUp,
         to: "/views/import-statement",
-      },
-      {
-        label: "HDFC statement import",
-        icon: Upload,
-        to: "/views/import-hdfc-bank-statement",
-      },
-      {
-        label: "Federal Bank statement import",
-        icon: Upload,
-        to: "/views/import-federal-bank-statement",
       },
     ],
   },
@@ -159,14 +146,6 @@ export const appProtectedRoutes = (
     <Route
       path="reports/:reportName"
       element={<Navigate to={defaultReportPath} replace />}
-    />
-    <Route
-      path="views/import-federal-bank-statement"
-      element={<ImportFederalBankStatement />}
-    />
-    <Route
-      path="views/import-hdfc-bank-statement"
-      element={<ImportHdfcBankStatement />}
     />
     <Route path="views/import-statement" element={<ImportStatement />} />
     <Route path="views/reclassify-drafts" element={<ReclassifyDrafts />} />

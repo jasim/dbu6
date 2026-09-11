@@ -50,8 +50,8 @@ that placeholder is mapped to `null` so two interest rows on the same day
 never share a fabricated reference, and they fall back to the
 narration-based `semantic:` key instead.
 
-Rows imported through the retired TypeScript parser
-(`packages/api/bank-importer/parsers/hdfc-bank.ts`) carry `semantic:` keys,
+Rows imported through the retired TypeScript parser (deleted; was
+`packages/api/bank-importer/parsers/hdfc-bank.ts`) carry `semantic:` keys,
 so re-importing one of those statements through this parser would not
 recognise them as duplicates. Old statements are not expected to be
 re-imported, so no key migration is shipped.

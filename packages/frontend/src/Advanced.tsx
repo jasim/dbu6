@@ -7,7 +7,6 @@ import {
   FileUp,
   Send,
   Settings2,
-  Upload,
   Wand2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -29,18 +28,6 @@ const importTools: readonly ToolLink[] = [
       "Import PDF, text, CSV, XLS, or Abacus JSON with account-specific presets.",
     to: "/views/import-statement",
     icon: FileUp,
-  },
-  {
-    label: "HDFC statement import",
-    description: "Use the dedicated HDFC Bank statement workflow.",
-    to: "/views/import-hdfc-bank-statement",
-    icon: Upload,
-  },
-  {
-    label: "Federal Bank statement import",
-    description: "Use the dedicated Federal Bank statement workflow.",
-    to: "/views/import-federal-bank-statement",
-    icon: Upload,
   },
   {
     label: "Reclassify drafts",

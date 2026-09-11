@@ -49,15 +49,34 @@ describe("statement upload route discovery", () => {
     ).toBeDefined();
     expect(openApiPaths(document)["/api/import-presets"]?.get).toBeDefined();
     expect(
-      openApiPaths(document)["/api/import-draft/hdfc-bank/upload"]?.post,
-    ).toBeDefined();
-    expect(
       openApiPaths(document)["/api/draft-transactions/classify-with-gpay"]
         ?.post,
     ).toBeDefined();
     expect(
       openApiPaths(document)["/api/reports/duplicate-drafts"]?.get,
     ).toBeDefined();
+  });
+
+  it("no longer publishes the retired per-bank upload routes", () => {
+    const mountedApi = new TsRestApi<SapportaEnv>();
+    loadApp(mountedApi, {
+      conn: undefined as never,
+      mailer: undefined as never,
+    });
+    const paths = openApiPaths(
+      mountedApi.generateDocument(
+        undefined,
+        { info: { title: "dbu6 test api", version: "0.0.0" } },
+        { pathPrefix: "/api" },
+      ),
+    );
+
+    // HDFC and Federal Bank import through the universal statement upload with
+    // their deterministic parsers in `import-presets.json`. Re-adding a
+    // hardcoded per-bank endpoint would reintroduce a second import path that
+    // skips the balance validation in `runStatementImport`.
+    expect(paths["/api/import-draft/hdfc-bank/upload"]).toBeUndefined();
+    expect(paths["/api/import-draft/federal-bank/upload"]).toBeUndefined();
   });
 });
 

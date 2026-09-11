@@ -70,7 +70,8 @@ identity no longer depends on the narration text at all.
 
 ## Narration is verbatim; VPA matching lives in the mapping layer
 
-The retired TypeScript parser (`packages/api/bank-importer/parsers/federal-bank.ts`)
+The retired TypeScript parser (deleted; was
+`packages/api/bank-importer/parsers/federal-bank.ts`)
 reduced `UPIOUT` withdrawals to the bare payee VPA, which is why
 `data/user-config/transaction_mappings.mjs` has many `exact` keys that are
 bare VPAs. This parser emits `Particulars` untouched. Those keys keep

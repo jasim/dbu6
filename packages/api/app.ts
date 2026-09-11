@@ -15,7 +15,6 @@ import type {
   TsRestApi,
 } from "@sapporta/server";
 import classifyDraftTransactionsApi from "./app/classify-draft-transactions.js";
-import importDraftBankApi from "./app/import-draft-journals-from-bank.js";
 import importDraftStatementFilesApi from "./app/import-draft-journals-from-statement-files.js";
 import importPresetsApi from "./app/import-presets.js";
 import postDraftsToJournalApi from "./app/post-drafts-to-journal.js";
@@ -39,7 +38,6 @@ function mountApi(app: TsRestApi<SapportaEnv>, api: TsRestApi<SapportaEnv>) {
 export function loadApp(app: TsRestApi<SapportaEnv>, _options: LoadAppOptions) {
   mountApi(app, reportsApi);
   mountApi(app, importPresetsApi);
-  mountApi(app, importDraftBankApi);
   mountApi(app, importDraftStatementFilesApi);
   mountApi(app, classifyDraftTransactionsApi);
   mountApi(app, renderDraftHledgerApi);
