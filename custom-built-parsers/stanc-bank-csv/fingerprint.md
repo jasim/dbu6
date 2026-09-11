@@ -43,6 +43,7 @@
 
 ## Emitted account identifier
 - `account: {"kind": "bank", "identifier": "<digits>"}` — the line-1 account number with its leading `'` stripped, e.g. `'0505050505` → `0505050505`. Rejected when the field is missing, unquoted, or not 8–20 digits.
+- `institution: null` — the export prints the product name (`... Savings a/c`) but not the bank's name.
 
 ## How to run
     uv run parser.py <stanc-csv-path>

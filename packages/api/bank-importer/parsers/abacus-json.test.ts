@@ -109,6 +109,38 @@ describe("parseAbacusJson", () => {
       "test",
     );
     expect(absent.account).toBeNull();
+    expect(absent.institution).toBeNull();
+  });
+
+  it("carries the printed institution name through verbatim", () => {
+    const row = {
+      date: "2026-07-15",
+      narration: "Row",
+      withdrawal: 100,
+      deposit: 0,
+      balance: null,
+    };
+    const named = parseAbacusJson(
+      JSON.stringify({
+        kind: "abacus",
+        institution: "HDFC BANK Ltd.",
+        rows: [row],
+      }),
+      "test",
+    );
+    expect(named.institution).toBe("HDFC BANK Ltd.");
+    expect(
+      parseAbacusJson(
+        JSON.stringify({ kind: "abacus", institution: null, rows: [row] }),
+        "test",
+      ).institution,
+    ).toBeNull();
+    expect(() =>
+      parseAbacusJson(
+        JSON.stringify({ kind: "abacus", institution: "  ", rows: [row] }),
+        "test",
+      ),
+    ).toThrow(AbacusJsonParseError);
   });
 
   it.each([

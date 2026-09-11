@@ -30,16 +30,18 @@ export function parseAbacusJson(
   const opening = parsed.opening ?? null;
   const closing = parsed.closing ?? null;
   const account = parsed.account ?? null;
+  const institution = parsed.institution ?? null;
   const transactions = normalizeChronological(parsed.rows);
   console.log(
     `[${logPrefix}] parsed abacus json: ${parsed.rows.length} row(s), opening=${opening}, closing=${closing}, account=${
       account === null ? "none" : `${account.kind}:${account.identifier}`
-    }`,
+    }, institution=${institution === null ? "none" : JSON.stringify(institution)}`,
   );
   return {
     transactions,
     opening,
     closing,
     account,
+    institution,
   };
 }

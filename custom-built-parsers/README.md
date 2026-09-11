@@ -43,6 +43,7 @@ Target shape:
 ```json
 {
   "kind": "abacus",
+  "institution": "Standard Chartered Bank",
   "account": { "kind": "card", "identifier": "050505XXXXXX0505" },
   "opening": -12345.67,
   "closing": -23456.78,
@@ -74,6 +75,8 @@ Rules:
   `kind` is `bank` or `card`; `identifier` is digits only for a bank account
   and the printed masked form without spaces for a card. See the "Emitted
   account identifier" section of `import-statement-parser-guide.md`.
+- `institution`: the bank or issuer name exactly as printed, trimmed, or
+  `null` when the statement prints none. Lookup text, not an identifier.
 - Sign convention: ledger semantics. Asset balances are normally positive.
   Liability balances, including credit cards, are negative.
 

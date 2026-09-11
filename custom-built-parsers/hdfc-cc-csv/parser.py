@@ -87,6 +87,9 @@ CARD_NUMBER_RE = re.compile(
     r"^Card No: (?P<number>[0-9]{4} [0-9]{2}XX XXXX [0-9]{4})$"
 )
 ALTERNATE_ACCOUNT_RE = re.compile(r"^AAN: [0-9]{16,24}$")
+# The footer's registered-office line opens with the issuer's name, which is
+# emitted verbatim as `institution` (the part before the first comma).
+REGISTERED_OFFICE_RE = re.compile(r"^Registered Office Address:\s*(?P<name>[^,]+?)\s*(?:,|$)")
 TRANSACTION_DATE_TIME_RE = re.compile(
     r"^[0-9]{2}/[0-9]{2}/[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}$"
 )
@@ -430,6 +433,15 @@ def parse_transactions(cursor: Cursor, statement_date: date) -> list[dict[str, A
     return rows
 
 
+def parse_institution(lines: list[str]) -> str | None:
+    """The issuer's name from the registered-office footer line, or None."""
+    for line in lines:
+        match = REGISTERED_OFFICE_RE.match(line.strip())
+        if match and match.group("name"):
+            return match.group("name")
+    return None
+
+
 def parse_text(text: str) -> dict[str, Any]:
     cursor = Cursor(text.splitlines())
     head = parse_head(cursor)
@@ -453,6 +465,7 @@ def parse_text(text: str) -> dict[str, Any]:
         "card_number": card_number,
         "card_identifier": card_identifier,
         "alternate_account": alternate_account,
+        "institution": parse_institution(cursor.lines),
         "rows": rows,
     }
 
@@ -571,6 +584,8 @@ def to_abacus(statement: dict[str, Any], audit: dict[str, Any]) -> dict[str, Any
         "kind": "abacus",
         # The masked card number identifies which card this statement is for.
         "account": {"kind": "card", "identifier": statement["card_identifier"]},
+        # The issuer's name from the registered-office footer, verbatim.
+        "institution": statement["institution"],
         # Credit-card balances are liabilities, hence the sign flip.
         "opening": ledger_balance(audit["opening"]),
         # HDFC displays Total Dues rounded to rupees. Preserve the exact ledger

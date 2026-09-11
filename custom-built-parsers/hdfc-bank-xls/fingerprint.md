@@ -115,6 +115,8 @@ fixture. Regenerate with:
   after `Account No :` in the letterhead, e.g.
   `Account No :05050505050505   Preferred Customer` → `05050505050505`.
   Rejected when the cell is missing, non-numeric, or shorter than 9 digits.
+- `institution: "HDFC BANK Ltd."` — the bank name that opens the `A1` title,
+  verbatim. It is a required anchor, so a different name is rejected.
 
 ## How to run
 

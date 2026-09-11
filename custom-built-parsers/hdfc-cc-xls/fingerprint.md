@@ -89,6 +89,10 @@
   `Credit Card No.: 050505XXXXXX0505` → `050505XXXXXX0505`. The `N4`
   alternate account number is validated but not emitted. Rejected when `N3`
   is missing or not six digits, six `X`, four digits.
+- `institution` — the issuer's name opening a `Registered Office Address:`
+  cell in column `A` below the table, up to the first comma, verbatim
+  (`HDFC Bank Cards Division`, mirroring the CSV export's footer); `null`
+  when no such cell exists. The layout prints no other bank name.
 
 ## Fixture
 

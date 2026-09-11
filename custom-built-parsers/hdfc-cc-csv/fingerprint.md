@@ -111,6 +111,10 @@ parsers are kept apart.
   → `050505XXXXXX0505`. The `AAN:` alternate account number is validated but
   not emitted. Rejected when the card line is missing or not in the
   `NNNN NNXX XXXX NNNN` shape.
+- `institution` — the issuer's name opening the footer's
+  `Registered Office Address:` line, up to the first comma, verbatim
+  (`HDFC Bank Cards Division` in the tested export); `null` when that line
+  is absent. The statement prints no other bank name.
 
 ## How to run
 

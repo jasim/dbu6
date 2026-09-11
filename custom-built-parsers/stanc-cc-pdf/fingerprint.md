@@ -38,6 +38,7 @@
 
 ## Emitted account identifier
 - `account: {"kind": "card", "identifier": "<16 chars>"}` — the masked card number printed on or just below the `Credit Card Account Number` label line, with spaces removed and the mask uppercased, e.g. `0505 05XX XXXX 0505` → `050505XXXXXX0505`. The parser rejects the text when the label is absent or when it cannot find exactly one masked number near it.
+- `institution` — the first printed `Standard Chartered …` phrase, verbatim, including a directly attached `Bank` / `India` / `Limited` suffix (`Standard Chartered Bank` in the fixture); `null` when the text never prints it.
 
 ## How to run
     uv run parser.py <input.pdf>

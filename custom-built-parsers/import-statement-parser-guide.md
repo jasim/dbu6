@@ -10,7 +10,7 @@ For recurring statement formats, ask a coding agent to create a deterministic pa
 - Make the parser accept one input file and write `<input-basename>.abacus.json`.
 - Keep parser output in the Abacus JSON shape accepted by the importer.
 - For credit cards, make the parser emit ledger-semantic balances.
-- Make the parser emit the account or card number the statement prints about itself as a top-level `account` object (see below).
+- Make the parser emit the account or card number the statement prints about itself as a top-level `account` object, and the institution's name as printed as a top-level `institution` string (see below).
 
 ## Emitted account identifier
 
@@ -25,6 +25,18 @@ Every deterministic parser reports which account or card the statement belongs t
 - A bank account emits the full printed account number with digits only: strip labels, quotes, spaces, and punctuation.
 - A card emits the masked number exactly as printed, with spaces removed and the mask letter uppercased, so `1234 56XX XXXX 7890` becomes `123456XXXXXX7890`. Never unmask or shorten it.
 - A parser that cannot see an identifier omits `account` rather than guessing.
+
+## Emitted institution name
+
+Alongside `account`, a parser emits the bank or card issuer's name as a top-level `institution` string:
+
+```json
+{ "kind": "abacus", "institution": "HDFC BANK Ltd.", "account": { "kind": "bank", "identifier": "050505000012" }, "rows": [] }
+```
+
+- Copy the name exactly as the statement prints it, trimmed of surrounding whitespace only. Keep its case, punctuation, and any suffix such as `Ltd.` or `Cards Division`. Do not normalize it to a canonical bank name.
+- Two statements from the same institution may print slightly different names, so `institution` is lookup text for finding a preset, never an identifier. Matching on it must tolerate those variations; the `account` identifier is the exact match.
+- Emit `null` (or omit the field) when the statement prints no institution name. Never infer it from the parser's own knowledge of which bank it handles.
 
 The same canonical value goes into `statement_account_identifier` on the matching preset in `data/user-config/import-presets.json`. When several presets share one parser, for example two cards from the same bank, each preset needs its identifier so the importer can tell the statements apart. When a preset carries an identifier and a parsed statement reports a different one, the upload is rejected.
 

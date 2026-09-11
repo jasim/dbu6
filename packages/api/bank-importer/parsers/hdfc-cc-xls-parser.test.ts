@@ -51,6 +51,7 @@ describe("HDFC credit-card statement XLS parser", () => {
       expect(output).toMatchObject({
         kind: "abacus",
         account: { kind: "card", identifier: "050505XXXXXX0505" },
+        institution: "HDFC Bank Cards Division",
         opening: -1000.37,
         closing: -1630.37,
       });

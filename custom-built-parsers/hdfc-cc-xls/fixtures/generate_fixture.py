@@ -174,6 +174,16 @@ def statement_rows(
         )
     )
     rows.append(row_with({0: "500", 4: "22", 9: "0", 12: "0", 18: "522"}))
+    rows.append(blank_row())
+    rows.append(row_with({0: "State account branch GSTN: 050505NOPII0000 [ State code : sample ]"}))
+    rows.append(
+        row_with(
+            {
+                0: "Registered Office Address: HDFC Bank Cards Division, "
+                "Door No 050505, sample Road, sample City - 050505."
+            }
+        )
+    )
     return rows
 
 

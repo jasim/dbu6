@@ -17,7 +17,7 @@ import sys
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import xlrd
 
@@ -41,6 +41,9 @@ TRANSACTION_DATE_TIME_RE = re.compile(
     r"(?P<time>[0-9]{2}:[0-9]{2})$"
 )
 REWARD_RE = re.compile(r"^[+-] [0-9]+(?:,[0-9]{3})*$")
+# A registered-office footer cell, when present, opens with the issuer's
+# name, which is emitted verbatim as `institution` (up to the first comma).
+REGISTERED_OFFICE_RE = re.compile(r"^Registered Office Address:\s*(?P<name>[^,]+?)\s*(?:,|$)")
 REFERENCE_RE = re.compile(r"\(Ref#\s*([^)]+?)\)", re.IGNORECASE)
 TRANSACTION_COLUMNS = {0, 4, 9, 12, 18, 20, 23}
 
@@ -186,6 +189,18 @@ def validate_fingerprint(book: xlrd.book.Book, sheet: xlrd.sheet.Sheet) -> None:
         ALTERNATE_ACCOUNT_RE,
         "alternate account number",
     )
+
+
+def parse_institution(sheet: xlrd.sheet.Sheet) -> Optional[str]:
+    """The issuer's name from a registered-office footer cell in column A, or None."""
+    for row in range(sheet.nrows):
+        value = cell_value(sheet, row, 0)
+        if not isinstance(value, str):
+            continue
+        match = REGISTERED_OFFICE_RE.match(value.strip())
+        if match and match.group("name"):
+            return match.group("name")
+    return None
 
 
 def parse_card_number(sheet: xlrd.sheet.Sheet) -> str:
@@ -382,7 +397,12 @@ def parse_bytes(data: bytes) -> dict[str, Any]:
         card_number = parse_card_number(sheet)
         summary = parse_summary(sheet)
         rows = parse_transactions(sheet, summary["statement_date"])
-        return {"card_number": card_number, "summary": summary, "rows": rows}
+        return {
+            "card_number": card_number,
+            "institution": parse_institution(sheet),
+            "summary": summary,
+            "rows": rows,
+        }
     finally:
         book.release_resources()
 
@@ -459,6 +479,8 @@ def to_abacus(statement: dict[str, Any], audit: dict[str, Any]) -> dict[str, Any
         "kind": "abacus",
         # The masked card number identifies which card this statement is for.
         "account": {"kind": "card", "identifier": statement["card_number"]},
+        # The issuer's name from the registered-office footer, verbatim.
+        "institution": statement["institution"],
         # Credit-card balances are liabilities, hence the sign flip.
         "opening": ledger_balance(audit["opening"]),
         # HDFC displays Total Dues rounded to rupees. Preserve the exact ledger

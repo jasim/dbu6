@@ -301,6 +301,9 @@ def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
         # The line-1 account number, digits only, identifies which bank
         # account this statement belongs to.
         "account": {"kind": "bank", "identifier": statement["account_number"]},
+        # The export prints the product name ("... Savings a/c") but never the
+        # bank's name, so there is nothing to copy verbatim.
+        "institution": None,
         # This export does not print an opening balance; do not synthesize one.
         "opening": None,
         "closing": json_number(statement["current"]),

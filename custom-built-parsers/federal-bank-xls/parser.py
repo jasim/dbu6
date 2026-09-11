@@ -507,6 +507,9 @@ def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
             "kind": "bank",
             "identifier": statement["letterhead"]["account_number"],
         },
+        # The FedNet export prints no bank name anywhere (holder block,
+        # account row, header, footer), so there is nothing to copy verbatim.
+        "institution": None,
         # The export labels neither an opening nor a closing balance. Per-row
         # balances give the importer a `per-row` closing; nothing is derived.
         "opening": None,

@@ -37,6 +37,14 @@ class ParserTests(unittest.TestCase):
         self.assertEqual((rows[0]["withdrawal"], rows[0]["deposit"]), (125.5, 0.0))
         self.assertEqual((rows[1]["withdrawal"], rows[1]["deposit"]), (0.0, 400.0))
 
+    def test_issuer_name_is_emitted_verbatim(self) -> None:
+        self.assertEqual(PARSER.parse_institution(self.text), "Standard Chartered Bank")
+        shortened = self.text.replace("Standard Chartered Bank", "Standard Chartered")
+        self.assertEqual(PARSER.parse_institution(shortened), "Standard Chartered")
+        self.assertIsNone(
+            PARSER.parse_institution(self.text.replace("Standard Chartered Bank", ""))
+        )
+
     def test_masked_card_number_is_emitted_without_spaces(self) -> None:
         self.assertEqual(PARSER.parse_card_number(self.text), "050505XXXXXX0505")
 

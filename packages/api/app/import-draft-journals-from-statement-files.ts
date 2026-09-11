@@ -364,6 +364,7 @@ export interface GeneratedAbacusJson {
   inputPath: string;
   jsonText: string;
   account: StatementAccount | null;
+  institution: string | null;
 }
 
 async function readGeneratedAbacusJson(
@@ -408,6 +409,7 @@ async function readGeneratedAbacusJson(
     inputPath,
     jsonText,
     account: parsed.data.account ?? null,
+    institution: parsed.data.institution ?? null,
   };
 }
 

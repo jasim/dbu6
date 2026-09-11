@@ -72,6 +72,7 @@ function statement(): StatementData {
     opening: null,
     closing: null,
     account: null,
+    institution: null,
   };
 }
 
@@ -210,6 +211,7 @@ describe("Google Pay enrichment on the universal statement import", () => {
       opening: null,
       closing: null,
       account: null,
+      institution: null,
     };
     const html = takeout(
       dir,

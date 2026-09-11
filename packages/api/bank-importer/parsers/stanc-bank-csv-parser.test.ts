@@ -60,6 +60,7 @@ describe("Standard Chartered bank CSV parser", () => {
       expect(JSON.parse(detected.jsonTexts[0])).toMatchObject({
         kind: "abacus",
         account: { kind: "bank", identifier: "0505050505" },
+        institution: null,
         opening: null,
         closing: 1150,
         rows: expect.arrayContaining([

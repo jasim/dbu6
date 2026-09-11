@@ -35,6 +35,11 @@ export const abacusJsonSchema = z.object({
   // emit it so an import can be matched to the right preset; hand-written
   // JSON and LLM extraction leave it out.
   account: statementAccountSchema.nullable().optional(),
+  // The bank or card issuer's name exactly as the statement prints it,
+  // trimmed. Two statements from one institution may print it differently
+  // (a shortened form, a division name), so this is lookup text for finding
+  // a preset, not an identifier. Null or omitted when nothing is printed.
+  institution: z.string().trim().min(1).nullable().optional(),
   rows: z.array(abacusSchema).min(1, "Transaction list is empty"),
 });
 

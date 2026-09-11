@@ -139,6 +139,7 @@ generator still reproduces the committed fixture. Regenerate with:
   and account category on the same row are validated but not emitted. Rejected
   when `C9` is blank, numeric rather than text, or contains anything but
   digits.
+- `institution: null` — the FedNet export prints no bank name.
 
 ## How to run
 

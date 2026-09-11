@@ -94,6 +94,10 @@ class ParserTests(unittest.TestCase):
             {"kind": "bank", "identifier": "050505000012"},
         )
 
+    def test_institution_is_null_because_the_export_prints_no_bank_name(self) -> None:
+        statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
+        self.assertIsNone(PARSER.to_abacus(statement)["institution"])
+
     def test_missing_or_malformed_account_number_is_rejected(self) -> None:
         for replacement in ("", "0505 05000012", "05050500001X", 50505000012.0):
             with self.subTest(cell=replacement):

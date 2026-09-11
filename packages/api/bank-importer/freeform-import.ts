@@ -271,24 +271,39 @@ export function mergeStatements(
   );
   const opening = ordered[0]?.opening ?? null;
   const closing = ordered[ordered.length - 1]?.closing ?? null;
-  return { transactions, opening, closing, account: sharedAccount(parts) };
+  return {
+    transactions,
+    opening,
+    closing,
+    account: sharedValue(parts, (part) => part.account, sameAccount),
+    institution: sharedValue(
+      parts,
+      (part) => part.institution,
+      (a, b) => a === b,
+    ),
+  };
 }
 
-// The merged statement describes one account only when every part that
-// names an account names the same one. Parts that name different accounts
-// yield null here; the upload route compares each part against the selected
-// preset before this merge, which is where a mix-up is reported.
-function sharedAccount(parts: StatementData[]): StatementAccount | null {
-  const named = parts.flatMap((part) =>
-    part.account === null ? [] : [part.account],
-  );
+function sameAccount(a: StatementAccount, b: StatementAccount): boolean {
+  return a.kind === b.kind && a.identifier === b.identifier;
+}
+
+// The merged statement describes one account (or institution) only when
+// every part that names one names the same one. Parts that disagree yield
+// null here; the upload route compares each part against the selected preset
+// before this merge, which is where a mix-up is reported.
+function sharedValue<T>(
+  parts: StatementData[],
+  pick: (part: StatementData) => T | null,
+  same: (a: T, b: T) => boolean,
+): T | null {
+  const named = parts.flatMap((part) => {
+    const value = pick(part);
+    return value === null ? [] : [value];
+  });
   if (named.length === 0) return null;
   const [first] = named;
-  const agree = named.every(
-    (account) =>
-      account.kind === first.kind && account.identifier === first.identifier,
-  );
-  return agree ? first : null;
+  return named.every((value) => same(value, first)) ? first : null;
 }
 
 // The freeform pipeline as a spine: text(s) → per-file statement data →

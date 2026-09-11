@@ -200,6 +200,7 @@ describe("statement account guard", () => {
     inputPath: "/tmp/upload/statement.xls",
     jsonText: "{}",
     account,
+    institution: null,
   });
 
   it("passes when the preset or the statement has no identifier", () => {

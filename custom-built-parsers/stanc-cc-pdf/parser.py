@@ -43,6 +43,12 @@ CARD_NUMBER_RE = re.compile(
     r"(?<![0-9X])[0-9]{4} ?[0-9]{2}X{2} ?X{4} ?[0-9]{4}(?![0-9X])", re.IGNORECASE
 )
 CARD_NUMBER_WINDOW_LINES = 4
+# The issuer's printed name, emitted verbatim as `institution`: the first
+# occurrence of "Standard Chartered" with any directly attached suffix such
+# as "Bank" or "Bank, India". Absent text yields null rather than a guess.
+INSTITUTION_RE = re.compile(
+    r"Standard Chartered(?: Bank)?(?:,? (?:India|Limited|Ltd\.?))*", re.IGNORECASE
+)
 NUM_RE = re.compile(r"[\d,]+\.\d{2}")
 FOOTNOTE_RE = re.compile(
     r"^(?:note\b|important\b|transactions?\s+(?:marked|converted|made)|"
@@ -91,6 +97,11 @@ def parse_summary(text: str) -> tuple[float | None, float | None]:
                         float(nums[2].replace(",", "")),
                     )
     return None, None
+
+
+def parse_institution(text: str) -> str | None:
+    match = INSTITUTION_RE.search(text)
+    return match.group(0) if match else None
 
 
 def parse_card_number(text: str) -> str:
@@ -228,6 +239,7 @@ def main() -> None:
         sys.exit(f"not found: {pdf}")
     text = run_pdftotext(pdf)
     card_number = parse_card_number(text)
+    institution = parse_institution(text)
     rows = parse_transactions(text)
     opening_raw, closing_raw = parse_summary(text)
     # Liabilities are negative in the ledger; statement prints them as positive.
@@ -237,6 +249,7 @@ def main() -> None:
     out = {
         "kind": "abacus",
         "account": {"kind": "card", "identifier": card_number},
+        "institution": institution,
         "opening": opening,
         "closing": closing,
         "rows": rows,

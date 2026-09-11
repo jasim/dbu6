@@ -85,6 +85,17 @@ class ParserTests(unittest.TestCase):
             {"kind": "bank", "identifier": "05050505050505"},
         )
 
+    def test_emits_the_title_bank_name_verbatim_as_the_institution(self) -> None:
+        statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
+        self.assertEqual(statement["letterhead"]["institution"], "HDFC BANK Ltd.")
+        self.assertEqual(PARSER.to_abacus(statement)["institution"], "HDFC BANK Ltd.")
+
+    def test_title_without_the_bank_name_is_rejected(self) -> None:
+        rows = FIXTURE.sample_rows()
+        rows[0][0] = rows[0][0].replace("HDFC BANK Ltd.", "SAMPLE BANK Ltd.")
+        with self.assertRaisesRegex(ValueError, "A1: expected the HDFC"):
+            parse_rows(rows)
+
     def test_missing_or_malformed_account_number_is_rejected(self) -> None:
         for replacement in (
             "",

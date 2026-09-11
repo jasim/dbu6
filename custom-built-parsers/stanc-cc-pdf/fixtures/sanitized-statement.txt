@@ -1,4 +1,4 @@
-Credit Card Statement
+Standard Chartered Bank                                   Credit Card Statement
 Credit Card Account Number        Statement Date        Statement Period            Payment Due Date
 0505 05XX XXXX 0505               10 May 2026           11 Apr 2026 - 10 May 2026   30 May 2026
 Previous Balance (INR)   Payments/Credits (INR)   Total Payment Due (INR)

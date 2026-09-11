@@ -58,8 +58,9 @@ SUMMARY_LABELS = {
 COUNT_LABELS = {COL_WITHDRAWAL: "Dr Count", COL_DEPOSIT: "Cr Count"}
 END_OF_STATEMENT = "---  End Of Statement ---"
 
+# The A1 title starts with the bank's printed name, emitted as `institution`.
 TITLE_RE = re.compile(
-    r"^HDFC BANK Ltd\.\s+Page No \.:\s+[0-9]+\s+Statement of accounts$"
+    r"^(?P<institution>HDFC BANK Ltd\.)\s+Page No \.:\s+[0-9]+\s+Statement of accounts$"
 )
 STATEMENT_PERIOD_RE = re.compile(
     r"^Statement From\s+:\s+(?P<from>[0-9]{2}/[0-9]{2}/[0-9]{4})"
@@ -264,7 +265,8 @@ def validate_workbook_fingerprint(book: xlrd.book.Book) -> xlrd.sheet.Sheet:
 def parse_letterhead(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
     """Validate the account letterhead (rows 1-19); extract the account number and period."""
     title = cell_value(sheet, 0, 0)
-    if not isinstance(title, str) or not TITLE_RE.fullmatch(title):
+    title_match = TITLE_RE.fullmatch(title) if isinstance(title, str) else None
+    if title_match is None:
         raise ValueError(
             f"A1: expected the HDFC 'Statement of accounts' title, got {title!r}; "
             "fingerprint mismatch"
@@ -309,6 +311,7 @@ def parse_letterhead(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
             f"starts {period_from.isoformat()}"
         )
     return {
+        "institution": title_match.group("institution"),
         "account_number": account.group("number"),
         "period_from": period_from,
         "period_to": period_to,
@@ -596,6 +599,8 @@ def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
             "kind": "bank",
             "identifier": statement["letterhead"]["account_number"],
         },
+        # The bank's name as printed in the A1 title; lookup text for presets.
+        "institution": statement["letterhead"]["institution"],
         # Bank account: ledger semantics already, no sign flip. Overdraft
         # balances stay negative exactly as printed.
         "opening": json_number(summary["opening"]),

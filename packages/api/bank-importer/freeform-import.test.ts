@@ -98,6 +98,7 @@ function stmt(
     opening,
     closing,
     account: null,
+    institution: null,
   };
 }
 
@@ -243,6 +244,7 @@ function statementWithNet(
     opening,
     closing,
     account: null,
+    institution: null,
     transactions: normalizeChronological(
       [
         {

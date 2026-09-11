@@ -211,6 +211,16 @@ class ParserTests(unittest.TestCase):
             output["account"], {"kind": "card", "identifier": "050505XXXXXX0505"}
         )
 
+    def test_emits_the_registered_office_issuer_name_verbatim(self) -> None:
+        statement = PARSER.parse_text(VALID_STATEMENT)
+        self.assertEqual(statement["institution"], "HDFC Bank Cards Division")
+        output = PARSER.to_abacus(statement, PARSER.validate(statement))
+        self.assertEqual(output["institution"], "HDFC Bank Cards Division")
+
+    def test_institution_is_null_without_the_registered_office_line(self) -> None:
+        text = replace_once(VALID_STATEMENT, "Registered Office Address:", "Office:")
+        self.assertIsNone(PARSER.parse_text(text)["institution"])
+
     def test_missing_or_malformed_card_number_is_rejected(self) -> None:
         for replacement in ("", "Card No: ", "Card No: 0505 05xx xxxx 0505", "AAN: 0505"):
             with self.subTest(card_line=replacement):

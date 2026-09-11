@@ -76,6 +76,18 @@ class ParserTests(unittest.TestCase):
         output = PARSER.to_abacus(statement, PARSER.validate(statement))
         self.assertEqual(output["account"], {"kind": "card", "identifier": "050505XXXXXX0505"})
 
+    def test_emits_the_registered_office_issuer_name_verbatim(self) -> None:
+        statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
+        self.assertEqual(statement["institution"], "HDFC Bank Cards Division")
+        output = PARSER.to_abacus(statement, PARSER.validate(statement))
+        self.assertEqual(output["institution"], "HDFC Bank Cards Division")
+
+    def test_institution_is_null_without_the_registered_office_cell(self) -> None:
+        rows = FIXTURE.sample_rows()
+        index = next(i for i, row in enumerate(rows) if str(row[0]).startswith("Registered Office"))
+        del rows[index]
+        self.assertIsNone(parse_rows(rows)["institution"])
+
     def test_missing_or_malformed_card_number_is_rejected(self) -> None:
         for replacement in (
             "",

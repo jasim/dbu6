@@ -428,6 +428,9 @@ export interface StatementData {
   // The account or card number printed on the statement, when the source
   // reported one. Deterministic parsers emit it; LLM extraction does not.
   account: StatementAccount | null;
+  // The institution's name as printed on the statement; lookup text, not an
+  // identifier. Deterministic parsers emit it; LLM extraction does not.
+  institution: string | null;
 }
 
 // Transactions and balances are independent HTTP calls — run them in
@@ -509,6 +512,7 @@ export async function extractStatementData(
     opening: balances.opening,
     closing: balances.closing,
     account: null,
+    institution: null,
   };
   const signed = applyCreditCardSignFlip(raw, config.isCreditCard);
 
