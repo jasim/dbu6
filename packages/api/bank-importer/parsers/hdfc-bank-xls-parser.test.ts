@@ -50,9 +50,13 @@ describe("HDFC Bank statement XLS parser", () => {
         inputPath,
       ]);
       expect(detected.parserPaths).toEqual([BANK_PARSER]);
+      expect(detected.accounts).toEqual([
+        { kind: "bank", identifier: "05050505050505" },
+      ]);
       const output = JSON.parse(detected.jsonTexts[0]);
       expect(output).toMatchObject({
         kind: "abacus",
+        account: { kind: "bank", identifier: "05050505050505" },
         opening: 100000,
         closing: 95779,
       });

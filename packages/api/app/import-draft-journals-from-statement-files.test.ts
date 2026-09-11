@@ -6,11 +6,14 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import { draftTransactionsContract, importPresetSchema } from "dbu6-shared";
 import * as XLSX from "xlsx";
 import api, {
+  assertStatementAccountMatchesPreset,
   classifyBatch,
   extractXlsStatements,
   resolveAllowedCustomStatementParserPath,
+  type GeneratedAbacusJson,
 } from "./import-draft-journals-from-statement-files.js";
 import { loadApp } from "../app.js";
+import { ApiImportError } from "../bank-importer/import-errors.js";
 
 function openApiPaths(
   document: unknown,
@@ -145,6 +148,31 @@ describe("custom statement parser preset configuration", () => {
     ).not.toThrow();
   });
 
+  it("accepts a canonical statement account identifier on import presets", () => {
+    const base = {
+      name: "HDFC CC XLS",
+      base_account: "cc:hdfc",
+      custom_mappings_filenames: [],
+      is_credit_card: true,
+      custom_statement_parser_path:
+        "custom-built-parsers/hdfc-cc-xls/parser.py",
+    };
+    expect(
+      importPresetSchema.parse({
+        ...base,
+        statement_account_identifier: "050505XXXXXX0505",
+      }).statement_account_identifier,
+    ).toBe("050505XXXXXX0505");
+    for (const bad of ["0505 05XX XXXX 0505", "050505xxxxxx0505", ""]) {
+      expect(() =>
+        importPresetSchema.parse({
+          ...base,
+          statement_account_identifier: bad,
+        }),
+      ).toThrow();
+    }
+  });
+
   it("resolves only parser paths declared by trusted presets", () => {
     const allowed = new Set(["custom-built-parsers/stanc-bank-csv/parser.py"]);
 
@@ -161,6 +189,62 @@ describe("custom statement parser preset configuration", () => {
         allowed,
       ),
     ).toBeNull();
+  });
+});
+
+describe("statement account guard", () => {
+  const generated = (
+    account: GeneratedAbacusJson["account"],
+  ): GeneratedAbacusJson => ({
+    parserPath: "custom-built-parsers/hdfc-cc-xls/parser.py",
+    inputPath: "/tmp/upload/statement.xls",
+    jsonText: "{}",
+    account,
+  });
+
+  it("passes when the preset or the statement has no identifier", () => {
+    expect(() =>
+      assertStatementAccountMatchesPreset(null, generated(null)),
+    ).not.toThrow();
+    expect(() =>
+      assertStatementAccountMatchesPreset(
+        null,
+        generated({ kind: "card", identifier: "050505XXXXXX0505" }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertStatementAccountMatchesPreset("050505XXXXXX0505", generated(null)),
+    ).not.toThrow();
+  });
+
+  it("passes when the identifiers agree and rejects with a 422 payload otherwise", () => {
+    expect(() =>
+      assertStatementAccountMatchesPreset(
+        "050505XXXXXX0505",
+        generated({ kind: "card", identifier: "050505XXXXXX0505" }),
+      ),
+    ).not.toThrow();
+
+    let caught: unknown;
+    try {
+      assertStatementAccountMatchesPreset(
+        "050505XXXXXX0505",
+        generated({ kind: "card", identifier: "050505XXXXXX0506" }),
+      );
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ApiImportError);
+    const error = caught as ApiImportError;
+    expect(error.status).toBe(422);
+    expect(error.toPayload()).toMatchObject({
+      error: "statement_account_mismatch",
+      input_path: "statement.xls",
+      parser_path: "custom-built-parsers/hdfc-cc-xls/parser.py",
+      expected_identifier: "050505XXXXXX0505",
+      statement_account_kind: "card",
+      statement_identifier: "050505XXXXXX0506",
+    });
   });
 });
 

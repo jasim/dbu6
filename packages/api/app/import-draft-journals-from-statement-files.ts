@@ -3,14 +3,12 @@ import { readFile, readdir, unlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { TsRestApi, projectPath, type SapportaEnv } from "@sapporta/server";
-import { userConfigPath } from "../user-data.js";
 import {
   importDraftsContract,
-  importPresetSchema,
   type ExtractionTool,
+  type StatementAccount,
 } from "dbu6-shared";
 import * as XLSX from "xlsx";
-import { z } from "zod";
 import {
   ApiImportError,
   PdfExtractionFailed,
@@ -20,6 +18,7 @@ import {
   type ExtractedStatementSource,
 } from "../bank-importer/freeform-import.js";
 import { abacusJsonSchema } from "../bank-importer/domain/Abacus.js";
+import { readImportPresets } from "../bank-importer/import-presets.js";
 import { uploadedFile, withTempUpload, withTempUploads } from "./upload-tmp.js";
 import {
   argsFromMultipartBody,
@@ -55,7 +54,7 @@ const XLS_EXT = ".xls";
 const JSON_EXT = ".json";
 const CUSTOM_STATEMENT_PARSER_FIELD = "custom_statement_parser_path";
 const AUTO_DETECT_STATEMENT_PARSER_FIELD = "auto_detect_statement_parser";
-const importPresetsSchema = z.array(importPresetSchema);
+const STATEMENT_ACCOUNT_IDENTIFIER_FIELD = "statement_account_identifier";
 
 type BatchKind = "pdf" | "text" | "xls" | "json";
 type BatchClassification =
@@ -126,6 +125,37 @@ class CustomStatementParserDetectionFailed extends ApiImportError {
   }
 }
 
+// The selected preset names one account or card, and the parsed statement
+// names a different one: the upload would land in the wrong ledger account.
+class StatementAccountMismatch extends ApiImportError {
+  readonly status = 422;
+
+  constructor(
+    readonly inputPath: string,
+    readonly parserPath: string,
+    readonly expectedIdentifier: string,
+    readonly statementAccount: StatementAccount,
+  ) {
+    super(
+      `${path.basename(inputPath)} is a statement for ${statementAccount.kind} ${statementAccount.identifier}, but the selected preset expects ${expectedIdentifier}.`,
+    );
+    this.name = "StatementAccountMismatch";
+  }
+
+  toPayload() {
+    return {
+      error: "statement_account_mismatch",
+      message: this.message,
+      input_path: path.basename(this.inputPath),
+      parser_path: this.parserPath,
+      expected_identifier: this.expectedIdentifier,
+      statement_account_kind: this.statementAccount.kind,
+      statement_identifier: this.statementAccount.identifier,
+      hint: "Choose the preset for this account, or fix statement_account_identifier in import-presets.json.",
+    };
+  }
+}
+
 class XlsExtractionFailed extends ApiImportError {
   readonly status = 422;
 
@@ -172,6 +202,32 @@ function autoDetectStatementParserFromBody(
   body: Record<string, unknown>,
 ): boolean {
   return body[AUTO_DETECT_STATEMENT_PARSER_FIELD] === "true";
+}
+
+// The identifier the selected preset carries, forwarded by the UI alongside
+// the preset's other fields; null when the preset has none.
+function expectedStatementAccountIdentifierFromBody(
+  body: Record<string, unknown>,
+): string | null {
+  const raw = body[STATEMENT_ACCOUNT_IDENTIFIER_FIELD];
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  return raw.trim();
+}
+
+// A parser that reports no account cannot be checked; one that reports a
+// different account than the preset expects must not be imported.
+export function assertStatementAccountMatchesPreset(
+  expectedIdentifier: string | null,
+  generated: GeneratedAbacusJson,
+): void {
+  if (expectedIdentifier === null || generated.account === null) return;
+  if (generated.account.identifier === expectedIdentifier) return;
+  throw new StatementAccountMismatch(
+    generated.inputPath,
+    generated.parserPath,
+    expectedIdentifier,
+    generated.account,
+  );
 }
 
 export async function savedCustomStatementParserPaths(
@@ -229,21 +285,12 @@ export async function savedCustomStatementParserPaths(
 }
 
 async function configuredCustomStatementParserPaths(): Promise<Set<string>> {
-  const file = userConfigPath("import-presets.json");
-  try {
-    const raw = await readFile(file, "utf8");
-    const presets = importPresetsSchema.parse(JSON.parse(raw));
-    return new Set(
-      presets
-        .map((preset) => preset.custom_statement_parser_path)
-        .filter((parserPath): parserPath is string => Boolean(parserPath)),
-    );
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return new Set();
-    }
-    throw err;
-  }
+  const presets = await readImportPresets();
+  return new Set(
+    presets
+      .map((preset) => preset.custom_statement_parser_path)
+      .filter((parserPath): parserPath is string => Boolean(parserPath)),
+  );
 }
 
 export function resolveCustomStatementParserPath(parserPath: string): string {
@@ -310,10 +357,19 @@ async function runCustomStatementParser(
   });
 }
 
+// One parser run's validated output: the Abacus JSON text the import
+// consumes, plus the account the statement named, if any.
+export interface GeneratedAbacusJson {
+  parserPath: string;
+  inputPath: string;
+  jsonText: string;
+  account: StatementAccount | null;
+}
+
 async function readGeneratedAbacusJson(
   parserPath: string,
   inputPath: string,
-): Promise<string> {
+): Promise<GeneratedAbacusJson> {
   const jsonPath = abacusJsonPathForInput(inputPath);
   let jsonText: string;
   try {
@@ -347,14 +403,19 @@ async function readGeneratedAbacusJson(
       `Parser output does not match the Abacus JSON contract: ${parsed.error.message}`,
     );
   }
-  return jsonText;
+  return {
+    parserPath,
+    inputPath,
+    jsonText,
+    account: parsed.data.account ?? null,
+  };
 }
 
 async function runCustomStatementParserAndRead(
   parserPath: string,
   inputPath: string,
   quiet = false,
-): Promise<string> {
+): Promise<GeneratedAbacusJson> {
   const jsonPath = abacusJsonPathForInput(inputPath);
   await unlink(jsonPath).catch((err) => {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
@@ -366,34 +427,39 @@ async function runCustomStatementParserAndRead(
 async function runCustomStatementParsers(
   parserPath: string,
   inputPaths: string[],
-): Promise<string[]> {
-  const jsonTexts: string[] = [];
+): Promise<GeneratedAbacusJson[]> {
+  const generated: GeneratedAbacusJson[] = [];
   for (const inputPath of inputPaths) {
-    jsonTexts.push(
+    generated.push(
       await runCustomStatementParserAndRead(parserPath, inputPath),
     );
   }
-  return jsonTexts;
+  return generated;
 }
 
 export async function autoDetectCustomStatementParsers(
   parserPaths: string[],
   inputPaths: string[],
-): Promise<{ jsonTexts: string[]; parserPaths: string[] }> {
-  const jsonTexts: string[] = [];
-  const matchedParserPaths: string[] = [];
+): Promise<{
+  jsonTexts: string[];
+  parserPaths: string[];
+  accounts: Array<StatementAccount | null>;
+  generated: GeneratedAbacusJson[];
+}> {
+  const generated: GeneratedAbacusJson[] = [];
 
   for (const inputPath of inputPaths) {
-    const matches: Array<{ parserPath: string; jsonText: string }> = [];
+    const matches: GeneratedAbacusJson[] = [];
     for (const parserPath of parserPaths) {
       const resolvedParserPath = resolveCustomStatementParserPath(parserPath);
       try {
-        const jsonText = await runCustomStatementParserAndRead(
+        const one = await runCustomStatementParserAndRead(
           resolvedParserPath,
           inputPath,
           true,
         );
-        matches.push({ parserPath, jsonText });
+        // Report the parser as presets declare it, not its absolute path.
+        matches.push({ ...one, parserPath });
       } catch (err) {
         if (!(err instanceof CustomStatementParserFailed)) throw err;
       }
@@ -410,11 +476,15 @@ export async function autoDetectCustomStatementParsers(
     console.log(
       `[statement-upload] auto-detected parser ${match.parserPath} for ${path.basename(inputPath)}`,
     );
-    jsonTexts.push(match.jsonText);
-    matchedParserPaths.push(match.parserPath);
+    generated.push(match);
   }
 
-  return { jsonTexts, parserPaths: matchedParserPaths };
+  return {
+    jsonTexts: generated.map((one) => one.jsonText),
+    parserPaths: generated.map((one) => one.parserPath),
+    accounts: generated.map((one) => one.account),
+    generated,
+  };
 }
 
 export async function extractXlsStatements(
@@ -654,6 +724,8 @@ api.register(
 
       const customParserPath = customParserPathFromBody(body);
       const autoDetectParser = autoDetectStatementParserFromBody(body);
+      const expectedIdentifier =
+        expectedStatementAccountIdentifierFromBody(body);
       if (customParserPath !== null && autoDetectParser) {
         return badRequest(
           "custom_statement_parser_conflict",
@@ -667,10 +739,7 @@ api.register(
             files,
             "statement-upload",
             async (_workDir, paths) => {
-              const detected = {
-                jsonTexts: [] as string[],
-                parserPaths: [] as string[],
-              };
+              const detected: GeneratedAbacusJson[] = [];
               for (const inputPath of paths) {
                 const candidates = await savedCustomStatementParserPaths(
                   path.extname(inputPath),
@@ -678,18 +747,22 @@ api.register(
                 const one = await autoDetectCustomStatementParsers(candidates, [
                   inputPath,
                 ]);
-                detected.jsonTexts.push(...one.jsonTexts);
-                detected.parserPaths.push(...one.parserPaths);
+                detected.push(...one.generated);
+              }
+              for (const one of detected) {
+                assertStatementAccountMatchesPreset(expectedIdentifier, one);
               }
               const result = await runAbacusJsonImport(
-                detected.jsonTexts,
+                detected.map((one) => one.jsonText),
                 optionsFromMultipartBody(body, gpayHtmlPath),
                 c.get("db"),
                 auth,
               );
               return {
                 ...result,
-                custom_statement_parser_paths: detected.parserPaths,
+                custom_statement_parser_paths: detected.map(
+                  (one) => one.parserPath,
+                ),
               };
             },
           ),
@@ -713,12 +786,18 @@ api.register(
             files,
             "statement-upload",
             async (_workDir, paths) => {
-              const jsonTexts = await runCustomStatementParsers(
+              const generated = await runCustomStatementParsers(
                 resolvedParserPath,
                 paths,
               );
+              for (const one of generated) {
+                assertStatementAccountMatchesPreset(expectedIdentifier, {
+                  ...one,
+                  parserPath: customParserPath,
+                });
+              }
               const result = await runAbacusJsonImport(
-                jsonTexts,
+                generated.map((one) => one.jsonText),
                 optionsFromMultipartBody(body, gpayHtmlPath),
                 c.get("db"),
                 auth,
