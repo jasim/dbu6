@@ -132,6 +132,14 @@ generator still reproduces the committed fixture. Regenerate with:
 
     uv run custom-built-parsers/federal-bank-xls/fixtures/generate_fixture.py
 
+## Emitted account identifier
+
+- `account: {"kind": "bank", "identifier": "<digits>"}` — the digit string in
+  `C9`, next to the `Account No :` label, e.g. `050505000012`. The customer id
+  and account category on the same row are validated but not emitted. Rejected
+  when `C9` is blank, numeric rather than text, or contains anything but
+  digits.
+
 ## How to run
 
     uv run custom-built-parsers/federal-bank-xls/parser.py <OpTransactionHistoryTprDD-MM-YYYY.xls>

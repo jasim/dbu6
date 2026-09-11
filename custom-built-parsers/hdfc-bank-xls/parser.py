@@ -65,7 +65,9 @@ STATEMENT_PERIOD_RE = re.compile(
     r"^Statement From\s+:\s+(?P<from>[0-9]{2}/[0-9]{2}/[0-9]{4})"
     r"\s+To\s+:\s+(?P<to>[0-9]{2}/[0-9]{2}/[0-9]{4})$"
 )
-ACCOUNT_NUMBER_RE = re.compile(r"^Account No :[0-9]{9,20}\b")
+# The digits after the label are the emitted account identifier; the cell may
+# continue with a customer tier such as "   Preferred Customer".
+ACCOUNT_NUMBER_RE = re.compile(r"^Account No :(?P<number>[0-9]{9,20})\b")
 IFSC_RE = re.compile(r"^RTGS/NEFT IFSC :HDFC0[0-9A-Z]{6}\b")
 CURRENCY_RE = re.compile(r"\bCurrency :INR$")
 ASTERISKS_RE = re.compile(r"^\*+$")
@@ -260,7 +262,7 @@ def validate_workbook_fingerprint(book: xlrd.book.Book) -> xlrd.sheet.Sheet:
 
 
 def parse_letterhead(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
-    """Validate the account letterhead (rows 1-19) and extract the statement period."""
+    """Validate the account letterhead (rows 1-19); extract the account number and period."""
     title = cell_value(sheet, 0, 0)
     if not isinstance(title, str) or not TITLE_RE.fullmatch(title):
         raise ValueError(
@@ -294,7 +296,7 @@ def parse_letterhead(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
             )
         return matches[0]
 
-    find_one(ACCOUNT_NUMBER_RE, "'Account No :' ")
+    _, _, account = find_one(ACCOUNT_NUMBER_RE, "'Account No :' ")
     find_one(IFSC_RE, "'RTGS/NEFT IFSC :HDFC0...'")
     find_one(CURRENCY_RE, "'Currency :INR'")
     row, column, period = find_one(STATEMENT_PERIOD_RE, "'Statement From ... To ...'")
@@ -306,7 +308,11 @@ def parse_letterhead(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
             f"{location}: statement period ends {period_to.isoformat()} before it "
             f"starts {period_from.isoformat()}"
         )
-    return {"period_from": period_from, "period_to": period_to}
+    return {
+        "account_number": account.group("number"),
+        "period_from": period_from,
+        "period_to": period_to,
+    }
 
 
 def validate_table_frame(sheet: xlrd.sheet.Sheet) -> None:
@@ -584,6 +590,12 @@ def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
     summary = statement["summary"]
     return {
         "kind": "abacus",
+        # The letterhead account number, digits only, identifies which bank
+        # account this statement belongs to.
+        "account": {
+            "kind": "bank",
+            "identifier": statement["letterhead"]["account_number"],
+        },
         # Bank account: ledger semantics already, no sign flip. Overdraft
         # balances stay negative exactly as printed.
         "opening": json_number(summary["opening"]),

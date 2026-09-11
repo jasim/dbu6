@@ -77,6 +77,29 @@ class ParserTests(unittest.TestCase):
         )
         self.assertTrue(all(row["balance"] is not None for row in output["rows"]))
 
+    def test_emits_the_letterhead_account_number_as_the_bank_identifier(self) -> None:
+        statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
+        self.assertEqual(statement["letterhead"]["account_number"], "05050505050505")
+        self.assertEqual(
+            PARSER.to_abacus(statement)["account"],
+            {"kind": "bank", "identifier": "05050505050505"},
+        )
+
+    def test_missing_or_malformed_account_number_is_rejected(self) -> None:
+        for replacement in (
+            "",
+            "Account No :",
+            "Account No :0505X505050505",
+            "Account No :05050505   Preferred Customer",
+            "Account Number :05050505050505",
+        ):
+            with self.subTest(cell=replacement):
+                rows = FIXTURE.sample_rows()
+                index = find_row(rows, 4, "Account No :05050505050505   Preferred Customer")
+                rows[index][4] = replacement
+                with self.assertRaisesRegex(ValueError, "'Account No :'"):
+                    parse_rows(rows)
+
     def test_reference_placeholders_and_blanks_yield_none(self) -> None:
         import xlrd
 

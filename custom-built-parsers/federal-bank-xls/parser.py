@@ -70,7 +70,12 @@ ACCOUNT_LABELS = {
     5: "Account Currency:",
     7: "Account Category:",
 }
-ACCOUNT_DIGIT_COLUMNS = {2: "account number", 4: "customer id", 8: "account category"}
+ACCOUNT_NUMBER_COLUMN = 2
+ACCOUNT_DIGIT_COLUMNS = {
+    ACCOUNT_NUMBER_COLUMN: "account number",
+    4: "customer id",
+    8: "account category",
+}
 ACCOUNT_CURRENCY_COLUMN = 6
 STATEMENT_DATE_LABEL_COLUMN = 7
 STATEMENT_DATE_VALUE_COLUMN = 8
@@ -135,13 +140,14 @@ def require_text(sheet: xlrd.sheet.Sheet, row: int, column: int, expected: str) 
         )
 
 
-def require_digits(sheet: xlrd.sheet.Sheet, row: int, column: int, what: str) -> None:
+def require_digits(sheet: xlrd.sheet.Sheet, row: int, column: int, what: str) -> str:
     value = cell_value(sheet, row, column)
     if not isinstance(value, str) or not DIGITS_RE.fullmatch(value):
         raise ValueError(
             f"{excel_location(row, column)}: fingerprint mismatch; "
             f"expected the {what} as a digit string, got {value!r}"
         )
+    return value
 
 
 def only_columns(sheet: xlrd.sheet.Sheet, row: int, allowed: set[int], what: str) -> None:
@@ -260,8 +266,11 @@ def parse_letterhead(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
     )
     for column, expected in ACCOUNT_LABELS.items():
         require_text(sheet, ACCOUNT_ROW, column, expected)
-    for column, what in ACCOUNT_DIGIT_COLUMNS.items():
-        require_digits(sheet, ACCOUNT_ROW, column, what)
+    digits = {
+        column: require_digits(sheet, ACCOUNT_ROW, column, what)
+        for column, what in ACCOUNT_DIGIT_COLUMNS.items()
+    }
+    account_number = digits[ACCOUNT_NUMBER_COLUMN]
     require_text(sheet, ACCOUNT_ROW, ACCOUNT_CURRENCY_COLUMN, "INR")
 
     # A10:G10 describe the period the user selected in FedNet ("Last" / "One"
@@ -291,7 +300,7 @@ def parse_letterhead(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
         statement_date = date(int(match.group("y")), int(match.group("m")), int(match.group("d")))
     except ValueError as exc:
         raise ValueError(f"{location}: invalid statement date {stamp!r}: {exc}") from exc
-    return {"statement_date": statement_date}
+    return {"account_number": account_number, "statement_date": statement_date}
 
 
 def validate_header(sheet: xlrd.sheet.Sheet) -> None:
@@ -492,6 +501,12 @@ def json_number(value: Decimal) -> float:
 def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
     return {
         "kind": "abacus",
+        # The account-row number, digits only, identifies which bank account
+        # this statement belongs to.
+        "account": {
+            "kind": "bank",
+            "identifier": statement["letterhead"]["account_number"],
+        },
         # The export labels neither an opening nor a closing balance. Per-row
         # balances give the importer a `per-row` closing; nothing is derived.
         "opening": None,

@@ -109,6 +109,13 @@ fixture. Regenerate with:
 
     uv run custom-built-parsers/hdfc-bank-xls/fixtures/generate_fixture.py
 
+## Emitted account identifier
+
+- `account: {"kind": "bank", "identifier": "<digits>"}` — the 9–20 digits
+  after `Account No :` in the letterhead, e.g.
+  `Account No :05050505050505   Preferred Customer` → `05050505050505`.
+  Rejected when the cell is missing, non-numeric, or shorter than 9 digits.
+
 ## How to run
 
     uv run custom-built-parsers/hdfc-bank-xls/parser.py <Acct_Statement_XXXXXXXX1234_DDMMYYYY.xls>

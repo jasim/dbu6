@@ -86,6 +86,22 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(output["rows"][-1]["balance"], 143265.0)
         self.assertTrue(all(row["balance"] is not None for row in output["rows"]))
 
+    def test_emits_the_account_row_number_as_the_bank_identifier(self) -> None:
+        statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
+        self.assertEqual(statement["letterhead"]["account_number"], "050505000012")
+        self.assertEqual(
+            PARSER.to_abacus(statement)["account"],
+            {"kind": "bank", "identifier": "050505000012"},
+        )
+
+    def test_missing_or_malformed_account_number_is_rejected(self) -> None:
+        for replacement in ("", "0505 05000012", "05050500001X", 50505000012.0):
+            with self.subTest(cell=replacement):
+                rows = FIXTURE.sample_rows()
+                rows[PARSER.ACCOUNT_ROW][PARSER.ACCOUNT_NUMBER_COLUMN] = replacement
+                with self.assertRaisesRegex(ValueError, "C9: fingerprint mismatch"):
+                    parse_rows(rows)
+
     def test_generator_reproduces_the_committed_fixture(self) -> None:
         generated = FIXTURE.workbook_bytes(FIXTURE.sample_rows())
         expected = PARSER.to_abacus(PARSER.parse_bytes(COMMITTED_FIXTURE))
