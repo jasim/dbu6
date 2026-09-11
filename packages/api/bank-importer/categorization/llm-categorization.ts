@@ -1,6 +1,6 @@
 import { Nua } from "nuabase";
 import { z } from "zod";
-import type { Abacus } from "../domain/Abacus.js";
+import type { Abacus } from "../abacus/index.js";
 import type { Account } from "../domain/Account.js";
 import { parseAccount } from "../domain/Account.js";
 import { isWithdrawal } from "../domain/Money.js";

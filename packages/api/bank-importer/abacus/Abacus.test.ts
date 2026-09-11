@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { parseAbacusJson } from "./abacus-json.js";
+import {
+  abacusRowsJsonSchema,
+  applyCreditCardSignFlip,
+  normalizeChronological,
+  parseAbacusJson,
+  type AbacusStatement,
+} from "./index.js";
 import { AbacusJsonParseError } from "../import-errors.js";
 import { toDraftRows } from "../draft-persistence.js";
 import { chronoMap } from "../domain/Chrono.js";
 import { parseAccount, UNCATEGORIZED } from "../domain/Account.js";
-import { abacusRowsJsonSchema } from "../domain/Abacus.js";
 
 function stubDb() {
   const chain = {
@@ -272,5 +277,65 @@ describe("descending Abacus JSON balance assertions", () => {
       rows.every((row) => row.balance_assertion_base_account === null),
     ).toBe(true);
     expect([...expectedClosingByDate.values()]).toEqual([4740.75, 3740.25]);
+  });
+});
+
+describe("applyCreditCardSignFlip", () => {
+  const base: AbacusStatement = {
+    transactions: normalizeChronological(
+      [
+        {
+          date: "2025-01-01",
+          narration: "t1",
+          withdrawal: 500,
+          deposit: 0,
+          balance: 9500,
+        },
+        {
+          date: "2025-01-02",
+          narration: "t2",
+          withdrawal: 0,
+          deposit: 200,
+          balance: null,
+        },
+      ],
+      "ascending",
+    ),
+    opening: 10000,
+    closing: 9500,
+    account: null,
+    institution: null,
+  };
+
+  it("is an identity when isCreditCard is false", () => {
+    expect(applyCreditCardSignFlip(base, false)).toEqual(base);
+  });
+
+  it("flips balances (opening/closing/per-row) but not withdrawal/deposit", () => {
+    const flipped = applyCreditCardSignFlip(base, true);
+    expect(flipped.opening).toBe(-10000);
+    expect(flipped.closing).toBe(-9500);
+    expect(flipped.transactions[0].balance).toBe(-9500);
+    expect(flipped.transactions[0].withdrawal).toBe(500);
+    expect(flipped.transactions[0].deposit).toBe(0);
+    expect(flipped.transactions[1].balance).toBeNull();
+  });
+
+  it("leaves null balances null on flip", () => {
+    const allNull: AbacusStatement = {
+      ...base,
+      transactions: normalizeChronological(
+        [{ ...base.transactions[0], balance: null }],
+        "ascending",
+      ),
+      opening: null,
+      closing: null,
+      account: null,
+      institution: null,
+    };
+    const flipped = applyCreditCardSignFlip(allNull, true);
+    expect(flipped.opening).toBeNull();
+    expect(flipped.closing).toBeNull();
+    expect(flipped.transactions[0].balance).toBeNull();
   });
 });

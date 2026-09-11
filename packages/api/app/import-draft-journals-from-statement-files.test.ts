@@ -10,10 +10,12 @@ import api, {
   classifyBatch,
   extractXlsStatements,
   resolveAllowedCustomStatementParserPath,
-  type GeneratedAbacusJson,
+  type ParsedStatementFile,
 } from "./import-draft-journals-from-statement-files.js";
 import { loadApp } from "../app.js";
 import { ApiImportError } from "../bank-importer/import-errors.js";
+import type { AbacusStatement } from "../bank-importer/abacus/index.js";
+import { unsafeAsChrono } from "../bank-importer/domain/Chrono.js";
 
 function openApiPaths(
   document: unknown,
@@ -194,13 +196,17 @@ describe("custom statement parser preset configuration", () => {
 
 describe("statement account guard", () => {
   const generated = (
-    account: GeneratedAbacusJson["account"],
-  ): GeneratedAbacusJson => ({
+    account: AbacusStatement["account"],
+  ): ParsedStatementFile => ({
     parserPath: "custom-built-parsers/hdfc-cc-xls/parser.py",
     inputPath: "/tmp/upload/statement.xls",
-    jsonText: "{}",
-    account,
-    institution: null,
+    statement: {
+      transactions: unsafeAsChrono([]),
+      opening: null,
+      closing: null,
+      account,
+      institution: null,
+    },
   });
 
   it("passes when the preset or the statement has no identifier", () => {

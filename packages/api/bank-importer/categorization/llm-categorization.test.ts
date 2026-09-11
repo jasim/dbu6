@@ -18,7 +18,7 @@ import {
   parseLLMResponse,
   type LLMCategorizationConfig,
 } from "./llm-categorization.js";
-import type { Abacus } from "../domain/Abacus.js";
+import type { Abacus } from "../abacus/index.js";
 
 const config: LLMCategorizationConfig = {
   promptTemplate:

@@ -4,12 +4,8 @@ import {
   chunk,
   indexCsvRecords,
   assembleCsvResults,
-  applyCreditCardSignFlip,
-  normalizeExtractedTransactions,
   type CsvRowExtraction,
-  type StatementData,
 } from "./freeform-text.js";
-import { normalizeChronological } from "../balance-math.js";
 
 describe("detectCsv", () => {
   it("accepts well-formed CSV with ≥3 columns", () => {
@@ -196,109 +192,5 @@ describe("assembleCsvResults", () => {
       transactions: [],
       skipped: 2,
     });
-  });
-});
-
-describe("applyCreditCardSignFlip", () => {
-  const base: StatementData = {
-    transactions: normalizeChronological(
-      [
-        {
-          date: "2025-01-01",
-          narration: "t1",
-          withdrawal: 500,
-          deposit: 0,
-          balance: 9500,
-        },
-        {
-          date: "2025-01-02",
-          narration: "t2",
-          withdrawal: 0,
-          deposit: 200,
-          balance: null,
-        },
-      ],
-      "ascending",
-    ),
-    opening: 10000,
-    closing: 9500,
-    account: null,
-    institution: null,
-  };
-
-  it("is an identity when isCreditCard is false", () => {
-    expect(applyCreditCardSignFlip(base, false)).toEqual(base);
-  });
-
-  it("flips balances (opening/closing/per-row) but not withdrawal/deposit", () => {
-    const flipped = applyCreditCardSignFlip(base, true);
-    expect(flipped.opening).toBe(-10000);
-    expect(flipped.closing).toBe(-9500);
-    expect(flipped.transactions[0].balance).toBe(-9500);
-    expect(flipped.transactions[0].withdrawal).toBe(500);
-    expect(flipped.transactions[0].deposit).toBe(0);
-    expect(flipped.transactions[1].balance).toBeNull();
-  });
-
-  it("leaves null balances null on flip", () => {
-    const allNull: StatementData = {
-      ...base,
-      transactions: normalizeChronological(
-        [{ ...base.transactions[0], balance: null }],
-        "ascending",
-      ),
-      opening: null,
-      closing: null,
-      account: null,
-      institution: null,
-    };
-    const flipped = applyCreditCardSignFlip(allNull, true);
-    expect(flipped.opening).toBeNull();
-    expect(flipped.closing).toBeNull();
-    expect(flipped.transactions[0].balance).toBeNull();
-  });
-});
-
-describe("normalizeExtractedTransactions", () => {
-  const transaction = (
-    date: string,
-    narration: string,
-    balance: number | null = null,
-  ) => ({
-    date,
-    narration,
-    withdrawal: 100,
-    deposit: 0,
-    balance,
-  });
-
-  it("accepts date-grouped sections when rows have no printed balances", () => {
-    const transactions = [
-      transaction("2026-04-03", "domestic-early"),
-      transaction("2026-04-18", "domestic-late"),
-      transaction("2026-04-10", "international-early"),
-      transaction("2026-04-11", "international-late"),
-    ];
-
-    expect(
-      normalizeExtractedTransactions(transactions).map((t) => t.narration),
-    ).toEqual([
-      "domestic-early",
-      "international-early",
-      "international-late",
-      "domestic-late",
-    ]);
-  });
-
-  it("still rejects mixed ordering when any row has a printed balance", () => {
-    const transactions = [
-      transaction("2026-04-03", "first", 900),
-      transaction("2026-04-18", "second", 800),
-      transaction("2026-04-10", "third", 700),
-    ];
-
-    expect(() => normalizeExtractedTransactions(transactions)).toThrow(
-      /Cannot determine statement order/,
-    );
   });
 });

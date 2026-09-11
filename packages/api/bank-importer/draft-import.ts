@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Abacus } from "./domain/Abacus.js";
+import type { Abacus } from "./abacus/index.js";
 import type { Account } from "./domain/Account.js";
 import { type Chrono, chronoEmpty } from "./domain/Chrono.js";
 import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";

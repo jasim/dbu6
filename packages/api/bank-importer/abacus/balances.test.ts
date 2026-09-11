@@ -1,15 +1,16 @@
 import { describe, it, expect } from "vitest";
-import type { Abacus } from "./domain/Abacus.js";
-import type { Chrono } from "./domain/Chrono.js";
+import type { Chrono } from "../domain/Chrono.js";
 import {
   analyzeDateOrder,
   computeRunningBalances,
   normalizeChronological,
-} from "./balance-math.js";
+  normalizeExtractedTransactions,
+  type Abacus,
+} from "./index.js";
 import {
   BalanceMismatchError,
   SegmentBalanceMismatchError,
-} from "./import-errors.js";
+} from "../import-errors.js";
 
 function row(
   date: string,
@@ -296,6 +297,50 @@ describe("computeRunningBalances", () => {
     ]);
     expect(() => computeRunningBalances(txns, null, 9999)).toThrow(
       SegmentBalanceMismatchError,
+    );
+  });
+});
+
+describe("normalizeExtractedTransactions", () => {
+  const transaction = (
+    date: string,
+    narration: string,
+    balance: number | null = null,
+  ) => ({
+    date,
+    narration,
+    withdrawal: 100,
+    deposit: 0,
+    balance,
+  });
+
+  it("accepts date-grouped sections when rows have no printed balances", () => {
+    const transactions = [
+      transaction("2026-04-03", "domestic-early"),
+      transaction("2026-04-18", "domestic-late"),
+      transaction("2026-04-10", "international-early"),
+      transaction("2026-04-11", "international-late"),
+    ];
+
+    expect(
+      normalizeExtractedTransactions(transactions).map((t) => t.narration),
+    ).toEqual([
+      "domestic-early",
+      "international-early",
+      "international-late",
+      "domestic-late",
+    ]);
+  });
+
+  it("still rejects mixed ordering when any row has a printed balance", () => {
+    const transactions = [
+      transaction("2026-04-03", "first", 900),
+      transaction("2026-04-18", "second", 800),
+      transaction("2026-04-10", "third", 700),
+    ];
+
+    expect(() => normalizeExtractedTransactions(transactions)).toThrow(
+      /Cannot determine statement order/,
     );
   });
 });

@@ -3,12 +3,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parsePlainDate } from "@sapporta/shared/temporal";
-import type { Abacus } from "./domain/Abacus.js";
+import {
+  normalizeChronological,
+  type Abacus,
+  type AbacusStatement,
+} from "./abacus/index.js";
 import type { Chrono } from "./domain/Chrono.js";
 import { parseAccount } from "./domain/Account.js";
-import { normalizeChronological } from "./balance-math.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
-import type { StatementData } from "./parsers/freeform-text.js";
 
 // Stub the persistence tail so the test can inspect exactly what reaches it.
 // Everything before it (key assignment, balance validation, reconciliation
@@ -41,7 +43,7 @@ const BASE_ACCOUNT = parseAccount("assets:bank:federal");
 // A Federal-style statement: printed per-row balances, verbatim narrations,
 // bank references on the UPI rows (reference-keyed identity) and none on the
 // charges row (narration-keyed identity).
-function statement(): StatementData {
+function statement(): AbacusStatement {
   const rows: Abacus[] = [
     {
       date: "2026-07-01",
@@ -206,7 +208,7 @@ describe("Google Pay enrichment on the universal statement import", () => {
         balance: 99000,
       },
     ];
-    const part: StatementData = {
+    const part: AbacusStatement = {
       transactions: normalizeChronological(rows, "ascending"),
       opening: null,
       closing: null,

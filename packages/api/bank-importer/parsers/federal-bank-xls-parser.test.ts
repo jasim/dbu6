@@ -54,15 +54,16 @@ describe("Federal Bank statement XLS parser", () => {
       const detected = await autoDetectCustomStatementParsers(xlsParserPaths, [
         inputPath,
       ]);
-      expect(detected.parserPaths).toEqual([FEDERAL_PARSER]);
-      const output = JSON.parse(detected.jsonTexts[0]);
+      expect(detected.map((one) => one.parserPath)).toEqual([FEDERAL_PARSER]);
+      const output = detected[0].statement;
       expect(output).toMatchObject({
-        kind: "abacus",
+        account: { kind: "bank", identifier: "050505000012" },
+        institution: null,
         opening: null,
         closing: null,
       });
-      expect(output.rows).toHaveLength(9);
-      expect(output.rows[0]).toEqual({
+      expect(output.transactions).toHaveLength(9);
+      expect(output.transactions[0]).toEqual({
         date: "2026-07-01",
         narration: "UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505",
         withdrawal: 500,
@@ -70,18 +71,20 @@ describe("Federal Bank statement XLS parser", () => {
         balance: 99500,
         source_reference: "050505000001",
       });
-      expect(output.rows[3]).toMatchObject({
+      expect(output.transactions[3]).toMatchObject({
         narration: "FT IMPS/IFI/050505000004/NOPII CUSTOMER/sample remark",
         deposit: 40000,
         source_reference: "050505000004",
       });
       // Layouts without a known reference field carry no source_reference.
-      expect(output.rows[7]).toMatchObject({
+      expect(output.transactions[7]).toMatchObject({
         narration: "SMS CHARGES sample",
         source_reference: null,
       });
       expect(
-        output.rows.every((row: { balance: unknown }) => row.balance !== null),
+        output.transactions.every(
+          (row: { balance: unknown }) => row.balance !== null,
+        ),
       ).toBe(true);
 
       const wrongExtensionPath = path.join(workDir, "statement.csv");

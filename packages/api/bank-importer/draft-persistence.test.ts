@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Abacus } from "./domain/Abacus.js";
+import type { Abacus } from "./abacus/index.js";
 import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";
 import { unsafeAsChrono as chrono } from "./domain/Chrono.js";
 import { parseAccount, UNCATEGORIZED } from "./domain/Account.js";

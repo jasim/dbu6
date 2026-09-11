@@ -51,19 +51,15 @@ describe("Standard Chartered bank CSV parser", () => {
       const detected = await autoDetectCustomStatementParsers(csvParserPaths, [
         inputPath,
       ]);
-      expect(detected.parserPaths).toEqual([
+      expect(detected.map((one) => one.parserPath)).toEqual([
         "custom-built-parsers/stanc-bank-csv/parser.py",
       ]);
-      expect(detected.accounts).toEqual([
-        { kind: "bank", identifier: "0505050505" },
-      ]);
-      expect(JSON.parse(detected.jsonTexts[0])).toMatchObject({
-        kind: "abacus",
+      expect(detected[0].statement).toMatchObject({
         account: { kind: "bank", identifier: "0505050505" },
         institution: null,
         opening: null,
         closing: 1150,
-        rows: expect.arrayContaining([
+        transactions: expect.arrayContaining([
           expect.objectContaining({ narration: "Newest, deposit" }),
         ]),
       });

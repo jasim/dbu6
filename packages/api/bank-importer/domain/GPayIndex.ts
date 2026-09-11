@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { Abacus } from "./Abacus.js";
+import type { Abacus } from "../abacus/index.js";
 import { isWithdrawal } from "./Money.js";
 
 export type GPayIndex = Map<string, string[]>;

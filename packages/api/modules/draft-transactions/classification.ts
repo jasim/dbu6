@@ -1,6 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { formatPlainDate } from "@sapporta/shared/temporal";
-import type { Abacus } from "../../bank-importer/domain/Abacus.js";
+import type { Abacus } from "../../bank-importer/abacus/index.js";
 import { enrichWithGPayHtml } from "../../bank-importer/domain/GPayIndex.js";
 import {
   resolveCategories,

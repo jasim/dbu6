@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import type { Abacus } from "../domain/Abacus.js";
+import type { Abacus } from "../abacus/index.js";
 import { parseAccount, UNCATEGORIZED } from "../domain/Account.js";
 
 // Mock the Nuabase-touching module so resolve runs as a pure pipeline.

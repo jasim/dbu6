@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
-import type { Abacus } from "../domain/Abacus.js";
+import type { Abacus } from "../abacus/index.js";
 import type { CategorizedTransaction } from "../domain/CategorizedTransaction.js";
 import type { Account } from "../domain/Account.js";
 import { parseAccount, UNCATEGORIZED } from "../domain/Account.js";

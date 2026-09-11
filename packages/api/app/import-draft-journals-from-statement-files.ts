@@ -15,9 +15,14 @@ import {
   runAbacusJsonImport,
   runFreeformImport,
   runFreeformSourceImport,
+  runStatementImport,
   type ExtractedStatementSource,
 } from "../bank-importer/freeform-import.js";
-import { abacusJsonSchema } from "../bank-importer/domain/Abacus.js";
+import {
+  parseAbacusJson,
+  type AbacusStatement,
+} from "../bank-importer/abacus/index.js";
+import { AbacusJsonParseError } from "../bank-importer/import-errors.js";
 import { readImportPresets } from "../bank-importer/import-presets.js";
 import { uploadedFile, withTempUpload, withTempUploads } from "./upload-tmp.js";
 import {
@@ -218,15 +223,16 @@ function expectedStatementAccountIdentifierFromBody(
 // different account than the preset expects must not be imported.
 export function assertStatementAccountMatchesPreset(
   expectedIdentifier: string | null,
-  generated: GeneratedAbacusJson,
+  parsed: ParsedStatementFile,
 ): void {
-  if (expectedIdentifier === null || generated.account === null) return;
-  if (generated.account.identifier === expectedIdentifier) return;
+  const account = parsed.statement.account;
+  if (expectedIdentifier === null || account === null) return;
+  if (account.identifier === expectedIdentifier) return;
   throw new StatementAccountMismatch(
-    generated.inputPath,
-    generated.parserPath,
+    parsed.inputPath,
+    parsed.parserPath,
     expectedIdentifier,
-    generated.account,
+    account,
   );
 }
 
@@ -357,20 +363,19 @@ async function runCustomStatementParser(
   });
 }
 
-// One parser run's validated output: the Abacus JSON text the import
-// consumes, plus the account the statement named, if any.
-export interface GeneratedAbacusJson {
+// One parser run's validated output: which parser read which upload, and
+// the statement it produced, parsed once here and handed on as-is.
+export interface ParsedStatementFile {
+  // As presets declare it, e.g. `custom-built-parsers/hdfc-cc-xls/parser.py`.
   parserPath: string;
   inputPath: string;
-  jsonText: string;
-  account: StatementAccount | null;
-  institution: string | null;
+  statement: AbacusStatement;
 }
 
 async function readGeneratedAbacusJson(
   parserPath: string,
   inputPath: string,
-): Promise<GeneratedAbacusJson> {
+): Promise<ParsedStatementFile> {
   const jsonPath = abacusJsonPathForInput(inputPath);
   let jsonText: string;
   try {
@@ -386,38 +391,29 @@ async function readGeneratedAbacusJson(
     throw err;
   }
 
-  let raw: unknown;
   try {
-    raw = JSON.parse(jsonText);
+    const statement = parseAbacusJson(
+      jsonText,
+      `custom-statement-parser ${path.basename(inputPath)}`,
+    );
+    return { parserPath, inputPath, statement };
   } catch (err) {
-    throw new CustomStatementParserFailed(
-      parserPath,
-      inputPath,
-      `Parser wrote invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    if (err instanceof AbacusJsonParseError) {
+      throw new CustomStatementParserFailed(
+        parserPath,
+        inputPath,
+        `Parser output is not a valid Abacus JSON document: ${err.detail}`,
+      );
+    }
+    throw err;
   }
-  const parsed = abacusJsonSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new CustomStatementParserFailed(
-      parserPath,
-      inputPath,
-      `Parser output does not match the Abacus JSON contract: ${parsed.error.message}`,
-    );
-  }
-  return {
-    parserPath,
-    inputPath,
-    jsonText,
-    account: parsed.data.account ?? null,
-    institution: parsed.data.institution ?? null,
-  };
 }
 
 async function runCustomStatementParserAndRead(
   parserPath: string,
   inputPath: string,
   quiet = false,
-): Promise<GeneratedAbacusJson> {
+): Promise<ParsedStatementFile> {
   const jsonPath = abacusJsonPathForInput(inputPath);
   await unlink(jsonPath).catch((err) => {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
@@ -429,29 +425,22 @@ async function runCustomStatementParserAndRead(
 async function runCustomStatementParsers(
   parserPath: string,
   inputPaths: string[],
-): Promise<GeneratedAbacusJson[]> {
-  const generated: GeneratedAbacusJson[] = [];
+): Promise<ParsedStatementFile[]> {
+  const parsed: ParsedStatementFile[] = [];
   for (const inputPath of inputPaths) {
-    generated.push(
-      await runCustomStatementParserAndRead(parserPath, inputPath),
-    );
+    parsed.push(await runCustomStatementParserAndRead(parserPath, inputPath));
   }
-  return generated;
+  return parsed;
 }
 
 export async function autoDetectCustomStatementParsers(
   parserPaths: string[],
   inputPaths: string[],
-): Promise<{
-  jsonTexts: string[];
-  parserPaths: string[];
-  accounts: Array<StatementAccount | null>;
-  generated: GeneratedAbacusJson[];
-}> {
-  const generated: GeneratedAbacusJson[] = [];
+): Promise<ParsedStatementFile[]> {
+  const parsed: ParsedStatementFile[] = [];
 
   for (const inputPath of inputPaths) {
-    const matches: GeneratedAbacusJson[] = [];
+    const matches: ParsedStatementFile[] = [];
     for (const parserPath of parserPaths) {
       const resolvedParserPath = resolveCustomStatementParserPath(parserPath);
       try {
@@ -478,14 +467,35 @@ export async function autoDetectCustomStatementParsers(
     console.log(
       `[statement-upload] auto-detected parser ${match.parserPath} for ${path.basename(inputPath)}`,
     );
-    generated.push(match);
+    parsed.push(match);
   }
 
+  return parsed;
+}
+
+// Shared tail for every deterministic-parser path: guard each file against
+// the selected preset, then import the parsed statements.
+async function importParsedStatements(
+  parsed: ParsedStatementFile[],
+  expectedIdentifier: string | null,
+  body: Record<string, unknown>,
+  gpayHtmlPath: string | null,
+  db: unknown,
+  auth: Parameters<typeof runStatementImport>[3],
+) {
+  for (const one of parsed) {
+    assertStatementAccountMatchesPreset(expectedIdentifier, one);
+  }
+  const result = await runStatementImport(
+    parsed.map((one) => one.statement),
+    optionsFromMultipartBody(body, gpayHtmlPath),
+    db,
+    auth,
+    parsed.map((one) => path.basename(one.inputPath)),
+  );
   return {
-    jsonTexts: generated.map((one) => one.jsonText),
-    parserPaths: generated.map((one) => one.parserPath),
-    accounts: generated.map((one) => one.account),
-    generated,
+    ...result,
+    custom_statement_parser_paths: parsed.map((one) => one.parserPath),
   };
 }
 
@@ -741,31 +751,25 @@ api.register(
             files,
             "statement-upload",
             async (_workDir, paths) => {
-              const detected: GeneratedAbacusJson[] = [];
+              const detected: ParsedStatementFile[] = [];
               for (const inputPath of paths) {
                 const candidates = await savedCustomStatementParserPaths(
                   path.extname(inputPath),
                 );
-                const one = await autoDetectCustomStatementParsers(candidates, [
-                  inputPath,
-                ]);
-                detected.push(...one.generated);
+                detected.push(
+                  ...(await autoDetectCustomStatementParsers(candidates, [
+                    inputPath,
+                  ])),
+                );
               }
-              for (const one of detected) {
-                assertStatementAccountMatchesPreset(expectedIdentifier, one);
-              }
-              const result = await runAbacusJsonImport(
-                detected.map((one) => one.jsonText),
-                optionsFromMultipartBody(body, gpayHtmlPath),
+              return importParsedStatements(
+                detected,
+                expectedIdentifier,
+                body,
+                gpayHtmlPath,
                 c.get("db"),
                 auth,
               );
-              return {
-                ...result,
-                custom_statement_parser_paths: detected.map(
-                  (one) => one.parserPath,
-                ),
-              };
             },
           ),
         );
@@ -788,28 +792,19 @@ api.register(
             files,
             "statement-upload",
             async (_workDir, paths) => {
-              const generated = await runCustomStatementParsers(
+              const parsed = await runCustomStatementParsers(
                 resolvedParserPath,
                 paths,
               );
-              for (const one of generated) {
-                assertStatementAccountMatchesPreset(expectedIdentifier, {
-                  ...one,
-                  parserPath: customParserPath,
-                });
-              }
-              const result = await runAbacusJsonImport(
-                generated.map((one) => one.jsonText),
-                optionsFromMultipartBody(body, gpayHtmlPath),
+              return importParsedStatements(
+                // Report the parser as the preset declares it, not resolved.
+                parsed.map((one) => ({ ...one, parserPath: customParserPath })),
+                expectedIdentifier,
+                body,
+                gpayHtmlPath,
                 c.get("db"),
                 auth,
               );
-              return {
-                ...result,
-                custom_statement_parser_paths: paths.map(
-                  () => customParserPath,
-                ),
-              };
             },
           ),
         );

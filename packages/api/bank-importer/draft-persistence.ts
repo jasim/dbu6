@@ -5,7 +5,7 @@ import {
   formatPlainDate,
   parsePlainDate,
 } from "@sapporta/shared/temporal";
-import type { Abacus } from "./domain/Abacus.js";
+import type { Abacus } from "./abacus/index.js";
 import type { Account } from "./domain/Account.js";
 import { type Chrono, chronoConcat, chronoFilter } from "./domain/Chrono.js";
 import { UNCATEGORIZED } from "./domain/Account.js";

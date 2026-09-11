@@ -16,7 +16,7 @@ import {
   AmbiguousDuplicateError,
   AssertionConflictError,
 } from "./import-errors.js";
-import type { Abacus } from "./domain/Abacus.js";
+import type { Abacus } from "./abacus/index.js";
 
 const auth: RowScopeAuth = {
   rowSecurity: {

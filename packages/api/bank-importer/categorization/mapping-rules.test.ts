@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Abacus } from "../domain/Abacus.js";
+import type { Abacus } from "../abacus/index.js";
 import {
   classifyWith,
   compileMappings,

@@ -1,9 +1,10 @@
-import type { Abacus } from "./domain/Abacus.js";
-import { type Chrono, chronoMap, unsafeAsChrono } from "./domain/Chrono.js";
+// Ordering and running-balance arithmetic over Abacus rows.
+import type { Abacus } from "./Abacus.js";
+import { type Chrono, chronoMap, unsafeAsChrono } from "../domain/Chrono.js";
 import {
   BalanceMismatchError,
   SegmentBalanceMismatchError,
-} from "./import-errors.js";
+} from "../import-errors.js";
 
 // `unordered` is an explicit parser assertion, never something we infer from
 // conflicting transitions. It is for sources that group independent sections
@@ -129,6 +130,32 @@ export function normalizeChronological(
     )
     .map(({ transaction }) => transaction);
   return chronological as unknown as Chrono<Abacus>;
+}
+
+export function normalizeExtractedTransactions(
+  transactions: readonly Abacus[],
+): Chrono<Abacus> {
+  const dateOrder = analyzeDateOrder(transactions);
+  const isMixedOrder =
+    dateOrder.ascendingPairs > 0 && dateOrder.descendingPairs > 0;
+
+  // Some statements group otherwise ordered transactions into independent
+  // sections, such as domestic followed by international card activity. When
+  // no row prints a running balance, the ordering between those sections is
+  // not financially observable: date-sorting changes neither the transaction
+  // total nor closing-balance verification. Preserve source order for same-day
+  // ties and explicitly declare the source unordered.
+  //
+  // A printed balance makes row order significant, however. In that case keep
+  // the normal inference path so mixed directions still fail loudly instead
+  // of silently attaching balance checkpoints to a potentially wrong order.
+  const hasPrintedBalances = transactions.some(
+    (transaction) => transaction.balance !== null,
+  );
+  if (isMixedOrder && !hasPrintedBalances) {
+    return normalizeChronological(transactions, "unordered");
+  }
+  return normalizeChronological(transactions);
 }
 
 const BALANCE_TOLERANCE = 1;

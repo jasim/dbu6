@@ -43,21 +43,19 @@ describe("HDFC credit-card statement XLS parser", () => {
       const detected = await autoDetectCustomStatementParsers(xlsParserPaths, [
         inputPath,
       ]);
-      expect(detected.parserPaths).toEqual([CC_PARSER]);
-      expect(detected.accounts).toEqual([
-        { kind: "card", identifier: "050505XXXXXX0505" },
-      ]);
-      const output = JSON.parse(detected.jsonTexts[0]);
+      expect(detected.map((one) => one.parserPath)).toEqual([CC_PARSER]);
+      const output = detected[0].statement;
       expect(output).toMatchObject({
-        kind: "abacus",
         account: { kind: "card", identifier: "050505XXXXXX0505" },
         institution: "HDFC Bank Cards Division",
         opening: -1000.37,
         closing: -1630.37,
       });
-      expect(output.rows).toHaveLength(5);
+      expect(output.transactions).toHaveLength(5);
       expect(
-        output.rows.every((row: { balance: unknown }) => row.balance === null),
+        output.transactions.every(
+          (row: { balance: unknown }) => row.balance === null,
+        ),
       ).toBe(true);
     } finally {
       await rm(workDir, { recursive: true, force: true });

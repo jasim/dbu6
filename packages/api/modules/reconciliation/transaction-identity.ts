@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Abacus } from "../../bank-importer/domain/Abacus.js";
+import type { Abacus } from "../../bank-importer/abacus/index.js";
 import type { Account } from "../../bank-importer/domain/Account.js";
 import {
   unsafeAsChrono,

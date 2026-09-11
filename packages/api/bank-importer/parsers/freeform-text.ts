@@ -1,14 +1,15 @@
 import { Nua } from "nuabase";
 import { parse as parseCsvSync } from "csv-parse/sync";
 import { z } from "zod";
-import type { StatementAccount } from "dbu6-shared";
 import {
   abacusRowsJsonSchema,
   abacusSchema,
+  analyzeDateOrder,
+  applyCreditCardSignFlip,
+  normalizeExtractedTransactions,
   type Abacus,
-} from "../domain/Abacus.js";
-import type { Chrono } from "../domain/Chrono.js";
-import { analyzeDateOrder, normalizeChronological } from "../balance-math.js";
+  type AbacusStatement,
+} from "../abacus/index.js";
 import { LLMExtractionError } from "../import-errors.js";
 
 // Chunk size for CSV extraction: each parcel of this many parsed CSV rows
@@ -258,54 +259,6 @@ export function assembleCsvResults(chunkResults: CsvRowExtraction[][]): {
   return { transactions: kept, skipped: flat.length - kept.length };
 }
 
-// Credit-card statements print magnitudes with an implied
-// debit-is-positive convention, but the ledger represents liabilities as
-// negative. Flip the signs on the balances (opening, closing, per-row)
-// but leave `withdrawal`/`deposit` alone — the transaction prompt
-// already classified direction. Non-CC passthrough.
-export function applyCreditCardSignFlip(
-  data: StatementData,
-  isCreditCard: boolean,
-): StatementData {
-  if (!isCreditCard) return data;
-  const flipped = data.transactions.map((t) => ({
-    ...t,
-    balance: t.balance === null ? null : -t.balance,
-  }));
-  return {
-    ...data,
-    transactions: flipped as unknown as StatementData["transactions"],
-    opening: data.opening === null ? null : -data.opening,
-    closing: data.closing === null ? null : -data.closing,
-  };
-}
-
-export function normalizeExtractedTransactions(
-  transactions: readonly Abacus[],
-): Chrono<Abacus> {
-  const dateOrder = analyzeDateOrder(transactions);
-  const isMixedOrder =
-    dateOrder.ascendingPairs > 0 && dateOrder.descendingPairs > 0;
-
-  // Some statements group otherwise ordered transactions into independent
-  // sections, such as domestic followed by international card activity. When
-  // no row prints a running balance, the ordering between those sections is
-  // not financially observable: date-sorting changes neither the transaction
-  // total nor closing-balance verification. Preserve source order for same-day
-  // ties and explicitly declare the source unordered.
-  //
-  // A printed balance makes row order significant, however. In that case keep
-  // the normal inference path so mixed directions still fail loudly instead
-  // of silently attaching balance checkpoints to a potentially wrong order.
-  const hasPrintedBalances = transactions.some(
-    (transaction) => transaction.balance !== null,
-  );
-  if (isMixedOrder && !hasPrintedBalances) {
-    return normalizeChronological(transactions, "unordered");
-  }
-  return normalizeChronological(transactions);
-}
-
 async function extractTransactions(
   text: string,
   nuabaseApiKey: string,
@@ -421,18 +374,6 @@ async function extractBalances(
   return { opening: result.data.opening, closing: result.data.closing };
 }
 
-export interface StatementData {
-  transactions: Chrono<Abacus>;
-  opening: number | null;
-  closing: number | null;
-  // The account or card number printed on the statement, when the source
-  // reported one. Deterministic parsers emit it; LLM extraction does not.
-  account: StatementAccount | null;
-  // The institution's name as printed on the statement; lookup text, not an
-  // identifier. Deterministic parsers emit it; LLM extraction does not.
-  institution: string | null;
-}
-
 // Transactions and balances are independent HTTP calls — run them in
 // parallel. Opening and closing share a single call: they're both small,
 // label-driven lookups over the same text, so merging them halves the
@@ -442,7 +383,7 @@ export interface StatementData {
 // per file and merge the results (see runFreeformImport) rather than
 // concatenating texts, so a transaction that wraps across lines is never
 // split by a file boundary.
-export async function extractStatementData(
+export async function extractAbacusStatement(
   text: string,
   config: {
     isCreditCard: boolean;
@@ -450,7 +391,7 @@ export async function extractStatementData(
     logPrefix?: string;
     balanceText?: string;
   },
-): Promise<StatementData> {
+): Promise<AbacusStatement> {
   const logPrefix = config.logPrefix ?? "freeform-text";
   const sourceLines = text.split(/\r?\n/);
   console.log(
@@ -507,7 +448,7 @@ export async function extractStatementData(
     `[${logPrefix}] normalizing ${transactions.length} parsed transaction(s) to chronological order`,
   );
 
-  const raw: StatementData = {
+  const raw: AbacusStatement = {
     transactions: normalizeExtractedTransactions(transactions),
     opening: balances.opening,
     closing: balances.closing,

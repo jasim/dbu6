@@ -1,26 +1,21 @@
 import { readFile } from "node:fs/promises";
-import type { StatementAccount } from "dbu6-shared";
 import { userConfigDir } from "../user-data.js";
 import type { Account } from "./domain/Account.js";
-import type { Abacus } from "./domain/Abacus.js";
-import { unsafeAsChrono, type Chrono } from "./domain/Chrono.js";
-import { validateTransactions } from "./domain/Abacus.js";
-import { enrichWithGPayHtml } from "./domain/GPayIndex.js";
+import { unsafeAsChrono } from "./domain/Chrono.js";
 import {
-  extractStatementData,
-  type StatementData,
-} from "./parsers/freeform-text.js";
-import { parseAbacusJson } from "./parsers/abacus-json.js";
-import {
-  normalizeChronological,
+  mergeStatements,
+  parseAbacusJson,
   synthesizeRunningBalances,
+  validateStatementBoundaries,
+  validateTransactions,
   verifyClosingBalance,
-} from "./balance-math.js";
+  type AbacusStatement,
+} from "./abacus/index.js";
+import { enrichWithGPayHtml } from "./domain/GPayIndex.js";
+import { extractAbacusStatement } from "./parsers/freeform-text.js";
 import {
   OpeningBalanceUnavailable,
-  OverlappingStatementsError,
   ClosingBalanceUnavailable,
-  StatementBoundaryMismatchError,
 } from "./import-errors.js";
 import {
   lookupLastReconciled,
@@ -166,146 +161,6 @@ function balanceWarnings(
   return warnings;
 }
 
-type OrderedStatementPart = {
-  part: StatementData;
-  sourceName: string;
-  minDate: string;
-  maxDate: string;
-  inputPart: number;
-  transactionCount: number;
-};
-
-function orderedStatementParts(
-  parts: StatementData[],
-  sourceNames: readonly string[],
-): OrderedStatementPart[] {
-  const nonEmpty = parts
-    .map((part, inputIndex) => ({ part, inputIndex }))
-    .filter(({ part }) => part.transactions.length > 0)
-    .map(({ part, inputIndex }) => {
-      const dates = part.transactions.map((t) => t.date);
-      return {
-        part,
-        inputPart: inputIndex + 1,
-        sourceName: sourceNames[inputIndex] ?? `part #${inputIndex + 1}`,
-        transactionCount: part.transactions.length,
-        minDate: dates.reduce((a, b) => (a < b ? a : b)),
-        maxDate: dates.reduce((a, b) => (a > b ? a : b)),
-      };
-    })
-    .sort((a, b) => a.minDate.localeCompare(b.minDate));
-
-  for (let i = 1; i < nonEmpty.length; i++) {
-    if (nonEmpty[i].minDate <= nonEmpty[i - 1].maxDate) {
-      console.error(
-        `[freeform-import] overlapping statement parts detected:\n${JSON.stringify(
-          {
-            overlapCheck: {
-              expression: "currentPart.minDate <= previousPart.maxDate",
-              currentMinDate: nonEmpty[i].minDate,
-              previousMaxDate: nonEmpty[i - 1].maxDate,
-              result: true,
-            },
-            previousPart: nonEmpty[i - 1],
-            currentPart: nonEmpty[i],
-          },
-          null,
-          2,
-        )}`,
-      );
-      throw new OverlappingStatementsError(
-        nonEmpty[i - 1].maxDate,
-        nonEmpty[i].minDate,
-      );
-    }
-  }
-  return nonEmpty;
-}
-
-export function validateStatementBoundaries(
-  parts: StatementData[],
-  sourceNames: readonly string[] = [],
-): void {
-  const ordered = orderedStatementParts(parts, sourceNames);
-  for (let i = 1; i < ordered.length; i++) {
-    const earlier = ordered[i - 1];
-    const later = ordered[i];
-    if (earlier.part.closing === null || later.part.opening === null) continue;
-    if (Math.abs(earlier.part.closing - later.part.opening) > 0.005) {
-      throw new StatementBoundaryMismatchError(
-        earlier.part.closing,
-        later.part.opening,
-        earlier.sourceName,
-        later.sourceName,
-      );
-    }
-  }
-}
-
-// Merge the per-file extractions into a single StatementData that the
-// balance-validation tail can consume as if it had come from one file.
-// Files are ordered by the earliest transaction date they contain —
-// regardless of each file's internal ascending/descending order — so
-// concatenating the per-file transaction arrays yields a run that roughly
-// traces the period from start to end. (`computeRunningBalances` re-sorts
-// by date anyway; this ordering only matters for human-readable logs and
-// for choosing which file contributes the opening/closing of the merged
-// period.) The merged opening comes from the chronologically-earliest
-// file and the merged closing from the latest; intermediate files'
-// opening/closing values are dropped because they describe internal
-// checkpoints of a now-stitched-together period. Source names stay aligned
-// with input positions and are used only when logging an overlap.
-export function mergeStatements(
-  parts: StatementData[],
-  sourceNames: readonly string[] = [],
-): StatementData {
-  if (parts.length === 1) return parts[0];
-
-  const nonEmpty = orderedStatementParts(parts, sourceNames);
-
-  const ordered = nonEmpty.map((x) => x.part);
-  const concatenated: Abacus[] = ordered.flatMap((p) => [...p.transactions]);
-  const transactions: Chrono<Abacus> = normalizeChronological(
-    concatenated,
-    "ascending",
-  );
-  const opening = ordered[0]?.opening ?? null;
-  const closing = ordered[ordered.length - 1]?.closing ?? null;
-  return {
-    transactions,
-    opening,
-    closing,
-    account: sharedValue(parts, (part) => part.account, sameAccount),
-    institution: sharedValue(
-      parts,
-      (part) => part.institution,
-      (a, b) => a === b,
-    ),
-  };
-}
-
-function sameAccount(a: StatementAccount, b: StatementAccount): boolean {
-  return a.kind === b.kind && a.identifier === b.identifier;
-}
-
-// The merged statement describes one account (or institution) only when
-// every part that names one names the same one. Parts that disagree yield
-// null here; the upload route compares each part against the selected preset
-// before this merge, which is where a mix-up is reported.
-function sharedValue<T>(
-  parts: StatementData[],
-  pick: (part: StatementData) => T | null,
-  same: (a: T, b: T) => boolean,
-): T | null {
-  const named = parts.flatMap((part) => {
-    const value = pick(part);
-    return value === null ? [] : [value];
-  });
-  if (named.length === 0) return null;
-  const [first] = named;
-  return named.every((value) => same(value, first)) ? first : null;
-}
-
 // The freeform pipeline as a spine: text(s) → per-file statement data →
 // merged across files → opening picked → running balances filled → shared
 // draft-import tail. Multi-file inputs fan out the LLM extraction one call
@@ -358,7 +213,7 @@ export async function runFreeformSourceImport(
   const parts = await Promise.all(
     sources.map(async (source, index) => {
       const tag = `freeform-text#${index + 1}`;
-      return extractStatementData(source.transactionTexts.join("\n"), {
+      return extractAbacusStatement(source.transactionTexts.join("\n"), {
         isCreditCard: opts.accountKind === "credit-card",
         nuabaseApiKey: apiKey,
         logPrefix: tag,
@@ -403,7 +258,7 @@ export async function runAbacusJsonImport(
 }
 
 export async function runStatementImport(
-  parts: StatementData[],
+  parts: AbacusStatement[],
   opts: ImportOptions,
   db: any,
   auth?: RowScopeAuth,

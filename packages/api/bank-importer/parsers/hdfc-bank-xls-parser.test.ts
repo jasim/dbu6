@@ -49,20 +49,16 @@ describe("HDFC Bank statement XLS parser", () => {
       const detected = await autoDetectCustomStatementParsers(xlsParserPaths, [
         inputPath,
       ]);
-      expect(detected.parserPaths).toEqual([BANK_PARSER]);
-      expect(detected.accounts).toEqual([
-        { kind: "bank", identifier: "05050505050505" },
-      ]);
-      const output = JSON.parse(detected.jsonTexts[0]);
+      expect(detected.map((one) => one.parserPath)).toEqual([BANK_PARSER]);
+      const output = detected[0].statement;
       expect(output).toMatchObject({
-        kind: "abacus",
         account: { kind: "bank", identifier: "05050505050505" },
         institution: "HDFC BANK Ltd.",
         opening: 100000,
         closing: 95779,
       });
-      expect(output.rows).toHaveLength(8);
-      expect(output.rows[0]).toEqual({
+      expect(output.transactions).toHaveLength(8);
+      expect(output.transactions[0]).toEqual({
         date: "2026-07-01",
         narration: "IB BILLPAY DR-HDFCSI-050505XXXXXX0505",
         withdrawal: 20000,
@@ -71,12 +67,14 @@ describe("HDFC Bank statement XLS parser", () => {
         source_reference: "050505050505ABCD",
       });
       // Interest rows carry an all-zero placeholder, not a reference.
-      expect(output.rows[7]).toMatchObject({
+      expect(output.transactions[7]).toMatchObject({
         narration: "INTEREST DEBITED TILL 31-JUL-2026",
         source_reference: null,
       });
       expect(
-        output.rows.every((row: { balance: unknown }) => row.balance !== null),
+        output.transactions.every(
+          (row: { balance: unknown }) => row.balance !== null,
+        ),
       ).toBe(true);
 
       const wrongExtensionPath = path.join(workDir, "statement.csv");

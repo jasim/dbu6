@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Abacus } from "../domain/Abacus.js";
+import type { Abacus } from "../abacus/index.js";
 import { isWithdrawal } from "../domain/Money.js";
 
 const accountSchema = z.string().trim().min(1);
