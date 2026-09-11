@@ -659,7 +659,7 @@ function multipartBodyRecord(body: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function filesFromField(
+export function filesFromField(
   files: Record<string, File | File[]>,
   key: string,
 ): File[] {

@@ -57,7 +57,52 @@ export const importErrorSchema = z
   })
   .passthrough();
 
+// One uploaded file as the automatic import sees it: recognised by exactly one
+// saved parser (and therefore tied to one account), or not. Rejections carry
+// the same per-file rows so the UI can annotate the list the user dropped.
+export const autoImportFileSchema = z.object({
+  file_name: z.string(),
+  status: z.enum(["matched", "unrecognized", "ambiguous"]),
+  parser_path: z.string().optional(),
+  account: z.string().optional(),
+  preset_name: z.string().optional(),
+  candidate_parser_paths: z.array(z.string()).optional(),
+  matching_parser_paths: z.array(z.string()).optional(),
+});
+
+// What the automatic import decided before touching the ledger: the single
+// account every file resolved to and how each file will be read.
+export const importPlanSchema = z.object({
+  account: z.string(),
+  account_kind: z.enum(["bank", "credit-card"]),
+  files: z.array(autoImportFileSchema),
+});
+
+export const autoImportResultSchema = freeformImportResultSchema.extend({
+  plan: importPlanSchema,
+});
+
+export const autoImportErrorSchema = importErrorSchema.extend({
+  files: z.array(autoImportFileSchema).optional(),
+});
+
 export const importDraftsContract = c.router({
+  uploadStatementsAuto: c.mutation({
+    method: "POST",
+    path: "/import-draft/statements/auto",
+    summary:
+      "Upload statement files with no other input; each file is recognised by a saved parser, all files must resolve to one account, and drafts are imported through the universal statement pipeline",
+    contentType: "multipart/form-data",
+    body: z.any(),
+    responses: {
+      200: autoImportResultSchema,
+      400: autoImportErrorSchema,
+      403: autoImportErrorSchema,
+      422: autoImportErrorSchema,
+      501: autoImportErrorSchema,
+      502: autoImportErrorSchema,
+    },
+  }),
   uploadStatementBatch: c.mutation({
     method: "POST",
     path: "/import-draft/statement/upload",

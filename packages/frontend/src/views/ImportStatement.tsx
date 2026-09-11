@@ -12,7 +12,7 @@ interface Account {
   name: string;
 }
 
-interface ImportResult {
+export interface ImportResult {
   hledger_journal: string;
   transaction_count: number;
   skipped_reconciled_count: number;
@@ -462,7 +462,7 @@ export function ImportStatement() {
   );
 }
 
-function ImportResultPanel({
+export function ImportResultPanel({
   result,
   isCreditCard,
 }: {

@@ -17,6 +17,7 @@ import {
 import { Advanced } from "./Advanced";
 import { defaultReportPath, reportDefinitions } from "./reports/registry";
 import { Welcome } from "./Welcome";
+import { AutoImportStatements } from "./views/AutoImportStatements";
 import { ImportStatement } from "./views/ImportStatement";
 import { DraftTransactionsTable } from "./views/draft-transactions/DraftTransactionsTable";
 import { JournalsTable } from "./views/JournalsTable";
@@ -50,7 +51,12 @@ export const appNavigation: Navigation = [
         to: "/reports/last-reconciled",
       },
       {
-        label: "Import a statement",
+        label: "Import statements",
+        icon: FileUp,
+        to: "/views/import-statements",
+      },
+      {
+        label: "Import a statement (manual)",
         icon: FileUp,
         to: "/views/import-statement",
       },
@@ -147,6 +153,7 @@ export const appProtectedRoutes = (
       path="reports/:reportName"
       element={<Navigate to={defaultReportPath} replace />}
     />
+    <Route path="views/import-statements" element={<AutoImportStatements />} />
     <Route path="views/import-statement" element={<ImportStatement />} />
     <Route path="views/reclassify-drafts" element={<ReclassifyDrafts />} />
     <Route path="views/render-draft-hledger" element={<RenderDraftHledger />} />
