@@ -12,6 +12,7 @@ export {
   type AbacusStatement,
 } from "./Abacus.js";
 export {
+  BALANCE_TOLERANCE,
   analyzeDateOrder,
   computeRunningBalances,
   normalizeChronological,
@@ -21,4 +22,10 @@ export {
   type DateOrderAnalysis,
   type DateTransition,
 } from "./balances.js";
-export { mergeStatements, validateStatementBoundaries } from "./merge.js";
+export {
+  ANCHOR_EPSILON,
+  assembleStatements,
+  partEdges,
+  validatePart,
+  type PartEdges,
+} from "./assemble.js";

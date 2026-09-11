@@ -114,6 +114,12 @@ export class ClosingBalanceUnavailable extends ApiImportError {
   }
 }
 
+// Thrown when two uploaded statement parts should meet but their balances do
+// not: the earlier part ends at one balance and the later part starts at
+// another. `difference` is signed (later start minus earlier end), which is
+// the net of whatever activity is missing between them. `hint` carries a
+// more specific reading when the assembly has one (for example, the same
+// statement uploaded twice).
 export class StatementBoundaryMismatchError extends ApiImportError {
   readonly status = 422;
   readonly earlierClosing: number;
@@ -121,16 +127,19 @@ export class StatementBoundaryMismatchError extends ApiImportError {
   readonly earlierSource: string;
   readonly laterSource: string;
   readonly difference: number;
+  readonly hint: string | null;
 
   constructor(
     earlierClosing: number,
     laterOpening: number,
     earlierSource: string,
     laterSource: string,
+    hint: string | null = null,
   ) {
-    const difference = Math.abs(earlierClosing - laterOpening);
+    const difference = round2(laterOpening - earlierClosing);
     super(
-      `Statement boundary mismatch: ${earlierSource} closes at ${earlierClosing}, but ${laterSource} opens at ${laterOpening}. Difference: ${difference}.`,
+      `Statement boundary mismatch: ${earlierSource} ends at ${earlierClosing}, but ${laterSource} starts at ${laterOpening}. The activity between them nets to ${difference}.` +
+        (hint === null ? "" : ` ${hint}`),
     );
     this.name = "StatementBoundaryMismatchError";
     this.earlierClosing = earlierClosing;
@@ -138,6 +147,7 @@ export class StatementBoundaryMismatchError extends ApiImportError {
     this.earlierSource = earlierSource;
     this.laterSource = laterSource;
     this.difference = difference;
+    this.hint = hint;
   }
 
   toPayload() {
@@ -149,8 +159,119 @@ export class StatementBoundaryMismatchError extends ApiImportError {
       earlier_closing: this.earlierClosing,
       later_opening: this.laterOpening,
       difference: this.difference,
+      ...(this.hint !== null ? { hint: this.hint } : {}),
     };
   }
+}
+
+// Thrown when two uploaded statement parts both cover a day and print it
+// differently, so neither copy can be trusted over the other. Names the
+// parts, the day, and the first row on that day that differs.
+export class StatementDisagreementError extends ApiImportError {
+  readonly status = 422;
+  readonly parts: readonly [string, string];
+  readonly date: string;
+  readonly row: DisagreeingRow;
+
+  constructor(
+    parts: readonly [string, string],
+    date: string,
+    row: DisagreeingRow,
+  ) {
+    super(
+      `Statement parts disagree about ${date}: ${parts[0]} and ${parts[1]} both cover that day but print it differently, starting at ${describeRow(row)}. Re-export the statements so that no day is covered twice, or combine them into one file.`,
+    );
+    this.name = "StatementDisagreementError";
+    this.parts = parts;
+    this.date = date;
+    this.row = row;
+  }
+
+  toPayload() {
+    return {
+      error: "statement_disagreement",
+      message: this.message,
+      parts: [...this.parts],
+      date: this.date,
+      row: { ...this.row },
+    };
+  }
+}
+
+export type DisagreeingRow = {
+  part: string;
+  narration: string;
+  withdrawal: number;
+  deposit: number;
+  balance: number | null;
+};
+
+function describeRow(row: DisagreeingRow): string {
+  const amount =
+    row.deposit > 0 ? `deposit ${row.deposit}` : `withdrawal ${row.withdrawal}`;
+  const balance = row.balance === null ? "" : `, balance ${row.balance}`;
+  return `${JSON.stringify(row.narration)} (${amount}${balance}) in ${row.part}`;
+}
+
+// Thrown when a multi-part upload holds a part with no balance anchor at
+// all: no opening, no closing, and no row that prints a running balance.
+// Such a part cannot say where it belongs among the others.
+export class StatementPartUnjoinableError extends ApiImportError {
+  readonly status = 422;
+  readonly part: string;
+
+  constructor(part: string) {
+    super(
+      `Statement part ${part} prints no opening balance, no closing balance and no running balances, so it cannot be placed among the other uploaded parts. Import it on its own (an opening balance override or the reconciliation checkpoint then supplies its opening), or combine the pages into one file.`,
+    );
+    this.name = "StatementPartUnjoinableError";
+    this.part = part;
+  }
+
+  toPayload() {
+    return {
+      error: "statement_part_unjoinable",
+      message: this.message,
+      part: this.part,
+    };
+  }
+}
+
+// Thrown when a part of a multi-part upload contradicts itself: its declared
+// opening or closing does not match its own rows, or its printed running
+// balances do not chain. `cause` is the underlying balance error when the
+// check reused one.
+export class StatementPartInvalidError extends ApiImportError {
+  readonly status = 422;
+  readonly part: string;
+  readonly detail: string;
+  readonly cause: ApiImportError | null;
+
+  constructor(
+    part: string,
+    detail: string,
+    cause: ApiImportError | null = null,
+  ) {
+    super(`Statement part ${part} is not self-consistent: ${detail}`);
+    this.name = "StatementPartInvalidError";
+    this.part = part;
+    this.detail = detail;
+    this.cause = cause;
+  }
+
+  toPayload() {
+    return {
+      error: "statement_part_invalid",
+      message: this.message,
+      part: this.part,
+      detail: this.detail,
+      ...(this.cause !== null ? { cause: this.cause.toPayload() } : {}),
+    };
+  }
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 export class AmbiguousDuplicateError extends ApiImportError {
@@ -269,31 +390,6 @@ export class PdfExtractionFailed extends ApiImportError {
       error: "pdf_extraction_failed",
       message: "Could not extract tables from the uploaded PDF(s).",
       detail: this.detail,
-    };
-  }
-}
-
-// Thrown when a multi-file import has parts whose date ranges overlap.
-export class OverlappingStatementsError extends ApiImportError {
-  readonly status = 400;
-  readonly earlierMaxDate: string;
-  readonly laterMinDate: string;
-
-  constructor(earlierMaxDate: string, laterMinDate: string) {
-    super(
-      `Overlapping statement parts: one part ends ${earlierMaxDate} and another starts ${laterMinDate}. Cannot merge ambiguously — upload non-overlapping files, or combine them into one.`,
-    );
-    this.name = "OverlappingStatementsError";
-    this.earlierMaxDate = earlierMaxDate;
-    this.laterMinDate = laterMinDate;
-  }
-
-  toPayload() {
-    return {
-      error: "overlapping_statements",
-      message: this.message,
-      earlier_max_date: this.earlierMaxDate,
-      later_min_date: this.laterMinDate,
     };
   }
 }

@@ -3,10 +3,9 @@ import { userConfigDir } from "../user-data.js";
 import type { Account } from "./domain/Account.js";
 import { unsafeAsChrono } from "./domain/Chrono.js";
 import {
-  mergeStatements,
+  assembleStatements,
   parseAbacusJson,
   synthesizeRunningBalances,
-  validateStatementBoundaries,
   validateTransactions,
   verifyClosingBalance,
   type AbacusStatement,
@@ -32,11 +31,13 @@ export {
   ClosingBalanceUnavailable,
   LLMExtractionError,
   OpeningBalanceUnavailable,
-  OverlappingStatementsError,
   PdfExtractionFailed,
   ReconciliationMatchError,
   SegmentBalanceMismatchError,
   StatementBoundaryMismatchError,
+  StatementDisagreementError,
+  StatementPartInvalidError,
+  StatementPartUnjoinableError,
 } from "./import-errors.js";
 
 export type AccountKind = "bank" | "credit-card";
@@ -265,22 +266,22 @@ export async function runStatementImport(
   sourceNames: readonly string[] = [],
 ): Promise<FreeformImportResult> {
   const apiKey = process.env.NUABASE_API_KEY ?? "";
-  const identifiedParts = parts.map((part) => ({
-    ...part,
-    transactions: assignSourceTransactionKeys(
-      part.transactions,
-      opts.baseAccount,
-    ),
-  }));
-  validateStatementBoundaries(identifiedParts, sourceNames);
-  const { transactions, opening, closing } = mergeStatements(
-    identifiedParts,
-    sourceNames,
+  // Assemble first, key second. Keys number textually identical rows on one
+  // day by occurrence, so two such rows that arrive one per part must be
+  // numbered over the assembled sequence rather than collide at occurrence
+  // 1 in each file. Keying still precedes the reconciliation filter below:
+  // that filter trims mid-day at the checkpoint row, and keying after it
+  // would renumber the checkpoint day depending on where the checkpoint fell.
+  const assembled = assembleStatements(parts, sourceNames);
+  const { opening, closing } = assembled;
+  const transactions = assignSourceTransactionKeys(
+    assembled.transactions,
+    opts.baseAccount,
   );
   validateTransactions(transactions);
-  if (identifiedParts.length > 1) {
+  if (parts.length > 1) {
     console.log(
-      `[freeform-import] merged ${transactions.length} transactions across ${identifiedParts.length} part(s): opening=${opening} (earliest), closing=${closing} (latest)`,
+      `[freeform-import] assembled ${transactions.length} transactions across ${parts.length} part(s): opening=${opening} (first part), closing=${closing} (last part)`,
     );
   } else {
     console.log(

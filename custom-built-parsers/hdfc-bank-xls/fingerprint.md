@@ -69,11 +69,12 @@ re-imported, so no key migration is shipped.
   TILL …`) with a `Date` on the 1st of the **next** month and a `Value Dt`
   inside the statement period. The row is kept on its posting `Date`,
   matching the old importer. Consequence: a June statement's last row is
-  dated 1 July and the July statement's first row is also 1 July, so the
-  universal importer's multi-file overlap check (`minDate <= previousMaxDate`
-  in `mergeStatements`) rejects June + July uploaded **together**. Import
-  HDFC statements one file at a time; the emitted `opening` lets the
-  reconciliation filter trim the shared boundary day correctly.
+  dated 1 July and the July statement's first row is also 1 July. The
+  universal importer's multi-file assembly (`assembleStatements`) compares
+  the shared day row by row: the June copy is a prefix of July's version of
+  1 July, so June + July uploaded **together** joins cleanly. Uploaded one
+  file at a time, the emitted `opening` lets the reconciliation filter trim
+  the shared boundary day correctly.
 - Rows are physically oldest-first with same-day rows in posting order. The
   parser rejects any date going backwards instead of sorting, because the
   printed running balance only chains in physical order.

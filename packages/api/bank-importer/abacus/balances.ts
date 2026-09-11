@@ -158,7 +158,7 @@ export function normalizeExtractedTransactions(
   return normalizeChronological(transactions);
 }
 
-const BALANCE_TOLERANCE = 1;
+export const BALANCE_TOLERANCE = 1;
 
 export function synthesizeRunningBalances(
   txns: Chrono<Abacus>,
