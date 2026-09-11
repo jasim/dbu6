@@ -31,7 +31,10 @@ MONEY_RE = re.compile(
     r"^(?:0|[1-9][0-9]*|[1-9][0-9]{0,2}(?:,[0-9]{3})+|"
     r"[1-9][0-9]?(?:,[0-9]{2})*,[0-9]{3})\.[0-9]{2}$"
 )
-CARD_NUMBER_RE = re.compile(r"^Credit Card No\.: [0-9]{6}X{6}[0-9]{4}$")
+# N3 prints the masked card number; the masked digits are the emitted card
+# identifier (already contiguous and uppercase in this layout).
+CARD_NUMBER_RE = re.compile(r"^Credit Card No\.: (?P<number>[0-9]{6}X{6}[0-9]{4})$")
+CARD_NUMBER_ROW, CARD_NUMBER_COLUMN = 2, 13  # N3
 ALTERNATE_ACCOUNT_RE = re.compile(r"^Alternate Account Number: [0-9]{16,24}$")
 TRANSACTION_DATE_TIME_RE = re.compile(
     r"^(?P<date>[0-9]{2}/[0-9]{2}/[0-9]{4}) / "
@@ -75,14 +78,15 @@ def require_matching_text(
     column: int,
     pattern: re.Pattern[str],
     label: str,
-) -> str:
+) -> re.Match[str]:
     value = cell_value(sheet, row, column)
-    if not isinstance(value, str) or not pattern.fullmatch(value):
+    match = pattern.fullmatch(value) if isinstance(value, str) else None
+    if match is None:
         raise ValueError(
             f"{excel_location(row, column)}: invalid {label}; "
             f"fingerprint mismatch"
         )
-    return value
+    return match
 
 
 def parse_money(value: Any, *, location: str, field: str) -> Decimal:
@@ -175,7 +179,6 @@ def validate_fingerprint(book: xlrd.book.Book, sheet: xlrd.sheet.Sheet) -> None:
     for (row, column), expected in anchors.items():
         require_text(sheet, row, column, expected)
 
-    require_matching_text(sheet, 2, 13, CARD_NUMBER_RE, "masked card number")
     require_matching_text(
         sheet,
         3,
@@ -183,6 +186,14 @@ def validate_fingerprint(book: xlrd.book.Book, sheet: xlrd.sheet.Sheet) -> None:
         ALTERNATE_ACCOUNT_RE,
         "alternate account number",
     )
+
+
+def parse_card_number(sheet: xlrd.sheet.Sheet) -> str:
+    """Canonical card identifier from N3: the masked number, no spaces, uppercase."""
+    match = require_matching_text(
+        sheet, CARD_NUMBER_ROW, CARD_NUMBER_COLUMN, CARD_NUMBER_RE, "masked card number"
+    )
+    return match.group("number").replace(" ", "").upper()
 
 
 def parse_summary(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
@@ -352,11 +363,14 @@ def parse(path: Path) -> dict[str, Any]:
         raise ValueError("expected a .xls input file")
     if not path.is_file():
         raise ValueError(f"input is not a file: {path}")
-    with path.open("rb") as source:
-        if source.read(len(OLE_MAGIC)) != OLE_MAGIC:
-            raise ValueError("expected an OLE Compound File / BIFF8 .xls workbook")
+    return parse_bytes(path.read_bytes())
 
-    book = xlrd.open_workbook(filename=str(path), on_demand=True)
+
+def parse_bytes(data: bytes) -> dict[str, Any]:
+    if data[: len(OLE_MAGIC)] != OLE_MAGIC:
+        raise ValueError("expected an OLE Compound File / BIFF8 .xls workbook")
+
+    book = xlrd.open_workbook(file_contents=data, on_demand=True)
     try:
         if book.nsheets != 1 or book.sheet_names() != [SHEET_NAME]:
             raise ValueError(
@@ -365,9 +379,10 @@ def parse(path: Path) -> dict[str, Any]:
             )
         sheet = book.sheet_by_index(0)
         validate_fingerprint(book, sheet)
+        card_number = parse_card_number(sheet)
         summary = parse_summary(sheet)
         rows = parse_transactions(sheet, summary["statement_date"])
-        return {"summary": summary, "rows": rows}
+        return {"card_number": card_number, "summary": summary, "rows": rows}
     finally:
         book.release_resources()
 
@@ -442,6 +457,8 @@ def to_abacus(statement: dict[str, Any], audit: dict[str, Any]) -> dict[str, Any
     )
     return {
         "kind": "abacus",
+        # The masked card number identifies which card this statement is for.
+        "account": {"kind": "card", "identifier": statement["card_number"]},
         # Credit-card balances are liabilities, hence the sign flip.
         "opening": ledger_balance(audit["opening"]),
         # HDFC displays Total Dues rounded to rupees. Preserve the exact ledger
