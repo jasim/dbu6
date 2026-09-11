@@ -34,6 +34,15 @@ REFERENCE_CELL_RE = re.compile(r"(?=.*\d)[A-Z0-9]{12,}", re.IGNORECASE)
 SUMMARY_LABEL_RE = re.compile(
     r"Previous Balance \(INR\)\s+Payments/Credits \(INR\)\s+Total Payment Due \(INR\)"
 )
+# The header prints the card number next to (or on the lines just below) the
+# "Credit Card Account Number" label as a 16-character masked number, with or
+# without the 4-4-4-4 spacing. The emitted identifier is the spaced-out form
+# collapsed, e.g. `0505 05XX XXXX 0505` -> `050505XXXXXX0505`.
+CARD_ACCOUNT_LABEL_RE = re.compile(r"Credit Card Account Number", re.IGNORECASE)
+CARD_NUMBER_RE = re.compile(
+    r"(?<![0-9X])[0-9]{4} ?[0-9]{2}X{2} ?X{4} ?[0-9]{4}(?![0-9X])", re.IGNORECASE
+)
+CARD_NUMBER_WINDOW_LINES = 4
 NUM_RE = re.compile(r"[\d,]+\.\d{2}")
 FOOTNOTE_RE = re.compile(
     r"^(?:note\b|important\b|transactions?\s+(?:marked|converted|made)|"
@@ -82,6 +91,32 @@ def parse_summary(text: str) -> tuple[float | None, float | None]:
                         float(nums[2].replace(",", "")),
                     )
     return None, None
+
+
+def parse_card_number(text: str) -> str:
+    """The masked card number printed by the "Credit Card Account Number" label.
+
+    Returns the canonical identifier: spaces removed, mask uppercased. Exactly
+    one distinct masked number must appear on the label line or within the
+    next few lines; anything else is a fingerprint mismatch.
+    """
+    lines = text.splitlines()
+    label_lines = [i for i, line in enumerate(lines) if CARD_ACCOUNT_LABEL_RE.search(line)]
+    if not label_lines:
+        raise ValueError("'Credit Card Account Number' label not found")
+    found: list[str] = []
+    for i in label_lines:
+        for line in lines[i : i + 1 + CARD_NUMBER_WINDOW_LINES]:
+            for match in CARD_NUMBER_RE.finditer(line):
+                identifier = match.group(0).replace(" ", "").upper()
+                if identifier not in found:
+                    found.append(identifier)
+    if len(found) != 1:
+        raise ValueError(
+            "expected exactly one masked card number near the 'Credit Card Account "
+            f"Number' label, found {len(found)}"
+        )
+    return found[0]
 
 
 def parse_transactions(text: str) -> list[dict]:
@@ -192,6 +227,7 @@ def main() -> None:
     if not pdf.is_file():
         sys.exit(f"not found: {pdf}")
     text = run_pdftotext(pdf)
+    card_number = parse_card_number(text)
     rows = parse_transactions(text)
     opening_raw, closing_raw = parse_summary(text)
     # Liabilities are negative in the ledger; statement prints them as positive.
@@ -200,6 +236,7 @@ def main() -> None:
     validate(rows, opening, closing)
     out = {
         "kind": "abacus",
+        "account": {"kind": "card", "identifier": card_number},
         "opening": opening,
         "closing": closing,
         "rows": rows,

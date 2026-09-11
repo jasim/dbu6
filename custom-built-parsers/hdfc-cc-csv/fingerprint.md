@@ -104,6 +104,14 @@ parsers are kept apart.
 - `Total Dues` equals the exact closing rounded half-up to the nearest rupee.
 - Output is written only after every check succeeds.
 
+## Emitted account identifier
+
+- `account: {"kind": "card", "identifier": "<16 chars>"}` — the `Card No:`
+  line with the label and spaces removed, e.g. `Card No: 0505 05XX XXXX 0505`
+  → `050505XXXXXX0505`. The `AAN:` alternate account number is validated but
+  not emitted. Rejected when the card line is missing or not in the
+  `NNNN NNXX XXXX NNNN` shape.
+
 ## How to run
 
     uv run custom-built-parsers/hdfc-cc-csv/parser.py <hdfc-billed-statement.csv>

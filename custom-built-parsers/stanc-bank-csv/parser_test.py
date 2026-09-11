@@ -33,6 +33,19 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(output["rows"][0]["narration"], "Newest, deposit")
         self.assertEqual(output["rows"][0]["date"], "2026-08-03")
 
+    def test_emits_the_line_one_account_number_as_the_bank_identifier(self) -> None:
+        statement = PARSER.parse_text(VALID_STATEMENT)
+        output = PARSER.to_abacus(statement)
+        self.assertEqual(statement["account_number"], "0505050505")
+        self.assertEqual(output["account"], {"kind": "bank", "identifier": "0505050505"})
+
+    def test_missing_or_malformed_account_number_is_rejected(self) -> None:
+        for replacement in ("", "'", "'05050505X5", "0505050505", "'0505 050505"):
+            with self.subTest(account_field=replacement):
+                text = VALID_STATEMENT.replace("'0505050505", replacement, 1)
+                with self.assertRaisesRegex(ValueError, "account fingerprint mismatch"):
+                    PARSER.parse_text(text)
+
     def test_available_balance_may_differ_from_current(self) -> None:
         statement = PARSER.parse_text(VALID_STATEMENT)
         PARSER.validate(statement)

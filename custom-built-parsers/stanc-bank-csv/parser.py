@@ -25,7 +25,9 @@ PERIOD_LABEL = "Account transactions shown:"
 CURRENT_LABEL = "Current Balance"
 AVAILABLE_LABEL = "Available Balance"
 ACCOUNT_NAME_RE = re.compile(r"^.+\s+(?:Savings|Current)\s+a/c$", re.IGNORECASE)
-ACCOUNT_NUMBER_RE = re.compile(r"^'[0-9]{8,20}$")
+# The export prefixes the account number with a quote so spreadsheets keep
+# the leading zeros; the digits after it are the emitted account identifier.
+ACCOUNT_NUMBER_RE = re.compile(r"^'(?P<number>[0-9]{8,20})$")
 MONEY_RE = re.compile(r"^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)\.[0-9]{2}$")
 SIGNED_BALANCE_RE = re.compile(
     r"^(?P<amount>(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)\.[0-9]{2})"
@@ -98,19 +100,25 @@ def parse_date(value: str, *, line_number: int, field: str) -> date:
         ) from exc
 
 
-def parse_account_line(line: str) -> Decimal:
+def parse_account_line(line: str) -> dict[str, Any]:
+    """Return the account number and signed current balance printed on line 1."""
     fields = csv_fields(line, 1)
+    account_number = (
+        ACCOUNT_NUMBER_RE.fullmatch(fields[1]) if len(fields) == 4 else None
+    )
     if (
-        len(fields) != 4
+        account_number is None
         or not ACCOUNT_NAME_RE.fullmatch(fields[0])
-        or not ACCOUNT_NUMBER_RE.fullmatch(fields[1])
         or fields[2] != "INR"
     ):
         raise ValueError("line 1: Standard Chartered account fingerprint mismatch")
     match = SIGNED_BALANCE_RE.fullmatch(fields[3])
     if not match or not match.group("side"):
         raise ValueError("line 1: invalid signed account balance")
-    return signed_balance(fields[3], line_number=1, field="account")
+    return {
+        "account_number": account_number.group("number"),
+        "current": signed_balance(fields[3], line_number=1, field="account"),
+    }
 
 
 def parse_period(line: str) -> tuple[date, date]:
@@ -174,7 +182,7 @@ def parse_text(text: str) -> dict[str, Any]:
     if lines[1] != "" or lines[3] != "" or lines[4] != HEADER:
         raise ValueError("Standard Chartered CSV header fingerprint mismatch")
 
-    account_current = parse_account_line(lines[0])
+    account = parse_account_line(lines[0])
     period_start, period_end = parse_period(lines[2])
 
     rows: list[dict[str, Any]] = []
@@ -205,7 +213,8 @@ def parse_text(text: str) -> dict[str, Any]:
         raise ValueError(f"line {index + 1}: unexpected content after trailer")
 
     return {
-        "account_current": account_current,
+        "account_number": account["account_number"],
+        "account_current": account["current"],
         "period_start": period_start,
         "period_end": period_end,
         "current": current,
@@ -289,6 +298,9 @@ def json_number(value: Decimal) -> float:
 def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
     return {
         "kind": "abacus",
+        # The line-1 account number, digits only, identifies which bank
+        # account this statement belongs to.
+        "account": {"kind": "bank", "identifier": statement["account_number"]},
         # This export does not print an opening balance; do not synthesize one.
         "opening": None,
         "closing": json_number(statement["current"]),

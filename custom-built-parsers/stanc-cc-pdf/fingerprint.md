@@ -36,6 +36,9 @@
 - When both statement anchors are present, the parser requires `opening + deposits - withdrawals = closing` to the cent.
 - The script declares Python 3.9+ metadata and uses postponed annotations so the `uv run` path remains compatible with Python 3.9.
 
+## Emitted account identifier
+- `account: {"kind": "card", "identifier": "<16 chars>"}` — the masked card number printed on or just below the `Credit Card Account Number` label line, with spaces removed and the mask uppercased, e.g. `0505 05XX XXXX 0505` → `050505XXXXXX0505`. The parser rejects the text when the label is absent or when it cannot find exactly one masked number near it.
+
 ## How to run
     uv run parser.py <input.pdf>
 

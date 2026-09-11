@@ -37,6 +37,31 @@ class ParserTests(unittest.TestCase):
         self.assertEqual((rows[0]["withdrawal"], rows[0]["deposit"]), (125.5, 0.0))
         self.assertEqual((rows[1]["withdrawal"], rows[1]["deposit"]), (0.0, 400.0))
 
+    def test_masked_card_number_is_emitted_without_spaces(self) -> None:
+        self.assertEqual(PARSER.parse_card_number(self.text), "050505XXXXXX0505")
+
+    def test_card_number_accepts_the_unspaced_form_and_lowercase_mask(self) -> None:
+        text = self.text.replace("0505 05XX XXXX 0505", "050505xxxxxx0505")
+        self.assertEqual(PARSER.parse_card_number(text), "050505XXXXXX0505")
+
+    def test_missing_or_malformed_card_number_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "label not found"):
+            PARSER.parse_card_number(
+                self.text.replace("Credit Card Account Number", "Account")
+            )
+        for replacement in ("", "0505 0505 0505 0505", "0505 05XX 0505"):
+            with self.subTest(number=replacement):
+                text = self.text.replace("0505 05XX XXXX 0505", replacement)
+                with self.assertRaisesRegex(ValueError, "found 0"):
+                    PARSER.parse_card_number(text)
+
+    def test_two_different_card_numbers_are_ambiguous(self) -> None:
+        text = self.text.replace(
+            "0505 05XX XXXX 0505", "0505 05XX XXXX 0505   0505 05XX XXXX 0506"
+        )
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            PARSER.parse_card_number(text)
+
     def test_bad_arithmetic_is_rejected(self) -> None:
         rows = PARSER.parse_transactions(self.text)
         with self.assertRaisesRegex(ValueError, "statement arithmetic mismatch"):

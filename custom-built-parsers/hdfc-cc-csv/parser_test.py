@@ -203,6 +203,23 @@ class ParserTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid masked card number"):
             PARSER.parse_text(text)
 
+    def test_emits_the_masked_card_number_without_spaces_as_the_identifier(self) -> None:
+        statement = PARSER.parse_text(VALID_STATEMENT)
+        output = PARSER.to_abacus(statement, PARSER.validate(statement))
+        self.assertEqual(statement["card_identifier"], "050505XXXXXX0505")
+        self.assertEqual(
+            output["account"], {"kind": "card", "identifier": "050505XXXXXX0505"}
+        )
+
+    def test_missing_or_malformed_card_number_is_rejected(self) -> None:
+        for replacement in ("", "Card No: ", "Card No: 0505 05xx xxxx 0505", "AAN: 0505"):
+            with self.subTest(card_line=replacement):
+                text = replace_once(
+                    VALID_STATEMENT, "Card No: 0505 05XX XXXX 0505", replacement
+                )
+                with self.assertRaises(ValueError):
+                    PARSER.parse_text(text)
+
     def test_another_banks_csv_layout_is_rejected(self) -> None:
         text = (
             "Supervalue Savings a/c,'0505050505,INR,\"1,150.00 CR\"\r\n"

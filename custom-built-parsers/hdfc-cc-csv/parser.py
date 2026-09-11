@@ -83,7 +83,9 @@ MONEY_RE = re.compile(
     r"^(?:0|[1-9][0-9]*|[1-9][0-9]{0,2}(?:,[0-9]{3})+|"
     r"[1-9][0-9]?(?:,[0-9]{2})*,[0-9]{3})\.[0-9]{2}$"
 )
-CARD_NUMBER_RE = re.compile(r"^Card No: [0-9]{4} [0-9]{2}XX XXXX [0-9]{4}$")
+CARD_NUMBER_RE = re.compile(
+    r"^Card No: (?P<number>[0-9]{4} [0-9]{2}XX XXXX [0-9]{4})$"
+)
 ALTERNATE_ACCOUNT_RE = re.compile(r"^AAN: [0-9]{16,24}$")
 TRANSACTION_DATE_TIME_RE = re.compile(
     r"^[0-9]{2}/[0-9]{2}/[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}$"
@@ -435,6 +437,7 @@ def parse_text(text: str) -> dict[str, Any]:
     summary = parse_account_summary(cursor)
     cursor.expect_blank("the card number")
     card_number = cursor.expect_pattern(CARD_NUMBER_RE, "masked card number")
+    card_identifier = card_number_identifier(card_number)
     cursor.expect_blank("the alternate account number")
     alternate_account = cursor.expect_pattern(
         ALTERNATE_ACCOUNT_RE, "alternate account number"
@@ -448,9 +451,22 @@ def parse_text(text: str) -> dict[str, Any]:
         "summary": summary,
         "past_dues": past_dues,
         "card_number": card_number,
+        "card_identifier": card_identifier,
         "alternate_account": alternate_account,
         "rows": rows,
     }
+
+
+def card_number_identifier(card_number_line: str) -> str:
+    """Canonical card identifier: the printed masked number without spaces.
+
+    `Card No: 0505 05XX XXXX 0505` -> `050505XXXXXX0505`. The mask letters are
+    already uppercase in this layout; uppercasing keeps the rule explicit.
+    """
+    match = CARD_NUMBER_RE.fullmatch(card_number_line)
+    if match is None:
+        raise ValueError(f"invalid masked card number {card_number_line!r}")
+    return match.group("number").replace(" ", "").upper()
 
 
 def parse(path: Path) -> dict[str, Any]:
@@ -553,6 +569,8 @@ def to_abacus(statement: dict[str, Any], audit: dict[str, Any]) -> dict[str, Any
     )
     return {
         "kind": "abacus",
+        # The masked card number identifies which card this statement is for.
+        "account": {"kind": "card", "identifier": statement["card_identifier"]},
         # Credit-card balances are liabilities, hence the sign flip.
         "opening": ledger_balance(audit["opening"]),
         # HDFC displays Total Dues rounded to rupees. Preserve the exact ledger

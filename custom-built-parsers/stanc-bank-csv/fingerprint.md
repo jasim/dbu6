@@ -41,6 +41,9 @@
 - Computed deposit and withdrawal totals must reconcile the implied pre-period opening to the printed closing exactly to the cent.
 - Validation uses decimal arithmetic. JSON amounts are emitted as ordinary JSON numbers only after all checks pass.
 
+## Emitted account identifier
+- `account: {"kind": "bank", "identifier": "<digits>"}` — the line-1 account number with its leading `'` stripped, e.g. `'0505050505` → `0505050505`. Rejected when the field is missing, unquoted, or not 8–20 digits.
+
 ## How to run
     uv run parser.py <stanc-csv-path>
 
