@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
+import { statementAccountSchema } from "./statement-account.js";
 
 const c = initContract();
 
@@ -57,33 +58,77 @@ export const importErrorSchema = z
   })
   .passthrough();
 
-// One uploaded file as the automatic import sees it: recognised by exactly one
-// saved parser (and therefore tied to one account), or not. Rejections carry
-// the same per-file rows so the UI can annotate the list the user dropped.
-export const autoImportFileSchema = z.object({
+// One uploaded file as the automatic import sees it. Recognition runs every
+// saved parser whose extensions fit the file, then the parser and the account
+// identifier the statement reports pick the preset. Each outcome carries only
+// what explains it, so a rejection annotates the list the user dropped.
+const reportedStatementFields = {
   file_name: z.string(),
-  status: z.enum(["matched", "unrecognized", "ambiguous"]),
-  parser_path: z.string().optional(),
-  account: z.string().optional(),
-  preset_name: z.string().optional(),
-  candidate_parser_paths: z.array(z.string()).optional(),
-  matching_parser_paths: z.array(z.string()).optional(),
+  parser_path: z.string(),
+  // What the statement prints about itself; null when the parser emits none.
+  account: statementAccountSchema.nullable(),
+  // The institution name as printed. Reported only; never used to match.
+  institution: z.string().nullable(),
+};
+
+export const autoImportPlanFileSchema = z.discriminatedUnion("status", [
+  z.object({
+    ...reportedStatementFields,
+    status: z.literal("resolved"),
+    preset_name: z.string(),
+  }),
+  z.object({
+    file_name: z.string(),
+    status: z.literal("unrecognized"),
+    candidate_parser_paths: z.array(z.string()),
+  }),
+  z.object({
+    file_name: z.string(),
+    status: z.literal("ambiguous"),
+    matching_parser_paths: z.array(z.string()),
+  }),
+  z.object({
+    ...reportedStatementFields,
+    status: z.literal("unresolved"),
+    reason: z.enum([
+      "no_preset_for_parser",
+      "statement_account_identifier_required",
+      "statement_account_identifier_mismatch",
+    ]),
+    message: z.string(),
+    candidate_preset_names: z.array(z.string()),
+  }),
+]);
+
+// One preset's share of the batch: one preset is one account, so this is one
+// run of the normal statement import over the files that resolved to it.
+export const autoImportGroupResultSchema = z.object({
+  preset_name: z.string(),
+  base_account: z.string(),
+  is_credit_card: z.boolean(),
+  file_names: z.array(z.string()),
+  result: freeformImportResultSchema,
 });
 
-// What the automatic import decided before touching the ledger: the single
-// account every file resolved to and how each file will be read.
-export const importPlanSchema = z.object({
-  account: z.string(),
-  account_kind: z.enum(["bank", "credit-card"]),
-  files: z.array(autoImportFileSchema),
+// Every file's outcome, plus the import each preset group produced. The plan
+// is reported whether or not anything was imported.
+export const autoImportResultSchema = z.object({
+  files: z.array(autoImportPlanFileSchema),
+  groups: z.array(autoImportGroupResultSchema),
 });
 
-export const autoImportResultSchema = freeformImportResultSchema.extend({
-  plan: importPlanSchema,
-});
+export type AutoImportPlanFile = z.infer<typeof autoImportPlanFileSchema>;
+export type AutoImportGroupResult = z.infer<
+  typeof autoImportGroupResultSchema
+>;
+export type AutoImportResult = z.infer<typeof autoImportResultSchema>;
 
 export const autoImportErrorSchema = importErrorSchema.extend({
-  files: z.array(autoImportFileSchema).optional(),
+  files: z.array(autoImportPlanFileSchema).optional(),
+  // Groups whose drafts were already saved when a later group failed. Their
+  // files must be removed from the batch before it is retried.
+  imported_groups: z.array(autoImportGroupResultSchema).optional(),
+  partial_import: z.string().optional(),
 });
 
 export const importDraftsContract = c.router({
@@ -91,7 +136,7 @@ export const importDraftsContract = c.router({
     method: "POST",
     path: "/import-draft/statements/auto",
     summary:
-      "Upload statement files with no other input; each file is recognised by a saved parser, all files must resolve to one account, and drafts are imported through the universal statement pipeline",
+      "Upload statement files with no other input; each file is recognised by a saved parser, its import preset is resolved from that parser and the account the statement reports, and one statement import runs per preset",
     contentType: "multipart/form-data",
     body: z.any(),
     responses: {
@@ -99,7 +144,6 @@ export const importDraftsContract = c.router({
       400: autoImportErrorSchema,
       403: autoImportErrorSchema,
       422: autoImportErrorSchema,
-      501: autoImportErrorSchema,
       502: autoImportErrorSchema,
     },
   }),

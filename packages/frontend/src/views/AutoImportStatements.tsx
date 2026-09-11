@@ -2,38 +2,23 @@ import { useRef, useState, type DragEvent } from "react";
 import { AlertCircle, Loader2, Upload, X } from "lucide-react";
 import { getApiBase } from "@sapporta/frontend/platform";
 import { AppPage } from "@sapporta/frontend/shell";
-import { ImportResultPanel, type ImportResult } from "./ImportStatement";
+import type {
+  AutoImportGroupResult,
+  AutoImportPlanFile,
+  AutoImportResult,
+} from "dbu6-shared";
+import { ImportResultPanel } from "./ImportStatement";
 
-// Mirrors `autoImportFileSchema` / `importPlanSchema` / `autoImportErrorSchema`
-// in packages/shared/src/contracts/import-drafts.ts.
-type FileStatus = "matched" | "unrecognized" | "ambiguous";
-
-interface PlanFile {
-  file_name: string;
-  status: FileStatus;
-  parser_path?: string;
-  account?: string;
-  preset_name?: string;
-  candidate_parser_paths?: string[];
-  matching_parser_paths?: string[];
-}
-
-interface ImportPlan {
-  account: string;
-  account_kind: "bank" | "credit-card";
-  files: PlanFile[];
-}
-
-interface AutoImportResult extends ImportResult {
-  plan: ImportPlan;
-}
-
+// An import that failed. `files` and `imported_groups` are present whenever
+// the server got far enough to decide them; see `autoImportErrorSchema`.
 interface AutoImportError {
   error: string;
   message: string | null;
   hint: string | null;
   detail: string | null;
-  files: PlanFile[];
+  partialImport: string | null;
+  files: AutoImportPlanFile[];
+  importedGroups: AutoImportGroupResult[];
 }
 
 const ACCEPTED_EXTENSIONS = [".pdf", ".xls", ".csv", ".txt"];
@@ -52,18 +37,21 @@ function parseErrorBody(body: unknown, status: number): AutoImportError {
     body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const str = (key: string) =>
     typeof record[key] === "string" ? (record[key] as string) : null;
-  const files = Array.isArray(record.files) ? (record.files as PlanFile[]) : [];
+  const list = <T,>(key: string): T[] =>
+    Array.isArray(record[key]) ? (record[key] as T[]) : [];
   return {
     error: str("error") ?? `HTTP ${status}`,
     message: str("message"),
     hint: str("hint"),
     detail: str("detail"),
-    files,
+    partialImport: str("partial_import"),
+    files: list<AutoImportPlanFile>("files"),
+    importedGroups: list<AutoImportGroupResult>("imported_groups"),
   };
 }
 
+// custom-built-parsers/<name>/parser.py -> <name>
 function parserLabel(parserPath: string): string {
-  // custom-built-parsers/<name>/parser.py -> <name>
   const parts = parserPath.split("/");
   return parts.length >= 2 ? parts[parts.length - 2] : parserPath;
 }
@@ -71,27 +59,17 @@ function parserLabel(parserPath: string): string {
 export function AutoImportStatements() {
   const [files, setFiles] = useState<File[]>([]);
   const [rejectedNames, setRejectedNames] = useState<string[]>([]);
-  const [gpayFile, setGpayFile] = useState<File | null>(null);
-  const [manualOpeningBalance, setManualOpeningBalance] = useState("");
-  const [manualClosingBalance, setManualClosingBalance] = useState("");
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AutoImportResult | null>(null);
   const [error, setError] = useState<AutoImportError | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const closingBalanceRef = useRef<HTMLInputElement>(null);
-
-  const closingBalanceRequired = error?.error === "closing_balance_unavailable";
-  const showBalanceInputs =
-    closingBalanceRequired ||
-    error?.error === "opening_balance_unavailable" ||
-    manualOpeningBalance !== "" ||
-    manualClosingBalance !== "";
 
   function addFiles(incoming: File[]) {
     const accepted = incoming.filter(isAcceptedStatement);
-    const rejected = incoming.filter((f) => !isAcceptedStatement(f));
-    setRejectedNames(rejected.map((f) => f.name));
+    setRejectedNames(
+      incoming.filter((f) => !isAcceptedStatement(f)).map((f) => f.name),
+    );
     setFiles((prev) => {
       const seen = new Set(prev.map(fileKey));
       const fresh = accepted.filter((f) => !seen.has(fileKey(f)));
@@ -122,13 +100,6 @@ export function AutoImportStatements() {
 
     const form = new FormData();
     for (const f of files) form.append("files", f);
-    if (gpayFile) form.append("gpay", gpayFile);
-    if (manualOpeningBalance.trim() !== "") {
-      form.append("manual_opening_balance", manualOpeningBalance.trim());
-    }
-    if (manualClosingBalance.trim() !== "") {
-      form.append("manual_closing_balance", manualClosingBalance.trim());
-    }
 
     try {
       const res = await fetch(`${getApiBase()}/import-draft/statements/auto`, {
@@ -137,11 +108,7 @@ export function AutoImportStatements() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        const parsed = parseErrorBody(body, res.status);
-        setError(parsed);
-        if (parsed.error === "closing_balance_unavailable") {
-          requestAnimationFrame(() => closingBalanceRef.current?.focus());
-        }
+        setError(parseErrorBody(body, res.status));
         return;
       }
       setResult((await res.json()) as AutoImportResult);
@@ -151,20 +118,20 @@ export function AutoImportStatements() {
         message: err instanceof Error ? err.message : "Upload failed",
         hint: null,
         detail: null,
+        partialImport: null,
         files: [],
+        importedGroups: [],
       });
     } finally {
       setLoading(false);
     }
   }
 
-  // Per-file annotations come from the plan on success, or from the
-  // rejection payload when the server could say which files it recognised.
-  const annotations = new Map<string, PlanFile>();
-  for (const row of result?.plan.files ?? error?.files ?? []) {
-    annotations.set(row.file_name, row);
-  }
-
+  // Every file the server decided on, whether or not anything was imported.
+  const plannedFiles = result?.files ?? error?.files ?? [];
+  const annotations = new Map(
+    plannedFiles.map((row) => [row.file_name, row] as const),
+  );
   const canSubmit = files.length > 0 && !loading;
 
   return (
@@ -173,8 +140,8 @@ export function AutoImportStatements() {
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>
             Drop every statement you want to import. Each file is recognised on
-            its own, so different banks and formats can go in together, as long
-            as they all belong to one account.
+            its own and matched to its import preset by the account it reports,
+            so statements from several banks and accounts can go in together.
           </p>
           <p>
             Imported transactions stay in Draft entries until you review their
@@ -267,63 +234,9 @@ export function AutoImportStatements() {
           </ul>
         )}
 
-        {error && error.files.length === 0 && <ErrorBanner error={error} />}
-        {error && error.files.length > 0 && (
-          <ErrorBanner error={error} compact />
-        )}
+        {error && <ErrorBanner error={error} />}
 
-        {showBalanceInputs && (
-          <div className="space-y-3 rounded-md border p-3">
-            <p className="text-xs text-muted-foreground">
-              Enter the balances as printed on the statement. Opening applies to
-              the earliest statement and closing to the latest.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label
-                  htmlFor="auto-manual-opening-balance"
-                  className="text-xs font-medium"
-                >
-                  Printed opening balance
-                </label>
-                <input
-                  id="auto-manual-opening-balance"
-                  inputMode="decimal"
-                  value={manualOpeningBalance}
-                  disabled={loading}
-                  onChange={(event) =>
-                    setManualOpeningBalance(event.target.value)
-                  }
-                  placeholder="Optional"
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label
-                  htmlFor="auto-manual-closing-balance"
-                  className="text-xs font-medium"
-                >
-                  Printed closing balance
-                </label>
-                <input
-                  ref={closingBalanceRef}
-                  id="auto-manual-closing-balance"
-                  inputMode="decimal"
-                  value={manualClosingBalance}
-                  disabled={loading}
-                  aria-invalid={closingBalanceRequired || undefined}
-                  onChange={(event) =>
-                    setManualClosingBalance(event.target.value)
-                  }
-                  placeholder={closingBalanceRequired ? "Required" : "Optional"}
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center gap-4">
+        <div>
           <button
             onClick={handleSubmit}
             disabled={!canSubmit}
@@ -336,114 +249,104 @@ export function AutoImportStatements() {
                 ? `Process ${files.length} statements`
                 : "Process"}
           </button>
-          <details className="text-sm">
-            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-              Google Pay Takeout
-            </summary>
-            <div className="mt-2 space-y-1">
-              <input
-                id="auto-gpay-takeout-file"
-                type="file"
-                accept=".html,.htm"
-                disabled={loading}
-                onChange={(event) => {
-                  setGpayFile(event.target.files?.[0] ?? null);
-                  setResult(null);
-                  setError(null);
-                }}
-                className="block w-full text-sm file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:text-primary-foreground hover:file:bg-primary/90"
-              />
-              <p className="text-xs text-muted-foreground">
-                Optional. Prefixes matching UPI withdrawals with the recipient's
-                name before categorization.
-              </p>
-              {gpayFile && (
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-mono">{gpayFile.name}</span> (
-                  {Math.round(gpayFile.size / 1024)} KB)
-                </p>
-              )}
-            </div>
-          </details>
         </div>
 
-        {result && (
-          <div className="space-y-3">
-            <PlanSummary plan={result.plan} />
-            <ImportResultPanel
-              result={result}
-              isCreditCard={result.plan.account_kind === "credit-card"}
-            />
-          </div>
+        {error && error.importedGroups.length > 0 && (
+          <GroupResults
+            groups={error.importedGroups}
+            heading="Imported before the failure"
+          />
         )}
+        {result && <GroupResults groups={result.groups} />}
       </div>
     </AppPage>
   );
 }
 
-function FileAnnotation({ row }: { row: PlanFile }) {
-  if (row.status === "matched") {
-    return (
-      <div className="mt-0.5 text-xs text-muted-foreground">
-        {row.parser_path ? parserLabel(row.parser_path) : "recognised"}
-        {row.account ? ` → ${row.account}` : ""}
-      </div>
-    );
+function FileAnnotation({ row }: { row: AutoImportPlanFile }) {
+  switch (row.status) {
+    case "resolved":
+      return (
+        <div className="mt-0.5 text-xs text-muted-foreground">
+          {parserLabel(row.parser_path)}
+          {row.account ? ` · ${row.account.identifier}` : ""} → {row.preset_name}
+        </div>
+      );
+    case "unrecognized":
+      return (
+        <div className="mt-0.5 text-xs text-destructive">
+          No saved parser recognised this file
+          {row.candidate_parser_paths.length > 0
+            ? ` (tried ${row.candidate_parser_paths.map(parserLabel).join(", ")})`
+            : ""}
+          .
+        </div>
+      );
+    case "ambiguous":
+      return (
+        <div className="mt-0.5 text-xs text-destructive">
+          Matched more than one parser:{" "}
+          {row.matching_parser_paths.map(parserLabel).join(", ")}.
+        </div>
+      );
+    case "unresolved":
+      return (
+        <div className="mt-0.5 text-xs text-destructive">
+          {parserLabel(row.parser_path)} read it, but no preset claims it:{" "}
+          {row.message}
+        </div>
+      );
   }
-  if (row.status === "ambiguous") {
-    return (
-      <div className="mt-0.5 text-xs text-destructive">
-        Matched more than one parser
-        {row.matching_parser_paths && row.matching_parser_paths.length > 0
-          ? `: ${row.matching_parser_paths.map(parserLabel).join(", ")}`
-          : ""}
-      </div>
-    );
-  }
+}
+
+function GroupResults({
+  groups,
+  heading,
+}: {
+  groups: AutoImportGroupResult[];
+  heading?: string;
+}) {
   return (
-    <div className="mt-0.5 text-xs text-destructive">
-      Not recognised by any saved parser
+    <div className="space-y-4">
+      {heading && <div className="text-sm font-medium">{heading}</div>}
+      {groups.map((group) => (
+        <div key={group.preset_name + group.base_account} className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {group.preset_name} ·{" "}
+            <span className="font-mono text-foreground">
+              {group.base_account}
+            </span>
+            {group.is_credit_card ? " (credit card)" : ""} ←{" "}
+            {group.file_names.join(", ")}
+          </p>
+          <ImportResultPanel
+            result={group.result}
+            isCreditCard={group.is_credit_card}
+          />
+        </div>
+      ))}
     </div>
   );
 }
 
-function PlanSummary({ plan }: { plan: ImportPlan }) {
-  const parsers = Array.from(
-    new Set(
-      plan.files
-        .map((f) => f.parser_path)
-        .filter((p): p is string => typeof p === "string"),
-    ),
-  ).map(parserLabel);
-  return (
-    <p className="text-sm text-muted-foreground">
-      {plan.files.length === 1
-        ? "1 statement"
-        : `${plan.files.length} statements`}{" "}
-      read with {parsers.join(", ")} into{" "}
-      <span className="font-mono text-foreground">{plan.account}</span>
-      {plan.account_kind === "credit-card" ? " (credit card)" : ""}.
-    </p>
-  );
-}
-
-function ErrorBanner({
-  error,
-  compact,
-}: {
-  error: AutoImportError;
-  compact?: boolean;
-}) {
+function ErrorBanner({ error }: { error: AutoImportError }) {
   return (
     <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-4">
       <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
       <div className="space-y-2">
         <div className="text-sm font-medium text-destructive">
-          {compact ? "Could not process these statements" : "Import failed"}
+          {error.files.length > 0
+            ? "Could not process these statements"
+            : "Import failed"}
         </div>
         {error.message && (
           <div className="break-words text-sm text-destructive/80">
             {error.message}
+          </div>
+        )}
+        {error.partialImport && (
+          <div className="break-words text-sm text-destructive/80">
+            {error.partialImport}
           </div>
         )}
         {error.detail && (

@@ -8,6 +8,12 @@ export {
   importSummarySchema,
   freeformImportResultSchema,
   sameAccountSkipSchema,
+  autoImportPlanFileSchema,
+  autoImportGroupResultSchema,
+  autoImportResultSchema,
+  type AutoImportPlanFile,
+  type AutoImportGroupResult,
+  type AutoImportResult,
 } from "./import-drafts.js";
 export {
   importPresetsContract,
