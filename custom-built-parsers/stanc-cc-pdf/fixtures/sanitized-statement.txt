@@ -1,13 +1,72 @@
-Standard Chartered Bank                                   Credit Card Statement
-Credit Card Account Number        Statement Date        Statement Period            Payment Due Date
-0505 05XX XXXX 0505               10 May 2026           11 Apr 2026 - 10 May 2026   30 May 2026
-Previous Balance (INR)   Payments/Credits (INR)   Total Payment Due (INR)
-1,000.00                 400.00                   745.50
+                                                                                              Credit Card Statement
 
-Date   Description                         Transaction Reference       Rewards Earned   International Amount   Amount (INR)
-070526 NONPII MERCH, INC, SAMPLE            05050500000000000000001     13               USD 1.50               125.50
-       NONPII CITY01
-080526 PAYMENT RECEIVED                    PAY050505000000000000001    0                                       400.00 CR
-090526 BANK CHARGE                         FEE050505000000000000001                                            20.00
-Transactions marked with an asterisk use an exchange rate shown elsewhere.
+             NOPII CUSTOMER NAME                                                                                                                  Credit Card Account Number                                   : 0505050000000101
+             NOPII ADDRESS LINE 1                                                                                                                 Statement Date                                               : 04 Aug 2026
+             NOPII ADDRESS LINE 2                                                                                                                 Statement Period                                             : 05 Jul 2026 To 04 Aug 2026
+             NOPII CITY01                                                                                                                         Payment Due Date                                             : 26 Aug 2026
+             NOPII CITY01 KA                                                                                                                      Total Payment Due (INR)                                      : 1,000.00
+             IN                                                                                                                                   Minimum Payment Due (INR)                                    : 250.00
+                                                                                                                                                  Retail Interest Rate                                         : 3.75 % pm
+             050505
+
+
+ Credit Limit (INR) :                                                                                         100,000.00                          Cash Limit (INR) :                                                         50,000.00
+
+
+                          Previous Balance (INR)                                                                   Payments/Credits (INR)                                                                Total Payment Due (INR)
+
+                                        2,000.00                                                                                 2,500.00                                                                              1,000.00
+
+
+
+   Super Value Titanium Mastercard                                                                                                                                                                                           050505XXXXXX0505
+
+                                                                                                                                                             Rewards                                            International
+           Date                                        Description                                       Transaction Reference                                                      Rewards Type                                              Amount (INR)
+                                                                                                                                                              Earned                                               Amount
+
+         070726                   NOPII MERCH, INC-NOPII CITY01                                      05050500000000000000001                                                 33                      001 USD 10.00                                   1,000.00
+                                  NOPII CITY02
+
+         080726                   Forex Markup Fee Retail                                                                                                                    0                                                                         500.00
+
+         240726                   SCB Ibanking Payment                                               00000000000000000000000                                                 0                       001                                          2,500.00 CR
+
+
+
+^Total Payment Due is the amount due for payment as on the statement date. It includes your opening balance, new purchases, fees & finance charges if any, minus your last payment or any other due credits.
 REWARDS POINTS SUMMARY
+
+                                                                      Rewards expiring by
+                                                                      Opening         Rewards         Rewards         Closing
+           Card Number  Card Name           Rewards Type              the end of current
+                                                                      Balance         Earned          Adjusted        Balance
+                                                                      calendar month
+
+050505XXXXXX0505        Super Value         points                 7,000.00         42.00          -1,000.00       6,042.00                         0.00
+                        Titanium Mastercard
+
+050505XXXXXX0505        Super Value         cashback                  10.00          0.00               0.00          10.00                         0.00
+                        Titanium Mastercard
+
+Disclaimer
+
+           Bill desk: From different bank accounts directly to your Standard Chartered
+           credit card account.
+           Standing instructions: In case the cardholder has a Standard Chartered Bank account,
+           the payment can be automated.
+
+ Making only the minimum payment every month would result in the repayment stretching over months/years with consequential compounded
+ interest payment on your outstanding balance.
+
+ Illustration of Credit Card account& structure is given below:
+
+                                          Beyond Credit Card No.: 4028XXXXXXXX0505
+                                          Credit Card Account No.
+               101XXXXXXXXX0505           Ultimate Card No.: 5444XXXXXXXX0505
+               Instalment Loan / Instalment Plan Summary: XX050X
+
+                                          Credit Card Account No.
+                                          EaseMyTrip Card No.: 4940XXXXXXXX0505
+               101XXXXXXXXX5050
+

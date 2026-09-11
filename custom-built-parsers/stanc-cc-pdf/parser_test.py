@@ -20,37 +20,67 @@ class ParserTests(unittest.TestCase):
     def test_summary_and_statement_math(self) -> None:
         rows = PARSER.parse_transactions(self.text)
         opening_raw, closing_raw = PARSER.parse_summary(self.text)
-        self.assertEqual((opening_raw, closing_raw), (1000.0, 745.5))
+        self.assertEqual((opening_raw, closing_raw), (2000.0, 1000.0))
         PARSER.validate(rows, -opening_raw, -closing_raw)
         self.assertEqual(len(rows), 3)
 
     def test_wrapped_narration_reference_and_footnote_exclusion(self) -> None:
         rows = PARSER.parse_transactions(self.text)
         self.assertEqual(
-            rows[0]["narration"], "NONPII MERCH, INC, SAMPLE NONPII CITY01"
+            rows[0]["narration"], "NOPII MERCH, INC-NOPII CITY01 NOPII CITY02"
         )
         self.assertEqual(rows[0]["source_reference"], "05050500000000000000001")
-        self.assertNotIn("exchange rate", rows[-1]["narration"])
+        self.assertIsNone(rows[1]["source_reference"])
 
     def test_charge_and_payment_signs(self) -> None:
         rows = PARSER.parse_transactions(self.text)
-        self.assertEqual((rows[0]["withdrawal"], rows[0]["deposit"]), (125.5, 0.0))
-        self.assertEqual((rows[1]["withdrawal"], rows[1]["deposit"]), (0.0, 400.0))
+        self.assertEqual((rows[0]["withdrawal"], rows[0]["deposit"]), (1000.0, 0.0))
+        self.assertEqual((rows[2]["withdrawal"], rows[2]["deposit"]), (0.0, 2500.0))
 
     def test_issuer_name_is_emitted_verbatim(self) -> None:
-        self.assertEqual(PARSER.parse_institution(self.text), "Standard Chartered Bank")
-        shortened = self.text.replace("Standard Chartered Bank", "Standard Chartered")
-        self.assertEqual(PARSER.parse_institution(shortened), "Standard Chartered")
+        """The name is printed only in prose, so the first phrase wins as-is."""
+        self.assertEqual(PARSER.parse_institution(self.text), "Standard Chartered")
+        lengthened = self.text.replace(
+            "your Standard Chartered", "your Standard Chartered Bank", 1
+        )
+        self.assertEqual(PARSER.parse_institution(lengthened), "Standard Chartered Bank")
         self.assertIsNone(
-            PARSER.parse_institution(self.text.replace("Standard Chartered Bank", ""))
+            PARSER.parse_institution(self.text.replace("Standard Chartered", ""))
         )
 
     def test_masked_card_number_is_emitted_without_spaces(self) -> None:
         self.assertEqual(PARSER.parse_card_number(self.text).identifier, "050505XXXXXX0505")
 
-    def test_card_number_accepts_the_unspaced_form_and_lowercase_mask(self) -> None:
-        text = self.text.replace("0505 05XX XXXX 0505", "050505xxxxxx0505")
-        self.assertEqual(PARSER.parse_card_number(text).identifier, "050505XXXXXX0505")
+    def test_card_number_accepts_the_spaced_form_and_lowercase_mask(self) -> None:
+        for printed in ("0505 05XX XXXX 0505", "050505xxxxxx0505"):
+            with self.subTest(printed=printed):
+                text = self.text.replace("050505XXXXXX0505", printed)
+                self.assertEqual(
+                    PARSER.parse_card_number(text).identifier, "050505XXXXXX0505"
+                )
+
+    def test_unmasked_account_number_is_not_the_card_number(self) -> None:
+        """The label line prints the account number; the card number is elsewhere."""
+        self.assertIn("Credit Card Account Number", self.text)
+        self.assertIn("0505050000000101", self.text)
+        self.assertEqual(
+            PARSER.parse_card_number(self.text).identifier, "050505XXXXXX0505"
+        )
+
+    def test_card_number_is_found_away_from_the_account_number_label(self) -> None:
+        """Dropping the account number changes nothing; it was never the source."""
+        text = self.text.replace("0505050000000101", "")
+        self.assertEqual(
+            PARSER.parse_card_number(text).identifier, "050505XXXXXX0505"
+        )
+
+    def test_account_structure_illustration_is_not_mistaken_for_the_card(self) -> None:
+        """The bank prints example card numbers in its terms; none may match."""
+        for decoy in ("4028XXXXXXXX0505", "101XXXXXXXXX0505", "5444XXXXXXXX0505",
+                      "4940XXXXXXXX0505", "101XXXXXXXXX5050"):
+            with self.subTest(decoy=decoy):
+                self.assertIn(decoy, self.text)
+        self.assertEqual(PARSER.parse_card_number(self.text).identifier, "050505XXXXXX0505")
 
     def test_missing_or_malformed_card_number_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "label not found"):
@@ -59,14 +89,12 @@ class ParserTests(unittest.TestCase):
             )
         for replacement in ("", "0505 0505 0505 0505", "0505 05XX 0505"):
             with self.subTest(number=replacement):
-                text = self.text.replace("0505 05XX XXXX 0505", replacement)
+                text = self.text.replace("050505XXXXXX0505", replacement)
                 with self.assertRaisesRegex(ValueError, "found 0"):
                     PARSER.parse_card_number(text)
 
     def test_two_different_card_numbers_are_ambiguous(self) -> None:
-        text = self.text.replace(
-            "0505 05XX XXXX 0505", "0505 05XX XXXX 0505   0505 05XX XXXX 0506"
-        )
+        text = self.text.replace("050505XXXXXX0505", "050505XXXXXX0506", 1)
         with self.assertRaisesRegex(ValueError, "found 2"):
             PARSER.parse_card_number(text)
 

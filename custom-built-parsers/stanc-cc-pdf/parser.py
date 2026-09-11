@@ -37,15 +37,20 @@ REFERENCE_CELL_RE = re.compile(r"(?=.*\d)[A-Z0-9]{12,}", re.IGNORECASE)
 SUMMARY_LABEL_RE = re.compile(
     r"Previous Balance \(INR\)\s+Payments/Credits \(INR\)\s+Total Payment Due \(INR\)"
 )
-# The header prints the card number next to (or on the lines just below) the
-# "Credit Card Account Number" label as a 16-character masked number, with or
-# without the 4-4-4-4 spacing. The emitted identifier is the spaced-out form
-# collapsed, e.g. `0505 05XX XXXX 0505` -> `050505XXXXXX0505`.
+# "Credit Card Account Number" labels the account the statement bills, printed
+# unmasked. It is not the card number and is never the emitted identifier; the
+# label is required only because a statement without it is not this layout.
 CARD_ACCOUNT_LABEL_RE = re.compile(r"Credit Card Account Number", re.IGNORECASE)
+# The card number is printed masked, beside the product name above the
+# transaction table and again in the rewards summary's "Card Number" column:
+# six digits, six X, four digits, optionally spaced 4-4-4-4. The emitted
+# identifier is that form with spaces removed, e.g. `0505 05XX XXXX 0505` ->
+# `050505XXXXXX0505`. The mask shape is what separates it from the unmasked
+# account number and from the differently shaped card numbers in the
+# account-structure illustration the bank prints for every customer.
 CARD_NUMBER_RE = re.compile(
     r"(?<![0-9X])[0-9]{4} ?[0-9]{2}X{2} ?X{4} ?[0-9]{4}(?![0-9X])", re.IGNORECASE
 )
-CARD_NUMBER_WINDOW_LINES = 4
 # The issuer's printed name, emitted verbatim as `institution`: the first
 # occurrence of "Standard Chartered" with any directly attached suffix such
 # as "Bank" or "Bank, India". Absent text yields null rather than a guess.
@@ -108,26 +113,25 @@ def parse_institution(text: str) -> str | None:
 
 
 def parse_card_number(text: str) -> abacus.AbacusAccount:
-    """The masked card number printed by the "Credit Card Account Number" label.
+    """The one masked card number the statement prints.
 
-    Exactly one distinct masked number must appear on the label line or within
-    the next few lines; anything else is a fingerprint mismatch.
+    The number is not near the "Credit Card Account Number" label -- that
+    label carries the unmasked account number -- so the whole text is searched
+    and exactly one distinct masked number must appear. The statement prints
+    it twice, beside the product name and in the rewards summary, always the
+    same value. A statement billing more than one card yields several and is
+    rejected rather than guessed at.
     """
-    lines = text.splitlines()
-    label_lines = [i for i, line in enumerate(lines) if CARD_ACCOUNT_LABEL_RE.search(line)]
-    if not label_lines:
+    if not CARD_ACCOUNT_LABEL_RE.search(text):
         raise ValueError("'Credit Card Account Number' label not found")
     found: list[str] = []
-    for i in label_lines:
-        for line in lines[i : i + 1 + CARD_NUMBER_WINDOW_LINES]:
-            for match in CARD_NUMBER_RE.finditer(line):
-                identifier = abacus.card_account(match.group(0)).identifier
-                if identifier not in found:
-                    found.append(identifier)
+    for match in CARD_NUMBER_RE.finditer(text):
+        identifier = abacus.card_account(match.group(0)).identifier
+        if identifier not in found:
+            found.append(identifier)
     if len(found) != 1:
         raise ValueError(
-            "expected exactly one masked card number near the 'Credit Card Account "
-            f"Number' label, found {len(found)}"
+            f"expected exactly one masked card number in the statement, found {len(found)}"
         )
     return abacus.card_account(found[0])
 
