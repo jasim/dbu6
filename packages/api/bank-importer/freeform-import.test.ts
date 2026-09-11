@@ -97,6 +97,7 @@ function stmt(
     transactions: normalizeChronological(transactions, "ascending"),
     opening,
     closing,
+    account: null,
   };
 }
 
@@ -241,6 +242,7 @@ function statementWithNet(
   return {
     opening,
     closing,
+    account: null,
     transactions: normalizeChronological(
       [
         {

@@ -73,6 +73,77 @@ describe("parseAbacusJson", () => {
     ).toThrow(AbacusJsonParseError);
   });
 
+  it("carries the statement's account through when present", () => {
+    const row = {
+      date: "2026-07-15",
+      narration: "Row",
+      withdrawal: 100,
+      deposit: 0,
+      balance: null,
+    };
+    const bank = parseAbacusJson(
+      JSON.stringify({
+        kind: "abacus",
+        account: { kind: "bank", identifier: "050505000012" },
+        rows: [row],
+      }),
+      "test",
+    );
+    expect(bank.account).toEqual({ kind: "bank", identifier: "050505000012" });
+
+    const card = parseAbacusJson(
+      JSON.stringify({
+        kind: "abacus",
+        account: { kind: "card", identifier: "050505XXXXXX0505" },
+        rows: [row],
+      }),
+      "test",
+    );
+    expect(card.account).toEqual({
+      kind: "card",
+      identifier: "050505XXXXXX0505",
+    });
+
+    const absent = parseAbacusJson(
+      JSON.stringify({ kind: "abacus", rows: [row] }),
+      "test",
+    );
+    expect(absent.account).toBeNull();
+  });
+
+  it.each([
+    [
+      "a bank identifier with a mask",
+      { kind: "bank", identifier: "0505XXXX0505" },
+    ],
+    [
+      "a card identifier with spaces",
+      { kind: "card", identifier: "0505 05XX XXXX 0505" },
+    ],
+    ["a lowercase mask", { kind: "card", identifier: "050505xxxxxx0505" }],
+    ["an unknown kind", { kind: "loan", identifier: "050505000012" }],
+    ["an empty identifier", { kind: "bank", identifier: "" }],
+  ])("rejects %s as a statement account", (_label, account) => {
+    expect(() =>
+      parseAbacusJson(
+        JSON.stringify({
+          kind: "abacus",
+          account,
+          rows: [
+            {
+              date: "2026-07-15",
+              narration: "Row",
+              withdrawal: 100,
+              deposit: 0,
+              balance: null,
+            },
+          ],
+        }),
+        "test",
+      ),
+    ).toThrow(AbacusJsonParseError);
+  });
+
   it("normalizes descending JSON to chronological order", () => {
     const json = JSON.stringify({
       kind: "abacus",

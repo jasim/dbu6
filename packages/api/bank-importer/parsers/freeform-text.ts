@@ -1,6 +1,7 @@
 import { Nua } from "nuabase";
 import { parse as parseCsvSync } from "csv-parse/sync";
 import { z } from "zod";
+import type { StatementAccount } from "dbu6-shared";
 import {
   abacusRowsJsonSchema,
   abacusSchema,
@@ -424,6 +425,9 @@ export interface StatementData {
   transactions: Chrono<Abacus>;
   opening: number | null;
   closing: number | null;
+  // The account or card number printed on the statement, when the source
+  // reported one. Deterministic parsers emit it; LLM extraction does not.
+  account: StatementAccount | null;
 }
 
 // Transactions and balances are independent HTTP calls — run them in
@@ -504,6 +508,7 @@ export async function extractStatementData(
     transactions: normalizeExtractedTransactions(transactions),
     opening: balances.opening,
     closing: balances.closing,
+    account: null,
   };
   const signed = applyCreditCardSignFlip(raw, config.isCreditCard);
 

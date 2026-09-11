@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import type { StatementAccount } from "dbu6-shared";
 import { userConfigDir } from "../user-data.js";
 import type { Account } from "./domain/Account.js";
 import type { Abacus } from "./domain/Abacus.js";
@@ -270,7 +271,24 @@ export function mergeStatements(
   );
   const opening = ordered[0]?.opening ?? null;
   const closing = ordered[ordered.length - 1]?.closing ?? null;
-  return { transactions, opening, closing };
+  return { transactions, opening, closing, account: sharedAccount(parts) };
+}
+
+// The merged statement describes one account only when every part that
+// names an account names the same one. Parts that name different accounts
+// yield null here; the upload route compares each part against the selected
+// preset before this merge, which is where a mix-up is reported.
+function sharedAccount(parts: StatementData[]): StatementAccount | null {
+  const named = parts.flatMap((part) =>
+    part.account === null ? [] : [part.account],
+  );
+  if (named.length === 0) return null;
+  const [first] = named;
+  const agree = named.every(
+    (account) =>
+      account.kind === first.kind && account.identifier === first.identifier,
+  );
+  return agree ? first : null;
 }
 
 // The freeform pipeline as a spine: text(s) → per-file statement data →

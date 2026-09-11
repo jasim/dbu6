@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { statementAccountSchema } from "dbu6-shared";
 import {
   depositMoneySchema,
   withdrawalMoneySchema,
@@ -29,6 +30,11 @@ export const abacusJsonSchema = z.object({
   kind: z.literal("abacus"),
   opening: z.number().nullable().optional(),
   closing: z.number().nullable().optional(),
+  // The account or card number the statement prints about itself, in the
+  // canonical form defined by `statementAccountSchema`. Deterministic parsers
+  // emit it so an import can be matched to the right preset; hand-written
+  // JSON and LLM extraction leave it out.
+  account: statementAccountSchema.nullable().optional(),
   rows: z.array(abacusSchema).min(1, "Transaction list is empty"),
 });
 

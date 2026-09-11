@@ -15,5 +15,12 @@ export {
   extractionToolSchema,
   type ExtractionTool,
 } from "./import-presets.js";
+export {
+  statementAccountSchema,
+  statementAccountIdentifierSchema,
+  statementAccountKindSchema,
+  type StatementAccount,
+  type StatementAccountKind,
+} from "./statement-account.js";
 export { draftTransactionsContract } from "./draft-transactions.js";
 export { journalsContract } from "./journals.js";

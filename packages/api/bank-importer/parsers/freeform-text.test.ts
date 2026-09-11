@@ -222,6 +222,7 @@ describe("applyCreditCardSignFlip", () => {
     ),
     opening: 10000,
     closing: 9500,
+    account: null,
   };
 
   it("is an identity when isCreditCard is false", () => {
@@ -247,6 +248,7 @@ describe("applyCreditCardSignFlip", () => {
       ),
       opening: null,
       closing: null,
+      account: null,
     };
     const flipped = applyCreditCardSignFlip(allNull, true);
     expect(flipped.opening).toBeNull();

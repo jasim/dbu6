@@ -71,6 +71,7 @@ function statement(): StatementData {
     transactions: normalizeChronological(rows, "ascending"),
     opening: null,
     closing: null,
+    account: null,
   };
 }
 
@@ -208,6 +209,7 @@ describe("Google Pay enrichment on the universal statement import", () => {
       transactions: normalizeChronological(rows, "ascending"),
       opening: null,
       closing: null,
+      account: null,
     };
     const html = takeout(
       dir,

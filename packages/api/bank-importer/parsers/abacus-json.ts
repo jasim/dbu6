@@ -29,13 +29,17 @@ export function parseAbacusJson(
   const parsed = result.data;
   const opening = parsed.opening ?? null;
   const closing = parsed.closing ?? null;
+  const account = parsed.account ?? null;
   const transactions = normalizeChronological(parsed.rows);
   console.log(
-    `[${logPrefix}] parsed abacus json: ${parsed.rows.length} row(s), opening=${opening}, closing=${closing}`,
+    `[${logPrefix}] parsed abacus json: ${parsed.rows.length} row(s), opening=${opening}, closing=${closing}, account=${
+      account === null ? "none" : `${account.kind}:${account.identifier}`
+    }`,
   );
   return {
     transactions,
     opening,
     closing,
+    account,
   };
 }
