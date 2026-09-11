@@ -50,7 +50,7 @@ class ParserTests(unittest.TestCase):
     def test_parse_and_reconcile_every_available_anchor(self) -> None:
         statement = PARSER.parse_text(VALID_STATEMENT)
         audit = PARSER.validate(statement)
-        output = PARSER.to_abacus(statement, audit)
+        output = PARSER.to_abacus(statement, audit).to_json()
 
         self.assertEqual(audit["row_count"], 5)
         self.assertEqual(audit["deposit_total"], Decimal("600.00"))
@@ -74,7 +74,7 @@ class ParserTests(unittest.TestCase):
 
     def test_narration_keeps_the_statement_spacing(self) -> None:
         statement = PARSER.parse_text(VALID_STATEMENT)
-        output = PARSER.to_abacus(statement, PARSER.validate(statement))
+        output = PARSER.to_abacus(statement, PARSER.validate(statement)).to_json()
         narrations = [row["narration"] for row in output["rows"]]
 
         # Trailing and doubled spaces are the bank's fixed-width padding.
@@ -84,7 +84,7 @@ class ParserTests(unittest.TestCase):
     def test_credit_rows_become_deposits_with_their_reference(self) -> None:
         statement = PARSER.parse_text(VALID_STATEMENT)
         audit = PARSER.validate(statement)
-        output = PARSER.to_abacus(statement, audit)
+        output = PARSER.to_abacus(statement, audit).to_json()
         payment, refund = output["rows"][2], output["rows"][3]
 
         self.assertEqual((payment["deposit"], payment["withdrawal"]), (500.0, 0.0))
@@ -205,8 +205,8 @@ class ParserTests(unittest.TestCase):
 
     def test_emits_the_masked_card_number_without_spaces_as_the_identifier(self) -> None:
         statement = PARSER.parse_text(VALID_STATEMENT)
-        output = PARSER.to_abacus(statement, PARSER.validate(statement))
-        self.assertEqual(statement["card_identifier"], "050505XXXXXX0505")
+        output = PARSER.to_abacus(statement, PARSER.validate(statement)).to_json()
+        self.assertEqual(statement["card_account"].identifier, "050505XXXXXX0505")
         self.assertEqual(
             output["account"], {"kind": "card", "identifier": "050505XXXXXX0505"}
         )
@@ -214,7 +214,7 @@ class ParserTests(unittest.TestCase):
     def test_emits_the_registered_office_issuer_name_verbatim(self) -> None:
         statement = PARSER.parse_text(VALID_STATEMENT)
         self.assertEqual(statement["institution"], "HDFC Bank Cards Division")
-        output = PARSER.to_abacus(statement, PARSER.validate(statement))
+        output = PARSER.to_abacus(statement, PARSER.validate(statement)).to_json()
         self.assertEqual(output["institution"], "HDFC Bank Cards Division")
 
     def test_institution_is_null_without_the_registered_office_line(self) -> None:

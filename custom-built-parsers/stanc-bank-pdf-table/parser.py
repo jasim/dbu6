@@ -9,12 +9,15 @@ Usage: uv run parser.py <stanc-statement.pdf>
 Writes <basename>.abacus.json next to the input PDF.
 """
 import csv
-import json
 import re
 import subprocess
 import sys
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared import abacus  # noqa: E402
+
 
 EXTRACT_TOOL = Path.home() / "m/a/code/tools/pdf-extract/extract-table-from-pdf.py"
 
@@ -81,36 +84,24 @@ def parse_csv(csv_path: Path):
     return rows, opening, closing
 
 
-def validate(rows):
-    if not rows:
-        raise ValueError("no transactions parsed")
-    for i, r in enumerate(rows):
-        w, d = r["withdrawal"], r["deposit"]
-        if w < 0 or d < 0:
-            raise ValueError(f"row {i}: negative w/d ({w}, {d})")
-        pos = (w > 0, d > 0)
-        if pos == (False, False) or pos == (True, True):
-            raise ValueError(f"row {i}: XOR violated ({w}, {d}) — {r['narration'][:60]}")
-        date.fromisoformat(r["date"])
-
-
-def main():
-    if len(sys.argv) != 2:
-        print("usage: parser.py <stanc-statement.pdf>", file=sys.stderr)
-        sys.exit(2)
-    pdf = Path(sys.argv[1]).resolve()
+def build(pdf: Path) -> tuple[abacus.AbacusStatement, str]:
     if pdf.suffix.lower() != ".pdf":
-        sys.exit(f"expected a .pdf input file: {pdf}")
+        raise ValueError(f"expected a .pdf input file: {pdf}")
     if not pdf.is_file():
-        sys.exit(f"not found: {pdf}")
+        raise ValueError(f"not found: {pdf}")
     csv_path = extract_csv(pdf)
     rows, opening, closing = parse_csv(csv_path)
-    validate(rows)
-    out = {"kind": "abacus", "opening": opening, "closing": closing, "rows": rows}
-    out_path = pdf.with_suffix(".abacus.json")
-    out_path.write_text(json.dumps(out, indent=2))
-    print(f"wrote {out_path} — {len(rows)} rows, opening={opening}, closing={closing}")
+    statement = abacus.statement(
+        rows=[abacus.row(**r) for r in rows],
+        opening=opening,
+        closing=closing,
+        # The extract-table CSV carries neither the account number nor the
+        # bank's name, so neither can be reported.
+        account=None,
+        institution=None,
+    )
+    return statement, f"{len(rows)} rows, opening={opening}, closing={closing}"
 
 
 if __name__ == "__main__":
-    main()
+    abacus.run_cli(build, usage="<stanc-statement.pdf>", error_types=(subprocess.CalledProcessError,))

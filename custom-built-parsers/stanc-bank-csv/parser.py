@@ -11,13 +11,16 @@ Writes <statement-basename>.abacus.json next to the input.
 """
 
 import csv
-import json
 import re
 import sys
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared import abacus  # noqa: E402
 
 
 HEADER = "\tDate,Transaction,Currency,Deposit,Withdrawal,Running Balance"
@@ -291,62 +294,42 @@ def validate(statement: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def json_number(value: Decimal) -> float:
-    return float(value)
-
-
-def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "kind": "abacus",
-        # The line-1 account number, digits only, identifies which bank
-        # account this statement belongs to.
-        "account": {"kind": "bank", "identifier": statement["account_number"]},
-        # The export prints the product name ("... Savings a/c") but never the
-        # bank's name, so there is nothing to copy verbatim.
-        "institution": None,
-        # This export does not print an opening balance; do not synthesize one.
-        "opening": None,
-        "closing": json_number(statement["current"]),
-        "rows": [
-            {
-                "date": row["date"].isoformat(),
-                "narration": row["narration"],
-                "withdrawal": json_number(row["withdrawal"]),
-                "deposit": json_number(row["deposit"]),
-                "balance": json_number(row["balance"]),
-            }
+def to_abacus(statement: dict[str, Any]) -> abacus.AbacusStatement:
+    return abacus.statement(
+        rows=[
+            abacus.row(
+                date=row["date"],
+                narration=row["narration"],
+                withdrawal=row["withdrawal"],
+                deposit=row["deposit"],
+                balance=row["balance"],
+            )
             for row in statement["rows"]
         ],
-    }
-
-
-def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} <statement.csv>", file=sys.stderr)
-        sys.exit(2)
-
-    source = Path(sys.argv[1]).resolve()
-    try:
-        statement = parse(source)
-        audit = validate(statement)
-        output = to_abacus(statement)
-    except (OSError, UnicodeError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    destination = source.with_suffix(".abacus.json")
-    destination.write_text(
-        json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        # This export does not print an opening balance; do not synthesize one.
+        opening=None,
+        closing=statement["current"],
+        # The line-1 account number identifies which bank account this is.
+        account=abacus.bank_account(statement["account_number"]),
+        # The export prints the product name ("... Savings a/c") but never the
+        # bank's name, so there is nothing to copy verbatim.
+        institution=None,
     )
-    print(
-        f"wrote {destination} ({audit['row_count']} rows; "
+
+
+def build(source: Path) -> tuple[abacus.AbacusStatement, str]:
+    statement = parse(source)
+    audit = validate(statement)
+    summary = (
+        f"{audit['row_count']} rows; "
         f"deposits={audit['deposit_total']:.2f}; "
         f"withdrawals={audit['withdrawal_total']:.2f}; "
         f"opening=not printed (implied {audit['implied_opening']:.2f}); "
         f"closing={audit['closing']:.2f}; "
-        f"running_balance_checks={audit['running_balance_checks']})"
+        f"running_balance_checks={audit['running_balance_checks']}"
     )
+    return to_abacus(statement), summary
 
 
 if __name__ == "__main__":
-    main()
+    abacus.run_cli(build, usage="<statement.csv>")

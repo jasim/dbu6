@@ -7,14 +7,14 @@ For recurring statement formats, ask a coding agent to create a deterministic pa
 - Check the existing parser fingerprints in `custom-built-parsers/` first.
 - Create or update `custom-built-parsers/<parser-name>/fingerprint.md`.
 - Create `custom-built-parsers/<parser-name>/parser.py`.
-- Make the parser accept one input file and write `<input-basename>.abacus.json`.
-- Keep parser output in the Abacus JSON shape accepted by the importer.
-- For credit cards, make the parser emit ledger-semantic balances.
+- Build the output through `custom-built-parsers/shared/abacus.py`: rows with `abacus.row`, the document with `abacus.statement`, and the command line with `abacus.run_cli`, which writes `<input-basename>.abacus.json` next to the input.
+- Keep parser output in the Abacus JSON shape accepted by the importer; the shared module is its Python definition and `packages/api/bank-importer/abacus/` its TypeScript one.
+- For credit cards, pass printed balances through `abacus.ledger_balance` so the emitted values are ledger-semantic.
 - Make the parser emit the account or card number the statement prints about itself as a top-level `account` object, and the institution's name as printed as a top-level `institution` string (see below).
 
 ## Emitted account identifier
 
-Every deterministic parser reports which account or card the statement belongs to, so an import can be matched to the right preset and a statement can never be imported into the wrong account by mistake. The parser already validates that the number is printed as part of its fingerprint; it emits the same value in one canonical form:
+Every deterministic parser reports which account or card the statement belongs to, so an import can be matched to the right preset and a statement can never be imported into the wrong account by mistake. The parser already validates that the number is printed as part of its fingerprint; it emits the same value in one canonical form, produced by `abacus.bank_account(...)` or `abacus.card_account(...)`:
 
 ```json
 { "kind": "abacus", "account": { "kind": "bank", "identifier": "050505000012" }, "rows": [] }

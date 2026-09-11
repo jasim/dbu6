@@ -59,7 +59,7 @@ class ParserTests(unittest.TestCase):
     def test_committed_fixture_parses_and_reconciles_every_anchor(self) -> None:
         statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
         audit = PARSER.validate(statement)
-        output = PARSER.to_abacus(statement)
+        output = PARSER.to_abacus(statement).to_json()
 
         self.assertEqual(audit["row_count"], 9)
         self.assertEqual(audit["referenced_count"], 7)
@@ -90,13 +90,13 @@ class ParserTests(unittest.TestCase):
         statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
         self.assertEqual(statement["letterhead"]["account_number"], "050505000012")
         self.assertEqual(
-            PARSER.to_abacus(statement)["account"],
+            PARSER.to_abacus(statement).to_json()["account"],
             {"kind": "bank", "identifier": "050505000012"},
         )
 
     def test_institution_is_null_because_the_export_prints_no_bank_name(self) -> None:
         statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
-        self.assertIsNone(PARSER.to_abacus(statement)["institution"])
+        self.assertIsNone(PARSER.to_abacus(statement).to_json()["institution"])
 
     def test_missing_or_malformed_account_number_is_rejected(self) -> None:
         for replacement in ("", "0505 05000012", "05050500001X", 50505000012.0):
@@ -108,8 +108,8 @@ class ParserTests(unittest.TestCase):
 
     def test_generator_reproduces_the_committed_fixture(self) -> None:
         generated = FIXTURE.workbook_bytes(FIXTURE.sample_rows())
-        expected = PARSER.to_abacus(PARSER.parse_bytes(COMMITTED_FIXTURE))
-        self.assertEqual(PARSER.to_abacus(PARSER.parse_bytes(generated)), expected)
+        expected = PARSER.to_abacus(PARSER.parse_bytes(COMMITTED_FIXTURE)).to_json()
+        self.assertEqual(PARSER.to_abacus(PARSER.parse_bytes(generated)).to_json(), expected)
 
     def test_extract_reference_knows_each_layout(self) -> None:
         extract = PARSER.extract_reference

@@ -17,7 +17,6 @@ below is enforced so that a different layout (including the HDFC credit-card
 XLS) is rejected rather than misread.
 """
 
-import json
 import re
 import sys
 from datetime import date
@@ -26,6 +25,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 import xlrd
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared import abacus  # noqa: E402
 
 
 OLE_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
@@ -585,72 +588,46 @@ def validate(statement: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def json_number(value: Decimal) -> float:
-    return float(value)
-
-
-def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
+def to_abacus(statement: dict[str, Any]) -> abacus.AbacusStatement:
+    letterhead = statement["letterhead"]
     summary = statement["summary"]
-    return {
-        "kind": "abacus",
-        # The letterhead account number, digits only, identifies which bank
-        # account this statement belongs to.
-        "account": {
-            "kind": "bank",
-            "identifier": statement["letterhead"]["account_number"],
-        },
-        # The bank's name as printed in the A1 title; lookup text for presets.
-        "institution": statement["letterhead"]["institution"],
-        # Bank account: ledger semantics already, no sign flip. Overdraft
-        # balances stay negative exactly as printed.
-        "opening": json_number(summary["opening"]),
-        "closing": json_number(summary["closing"]),
-        "rows": [
-            {
-                "date": row["date"].isoformat(),
-                "narration": row["narration"],
-                "withdrawal": json_number(row["withdrawal"]),
-                "deposit": json_number(row["deposit"]),
-                "balance": json_number(row["balance"]),
-                # Chq./Ref.No. makes the importer's transaction identity
-                # independent of the narration text (a `ref:` key instead of
-                # the narration-hashed `semantic:` key). None for the all-zero
-                # placeholder on interest rows.
-                "source_reference": row["reference"],
-            }
+    return abacus.statement(
+        rows=[
+            abacus.row(
+                date=row["date"],
+                narration=row["narration"],
+                withdrawal=row["withdrawal"],
+                deposit=row["deposit"],
+                balance=row["balance"],
+                # Chq./Ref.No.; None for the all-zero placeholder on interest rows.
+                source_reference=row["reference"],
+            )
             for row in statement["rows"]
         ],
-    }
-
-
-def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} <statement.xls>", file=sys.stderr)
-        sys.exit(2)
-
-    source = Path(sys.argv[1]).resolve()
-    try:
-        statement = parse(source)
-        audit = validate(statement)
-        output = to_abacus(statement)
-    except (OSError, UnicodeError, ValueError, xlrd.XLRDError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    destination = source.with_suffix(".abacus.json")
-    destination.write_text(
-        json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        # Bank account: ledger semantics already, no sign flip. Overdraft
+        # balances stay negative exactly as printed.
+        opening=summary["opening"],
+        closing=summary["closing"],
+        account=abacus.bank_account(letterhead["account_number"]),
+        # The bank's name as printed in the A1 title; lookup text for presets.
+        institution=letterhead["institution"],
     )
-    print(
-        f"wrote {destination} ({audit['row_count']} rows, "
+
+
+def build(source: Path) -> tuple[abacus.AbacusStatement, str]:
+    statement = parse(source)
+    audit = validate(statement)
+    summary = (
+        f"{audit['row_count']} rows, "
         f"{audit['referenced_count']} with a bank reference; "
         f"period={audit['period_from'].isoformat()}..{audit['period_to'].isoformat()}; "
         f"deposits={audit['deposit_total']:.2f}; "
         f"withdrawals={audit['withdrawal_total']:.2f}; "
         f"opening={audit['opening']:.2f}; closing={audit['closing']:.2f}; "
-        f"running_balance_checks={audit['running_balance_checks']})"
+        f"running_balance_checks={audit['running_balance_checks']}"
     )
+    return to_abacus(statement), summary
 
 
 if __name__ == "__main__":
-    main()
+    abacus.run_cli(build, usage="<statement.xls>", error_types=(xlrd.XLRDError,))

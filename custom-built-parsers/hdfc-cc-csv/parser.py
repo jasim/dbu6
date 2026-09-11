@@ -10,13 +10,16 @@ Usage: uv run parser.py <statement.csv>
 Writes <statement-basename>.abacus.json next to the input.
 """
 
-import json
 import re
 import sys
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared import abacus  # noqa: E402
 
 
 DELIMITER = "~|~"
@@ -449,7 +452,7 @@ def parse_text(text: str) -> dict[str, Any]:
     summary = parse_account_summary(cursor)
     cursor.expect_blank("the card number")
     card_number = cursor.expect_pattern(CARD_NUMBER_RE, "masked card number")
-    card_identifier = card_number_identifier(card_number)
+    card_account = card_number_account(card_number)
     cursor.expect_blank("the alternate account number")
     alternate_account = cursor.expect_pattern(
         ALTERNATE_ACCOUNT_RE, "alternate account number"
@@ -463,23 +466,19 @@ def parse_text(text: str) -> dict[str, Any]:
         "summary": summary,
         "past_dues": past_dues,
         "card_number": card_number,
-        "card_identifier": card_identifier,
+        "card_account": card_account,
         "alternate_account": alternate_account,
         "institution": parse_institution(cursor.lines),
         "rows": rows,
     }
 
 
-def card_number_identifier(card_number_line: str) -> str:
-    """Canonical card identifier: the printed masked number without spaces.
-
-    `Card No: 0505 05XX XXXX 0505` -> `050505XXXXXX0505`. The mask letters are
-    already uppercase in this layout; uppercasing keeps the rule explicit.
-    """
+def card_number_account(card_number_line: str) -> abacus.AbacusAccount:
+    """`Card No: 0505 05XX XXXX 0505` -> the canonical masked card identifier."""
     match = CARD_NUMBER_RE.fullmatch(card_number_line)
     if match is None:
         raise ValueError(f"invalid masked card number {card_number_line!r}")
-    return match.group("number").replace(" ", "").upper()
+    return abacus.card_account(match.group("number"))
 
 
 def parse(path: Path) -> dict[str, Any]:
@@ -566,74 +565,47 @@ def validate(statement: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def json_number(value: Decimal) -> float:
-    return float(value)
-
-
-def ledger_balance(statement_balance: Decimal) -> float:
-    if statement_balance == 0:
-        return 0.0
-    return float(-statement_balance)
-
-
-def to_abacus(statement: dict[str, Any], audit: dict[str, Any]) -> dict[str, Any]:
+def to_abacus(statement: dict[str, Any], audit: dict[str, Any]) -> abacus.AbacusStatement:
     chronological_rows = sorted(
         statement["rows"], key=lambda row: (row["timestamp"], row["source_line"])
     )
-    return {
-        "kind": "abacus",
-        # The masked card number identifies which card this statement is for.
-        "account": {"kind": "card", "identifier": statement["card_identifier"]},
-        # The issuer's name from the registered-office footer, verbatim.
-        "institution": statement["institution"],
-        # Credit-card balances are liabilities, hence the sign flip.
-        "opening": ledger_balance(audit["opening"]),
-        # HDFC displays Total Dues rounded to rupees. Preserve the exact ledger
-        # closing proved by statement opening - credits + debits, not the
-        # payment rounding.
-        "closing": ledger_balance(audit["exact_closing"]),
-        "rows": [
-            {
-                "date": row["date"].isoformat(),
-                "narration": row["narration"],
-                "withdrawal": json_number(row["withdrawal"]),
-                "deposit": json_number(row["deposit"]),
-                "balance": None,
-                "source_reference": row["source_reference"],
-            }
+    return abacus.statement(
+        rows=[
+            abacus.row(
+                date=row["date"],
+                narration=row["narration"],
+                withdrawal=row["withdrawal"],
+                deposit=row["deposit"],
+                balance=None,
+                source_reference=row["source_reference"],
+            )
             for row in chronological_rows
         ],
-    }
-
-
-def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} <statement.csv>", file=sys.stderr)
-        sys.exit(2)
-
-    source = Path(sys.argv[1]).resolve()
-    try:
-        statement = parse(source)
-        audit = validate(statement)
-        output = to_abacus(statement, audit)
-    except (OSError, UnicodeError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    destination = source.with_suffix(".abacus.json")
-    destination.write_text(
-        json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        # Credit-card balances are liabilities, hence the sign flip. HDFC
+        # displays Total Dues rounded to rupees; keep the exact ledger closing
+        # proved by statement opening - credits + debits, not the rounding.
+        opening=abacus.ledger_balance(audit["opening"]),
+        closing=abacus.ledger_balance(audit["exact_closing"]),
+        account=statement["card_account"],
+        # The issuer's name from the registered-office footer, verbatim.
+        institution=statement["institution"],
     )
-    print(
-        f"wrote {destination} ({audit['row_count']} rows; "
+
+
+def build(source: Path) -> tuple[abacus.AbacusStatement, str]:
+    statement = parse(source)
+    audit = validate(statement)
+    summary = (
+        f"{audit['row_count']} rows; "
         f"deposits={audit['deposit_total']:.2f}; "
         f"withdrawals={audit['withdrawal_total']:.2f}; "
-        f"opening={ledger_balance(audit['opening']):.2f}; "
-        f"closing={ledger_balance(audit['exact_closing']):.2f}; "
+        f"opening={abacus.ledger_balance(audit['opening']):.2f}; "
+        f"closing={abacus.ledger_balance(audit['exact_closing']):.2f}; "
         f"displayed_total_due={audit['displayed_total_due']:.2f}; "
-        f"running_balance_checks={audit['running_balance_checks']})"
+        f"running_balance_checks={audit['running_balance_checks']}"
     )
+    return to_abacus(statement, audit), summary
 
 
 if __name__ == "__main__":
-    main()
+    abacus.run_cli(build, usage="<statement.csv>")

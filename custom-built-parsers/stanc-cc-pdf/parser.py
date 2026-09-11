@@ -9,13 +9,16 @@ from __future__ import annotations
 Usage: uv run parser.py <statement.pdf>
 Writes <input-basename>.abacus.json next to the input.
 """
-import json
 import re
 import subprocess
 import sys
 import tempfile
 from datetime import date
 from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared import abacus  # noqa: E402
 
 
 HEADER_RE = re.compile(
@@ -104,12 +107,11 @@ def parse_institution(text: str) -> str | None:
     return match.group(0) if match else None
 
 
-def parse_card_number(text: str) -> str:
+def parse_card_number(text: str) -> abacus.AbacusAccount:
     """The masked card number printed by the "Credit Card Account Number" label.
 
-    Returns the canonical identifier: spaces removed, mask uppercased. Exactly
-    one distinct masked number must appear on the label line or within the
-    next few lines; anything else is a fingerprint mismatch.
+    Exactly one distinct masked number must appear on the label line or within
+    the next few lines; anything else is a fingerprint mismatch.
     """
     lines = text.splitlines()
     label_lines = [i for i, line in enumerate(lines) if CARD_ACCOUNT_LABEL_RE.search(line)]
@@ -119,7 +121,7 @@ def parse_card_number(text: str) -> str:
     for i in label_lines:
         for line in lines[i : i + 1 + CARD_NUMBER_WINDOW_LINES]:
             for match in CARD_NUMBER_RE.finditer(line):
-                identifier = match.group(0).replace(" ", "").upper()
+                identifier = abacus.card_account(match.group(0)).identifier
                 if identifier not in found:
                     found.append(identifier)
     if len(found) != 1:
@@ -127,7 +129,7 @@ def parse_card_number(text: str) -> str:
             "expected exactly one masked card number near the 'Credit Card Account "
             f"Number' label, found {len(found)}"
         )
-    return found[0]
+    return abacus.card_account(found[0])
 
 
 def parse_transactions(text: str) -> list[dict]:
@@ -207,16 +209,9 @@ def parse_transactions(text: str) -> list[dict]:
 def validate(
     rows: list[dict], opening: float | None = None, closing: float | None = None
 ) -> None:
+    """Statement arithmetic in ledger semantics; row shape is checked by `abacus.row`."""
     if not rows:
         raise ValueError("no transactions parsed")
-    for i, r in enumerate(rows):
-        w, d = r["withdrawal"], r["deposit"]
-        if w < 0 or d < 0:
-            raise ValueError(f"row {i}: negative withdrawal/deposit ({w}, {d})")
-        pos = (w > 0, d > 0)
-        if pos == (False, False) or pos == (True, True):
-            raise ValueError(f"row {i}: withdrawal/deposit XOR violated ({w}, {d})")
-        date.fromisoformat(r["date"])
     if opening is not None and closing is not None:
         activity = sum(r["deposit"] - r["withdrawal"] for r in rows)
         computed = round(opening + activity, 2)
@@ -228,17 +223,29 @@ def validate(
             )
 
 
-def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} <statement.pdf>", file=sys.stderr)
-        sys.exit(2)
-    pdf = Path(sys.argv[1]).resolve()
+def to_abacus(
+    rows: list[dict],
+    opening: float | None,
+    closing: float | None,
+    account: abacus.AbacusAccount,
+    institution: str | None,
+) -> abacus.AbacusStatement:
+    return abacus.statement(
+        rows=[abacus.row(**r) for r in rows],
+        opening=opening,
+        closing=closing,
+        account=account,
+        institution=institution,
+    )
+
+
+def build(pdf: Path) -> tuple[abacus.AbacusStatement, str]:
     if pdf.suffix.lower() != ".pdf":
-        sys.exit(f"expected a .pdf input file: {pdf}")
+        raise ValueError(f"expected a .pdf input file: {pdf}")
     if not pdf.is_file():
-        sys.exit(f"not found: {pdf}")
+        raise ValueError(f"not found: {pdf}")
     text = run_pdftotext(pdf)
-    card_number = parse_card_number(text)
+    account = parse_card_number(text)
     institution = parse_institution(text)
     rows = parse_transactions(text)
     opening_raw, closing_raw = parse_summary(text)
@@ -246,21 +253,9 @@ def main() -> None:
     opening = -opening_raw if opening_raw is not None else None
     closing = -closing_raw if closing_raw is not None else None
     validate(rows, opening, closing)
-    out = {
-        "kind": "abacus",
-        "account": {"kind": "card", "identifier": card_number},
-        "institution": institution,
-        "opening": opening,
-        "closing": closing,
-        "rows": rows,
-    }
-    out_path = pdf.with_suffix(".abacus.json")
-    out_path.write_text(json.dumps(out, indent=2))
-    print(
-        f"wrote {out_path} ({len(rows)} rows, "
-        f"opening={opening}, closing={closing})"
-    )
+    statement = to_abacus(rows, opening, closing, account, institution)
+    return statement, f"{len(rows)} rows, opening={opening}, closing={closing}"
 
 
 if __name__ == "__main__":
-    main()
+    abacus.run_cli(build, usage="<statement.pdf>", error_types=(subprocess.CalledProcessError,))

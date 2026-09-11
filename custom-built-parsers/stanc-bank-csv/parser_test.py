@@ -20,7 +20,7 @@ class ParserTests(unittest.TestCase):
     def test_parse_and_reconcile_every_available_anchor(self) -> None:
         statement = PARSER.parse_text(VALID_STATEMENT)
         audit = PARSER.validate(statement)
-        output = PARSER.to_abacus(statement)
+        output = PARSER.to_abacus(statement).to_json()
 
         self.assertEqual(audit["row_count"], 3)
         self.assertEqual(audit["deposit_total"], Decimal("300.00"))
@@ -35,13 +35,13 @@ class ParserTests(unittest.TestCase):
 
     def test_emits_the_line_one_account_number_as_the_bank_identifier(self) -> None:
         statement = PARSER.parse_text(VALID_STATEMENT)
-        output = PARSER.to_abacus(statement)
+        output = PARSER.to_abacus(statement).to_json()
         self.assertEqual(statement["account_number"], "0505050505")
         self.assertEqual(output["account"], {"kind": "bank", "identifier": "0505050505"})
 
     def test_institution_is_null_because_the_export_prints_no_bank_name(self) -> None:
         statement = PARSER.parse_text(VALID_STATEMENT)
-        self.assertIsNone(PARSER.to_abacus(statement)["institution"])
+        self.assertIsNone(PARSER.to_abacus(statement).to_json()["institution"])
 
     def test_missing_or_malformed_account_number_is_rejected(self) -> None:
         for replacement in ("", "'", "'05050505X5", "0505050505", "'0505 050505"):

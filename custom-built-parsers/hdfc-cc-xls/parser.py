@@ -11,7 +11,6 @@ Usage: uv run parser.py <statement.xls>
 Writes <statement-basename>.abacus.json next to the input.
 """
 
-import json
 import re
 import sys
 from datetime import date, datetime
@@ -20,6 +19,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 import xlrd
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared import abacus  # noqa: E402
 
 
 OLE_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
@@ -203,12 +206,12 @@ def parse_institution(sheet: xlrd.sheet.Sheet) -> Optional[str]:
     return None
 
 
-def parse_card_number(sheet: xlrd.sheet.Sheet) -> str:
-    """Canonical card identifier from N3: the masked number, no spaces, uppercase."""
+def parse_card_number(sheet: xlrd.sheet.Sheet) -> abacus.AbacusAccount:
+    """The masked card number in N3 as the canonical card identifier."""
     match = require_matching_text(
         sheet, CARD_NUMBER_ROW, CARD_NUMBER_COLUMN, CARD_NUMBER_RE, "masked card number"
     )
-    return match.group("number").replace(" ", "").upper()
+    return abacus.card_account(match.group("number"))
 
 
 def parse_summary(sheet: xlrd.sheet.Sheet) -> dict[str, Any]:
@@ -394,11 +397,11 @@ def parse_bytes(data: bytes) -> dict[str, Any]:
             )
         sheet = book.sheet_by_index(0)
         validate_fingerprint(book, sheet)
-        card_number = parse_card_number(sheet)
+        card_account = parse_card_number(sheet)
         summary = parse_summary(sheet)
         rows = parse_transactions(sheet, summary["statement_date"])
         return {
-            "card_number": card_number,
+            "card_account": card_account,
             "institution": parse_institution(sheet),
             "summary": summary,
             "rows": rows,
@@ -461,74 +464,48 @@ def validate(statement: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def json_number(value: Decimal) -> float:
-    return float(value)
-
-
-def ledger_balance(statement_balance: Decimal) -> float:
-    if statement_balance == 0:
-        return 0.0
-    return float(-statement_balance)
-
-
-def to_abacus(statement: dict[str, Any], audit: dict[str, Any]) -> dict[str, Any]:
+def to_abacus(statement: dict[str, Any], audit: dict[str, Any]) -> abacus.AbacusStatement:
     chronological_rows = sorted(
         statement["rows"], key=lambda row: (row["timestamp"], row["source_row"])
     )
-    return {
-        "kind": "abacus",
-        # The masked card number identifies which card this statement is for.
-        "account": {"kind": "card", "identifier": statement["card_number"]},
-        # The issuer's name from the registered-office footer, verbatim.
-        "institution": statement["institution"],
-        # Credit-card balances are liabilities, hence the sign flip.
-        "opening": ledger_balance(audit["opening"]),
-        # HDFC displays Total Dues rounded to rupees. Preserve the exact ledger
-        # closing proved by statement opening - credits + debits, not the
-        # payment rounding.
-        "closing": ledger_balance(audit["exact_closing"]),
-        "rows": [
-            {
-                "date": row["date"].isoformat(),
-                "narration": row["narration"],
-                "withdrawal": json_number(row["withdrawal"]),
-                "deposit": json_number(row["deposit"]),
-                "balance": None,
-                "source_reference": row["source_reference"],
-            }
+    return abacus.statement(
+        rows=[
+            abacus.row(
+                date=row["date"],
+                narration=row["narration"],
+                withdrawal=row["withdrawal"],
+                deposit=row["deposit"],
+                # The XLS prints no per-row running balance.
+                balance=None,
+                source_reference=row["source_reference"],
+            )
             for row in chronological_rows
         ],
-    }
-
-
-def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} <statement.xls>", file=sys.stderr)
-        sys.exit(2)
-
-    source = Path(sys.argv[1]).resolve()
-    try:
-        statement = parse(source)
-        audit = validate(statement)
-        output = to_abacus(statement, audit)
-    except (OSError, UnicodeError, ValueError, xlrd.XLRDError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    destination = source.with_suffix(".abacus.json")
-    destination.write_text(
-        json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        # Credit-card balances are liabilities, hence the sign flip. HDFC
+        # displays Total Dues rounded to rupees; keep the exact ledger closing
+        # proved by statement opening - credits + debits, not the rounding.
+        opening=abacus.ledger_balance(audit["opening"]),
+        closing=abacus.ledger_balance(audit["exact_closing"]),
+        account=statement["card_account"],
+        # The issuer's name from the registered-office footer, verbatim.
+        institution=statement["institution"],
     )
-    print(
-        f"wrote {destination} ({audit['row_count']} rows; "
+
+
+def build(source: Path) -> tuple[abacus.AbacusStatement, str]:
+    statement = parse(source)
+    audit = validate(statement)
+    summary = (
+        f"{audit['row_count']} rows; "
         f"deposits={audit['deposit_total']:.2f}; "
         f"withdrawals={audit['withdrawal_total']:.2f}; "
-        f"opening={ledger_balance(audit['opening']):.2f}; "
-        f"closing={ledger_balance(audit['exact_closing']):.2f}; "
+        f"opening={abacus.ledger_balance(audit['opening']):.2f}; "
+        f"closing={abacus.ledger_balance(audit['exact_closing']):.2f}; "
         f"displayed_total_due={audit['displayed_total_due']:.2f}; "
-        f"running_balance_checks={audit['running_balance_checks']})"
+        f"running_balance_checks={audit['running_balance_checks']}"
     )
+    return to_abacus(statement, audit), summary
 
 
 if __name__ == "__main__":
-    main()
+    abacus.run_cli(build, usage="<statement.xls>", error_types=(xlrd.XLRDError,))

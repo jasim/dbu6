@@ -43,7 +43,7 @@ class ParserTests(unittest.TestCase):
     def test_committed_fixture_parses_and_reconciles_every_anchor(self) -> None:
         statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
         audit = PARSER.validate(statement)
-        output = PARSER.to_abacus(statement)
+        output = PARSER.to_abacus(statement).to_json()
 
         self.assertEqual(audit["row_count"], 8)
         self.assertEqual(audit["referenced_count"], 6)
@@ -81,14 +81,14 @@ class ParserTests(unittest.TestCase):
         statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
         self.assertEqual(statement["letterhead"]["account_number"], "05050505050505")
         self.assertEqual(
-            PARSER.to_abacus(statement)["account"],
+            PARSER.to_abacus(statement).to_json()["account"],
             {"kind": "bank", "identifier": "05050505050505"},
         )
 
     def test_emits_the_title_bank_name_verbatim_as_the_institution(self) -> None:
         statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
         self.assertEqual(statement["letterhead"]["institution"], "HDFC BANK Ltd.")
-        self.assertEqual(PARSER.to_abacus(statement)["institution"], "HDFC BANK Ltd.")
+        self.assertEqual(PARSER.to_abacus(statement).to_json()["institution"], "HDFC BANK Ltd.")
 
     def test_title_without_the_bank_name_is_rejected(self) -> None:
         rows = FIXTURE.sample_rows()
@@ -127,8 +127,8 @@ class ParserTests(unittest.TestCase):
 
     def test_generator_reproduces_the_committed_fixture(self) -> None:
         generated = FIXTURE.workbook_bytes(FIXTURE.sample_rows())
-        expected = PARSER.to_abacus(PARSER.parse_bytes(COMMITTED_FIXTURE))
-        self.assertEqual(PARSER.to_abacus(PARSER.parse_bytes(generated)), expected)
+        expected = PARSER.to_abacus(PARSER.parse_bytes(COMMITTED_FIXTURE)).to_json()
+        self.assertEqual(PARSER.to_abacus(PARSER.parse_bytes(generated)).to_json(), expected)
 
     def test_running_balance_mismatch_is_rejected(self) -> None:
         rows = FIXTURE.sample_rows()

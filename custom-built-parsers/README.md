@@ -2,7 +2,10 @@
 
 Saved parsers for known bank-statement layouts. Each subdir has a
 `fingerprint.md` describing recognition signals plus a `parser.py` that emits
-`<input>.abacus.json`.
+`<input>.abacus.json`. Every parser builds its output through
+[`shared/abacus.py`](shared/abacus.py), the Python home of the Abacus
+contract: the statement and row types, the account-identifier rule, the
+credit-card sign flip, JSON serialization, and the command-line driver.
 
 If a new statement matches a fingerprint exactly (same bank, same layout), reuse
 the parser. Otherwise add a new one.
@@ -189,11 +192,14 @@ after reading every transaction and reconciling the row count against the source
 ```text
 custom-built-parsers/
   README.md
+  shared/
+    abacus.py               # the Abacus contract; every parser emits through it
+    abacus_test.py
   <bank-slug>/
     fingerprint.md
     parser.py
-    sample-input.<ext>      # optional, anonymized
-    sample-output.json      # optional
+    parser_test.py
+    fixtures/               # anonymized inputs, generated where possible
 ```
 
 ## Fingerprint Template
@@ -235,41 +241,35 @@ Writes `<input-basename>.abacus.json` next to the input.
 
 ## Parser Conventions
 
-Keep parsers small and dependency-light. Prefer stdlib `csv`, `re`, `json`,
-`datetime`, plus `pandas`/`openpyxl` only when needed for spreadsheets. Run
+Keep parsers small and dependency-light. Prefer stdlib `csv`, `re`,
+`datetime`, plus `xlrd`/`pandas` only when needed for spreadsheets. Run
 parsers through `uv run` when they need Python dependencies.
+
+Each parser is a standalone `uv run` script that reaches the shared module by
+putting this directory on `sys.path`:
+
+```python
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared import abacus
+```
 
 Each parser should:
 
-- Read exactly one input path from the CLI.
-- Exit non-zero with a readable error on validation failure.
-- Write no JSON if validation fails.
-- Write `<input-basename>.abacus.json` next to the input.
-- Avoid importing application code; keep the parser runnable as a standalone
-  utility.
+- Read exactly one input path from the CLI, by delegating `__main__` to
+  `abacus.run_cli(build, usage=..., error_types=...)`, where `build(path)`
+  returns the `abacus.AbacusStatement` and a one-line audit summary.
+- Do all bank-specific validation (fingerprint anchors, running balances,
+  statement totals) before building the statement, and raise `ValueError` so
+  the driver exits non-zero without writing JSON.
+- Build rows with `abacus.row(...)` and the statement with
+  `abacus.statement(...)`; both reject malformed values on construction, so a
+  parser never re-implements the row XOR rule, the identifier normalization
+  (`abacus.bank_account`, `abacus.card_account`), or the credit-card sign
+  flip (`abacus.ledger_balance`).
+- Never import application code outside `shared/`.
 
-Minimum row validation:
-
-```python
-from datetime import date
-
-
-def validate_abacus_rows(rows):
-    if not rows:
-        raise ValueError("no transactions parsed")
-    for i, row in enumerate(rows):
-        withdrawal = row["withdrawal"]
-        deposit = row["deposit"]
-        if withdrawal < 0 or deposit < 0:
-            raise ValueError(f"row {i}: negative withdrawal/deposit")
-        positive = (withdrawal > 0, deposit > 0)
-        if positive == (False, False) or positive == (True, True):
-            raise ValueError(
-                f"row {i}: withdrawal/deposit XOR violated "
-                f"({withdrawal}, {deposit})"
-            )
-        date.fromisoformat(row["date"])
-```
+`run_cli` writes `<input-basename>.abacus.json` next to the input only after
+the statement was built.
 
 ## Hand-Off Checklist
 

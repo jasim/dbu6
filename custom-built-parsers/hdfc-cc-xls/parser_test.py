@@ -44,7 +44,7 @@ class ParserTests(unittest.TestCase):
     def test_committed_fixture_parses_and_reconciles_every_anchor(self) -> None:
         statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
         audit = PARSER.validate(statement)
-        output = PARSER.to_abacus(statement, audit)
+        output = PARSER.to_abacus(statement, audit).to_json()
 
         self.assertEqual(audit["row_count"], 5)
         self.assertEqual(audit["deposit_total"], Decimal("600.00"))
@@ -72,14 +72,14 @@ class ParserTests(unittest.TestCase):
 
     def test_emits_the_masked_card_number_as_the_identifier(self) -> None:
         statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
-        self.assertEqual(statement["card_number"], "050505XXXXXX0505")
-        output = PARSER.to_abacus(statement, PARSER.validate(statement))
+        self.assertEqual(statement["card_account"].identifier, "050505XXXXXX0505")
+        output = PARSER.to_abacus(statement, PARSER.validate(statement)).to_json()
         self.assertEqual(output["account"], {"kind": "card", "identifier": "050505XXXXXX0505"})
 
     def test_emits_the_registered_office_issuer_name_verbatim(self) -> None:
         statement = PARSER.parse_bytes(COMMITTED_FIXTURE)
         self.assertEqual(statement["institution"], "HDFC Bank Cards Division")
-        output = PARSER.to_abacus(statement, PARSER.validate(statement))
+        output = PARSER.to_abacus(statement, PARSER.validate(statement)).to_json()
         self.assertEqual(output["institution"], "HDFC Bank Cards Division")
 
     def test_institution_is_null_without_the_registered_office_cell(self) -> None:
@@ -106,9 +106,9 @@ class ParserTests(unittest.TestCase):
     def test_generator_reproduces_the_committed_fixture(self) -> None:
         generated = FIXTURE.workbook_bytes(FIXTURE.sample_rows())
         expected = PARSER.parse_bytes(COMMITTED_FIXTURE)
-        expected_output = PARSER.to_abacus(expected, PARSER.validate(expected))
+        expected_output = PARSER.to_abacus(expected, PARSER.validate(expected)).to_json()
         parsed = PARSER.parse_bytes(generated)
-        self.assertEqual(PARSER.to_abacus(parsed, PARSER.validate(parsed)), expected_output)
+        self.assertEqual(PARSER.to_abacus(parsed, PARSER.validate(parsed)).to_json(), expected_output)
 
     def test_credit_total_mismatch_is_rejected(self) -> None:
         rows = FIXTURE.sample_rows()

@@ -18,7 +18,6 @@ different layout (including the HDFC bank and credit-card XLS exports) is
 rejected rather than misread.
 """
 
-import json
 import re
 import sys
 from datetime import date
@@ -27,6 +26,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 import xlrd
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared import abacus  # noqa: E402
 
 
 OLE_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
@@ -494,71 +497,45 @@ def validate(statement: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def json_number(value: Decimal) -> float:
-    return float(value)
-
-
-def to_abacus(statement: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "kind": "abacus",
-        # The account-row number, digits only, identifies which bank account
-        # this statement belongs to.
-        "account": {
-            "kind": "bank",
-            "identifier": statement["letterhead"]["account_number"],
-        },
-        # The FedNet export prints no bank name anywhere (holder block,
-        # account row, header, footer), so there is nothing to copy verbatim.
-        "institution": None,
-        # The export labels neither an opening nor a closing balance. Per-row
-        # balances give the importer a `per-row` closing; nothing is derived.
-        "opening": None,
-        "closing": None,
-        "rows": [
-            {
-                "date": row["date"].isoformat(),
-                "narration": row["narration"],
-                "withdrawal": json_number(row["withdrawal"]),
-                "deposit": json_number(row["deposit"]),
-                "balance": json_number(row["balance"]),
-                # The bank reference makes the importer's transaction identity
-                # independent of the narration text (a `ref:` key instead of
-                # the narration-hashed `semantic:` key).
-                "source_reference": row["reference"],
-            }
+def to_abacus(statement: dict[str, Any]) -> abacus.AbacusStatement:
+    return abacus.statement(
+        rows=[
+            abacus.row(
+                date=row["date"],
+                narration=row["narration"],
+                withdrawal=row["withdrawal"],
+                deposit=row["deposit"],
+                balance=row["balance"],
+                # The bank reference where the layout has one.
+                source_reference=row["reference"],
+            )
             for row in statement["rows"]
         ],
-    }
-
-
-def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} <statement.xls>", file=sys.stderr)
-        sys.exit(2)
-
-    source = Path(sys.argv[1]).resolve()
-    try:
-        statement = parse(source)
-        audit = validate(statement)
-        output = to_abacus(statement)
-    except (OSError, UnicodeError, ValueError, xlrd.XLRDError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    destination = source.with_suffix(".abacus.json")
-    destination.write_text(
-        json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        # The export labels neither an opening nor a closing balance. Per-row
+        # balances give the importer a `per-row` closing; nothing is derived.
+        opening=None,
+        closing=None,
+        account=abacus.bank_account(statement["letterhead"]["account_number"]),
+        # The FedNet export prints no bank name anywhere (holder block,
+        # account row, header, footer), so there is nothing to copy verbatim.
+        institution=None,
     )
-    print(
-        f"wrote {destination} ({audit['row_count']} rows, "
+
+
+def build(source: Path) -> tuple[abacus.AbacusStatement, str]:
+    statement = parse(source)
+    audit = validate(statement)
+    summary = (
+        f"{audit['row_count']} rows, "
         f"{audit['referenced_count']} with a bank reference; "
         f"statement_date={audit['statement_date'].isoformat()}; "
         f"deposits={audit['deposit_total']:.2f}; "
         f"withdrawals={audit['withdrawal_total']:.2f}; "
         f"implied_opening={audit['implied_opening']:.2f}; closing={audit['closing']:.2f}; "
-        f"running_balance_checks={audit['running_balance_checks']})"
+        f"running_balance_checks={audit['running_balance_checks']}"
     )
+    return to_abacus(statement), summary
 
 
 if __name__ == "__main__":
-    main()
+    abacus.run_cli(build, usage="<statement.xls>", error_types=(xlrd.XLRDError,))

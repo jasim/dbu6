@@ -46,11 +46,11 @@ class ParserTests(unittest.TestCase):
         )
 
     def test_masked_card_number_is_emitted_without_spaces(self) -> None:
-        self.assertEqual(PARSER.parse_card_number(self.text), "050505XXXXXX0505")
+        self.assertEqual(PARSER.parse_card_number(self.text).identifier, "050505XXXXXX0505")
 
     def test_card_number_accepts_the_unspaced_form_and_lowercase_mask(self) -> None:
         text = self.text.replace("0505 05XX XXXX 0505", "050505xxxxxx0505")
-        self.assertEqual(PARSER.parse_card_number(text), "050505XXXXXX0505")
+        self.assertEqual(PARSER.parse_card_number(text).identifier, "050505XXXXXX0505")
 
     def test_missing_or_malformed_card_number_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "label not found"):
