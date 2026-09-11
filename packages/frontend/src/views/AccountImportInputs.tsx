@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
-import type { ExtractionTool } from "dbu6-shared";
+import type { ExtractionTool, ImportPreset } from "dbu6-shared";
 import { importPresetsApi } from "../api";
 
 const EXTRACTION_TOOL_OPTIONS: {
@@ -20,14 +20,7 @@ const EXTRACTION_TOOL_OPTIONS: {
   },
 ];
 
-export interface ImportPreset {
-  name: string;
-  base_account: string;
-  custom_mappings_filenames: string[];
-  is_credit_card?: boolean;
-  extraction_tool?: ExtractionTool;
-  custom_statement_parser_path?: string;
-}
+export type { ImportPreset };
 
 interface Account {
   id: number;

@@ -49,6 +49,9 @@ export function ImportStatement() {
     useState<ExtractionTool>("extract-table");
   const [mappingsInput, setMappingsInput] = useState("");
   const [customParserPath, setCustomParserPath] = useState<string | null>(null);
+  const [presetAccountIdentifier, setPresetAccountIdentifier] = useState<
+    string | null
+  >(null);
   const [useCustomParser, setUseCustomParser] = useState(false);
   const [autoDetectCustomParser, setAutoDetectCustomParser] = useState(false);
   const [manualOpeningBalance, setManualOpeningBalance] = useState("");
@@ -94,6 +97,9 @@ export function ImportStatement() {
       form.append("auto_detect_statement_parser", "true");
     } else if (showCustomParserToggle && useCustomParser && customParserPath) {
       form.append("custom_statement_parser_path", customParserPath);
+    }
+    if (presetAccountIdentifier !== null) {
+      form.append("statement_account_identifier", presetAccountIdentifier);
     }
     if (manualOpeningBalance.trim() !== "") {
       form.append("manual_opening_balance", manualOpeningBalance.trim());
@@ -153,6 +159,7 @@ export function ImportStatement() {
     setBaseAccountId(id);
     setCustomParserPath(null);
     setUseCustomParser(false);
+    setPresetAccountIdentifier(null);
   }
 
   function handlePresetApplied(preset: ImportPreset) {
@@ -160,6 +167,7 @@ export function ImportStatement() {
     setCustomParserPath(parserPath);
     setUseCustomParser(parserPath !== null);
     setAutoDetectCustomParser(false);
+    setPresetAccountIdentifier(preset.statement_account_identifier ?? null);
   }
 
   const hasJsonFile = files.some((f) => f.name.toLowerCase().endsWith(".json"));

@@ -14,6 +14,7 @@ export {
   importPresetSchema,
   extractionToolSchema,
   type ExtractionTool,
+  type ImportPreset,
 } from "./import-presets.js";
 export {
   statementAccountSchema,
