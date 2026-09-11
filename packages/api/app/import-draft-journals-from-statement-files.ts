@@ -433,6 +433,50 @@ async function runCustomStatementParsers(
   return parsed;
 }
 
+// What running every candidate parser over one upload established. Exactly
+// one parser must claim the file; zero or several leave it unimportable, and
+// callers differ in whether that ends the batch.
+export type StatementRecognition =
+  | { outcome: "recognized"; parsed: ParsedStatementFile }
+  | { outcome: "unrecognized"; candidateParserPaths: string[] }
+  | { outcome: "ambiguous"; matchingParserPaths: string[] };
+
+export async function recognizeStatementFile(
+  parserPaths: string[],
+  inputPath: string,
+): Promise<StatementRecognition> {
+  const matches: ParsedStatementFile[] = [];
+  for (const parserPath of parserPaths) {
+    const resolvedParserPath = resolveCustomStatementParserPath(parserPath);
+    try {
+      const one = await runCustomStatementParserAndRead(
+        resolvedParserPath,
+        inputPath,
+        true,
+      );
+      // Report the parser as presets declare it, not its absolute path.
+      matches.push({ ...one, parserPath });
+    } catch (err) {
+      if (!(err instanceof CustomStatementParserFailed)) throw err;
+    }
+  }
+
+  if (matches.length === 0) {
+    return { outcome: "unrecognized", candidateParserPaths: parserPaths };
+  }
+  if (matches.length > 1) {
+    return {
+      outcome: "ambiguous",
+      matchingParserPaths: matches.map((match) => match.parserPath),
+    };
+  }
+  const [parsed] = matches;
+  console.log(
+    `[statement-upload] auto-detected parser ${parsed.parserPath} for ${path.basename(inputPath)}`,
+  );
+  return { outcome: "recognized", parsed };
+}
+
 export async function autoDetectCustomStatementParsers(
   parserPaths: string[],
   inputPaths: string[],
@@ -440,34 +484,17 @@ export async function autoDetectCustomStatementParsers(
   const parsed: ParsedStatementFile[] = [];
 
   for (const inputPath of inputPaths) {
-    const matches: ParsedStatementFile[] = [];
-    for (const parserPath of parserPaths) {
-      const resolvedParserPath = resolveCustomStatementParserPath(parserPath);
-      try {
-        const one = await runCustomStatementParserAndRead(
-          resolvedParserPath,
-          inputPath,
-          true,
-        );
-        // Report the parser as presets declare it, not its absolute path.
-        matches.push({ ...one, parserPath });
-      } catch (err) {
-        if (!(err instanceof CustomStatementParserFailed)) throw err;
-      }
-    }
-
-    if (matches.length !== 1) {
+    const recognition = await recognizeStatementFile(parserPaths, inputPath);
+    if (recognition.outcome !== "recognized") {
       throw new CustomStatementParserDetectionFailed(
         inputPath,
-        matches.map((match) => match.parserPath),
+        recognition.outcome === "ambiguous"
+          ? recognition.matchingParserPaths
+          : [],
         parserPaths,
       );
     }
-    const [match] = matches;
-    console.log(
-      `[statement-upload] auto-detected parser ${match.parserPath} for ${path.basename(inputPath)}`,
-    );
-    parsed.push(match);
+    parsed.push(recognition.parsed);
   }
 
   return parsed;
