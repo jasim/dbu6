@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AbacusImportRequest, ImportPreset } from "dbu6-shared";
+import type { AbacusImportRequest } from "dbu6-shared";
 
-// Preset resolution and request validation run for real; only the ledger
-// write at the tail is stubbed, so the tests need no database and never read
-// data/user-config/import-presets.json.
+// Request validation runs for real; only the ledger write at the tail is
+// stubbed, and the ledger's account names are passed in, so the tests need no
+// database.
 const { runStatementImport } = vi.hoisted(() => ({
   runStatementImport: vi.fn(),
 }));
@@ -18,29 +18,20 @@ import api, { importAbacusStatement } from "./import-draft-abacus.js";
 import { BalanceMismatchError } from "../bank-importer/import-errors.js";
 import type { StatementImportResult } from "../bank-importer/statement-import.js";
 
-const cardPreset: ImportPreset = {
-  name: "Sample Card",
-  base_account: "liabilities:card:sample",
-  is_credit_card: true,
-  custom_mappings_filenames: ["sample_mappings.prompt"],
-  statement_account_identifier: "050505XXXXXX0505",
-};
-
-const bankPreset: ImportPreset = {
-  name: "Sample Bank",
-  base_account: "assets:bank:sample",
-  custom_mappings_filenames: [],
-};
+const accountNames = new Set(["assets:bank:sample", "liabilities:card:sample"]);
 
 const db = {} as never;
 const auth = {} as never;
 
 function request(
   overrides: Partial<AbacusImportRequest["statement"]> = {},
-  preset = "Sample Card",
+  account: Pick<AbacusImportRequest, "base_account" | "is_credit_card"> = {
+    base_account: "liabilities:card:sample",
+    is_credit_card: true,
+  },
 ): AbacusImportRequest {
   return {
-    preset,
+    ...account,
     source_name: "sample-card-2026-09",
     statement: {
       kind: "abacus",
@@ -122,11 +113,13 @@ describe("POST /import-draft/abacus request contract", () => {
     expect(runStatementImport).not.toHaveBeenCalled();
   });
 
-  it("rejects a request that names no preset", async () => {
-    const { preset: _preset, ...rest } = request();
-    const response = await post(rest);
+  it("rejects a request that does not name the account and its kind", async () => {
+    for (const missing of ["base_account", "is_credit_card"] as const) {
+      const { [missing]: _dropped, ...rest } = request();
+      const response = await post(rest);
 
-    expect(response.status).toBe(400);
+      expect(response.status).toBe(400);
+    }
     expect(runStatementImport).not.toHaveBeenCalled();
   });
 });
@@ -136,12 +129,12 @@ describe("importAbacusStatement", () => {
     runStatementImport.mockReset();
   });
 
-  it("imports the statement into the named preset's account", async () => {
+  it("imports the statement into the named account", async () => {
     runStatementImport.mockResolvedValue(imported(2));
 
     const response = await importAbacusStatement(
       request({ account: { kind: "card", identifier: "050505XXXXXX0505" } }),
-      [bankPreset, cardPreset],
+      accountNames,
       db,
       auth,
     );
@@ -149,7 +142,6 @@ describe("importAbacusStatement", () => {
     expect(response).toEqual({
       status: 200,
       body: {
-        preset_name: "Sample Card",
         base_account: "liabilities:card:sample",
         is_credit_card: true,
         file_names: ["sample-card-2026-09"],
@@ -161,7 +153,7 @@ describe("importAbacusStatement", () => {
     expect(options).toEqual({
       baseAccount: "liabilities:card:sample",
       accountKind: "credit-card",
-      customMappingsFilenames: ["sample_mappings.prompt"],
+      customMappingsFilenames: [],
       gpayHtmlPath: null,
     });
     expect(sourceNames).toEqual(["sample-card-2026-09"]);
@@ -180,51 +172,41 @@ describe("importAbacusStatement", () => {
 
   it("labels the source when the request gives no name", async () => {
     runStatementImport.mockResolvedValue(imported(2));
-    const { source_name: _name, ...unnamed } = request({}, "Sample Bank");
+    const { source_name: _name, ...unnamed } = request(
+      {},
+      { base_account: "assets:bank:sample", is_credit_card: false },
+    );
 
     const response = await importAbacusStatement(
       unnamed,
-      [bankPreset],
+      accountNames,
       db,
       auth,
     );
 
     expect(response.status).toBe(200);
+    expect(runStatementImport.mock.calls[0][1]).toMatchObject({
+      baseAccount: "assets:bank:sample",
+      accountKind: "bank",
+    });
     expect(runStatementImport.mock.calls[0][4]).toEqual([
       "freeform transactions",
     ]);
   });
 
-  it("rejects an unknown preset, listing the presets that exist", async () => {
+  it("rejects an account the ledger does not have", async () => {
     const response = await importAbacusStatement(
-      request({}, "Unknown"),
-      [bankPreset, cardPreset],
+      request(
+        {},
+        { base_account: "liabilities:card:other", is_credit_card: true },
+      ),
+      accountNames,
       db,
       auth,
     );
 
     expect(response.status).toBe(422);
-    expect(response.body).toMatchObject({
-      error: "import_preset_not_found",
-      preset_names: ["Sample Bank", "Sample Card"],
-    });
-    expect(runStatementImport).not.toHaveBeenCalled();
-  });
-
-  it("refuses a statement that reports another account than the preset's", async () => {
-    const response = await importAbacusStatement(
-      request({ account: { kind: "card", identifier: "050505XXXXXX0506" } }),
-      [cardPreset],
-      db,
-      auth,
-    );
-
-    expect(response.status).toBe(422);
-    expect(response.body).toMatchObject({
-      error: "statement_account_identifier_mismatch",
-      expected_identifier: "050505XXXXXX0505",
-      statement_identifier: "050505XXXXXX0506",
-    });
+    expect(response.body).toMatchObject({ error: "import_account_not_found" });
     expect(runStatementImport).not.toHaveBeenCalled();
   });
 
@@ -235,7 +217,7 @@ describe("importAbacusStatement", () => {
 
     const response = await importAbacusStatement(
       request(),
-      [cardPreset],
+      accountNames,
       db,
       auth,
     );
@@ -261,7 +243,7 @@ describe("importAbacusStatement", () => {
       request({
         rows: [row("2026-09-03"), row("2026-09-05"), row("2026-09-04")],
       }),
-      [cardPreset],
+      accountNames,
       db,
       auth,
     );

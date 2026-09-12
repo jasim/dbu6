@@ -53,10 +53,13 @@ export const abacusJsonSchema = z.object({
 export type AbacusJson = z.infer<typeof abacusJsonSchema>;
 
 // An Abacus statement a coding agent assembled from freeform transactions,
-// named by the import preset it goes into. The user states both balances, so
-// both are required and the rows are always checked against them.
+// with the ledger account it goes into and whether that account is a credit
+// card, as the user chose them. That is all the import needs; no import preset
+// is involved. The user states both balances, so both are required and the
+// rows are always checked against them.
 export const abacusImportRequestSchema = z.object({
-  preset: z.string().min(1),
+  base_account: z.string().min(1),
+  is_credit_card: z.boolean(),
   // A short label for the result and for error messages.
   source_name: z.string().trim().min(1).optional(),
   statement: abacusJsonSchema.extend({

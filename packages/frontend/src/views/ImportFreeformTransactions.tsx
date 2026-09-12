@@ -1,41 +1,65 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { getApiBase } from "@sapporta/frontend/platform";
 import { AppPage } from "@sapporta/frontend/shell";
-import type { ImportPreset } from "dbu6-shared";
-import { importPresetsApi } from "../api";
-import { freeformTransactionsPrompt } from "./freeform-transactions/freeformTransactionsPrompt";
+import {
+  freeformTransactionsPrompt,
+  type FreeformAccountKind,
+} from "./freeform-transactions/freeformTransactionsPrompt";
 import { CopyPromptButton } from "./import-statements/cards";
 
-// Select values that are not preset names. Preset names are never empty.
+interface LedgerAccount {
+  id: number;
+  name: string;
+  account_type: string;
+}
+
+// A bank account is an asset and a credit card a liability, so each kind
+// lists only the ledger accounts of its type.
+const KINDS: {
+  kind: FreeformAccountKind;
+  label: string;
+  accountType: "Asset" | "Liability";
+}[] = [
+  { kind: "bank", label: "Bank account", accountType: "Asset" },
+  { kind: "credit-card", label: "Credit card", accountType: "Liability" },
+];
+
+// The select's value before an account is chosen. Account names are never
+// empty.
 const NOT_CHOSEN = "";
-const NO_PRESET = " not set up";
 
 // Freeform transactions are turned into a statement by the user's coding
 // agent, not by this app, so this screen has nothing to upload: it collects
-// the bank and the account and hands over the prompt.
+// the kind of account and the ledger account, and hands over the prompt.
 export function ImportFreeformTransactions() {
-  const [presets, setPresets] = useState<ImportPreset[]>([]);
-  const [presetsError, setPresetsError] = useState<string | null>(null);
-  const [bankName, setBankName] = useState("");
-  const [presetChoice, setPresetChoice] = useState(NOT_CHOSEN);
+  const [ledgerAccounts, setLedgerAccounts] = useState<LedgerAccount[]>([]);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+  const [kind, setKind] = useState<FreeformAccountKind | null>(null);
+  const [accountName, setAccountName] = useState(NOT_CHOSEN);
 
   useEffect(() => {
-    importPresetsApi
-      .listImportPresets({})
-      .then(setPresets)
+    fetch(`${getApiBase()}/tables/accounts?limit=1000&sort=name`)
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((body: { data: LedgerAccount[] }) => setLedgerAccounts(body.data))
       .catch((err) =>
-        setPresetsError(
-          err instanceof Error ? err.message : "Could not load presets",
+        setAccountsError(
+          err instanceof Error ? err.message : "Could not load accounts",
         ),
       );
   }, []);
 
-  const preset = presets.find((p) => p.name === presetChoice) ?? null;
-  const ready =
-    bankName.trim() !== "" && (preset !== null || presetChoice === NO_PRESET);
-  const prompt = ready
-    ? freeformTransactionsPrompt({ bankName, preset })
-    : null;
+  const accountType = KINDS.find((option) => option.kind === kind)?.accountType;
+  const accounts = ledgerAccounts.filter(
+    (account) => account.account_type === accountType,
+  );
+  const prompt =
+    kind === null || accountName === NOT_CHOSEN
+      ? null
+      : freeformTransactionsPrompt({ kind, name: accountName });
 
   return (
     <AppPage section="Import" title="Import freeform transactions">
@@ -55,51 +79,61 @@ export function ImportFreeformTransactions() {
         </div>
 
         <ol className="space-y-6">
-          <Step number={1} title="Which bank and account?">
+          <Step number={1} title="Which account are they from?">
             <div className="grid gap-3 sm:grid-cols-2">
+              <fieldset className="space-y-1">
+                <legend className="text-sm font-medium">Kind</legend>
+                <div className="flex gap-4 py-2">
+                  {KINDS.map((option) => (
+                    <label
+                      key={option.kind}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="radio"
+                        name="freeform-account-kind"
+                        value={option.kind}
+                        checked={kind === option.kind}
+                        onChange={() => {
+                          setKind(option.kind);
+                          setAccountName(NOT_CHOSEN);
+                        }}
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <div className="space-y-1">
                 <label
-                  htmlFor="freeform-bank-name"
-                  className="text-sm font-medium"
-                >
-                  Bank
-                </label>
-                <input
-                  id="freeform-bank-name"
-                  value={bankName}
-                  onChange={(event) => setBankName(event.target.value)}
-                  placeholder="The bank's name"
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label
-                  htmlFor="freeform-preset"
+                  htmlFor="freeform-account"
                   className="text-sm font-medium"
                 >
                   Account
                 </label>
                 <select
-                  id="freeform-preset"
-                  value={presetChoice}
-                  onChange={(event) => setPresetChoice(event.target.value)}
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  id="freeform-account"
+                  value={accountName}
+                  disabled={kind === null}
+                  onChange={(event) => setAccountName(event.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm disabled:opacity-50"
                 >
                   <option value={NOT_CHOSEN} disabled>
-                    Choose an account…
+                    {kind === null
+                      ? "Choose the kind first"
+                      : "Choose an account…"}
                   </option>
-                  {presets.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name} ({p.base_account})
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.name}>
+                      {account.name}
                     </option>
                   ))}
-                  <option value={NO_PRESET}>Not set up here yet</option>
                 </select>
               </div>
             </div>
-            {presetsError && (
+            {accountsError && (
               <p className="text-xs text-destructive">
-                Could not load your import presets: {presetsError}
+                Could not load your accounts: {accountsError}
               </p>
             )}
           </Step>
@@ -113,7 +147,7 @@ export function ImportFreeformTransactions() {
             </p>
             {prompt === null ? (
               <p className="text-sm text-muted-foreground">
-                Enter the bank and choose the account to see the prompt.
+                Choose the kind and the account to see the prompt.
               </p>
             ) : (
               <div className="space-y-2">

@@ -126,6 +126,12 @@ export const autoImportGroupResultSchema = z.object({
   result: statementImportResultSchema,
 });
 
+// A freeform import names its account directly, not through a preset, so its
+// result is a group without a preset name.
+export const abacusImportResultSchema = autoImportGroupResultSchema.omit({
+  preset_name: true,
+});
+
 // Every file's outcome, plus the import each preset group produced. The plan
 // is reported whether or not anything was imported.
 export const autoImportResultSchema = z.object({
@@ -135,6 +141,7 @@ export const autoImportResultSchema = z.object({
 
 export type AutoImportPlanFile = z.infer<typeof autoImportPlanFileSchema>;
 export type AutoImportGroupResult = z.infer<typeof autoImportGroupResultSchema>;
+export type AbacusImportResult = z.infer<typeof abacusImportResultSchema>;
 export type AutoImportResult = z.infer<typeof autoImportResultSchema>;
 export type AutoImportFailedGroup = z.infer<typeof autoImportFailedGroupSchema>;
 export type StatementImportResultBody = z.infer<
@@ -178,10 +185,10 @@ export const importDraftsContract = c.router({
     method: "POST",
     path: "/import-draft/abacus",
     summary:
-      "Import one Abacus JSON statement, with its opening and closing balances, into drafts for the named import preset. Coding agents post freeform transactions here; see custom-built-parsers/freeform-transactions-guide.md",
+      "Import one Abacus JSON statement, with its opening and closing balances, into drafts for the named ledger account. Coding agents post freeform transactions here; see custom-built-parsers/freeform-transactions-guide.md",
     body: abacusImportRequestSchema,
     responses: {
-      200: autoImportGroupResultSchema,
+      200: abacusImportResultSchema,
       400: importErrorSchema,
       403: importErrorSchema,
       422: importErrorSchema,

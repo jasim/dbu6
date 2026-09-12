@@ -7,8 +7,9 @@ matters is that it contains the transactions themselves: a date, a
 description, and an amount for each.
 
 The user starts from the app's **Import freeform transactions** screen, which
-gives them a prompt naming the bank and the import preset for the account. They
-paste the content after the prompt, or give you a file path.
+gives them a prompt saying whether the transactions are from a bank account or a
+credit card, and naming the ledger account they go into. They paste the content
+after the prompt, or give you a file path.
 
 You turn the content into one Abacus JSON statement, get the opening and
 closing balances from the user, import the statement into Drafts through the
@@ -63,9 +64,10 @@ freeform transactions specifically:
 - `rows`: one per transaction you kept.
   - `date`: `YYYY-MM-DD`. When the content shows both a transaction date and a
     posting date, use the one the bank's statements for this account use. If
-    the preset has a `custom_statement_parser_path`, that parser shows which
-    date and narration form the statements carry; match it where the content
-    gives you the same information.
+    an entry in `data/user-config/import-presets.json` with this
+    `base_account` has a `custom_statement_parser_path`, that parser shows
+    which date and narration form the statements carry; match it where the
+    content gives you the same information.
   - `narration`: the description exactly as the content shows it.
   - `withdrawal` and `deposit`: both non-negative, exactly one positive. On a
     credit card, purchases and fees are withdrawals; payments and refunds are
@@ -76,20 +78,22 @@ freeform transactions specifically:
     reference, a transaction ID) when the content shows one; otherwise omit it.
     A reference is what lets a later statement import recognise these rows as
     already imported even when the statement words the narration differently.
-- `institution`: the bank's name as the content prints it, or the bank name
-  from the prompt when the content prints none.
+- `institution`: the bank's name as the content prints it. Omit it when the
+  content prints none.
 - `account`: only when the content prints the account or card number, in the
   canonical form described under "Emitted account identifier" in
   `custom-built-parsers/import-statement-parser-guide.md`. Otherwise omit it;
   never guess.
 
 Write the request body to
-`tmp/freeform-transactions/<bank>-<first-date>-<last-date>.json`:
+`tmp/freeform-transactions/<account>-<first-date>-<last-date>.json`, with the
+account's colons written as hyphens:
 
 ```json
 {
-  "preset": "Sample Card",
-  "source_name": "sample-card-2026-09-01-2026-09-12",
+  "base_account": "cc:sample",
+  "is_credit_card": true,
+  "source_name": "cc-sample-2026-09-01-2026-09-12",
   "statement": {
     "kind": "abacus",
     "institution": "Sample Bank",
@@ -108,12 +112,9 @@ Write the request body to
 }
 ```
 
-`preset` is the `name` of the entry in `data/user-config/import-presets.json`
-that the prompt names. If the prompt says the account has no preset yet, ask
-the user for a display name, the ledger account (`base_account`), whether it is
-a credit card, and which `custom_mappings_filenames` to use, then add the entry
-following `user-config.example/import-presets.json`. A preset used only for
-freeform transactions needs no `custom_statement_parser_path`. `source_name` is
+`base_account` is the ledger account exactly as the prompt names it, and
+`is_credit_card` is `true` when the prompt says the transactions are from a
+credit card. The import needs nothing else about the account. `source_name` is
 a short label that appears in the result and in error messages.
 
 ## 4. Import
@@ -139,7 +140,7 @@ account's last confirmed balance are skipped.
 
 The response is JSON; read it and tell the user what happened in plain words.
 
-- **200**: `preset_name`, `base_account`, `is_credit_card`, and `result`. In
+- **200**: `base_account`, `is_credit_card`, and `result`. In
   `result`, `draft_transaction_count` is the number of new drafts and
   `transaction_count` the number of rows sent. The other counts say why the
   remaining rows were skipped. `balance_metadata` gives the opening and closing
