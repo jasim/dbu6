@@ -25,7 +25,6 @@ export const importSummarySchema = z.object({
 });
 
 export const balanceSourceSchema = z.enum([
-  "manual",
   "statement",
   "checkpoint",
   "per-row",
@@ -53,7 +52,7 @@ export const reconciliationCheckpointSchema = z.object({
   balance: z.number(),
 });
 
-export const freeformImportResultSchema = importSummarySchema.extend({
+export const statementImportResultSchema = importSummarySchema.extend({
   opening_balance: z.number().nullable(),
   closing_balance_from_statement: z.number().nullable(),
   custom_statement_parser_paths: z.array(z.string()).optional(),
@@ -61,7 +60,6 @@ export const freeformImportResultSchema = importSummarySchema.extend({
     opening: resolvedBalanceMetadataSchema,
     closing: resolvedBalanceMetadataSchema,
   }),
-  warnings: z.array(z.string()),
   statement_period: statementPeriodSchema.nullable(),
   reconciliation_checkpoint: reconciliationCheckpointSchema.nullable(),
 });
@@ -124,7 +122,7 @@ export const autoImportGroupResultSchema = z.object({
   base_account: z.string(),
   is_credit_card: z.boolean(),
   file_names: z.array(z.string()),
-  result: freeformImportResultSchema,
+  result: statementImportResultSchema,
 });
 
 // Every file's outcome, plus the import each preset group produced. The plan
@@ -138,8 +136,8 @@ export type AutoImportPlanFile = z.infer<typeof autoImportPlanFileSchema>;
 export type AutoImportGroupResult = z.infer<typeof autoImportGroupResultSchema>;
 export type AutoImportResult = z.infer<typeof autoImportResultSchema>;
 export type AutoImportFailedGroup = z.infer<typeof autoImportFailedGroupSchema>;
-export type FreeformImportResultBody = z.infer<
-  typeof freeformImportResultSchema
+export type StatementImportResultBody = z.infer<
+  typeof statementImportResultSchema
 >;
 
 // The account whose import raised the error, with the files that went into
@@ -165,7 +163,7 @@ export const importDraftsContract = c.router({
     method: "POST",
     path: "/import-draft/statements/auto",
     summary:
-      "Upload statement files with no other input; each file is recognised by a saved parser, its import preset is resolved from that parser and the account the statement reports, and one statement import runs per preset",
+      "Upload statement files as `files`, and optionally a Google Pay Takeout HTML as `gpay` to name UPI recipients; each file is recognised by a saved parser, its import preset is resolved from that parser and the account the statement reports, and one statement import runs per preset",
     contentType: "multipart/form-data",
     body: z.any(),
     responses: {
@@ -173,22 +171,6 @@ export const importDraftsContract = c.router({
       400: autoImportErrorSchema,
       403: autoImportErrorSchema,
       422: autoImportErrorSchema,
-      502: autoImportErrorSchema,
-    },
-  }),
-  uploadStatementBatch: c.mutation({
-    method: "POST",
-    path: "/import-draft/statement/upload",
-    summary:
-      "Upload statement files (optionally with a Google Pay Takeout HTML as `gpay` to enrich UPI narrations) and import draft transactions",
-    contentType: "multipart/form-data",
-    body: z.any(),
-    responses: {
-      200: freeformImportResultSchema,
-      400: importErrorSchema,
-      403: importErrorSchema,
-      422: importErrorSchema,
-      502: importErrorSchema,
     },
   }),
 });

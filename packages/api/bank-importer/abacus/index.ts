@@ -3,7 +3,6 @@
 export {
   abacusSchema,
   abacusJsonSchema,
-  abacusRowsJsonSchema,
   applyCreditCardSignFlip,
   describeStatement,
   parseAbacusJson,

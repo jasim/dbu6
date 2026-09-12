@@ -5,9 +5,9 @@ import path from "node:path";
 import { projectPath } from "@sapporta/server";
 import { describe, expect, it } from "vitest";
 import {
-  autoDetectCustomStatementParsers,
+  recognizeStatementFile,
   savedCustomStatementParserPaths,
-} from "../../app/import-draft-journals-from-statement-files.js";
+} from "../statement-recognition.js";
 
 describe("Standard Chartered bank CSV parser", () => {
   it("passes its deterministic parser fixtures under Python 3.9", () => {
@@ -48,13 +48,17 @@ describe("Standard Chartered bank CSV parser", () => {
         ),
         inputPath,
       );
-      const detected = await autoDetectCustomStatementParsers(csvParserPaths, [
+      const recognition = await recognizeStatementFile(
+        csvParserPaths,
         inputPath,
-      ]);
-      expect(detected.map((one) => one.parserPath)).toEqual([
+      );
+      if (recognition.outcome !== "recognized") {
+        throw new Error(`not recognized: ${JSON.stringify(recognition)}`);
+      }
+      expect(recognition.parserPath).toBe(
         "custom-built-parsers/stanc-bank-csv/parser.py",
-      ]);
-      expect(detected[0].statement).toMatchObject({
+      );
+      expect(recognition.statement).toMatchObject({
         account: { kind: "bank", identifier: "0505050505" },
         institution: null,
         opening: null,
@@ -67,19 +71,16 @@ describe("Standard Chartered bank CSV parser", () => {
       const wrongExtensionPath = path.join(workDir, "statement.txt");
       await copyFile(inputPath, wrongExtensionPath);
       await expect(
-        autoDetectCustomStatementParsers(
+        recognizeStatementFile(
           await savedCustomStatementParserPaths(".txt"),
-          [wrongExtensionPath],
+          wrongExtensionPath,
         ),
-      ).rejects.toThrow("No saved custom statement parser matched");
+      ).resolves.toMatchObject({ outcome: "unrecognized" });
 
       const csvParserPath = "custom-built-parsers/stanc-bank-csv/parser.py";
       await expect(
-        autoDetectCustomStatementParsers(
-          [csvParserPath, csvParserPath],
-          [inputPath],
-        ),
-      ).rejects.toThrow("More than one saved custom statement parser matched");
+        recognizeStatementFile([csvParserPath, csvParserPath], inputPath),
+      ).resolves.toMatchObject({ outcome: "ambiguous" });
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }

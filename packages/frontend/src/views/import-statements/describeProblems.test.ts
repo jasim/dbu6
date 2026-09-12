@@ -359,13 +359,8 @@ describe("account import failures", () => {
     expect(problem.verdict).toBe(
       "The app needs the closing balance for this card.",
     );
-    expect(problem.actions).toEqual([
-      {
-        kind: "link",
-        label: "Open the manual import screen",
-        to: "/views/import-statement",
-      },
-    ]);
+    expect(problem.actions).toEqual([]);
+    expect(problem.agent?.prompt).toContain("emit it as `closing`");
   });
 
   it("falls back to a generic card and a full-payload prompt for unknown codes", () => {

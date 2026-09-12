@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ImportPreset } from "dbu6-shared";
+import { importPresetSchema, type ImportPreset } from "dbu6-shared";
 import { resolveImportPreset } from "./import-presets.js";
 
 const BANK_PARSER = "custom-built-parsers/hdfc-bank-xls/parser.py";
@@ -33,7 +33,7 @@ const secondCard = preset({
   custom_statement_parser_path: CARD_PARSER,
   statement_account_identifier: "050505XXXXXX0506",
 });
-const llmOnly = preset({ name: "Freeform" });
+const parserless = preset({ name: "No parser" });
 
 function statement(parserPath: string, identifier: string | null) {
   return { file: "statement.xls", parserPath, identifier };
@@ -41,7 +41,7 @@ function statement(parserPath: string, identifier: string | null) {
 
 describe("resolveImportPreset", () => {
   it("matches the only preset using a parser when it carries no identifier", () => {
-    const presets = [llmOnly, bank, primaryCard];
+    const presets = [parserless, bank, primaryCard];
     expect(resolveImportPreset(presets, statement(BANK_PARSER, null))).toEqual({
       ok: true,
       preset: bank,
@@ -148,5 +148,31 @@ describe("resolveImportPreset", () => {
       ok: false,
       reason: "statement_account_identifier_mismatch",
     });
+  });
+});
+
+describe("importPresetSchema", () => {
+  it("accepts only a canonical statement account identifier", () => {
+    const base = {
+      name: "HDFC CC XLS",
+      base_account: "cc:hdfc",
+      custom_mappings_filenames: [],
+      is_credit_card: true,
+      custom_statement_parser_path: CARD_PARSER,
+    };
+    expect(
+      importPresetSchema.parse({
+        ...base,
+        statement_account_identifier: "050505XXXXXX0505",
+      }).statement_account_identifier,
+    ).toBe("050505XXXXXX0505");
+    for (const bad of ["0505 05XX XXXX 0505", "050505xxxxxx0505", ""]) {
+      expect(() =>
+        importPresetSchema.parse({
+          ...base,
+          statement_account_identifier: bad,
+        }),
+      ).toThrow();
+    }
   });
 });

@@ -23,10 +23,10 @@ type ToolLink = {
 
 const importTools: readonly ToolLink[] = [
   {
-    label: "Universal statement import",
+    label: "Import statements",
     description:
-      "Import PDF, text, CSV, XLS, or Abacus JSON with account-specific presets.",
-    to: "/views/import-statement",
+      "Import PDF, CSV, or XLS statements, each matched to its account by a saved parser and import preset.",
+    to: "/views/import-statements",
     icon: FileUp,
   },
   {

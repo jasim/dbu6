@@ -229,15 +229,6 @@ export function AccountCard({
             )}
           </div>
         </LabelledRow>
-        {summary.warnings.length > 0 && (
-          <LabelledRow label="Warnings">
-            <ul className="space-y-1 text-xs text-amber-700 dark:text-amber-400">
-              {summary.warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
-              ))}
-            </ul>
-          </LabelledRow>
-        )}
       </div>
       <details className="border-t px-4 py-3 text-xs">
         <summary className="cursor-pointer text-muted-foreground hover:text-foreground">

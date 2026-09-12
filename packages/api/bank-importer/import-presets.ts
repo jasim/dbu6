@@ -3,7 +3,7 @@ import { z } from "zod";
 import { importPresetSchema, type ImportPreset } from "dbu6-shared";
 import { userConfigPath } from "../user-data.js";
 import { parseAccount } from "./domain/Account.js";
-import type { ImportOptions } from "./freeform-import.js";
+import type { ImportOptions } from "./statement-import.js";
 
 export type { ImportPreset } from "dbu6-shared";
 
@@ -121,15 +121,16 @@ export function resolveImportPreset(
   );
 }
 
-// How a preset alone decides an import, with nothing from the request. The
-// balance overrides and the Google Pay takeout are per-upload choices the
-// manual screen offers, so an automatic import has neither.
-export function importOptionsFromPreset(preset: ImportPreset): ImportOptions {
+// How a preset decides an import. The Google Pay Takeout is the one choice
+// made per upload rather than per account, so it arrives alongside.
+export function importOptionsFromPreset(
+  preset: ImportPreset,
+  gpayHtmlPath: string | null,
+): ImportOptions {
   return {
     baseAccount: parseAccount(preset.base_account),
     accountKind: preset.is_credit_card ? "credit-card" : "bank",
-    balanceOverrides: { opening: null, closing: null },
     customMappingsFilenames: preset.custom_mappings_filenames,
-    gpayHtmlPath: null,
+    gpayHtmlPath,
   };
 }

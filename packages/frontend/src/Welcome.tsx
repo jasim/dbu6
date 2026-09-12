@@ -48,9 +48,9 @@ const workflowSections: readonly WorkflowSection[] = [
   {
     title: "Import the statement",
     description:
-      "Choose the matching bank or credit card account and upload its statement. The transactions will remain in draft while you check them.",
-    action: "Import a statement",
-    to: "/views/import-statement",
+      "Drop in the statements you downloaded. Each one is matched to its bank or credit card account, and the transactions remain in draft while you check them.",
+    action: "Import statements",
+    to: "/views/import-statements",
     icon: FileUp,
   },
   {

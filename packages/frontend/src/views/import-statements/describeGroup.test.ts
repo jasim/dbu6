@@ -33,7 +33,6 @@ function group(
         opening: { extracted: 1000, effective: 1000, source: "statement" },
         closing: { extracted: 2500, effective: 2500, source: "statement" },
       },
-      warnings: [],
       statement_period: { first_date: "2026-08-01", last_date: "2026-08-31" },
       reconciliation_checkpoint: null,
       ...overrides,

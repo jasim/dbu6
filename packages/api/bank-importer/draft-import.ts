@@ -6,15 +6,11 @@ import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js"
 import type { CategorizationConfig } from "./categorization/resolve.js";
 import { processStatement } from "./pipeline.js";
 import {
-  lookupLastReconciled,
-  newTransactionsSinceReconciliation,
   toDraftRows,
   persistDrafts,
-  type SameAccountSkip,
   type RowScopeAuth,
   sameAccountSkipSchema,
 } from "./draft-persistence.js";
-import { assignSourceTransactionKeys } from "../modules/reconciliation/transaction-identity.js";
 
 export const importSummarySchema = z.object({
   hledger_journal: z.string(),
@@ -27,64 +23,36 @@ export const importSummarySchema = z.object({
   legacy_match_count: z.number().default(0),
   backfilled_count: z.number(),
   same_account_skips: z.array(sameAccountSkipSchema),
-  gpay_enriched_count: z.number().default(0),
 });
 export type ImportSummary = z.infer<typeof importSummarySchema>;
 
 export interface DraftImportInput {
   baseAccount: Account;
+  // Keyed and already filtered to what the ledger doesn't hold yet.
   transactions: Chrono<Abacus>;
+  // How many rows the statement had before the reconciliation filter.
+  rawTransactionCount: number;
   categorizationConfig: CategorizationConfig;
   logPrefix: string;
   db: any;
   auth?: RowScopeAuth;
-  preFiltered?: boolean;
-  rawTransactionCount?: number;
-  statementEdgeOpening?: {
-    value: number;
-    source: "manual" | "statement";
-  } | null;
 }
 
-// Shared tail of every draft-journal import: filter against the last
-// reconciliation, categorize + format the survivors, persist as drafts,
-// return a summary. The per-source front-end (HDFC XLSX parse, freeform
-// LLM extraction, etc.) is the caller's job.
+// Shared tail of a statement import: categorize + format the new rows,
+// persist them as drafts, return a summary. Assembly, keying, balance
+// validation, and the reconciliation filter are `runStatementImport`'s job.
 export async function runDraftImport(
   input: DraftImportInput,
 ): Promise<ImportSummary> {
   const {
     baseAccount,
-    transactions,
+    transactions: newTransactions,
+    rawTransactionCount: rawCount,
     categorizationConfig,
     logPrefix,
     db,
     auth,
-    preFiltered = false,
-    rawTransactionCount,
-    statementEdgeOpening = null,
   } = input;
-
-  const identifiedTransactions = assignSourceTransactionKeys(
-    transactions,
-    baseAccount,
-  );
-  const checkpoint = lookupLastReconciled(db, baseAccount, auth);
-  const newTransactions: Chrono<Abacus> = preFiltered
-    ? identifiedTransactions
-    : newTransactionsSinceReconciliation(
-        identifiedTransactions,
-        checkpoint,
-        statementEdgeOpening,
-      );
-  const rawCount = rawTransactionCount ?? identifiedTransactions.length;
-  console.log(
-    `[${logPrefix}] checkpoint: ${
-      checkpoint
-        ? `${checkpoint.date} @ ${checkpoint.balance} → ${newTransactions.length} new`
-        : `none → keeping all ${identifiedTransactions.length}`
-    }`,
-  );
 
   // processStatement throws on empty input (validateTransactions), so the
   // short-circuit is load-bearing when reconciliation has consumed everything.
@@ -125,6 +93,5 @@ export async function runDraftImport(
     legacy_match_count: persisted.legacyMatches,
     backfilled_count: persisted.backfilled,
     same_account_skips: sameAccountSkips,
-    gpay_enriched_count: 0,
   };
 }

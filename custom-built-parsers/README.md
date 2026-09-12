@@ -10,14 +10,14 @@ credit-card sign flip, JSON serialization, and the command-line driver.
 If a new statement matches a fingerprint exactly (same bank, same layout), reuse
 the parser. Otherwise add a new one.
 
-The Import Statement screen can auto-detect these parsers. A directory becomes
-an auto-detection candidate only when it contains `parser.py` and a non-empty
+The Import statements screen recognises uploads with these parsers. A directory
+becomes a recognition candidate only when it contains `parser.py` and a non-empty
 `fingerprint.md` with an `**Input extensions:**` line such as `.csv` or `.pdf`
 (write each extension in backticks). The extension list cheaply narrows the
 candidates; the parser itself is the executable fingerprint. It must reject the
 wrong layout, reject malformed rows instead of skipping them, and write valid
-Abacus JSON only after all validation succeeds. Auto-detection requires exactly
-one matching parser.
+Abacus JSON only after all validation succeeds. Recognition requires exactly one
+matching parser.
 
 ## Index
 
@@ -32,8 +32,7 @@ one matching parser.
 ## Goal
 
 Produce one `<input-basename>.abacus.json` file next to each statement input, in
-the wire shape accepted by `packages/api/bank-importer/parsers/abacus-json.ts`.
-The generated JSON can then be uploaded through the Import Statement UI.
+the wire shape defined by `packages/api/bank-importer/abacus/Abacus.ts`.
 
 A parser never calls the import API itself: `parser.py` stops after writing the
 JSON. When you build a parser, report the output path, row count, opening/closing

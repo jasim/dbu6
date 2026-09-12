@@ -37,12 +37,14 @@ function fileKey(file: File): string {
 
 export function AutoImportStatements() {
   const [files, setFiles] = useState<File[]>([]);
+  const [gpayFile, setGpayFile] = useState<File | null>(null);
   const [rejectedNames, setRejectedNames] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AutoImportResult | null>(null);
   const [error, setError] = useState<AutoImportError | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const gpayInputRef = useRef<HTMLInputElement>(null);
 
   function clearOutcome() {
     setResult(null);
@@ -64,6 +66,12 @@ export function AutoImportStatements() {
 
   function removeFile(index: number) {
     setFiles((prev) => prev.filter((_, i) => i !== index));
+    clearOutcome();
+  }
+
+  function removeGpayFile() {
+    setGpayFile(null);
+    if (gpayInputRef.current) gpayInputRef.current.value = "";
     clearOutcome();
   }
 
@@ -92,6 +100,7 @@ export function AutoImportStatements() {
 
     const form = new FormData();
     for (const f of files) form.append("files", f);
+    if (gpayFile) form.append("gpay", gpayFile);
 
     try {
       const res = await fetch(`${getApiBase()}/import-draft/statements/auto`, {
@@ -247,6 +256,48 @@ export function AutoImportStatements() {
             })}
           </ul>
         )}
+
+        <div className="space-y-1">
+          <label htmlFor="gpay-takeout-file" className="text-sm font-medium">
+            Google Pay Takeout (optional)
+          </label>
+          <input
+            id="gpay-takeout-file"
+            ref={gpayInputRef}
+            type="file"
+            accept=".html,.htm"
+            disabled={loading}
+            aria-describedby="gpay-takeout-help"
+            onChange={(event) => {
+              setGpayFile(event.target.files?.[0] ?? null);
+              clearOutcome();
+            }}
+            className="block w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 file:cursor-pointer"
+          />
+          <p id="gpay-takeout-help" className="text-xs text-muted-foreground">
+            The activity page from your Google Pay Takeout. UPI payments in the
+            statements above that match it get the recipient's name before they
+            are categorised. It never changes which transactions count as
+            already imported.
+          </p>
+          {gpayFile && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="truncate font-mono">{gpayFile.name}</span>
+              <span className="shrink-0">
+                {Math.round(gpayFile.size / 1024)} KB
+              </span>
+              <button
+                type="button"
+                aria-label={`Remove ${gpayFile.name}`}
+                disabled={loading}
+                onClick={removeGpayFile}
+                className="shrink-0 opacity-60 hover:opacity-100 disabled:cursor-not-allowed"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+        </div>
 
         <div>
           <button

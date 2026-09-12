@@ -39,7 +39,6 @@ export interface GroupSummary {
     caption: string | null;
   };
   details: Stat[];
-  warnings: string[];
 }
 
 export const REVIEW_DRAFTS_ROUTE = "/views/reclassify-drafts";
@@ -48,8 +47,6 @@ type Balance = AutoImportGroupResult["result"]["balance_metadata"]["opening"];
 
 function sourceLabel(source: Balance["source"]): string {
   switch (source) {
-    case "manual":
-      return "typed in";
     case "statement":
       return "from the statement";
     case "checkpoint":
@@ -211,13 +208,9 @@ function balances(group: AutoImportGroupResult): GroupSummary["balances"] {
     provenance.push(
       "opening taken from your books' last confirmed balance, as the statement prints none",
     );
-  } else if (opening.source === "manual") {
-    provenance.push("opening typed in");
   }
   if (closing.source === "per-row") {
     provenance.push("closing taken from the last row's printed balance");
-  } else if (closing.source === "manual") {
-    provenance.push("closing typed in");
   }
   const caption =
     provenance.length === 0
@@ -273,6 +266,5 @@ export function describeGroup(
     breakdown: breakdown(group),
     balances: balances(group),
     details: details(group),
-    warnings: group.result.warnings,
   };
 }

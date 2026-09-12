@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parsePlainDate } from "@sapporta/shared/temporal";
+import { draftTransactionsContract } from "dbu6-shared";
 import type { RowScopeAuth } from "../../bank-importer/draft-persistence.js";
 import { accountsTable } from "../../schema/accounts.js";
 import { draftTransactionsTable } from "../../schema/draft-journals.js";
@@ -168,3 +169,17 @@ function scopedAccount(
     account_type,
   };
 }
+
+describe("GPay draft classification upload contract", () => {
+  it("parses repeated form fields into typed classification input", () => {
+    expect(
+      draftTransactionsContract.classifyDraftTransactionsWithGPay.body.parse({
+        ids: ["12", "34"],
+        custom_mappings_filenames: ["federal.prompt", "shared.prompt"],
+      }),
+    ).toEqual({
+      ids: [12, 34],
+      custom_mappings_filenames: ["federal.prompt", "shared.prompt"],
+    });
+  });
+});

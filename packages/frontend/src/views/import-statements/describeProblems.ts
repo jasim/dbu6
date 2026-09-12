@@ -625,16 +625,6 @@ function groupProblem(error: AutoImportError): Problem {
         ...base,
         verdict: "The app needs a starting balance for this account.",
         why: "This statement doesn't print running balances or an opening balance, and your books don't have a confirmed balance for this account yet. This only happens the first time an account is imported.",
-        steps: [
-          "Use the manual import screen and type the opening balance printed on the statement.",
-        ],
-        actions: [
-          {
-            kind: "link",
-            label: "Open the manual import screen",
-            to: "/views/import-statement",
-          },
-        ],
         agent: {
           prompt: openingBalancePrompt(facts),
           afterwards: RETRY_FROM_SCREEN,
@@ -644,17 +634,7 @@ function groupProblem(error: AutoImportError): Problem {
       return {
         ...base,
         verdict: "The app needs the closing balance for this card.",
-        why: "This card statement doesn't print a total amount owed that the app can find, so it can't check the import against the bank.",
-        steps: [
-          "Use the manual import screen and type the closing amount printed on the statement.",
-        ],
-        actions: [
-          {
-            kind: "link",
-            label: "Open the manual import screen",
-            to: "/views/import-statement",
-          },
-        ],
+        why: "The reader didn't find a total amount owed on this card statement, so the app can't check the import against the bank. Usually the statement does print one and the reader missed it.",
         agent: {
           prompt: closingBalancePrompt(facts),
           afterwards: RETRY_FROM_SCREEN,
@@ -678,14 +658,6 @@ function groupProblem(error: AutoImportError): Problem {
         },
       };
     }
-    case "llm_extraction_failed":
-      return {
-        ...base,
-        verdict: "The categorisation service didn't respond.",
-        why: "Nothing from this account was imported. This is usually temporary.",
-        steps: ["Wait a minute and press Process again."],
-        agent: null,
-      };
     default:
       return {
         ...base,

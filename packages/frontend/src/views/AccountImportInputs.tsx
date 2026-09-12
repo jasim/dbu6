@@ -1,26 +1,7 @@
 import { useEffect, useState } from "react";
 import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
-import type { ExtractionTool, ImportPreset } from "dbu6-shared";
+import type { ImportPreset } from "dbu6-shared";
 import { importPresetsApi } from "../api";
-
-const EXTRACTION_TOOL_OPTIONS: {
-  value: ExtractionTool;
-  label: string;
-  hint: string;
-}[] = [
-  {
-    value: "extract-table",
-    label: "extract-table",
-    hint: "Run the custom table extractor for PDF statements.",
-  },
-  {
-    value: "pdftotext",
-    label: "pdftotext",
-    hint: "Run pdftotext -layout for PDF statements.",
-  },
-];
-
-export type { ImportPreset };
 
 interface Account {
   id: number;
@@ -31,13 +12,8 @@ interface Props {
   accounts: Account[];
   baseAccountId: string | null;
   onBaseAccountIdChange: (id: string | null) => void;
-  isCreditCard?: boolean;
-  onIsCreditCardChange?: (value: boolean) => void;
-  extractionTool?: ExtractionTool;
-  onExtractionToolChange?: (value: ExtractionTool) => void;
   mappingsInput: string;
   onMappingsInputChange: (value: string) => void;
-  onPresetApplied?: (preset: ImportPreset) => void;
   disabled?: boolean;
 }
 
@@ -45,13 +21,8 @@ export function AccountImportInputs({
   accounts,
   baseAccountId,
   onBaseAccountIdChange,
-  isCreditCard,
-  onIsCreditCardChange,
-  extractionTool,
-  onExtractionToolChange,
   mappingsInput,
   onMappingsInputChange,
-  onPresetApplied,
   disabled,
 }: Props) {
   const [presets, setPresets] = useState<ImportPreset[]>([]);
@@ -68,9 +39,6 @@ export function AccountImportInputs({
     const match = accounts.find((a) => a.name === p.base_account);
     if (match) onBaseAccountIdChange(String(match.id));
     onMappingsInputChange(p.custom_mappings_filenames.join(", "));
-    onIsCreditCardChange?.(p.is_credit_card ?? false);
-    onExtractionToolChange?.(p.extraction_tool ?? "extract-table");
-    onPresetApplied?.(p);
   }
 
   return (
@@ -92,67 +60,25 @@ export function AccountImportInputs({
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <div className="space-y-1">
-          <label
-            htmlFor="account-import-base-account"
-            className="text-sm font-medium"
-          >
-            Account on this statement
-          </label>
-          <LookupPicker
-            id="account-import-base-account"
-            lookup={accountLookup}
-            value={baseAccountId === null ? null : Number(baseAccountId)}
-            onChange={(id) =>
-              onBaseAccountIdChange(id === null ? null : String(id))
-            }
-            placeholder="Select a bank or credit card account..."
-            disabled={disabled}
-            className="w-full"
-          />
-        </div>
-        {onIsCreditCardChange && (
-          <label className="flex items-center gap-2 pb-2 text-sm whitespace-nowrap">
-            <input
-              type="checkbox"
-              checked={isCreditCard ?? false}
-              disabled={disabled}
-              onChange={(e) => onIsCreditCardChange(e.target.checked)}
-            />
-            Credit card
-          </label>
-        )}
+      <div className="space-y-1">
+        <label
+          htmlFor="account-import-base-account"
+          className="text-sm font-medium"
+        >
+          Account on this statement
+        </label>
+        <LookupPicker
+          id="account-import-base-account"
+          lookup={accountLookup}
+          value={baseAccountId === null ? null : Number(baseAccountId)}
+          onChange={(id) =>
+            onBaseAccountIdChange(id === null ? null : String(id))
+          }
+          placeholder="Select a bank or credit card account..."
+          disabled={disabled}
+          className="w-full"
+        />
       </div>
-
-      {onExtractionToolChange && (
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium">
-            PDF extraction tool
-          </label>
-          <div className="inline-flex overflow-hidden rounded-md border text-sm">
-            {EXTRACTION_TOOL_OPTIONS.map(({ value, label, hint }) => {
-              const active = (extractionTool ?? "extract-table") === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={disabled}
-                  title={hint}
-                  onClick={() => onExtractionToolChange(value)}
-                  className={`border-r px-3 py-1.5 font-medium last:border-r-0 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-nested"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="space-y-1">
         <label htmlFor="mappings" className="text-sm font-medium">

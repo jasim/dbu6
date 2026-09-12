@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  abacusRowsJsonSchema,
   applyCreditCardSignFlip,
   normalizeChronological,
   parseAbacusJson,
@@ -34,8 +33,8 @@ describe("parseAbacusJson", () => {
     ).toThrow(AbacusJsonParseError);
   });
 
-  it("accepts the canonical transaction-extraction document shape", () => {
-    const generated = abacusRowsJsonSchema.parse({
+  it("accepts a document with rows and nothing else", () => {
+    const document = {
       kind: "abacus",
       rows: [
         {
@@ -46,8 +45,8 @@ describe("parseAbacusJson", () => {
           balance: null,
         },
       ],
-    });
-    const result = parseAbacusJson(JSON.stringify(generated), "test");
+    };
+    const result = parseAbacusJson(JSON.stringify(document), "test");
 
     expect(result.transactions).toHaveLength(1);
     expect(result.transactions[0].narration).toBe("Canonical row");

@@ -5,9 +5,9 @@ import path from "node:path";
 import { projectPath } from "@sapporta/server";
 import { describe, expect, it } from "vitest";
 import {
-  autoDetectCustomStatementParsers,
+  recognizeStatementFile,
   savedCustomStatementParserPaths,
-} from "../../app/import-draft-journals-from-statement-files.js";
+} from "../statement-recognition.js";
 
 const FEDERAL_PARSER = "custom-built-parsers/federal-bank-xls/parser.py";
 const HDFC_BANK_PARSER = "custom-built-parsers/hdfc-bank-xls/parser.py";
@@ -51,11 +51,15 @@ describe("Federal Bank statement XLS parser", () => {
 
       // Cross-rejection: both HDFC parsers must reject the Federal export so
       // auto-detection resolves to exactly one parser.
-      const detected = await autoDetectCustomStatementParsers(xlsParserPaths, [
+      const recognition = await recognizeStatementFile(
+        xlsParserPaths,
         inputPath,
-      ]);
-      expect(detected.map((one) => one.parserPath)).toEqual([FEDERAL_PARSER]);
-      const output = detected[0].statement;
+      );
+      if (recognition.outcome !== "recognized") {
+        throw new Error(`not recognized: ${JSON.stringify(recognition)}`);
+      }
+      expect(recognition.parserPath).toBe(FEDERAL_PARSER);
+      const output = recognition.statement;
       expect(output).toMatchObject({
         account: { kind: "bank", identifier: "050505000012" },
         institution: null,
@@ -90,11 +94,11 @@ describe("Federal Bank statement XLS parser", () => {
       const wrongExtensionPath = path.join(workDir, "statement.csv");
       await copyFile(inputPath, wrongExtensionPath);
       await expect(
-        autoDetectCustomStatementParsers(
+        recognizeStatementFile(
           await savedCustomStatementParserPaths(".csv"),
-          [wrongExtensionPath],
+          wrongExtensionPath,
         ),
-      ).rejects.toThrow("No saved custom statement parser matched");
+      ).resolves.toMatchObject({ outcome: "unrecognized" });
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }

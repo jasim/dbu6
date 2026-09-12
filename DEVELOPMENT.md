@@ -11,10 +11,10 @@ use it, see [README.md](./README.md). For production deployment, see
   derived URLs. Copy `mise.toml.example` to `mise.toml` to start.
 - `NUABASE_API_KEY` set in the environment. All LLM calls go through Nuabase.
 - `pdftotext` (poppler) for PDF imports.
-- `uv` plus the `extract-table-from-pdf.py` script for the table-based PDF
-  extraction path. The script path is currently hardcoded to
-  `~/m/a/code/tools/pdf-extract/` in
-  `packages/api/app/import-draft-journals-from-statement-files.ts`.
+- `uv`, which runs the saved statement parsers. The Standard Chartered PDF
+  parser also needs the `extract-table-from-pdf.py` script, whose path is
+  hardcoded to `~/m/a/code/tools/pdf-extract/` in
+  `custom-built-parsers/stanc-bank-pdf-table/parser.py`.
 
 ### Linked dependencies
 
@@ -96,10 +96,13 @@ Inside `packages/api`:
 
 - `app/` — ts-rest route handlers: statement import, draft categorization,
   posting drafts, hledger rendering, and `app/reports/` for each report.
-- `bank-importer/` — the import pipeline. `parsers/` turn files into the
-  Abacus row shape, `categorization/` holds the rule engine and the LLM
-  classifier, `domain/` holds the value types (Money, Account, Chrono,
-  JournalPlan, and so on), and `balance-math.ts` reconciles running balances.
+- `bank-importer/` — the import pipeline. `statement-recognition.ts` runs the
+  saved parsers under `custom-built-parsers/` to turn uploads into Abacus
+  statements (`parsers/` holds their tests), `abacus/` assembles statements and
+  reconciles running balances, `statement-import.ts` validates one account's
+  statement and hands the new rows to the drafts tail, `categorization/` holds
+  the rule engine and the LLM classifier, and `domain/` holds the value types
+  (Money, Account, Chrono, JournalPlan, and so on).
 - `modules/` — journals (hledger formatting), reconciliation (duplicate
   detection, running balances, transaction identity), draft-transactions.
 - `schema/` — Drizzle tables for accounts, draft journals, and journals.
@@ -132,10 +135,9 @@ optional and limits a rule to `"withdrawal"` or `"deposit"`.
 The categorization prompt template is in
 `packages/api/bank-importer/categorization/prompt-template.ts`. It is filled
 with `hledger_accounts.prompt` and the `custom_mappings_*.prompt` files named
-by the matching entry in `import-presets.json`. Statement extraction prompts
-live in `packages/api/bank-importer/parsers/freeform-text.ts`. Those two
-files and `categorization/llm-categorization.ts` are the only LLM call sites;
-every call goes through Nuabase (`Nua.gateway` → `nua.get` / `nua.list`).
+by the matching entry in `import-presets.json`.
+`categorization/llm-categorization.ts` is the only LLM call site; every call
+goes through Nuabase (`Nua.gateway` → `nua.list`).
 
 ## Adding an API endpoint
 
@@ -205,8 +207,8 @@ mail hosts, publish SMTP settings. If you prefer a provider SDK, edit
 ## Statement parsers
 
 Saved parsers for known bank layouts live in `custom-built-parsers/`. The
-Import Statement screen auto-detects them by file extension and by running the
-parser as an executable fingerprint. See
+Import statements screen recognises uploads with them, by file extension and by
+running each parser as an executable fingerprint. See
 [custom-built-parsers/README.md](./custom-built-parsers/README.md) for the
 Abacus JSON contract and
 [custom-built-parsers/import-statement-parser-guide.md](./custom-built-parsers/import-statement-parser-guide.md)

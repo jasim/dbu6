@@ -325,8 +325,8 @@ balance on the last row, so the importer cannot verify it.${quoted(facts.message
 Check whether the statement prints a total amount due or closing balance. If
 it does, make the parser emit it as \`closing\` through abacus.ledger_balance
 (see custom-built-parsers/import-statement-parser-guide.md), with a sanitized
-fixture and test. If it truly prints none, tell me, and I will import it from
-the manual screen with the closing amount typed in. ${PII_RULE}
+fixture and test. If it truly prints none, stop and tell me what the statement
+does print about the amount owed. ${PII_RULE}
 
 Then re-run the import yourself or tell me and I will retry.
 
@@ -343,7 +343,7 @@ ${facts.payload}
 
 Please find out what went wrong, starting from the error class in
 packages/api/bank-importer/import-errors.ts and the import pipeline in
-packages/api/bank-importer/freeform-import.ts, and tell me what the fix is
+packages/api/bank-importer/statement-import.ts, and tell me what the fix is
 before changing the ledger. ${PII_RULE}
 
 Once fixed, you may re-run the import yourself or tell me and I will retry.

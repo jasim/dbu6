@@ -5,6 +5,7 @@ import {
   type ImportPreset,
   type ImportPresetRejectionReason,
 } from "./import-presets.js";
+import type { StatementRecognition } from "./statement-recognition.js";
 
 // One uploaded file that exactly one saved parser claimed, with the statement
 // that parser produced. `file` is the name the user uploaded, not the staged
@@ -17,12 +18,10 @@ export interface RecognizedStatement {
   statement: AbacusStatement;
 }
 
-// What running the saved parsers over one upload established. Detection is
-// per file, so a batch can mix recognized and unrecognized files.
-export type FileRecognition =
-  | ({ outcome: "recognized" } & RecognizedStatement)
-  | { outcome: "unrecognized"; file: string; candidateParserPaths: string[] }
-  | { outcome: "ambiguous"; file: string; matchingParserPaths: string[] };
+// What running the saved parsers over one upload established, under the name
+// the user uploaded it as. Detection is per file, so a batch can mix
+// recognized and unrecognized files.
+export type FileRecognition = StatementRecognition & { file: string };
 
 // The account a recognized statement reports about itself, carried through the
 // plan so every row explains itself whether or not it resolved to a preset.

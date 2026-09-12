@@ -36,18 +36,14 @@ approach.
 The directory `custom-built-parsers/` holds deterministic parsers for statement
 layouts
 that have already been handled. This currently several Indian banks and cards in
-PDF, CSV, and XLS form. The Import Statement screen can auto-detect which one
-matches an upload.
+PDF, CSV, and XLS form. The Import statements screen recognises which one
+matches each upload and which of your accounts it belongs to.
 
 For a layout that has no parser yet, you can ask the coding agent to write a
 parser for it. There is clear guide in the repo that lets the coding agent
 create an accurate parser in a single shot. See
 [custom-built-parsers/README.md](./custom-built-parsers/README.md) and
 [custom-built-parsers/import-statement-parser-guide.md](./custom-built-parsers/import-statement-parser-guide.md).
-
-Without a parser, there is a freeform parser where the statement is sent to an
-LLM, which will extract the transactions and the opening and
-closing balances directly from the statement text.
 
 ### Automatic categorization
 
@@ -117,8 +113,7 @@ export const mappings = {
 Requirements:
 
 - Node 22 or newer and pnpm.
-- A Nuabase API key in `NUABASE_API_KEY`, for the LLM-backed extraction
-  and categorization steps.
+- A Nuabase API key in `NUABASE_API_KEY`, for LLM-backed categorization.
 - `pdftotext` (from poppler) if you import PDF statements.
 
 ```bash

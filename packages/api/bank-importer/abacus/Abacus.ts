@@ -1,11 +1,9 @@
 // The Abacus statement: the one shape every statement source is reduced to
 // before the shared balance-validation and draft-import tail runs.
 //
-// Deterministic parsers under custom-built-parsers/ write it as JSON, the
-// Import Statement screen accepts it as an upload, and LLM extraction
-// produces the same document in memory. This module is the single home of
-// its wire schema, its in-memory type, parsing, validation, and the
-// transformations that keep it in ledger semantics.
+// Deterministic parsers under custom-built-parsers/ write it as JSON. This
+// module is the single home of its wire schema, its in-memory type, parsing,
+// validation, and the transformations that keep it in ledger semantics.
 import { z } from "zod";
 import { statementAccountSchema, type StatementAccount } from "dbu6-shared";
 import {
@@ -43,10 +41,7 @@ export type Abacus = Money & {
   source_transaction_key?: string | null;
 };
 
-// Canonical wire contract for an uploaded or generated Abacus JSON document.
-// LLM extraction derives its transaction-only output schema from this object,
-// so the prompt and the upload parser cannot drift between `transactions` and
-// `rows` again.
+// Canonical wire contract for an Abacus JSON document.
 export const abacusJsonSchema = z.object({
   kind: z.literal("abacus"),
   opening: z.number().nullable().optional(),
@@ -54,7 +49,7 @@ export const abacusJsonSchema = z.object({
   // The account or card number the statement prints about itself, in the
   // canonical form defined by `statementAccountSchema`. Deterministic parsers
   // emit it so an import can be matched to the right preset; hand-written
-  // JSON and LLM extraction leave it out.
+  // JSON may leave it out.
   account: statementAccountSchema.nullable().optional(),
   // The bank or card issuer's name exactly as the statement prints it,
   // trimmed. Two statements from one institution may print it differently
@@ -62,11 +57,6 @@ export const abacusJsonSchema = z.object({
   // a preset, not an identifier. Null or omitted when nothing is printed.
   institution: z.string().trim().min(1).nullable().optional(),
   rows: z.array(abacusSchema).min(1, "Transaction list is empty"),
-});
-
-export const abacusRowsJsonSchema = abacusJsonSchema.pick({
-  kind: true,
-  rows: true,
 });
 
 // The parsed document: rows in chronological order plus everything the
@@ -77,10 +67,10 @@ export interface AbacusStatement {
   opening: number | null;
   closing: number | null;
   // The account or card number printed on the statement, when the source
-  // reported one. Deterministic parsers emit it; LLM extraction does not.
+  // reported one; null when it reported none.
   account: StatementAccount | null;
   // The institution's name as printed on the statement; lookup text, not an
-  // identifier. Deterministic parsers emit it; LLM extraction does not.
+  // identifier. Null when the statement prints none.
   institution: string | null;
 }
 

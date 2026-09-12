@@ -28,10 +28,9 @@ export class ReconciliationMatchError extends ApiImportError {
   }
 }
 
-// Thrown when a freeform statement's computed closing balance drifts
-// further than the per-row rounding tolerance from the LLM-extracted
-// closing. Surfaced as 422 — this is a data-consistency signal, not a
-// server fault.
+// Thrown when a statement's computed closing balance drifts further than the
+// per-row rounding tolerance from the closing it reports. Surfaced as 422 —
+// this is a data-consistency signal, not a server fault.
 export class BalanceMismatchError extends ApiImportError {
   readonly status = 422;
   readonly computedFinal: number;
@@ -72,7 +71,7 @@ export class BalanceMismatchError extends ApiImportError {
 }
 
 // Thrown when the statement has no per-row balances AND no opening balance
-// is available from any source (LLM-extracted opening, reconciliation
+// is available from any source (the statement's opening, reconciliation
 // checkpoint). Surfaced as 400 — the caller needs to set up a balance
 // assertion first, or supply a statement whose rows print balances. Beats
 // the alternative of silently accepting a user-typed number that might
@@ -82,7 +81,7 @@ export class OpeningBalanceUnavailable extends ApiImportError {
 
   constructor() {
     super(
-      "Opening balance required: statement has no per-row balances and no opening balance was available from the statement text or reconciliation checkpoint. Add a balance assertion for this account before importing.",
+      "Opening balance required: statement has no per-row balances and no opening balance was available from the statement or reconciliation checkpoint. Add a balance assertion for this account before importing.",
     );
     this.name = "OpeningBalanceUnavailable";
   }
@@ -100,7 +99,7 @@ export class ClosingBalanceUnavailable extends ApiImportError {
 
   constructor() {
     super(
-      "Closing balance required: this credit-card statement has no usable extracted closing balance and its final transaction has no printed running balance. Enter the statement's printed closing amount and retry.",
+      "Closing balance required: this credit-card statement reports no closing balance and its final transaction has no printed running balance, so the import cannot be checked against the statement.",
     );
     this.name = "ClosingBalanceUnavailable";
   }
@@ -109,7 +108,6 @@ export class ClosingBalanceUnavailable extends ApiImportError {
     return {
       error: "closing_balance_unavailable",
       message: this.message,
-      field: "manual_closing_balance",
     };
   }
 }
@@ -370,31 +368,7 @@ export class SegmentBalanceMismatchError extends ApiImportError {
   }
 }
 
-// Thrown when the external PDF-to-CSV extractor fails or produces nothing
-// usable — the user gave us a PDF but we couldn't turn it into the text
-// form the freeform LLM pipeline expects. Surfaced as 422: the request was
-// well-formed, the server could reach its tools, but the input didn't
-// match any known table layout.
-export class PdfExtractionFailed extends ApiImportError {
-  readonly status = 422;
-  readonly detail: string;
-
-  constructor(detail: string) {
-    super(`PDF extraction failed: ${detail}`);
-    this.name = "PdfExtractionFailed";
-    this.detail = detail;
-  }
-
-  toPayload() {
-    return {
-      error: "pdf_extraction_failed",
-      message: "Could not extract tables from the uploaded PDF(s).",
-      detail: this.detail,
-    };
-  }
-}
-
-// Thrown when an uploaded JSON file fails to parse as Abacus JSON.
+// Thrown when a document fails to parse as Abacus JSON.
 export class AbacusJsonParseError extends ApiImportError {
   readonly status = 400;
   readonly detail: string;
@@ -409,31 +383,6 @@ export class AbacusJsonParseError extends ApiImportError {
     return {
       error: "abacus_json_parse_failed",
       message: "Could not parse the uploaded JSON as abacus rows.",
-      detail: this.detail,
-    };
-  }
-}
-
-// Thrown when the upstream Nua/LLM call fails (network error, gateway 5xx,
-// malformed response). Surfaced as 502 — the server itself is fine, but an
-// upstream dependency we rely on isn't.
-export class LLMExtractionError extends ApiImportError {
-  readonly status = 502;
-  readonly phase: "transactions" | "balances";
-  readonly detail: string;
-
-  constructor(phase: "transactions" | "balances", detail: string) {
-    super(`Freeform ${phase} extraction failed: ${detail}`);
-    this.name = "LLMExtractionError";
-    this.phase = phase;
-    this.detail = detail;
-  }
-
-  toPayload() {
-    return {
-      error: "llm_extraction_failed",
-      phase: this.phase,
-      message: `Freeform ${this.phase} extraction failed`,
       detail: this.detail,
     };
   }

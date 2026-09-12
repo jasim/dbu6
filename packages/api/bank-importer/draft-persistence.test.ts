@@ -167,7 +167,7 @@ describe("newTransactionsSinceReconciliation — anchoring cases", () => {
     const survivors = newTransactionsSinceReconciliation(
       chrono(txns),
       { date: "2025-01-02", balance: 200 },
-      { value: 200, source: "statement" },
+      200,
     );
     expect(survivors.map((t) => t.balance)).toEqual([300, 400, 500]);
   });
@@ -185,7 +185,7 @@ describe("newTransactionsSinceReconciliation — anchoring cases", () => {
     const survivors = newTransactionsSinceReconciliation(
       chrono(txns),
       { date: "2026-04-01", balance: 2050505.0 },
-      { value: 2050505.0, source: "statement" },
+      2050505.0,
     );
     expect(survivors).toEqual(txns);
   });
@@ -221,7 +221,7 @@ describe("newTransactionsSinceReconciliation — anchoring cases", () => {
     const survivors = newTransactionsSinceReconciliation(
       chrono(txns),
       { date: "2025-01-02", balance: 200 },
-      { value: 200, source: "manual" },
+      200,
     );
     expect(survivors.map((t) => t.balance)).toEqual([400]);
   });
@@ -251,7 +251,7 @@ describe("newTransactionsSinceReconciliation — anchoring cases", () => {
     const survivors = newTransactionsSinceReconciliation(
       chrono(txns),
       { date: "2025-01-02", balance: 200 },
-      { value: 200, source: "statement" },
+      200,
     );
     expect(survivors).toHaveLength(2);
   });

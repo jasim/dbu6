@@ -8,6 +8,14 @@ export function uploadedFile(files: unknown, key: string): File | null {
   return value instanceof File && value.size > 0 ? value : null;
 }
 
+// Every non-empty file uploaded under a repeated multipart field.
+export function filesFromField(files: unknown, key: string): File[] {
+  if (!files || typeof files !== "object") return [];
+  const raw = (files as Record<string, unknown>)[key];
+  const candidates = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return candidates.filter((f): f is File => f instanceof File && f.size > 0);
+}
+
 export async function withTempUpload<T>(
   file: File,
   prefix: string,

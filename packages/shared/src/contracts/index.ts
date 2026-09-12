@@ -6,7 +6,7 @@ export { reportsContract } from "./reports.js";
 export {
   importDraftsContract,
   importSummarySchema,
-  freeformImportResultSchema,
+  statementImportResultSchema,
   sameAccountSkipSchema,
   autoImportPlanFileSchema,
   autoImportGroupResultSchema,
@@ -15,13 +15,11 @@ export {
   type AutoImportGroupResult,
   type AutoImportResult,
   type AutoImportFailedGroup,
-  type FreeformImportResultBody,
+  type StatementImportResultBody,
 } from "./import-drafts.js";
 export {
   importPresetsContract,
   importPresetSchema,
-  extractionToolSchema,
-  type ExtractionTool,
   type ImportPreset,
 } from "./import-presets.js";
 export {

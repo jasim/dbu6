@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { TsRestApi, projectPath, type SapportaEnv } from "@sapporta/server";
 import type { ImportPreset } from "dbu6-shared";
@@ -9,9 +9,9 @@ import type { ImportPreset } from "dbu6-shared";
 const { runStatementImport } = vi.hoisted(() => ({
   runStatementImport: vi.fn(),
 }));
-vi.mock("../bank-importer/freeform-import.js", async (importOriginal) => ({
+vi.mock("../bank-importer/statement-import.js", async (importOriginal) => ({
   ...(await importOriginal<
-    typeof import("../bank-importer/freeform-import.js")
+    typeof import("../bank-importer/statement-import.js")
   >()),
   runStatementImport,
 }));
@@ -20,10 +20,8 @@ import api, {
   importStatementsAutomatically,
 } from "./import-draft-statements-auto.js";
 import { loadApp } from "../app.js";
-import {
-  ClosingBalanceUnavailable,
-  type FreeformImportResult,
-} from "../bank-importer/freeform-import.js";
+import { ClosingBalanceUnavailable } from "../bank-importer/import-errors.js";
+import type { StatementImportResult } from "../bank-importer/statement-import.js";
 
 const BANK_PARSER = "custom-built-parsers/hdfc-bank-xls/parser.py";
 const CARD_PARSER = "custom-built-parsers/hdfc-cc-xls/parser.py";
@@ -66,7 +64,7 @@ async function fixtureFile(parser: string, uploadedAs: string): Promise<File> {
   return new File([bytes], uploadedAs);
 }
 
-function importedNothing(): FreeformImportResult {
+function importedNothing(): StatementImportResult {
   return {
     hledger_journal: "",
     transaction_count: 0,
@@ -85,7 +83,6 @@ function importedNothing(): FreeformImportResult {
       opening: { extracted: null, effective: null, source: "none" },
       closing: { extracted: null, effective: null, source: "none" },
     },
-    warnings: [],
     statement_period: null,
     reconciliation_checkpoint: null,
   };
@@ -149,12 +146,15 @@ describe("automatic statement import", () => {
     runStatementImport.mockResolvedValue(importedNothing());
 
     const response = await importStatementsAutomatically(
-      [
-        await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
-        await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
-        await fixtureFile("federal-bank-xls", "second-jan.xls"),
-        await fixtureFile("hdfc-bank-xls", "bank-feb.xls"),
-      ],
+      {
+        statements: [
+          await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
+          await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
+          await fixtureFile("federal-bank-xls", "second-jan.xls"),
+          await fixtureFile("hdfc-bank-xls", "bank-feb.xls"),
+        ],
+        gpay: null,
+      },
       [cardPreset, bankPreset, secondBankPreset],
       db,
       auth,
@@ -234,7 +234,6 @@ describe("automatic statement import", () => {
     expect(options).toEqual({
       baseAccount: "liabilities:card:sample",
       accountKind: "credit-card",
-      balanceOverrides: { opening: null, closing: null },
       customMappingsFilenames: [],
       gpayHtmlPath: null,
     });
@@ -251,10 +250,13 @@ describe("automatic statement import", () => {
 
   it("imports nothing when a recognised file has no preset, and explains every file", async () => {
     const response = await importStatementsAutomatically(
-      [
-        await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
-        await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
-      ],
+      {
+        statements: [
+          await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
+          await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
+        ],
+        gpay: null,
+      },
       [bankPreset],
       db,
       auth,
@@ -282,12 +284,15 @@ describe("automatic statement import", () => {
 
   it("rejects a file no saved parser recognises, naming the parsers it tried", async () => {
     const response = await importStatementsAutomatically(
-      [
-        new File(
-          ["date,narration,amount\n2026-01-01,NOPII sample payee,1000\n"],
-          "sample-notes.csv",
-        ),
-      ],
+      {
+        statements: [
+          new File(
+            ["date,narration,amount\n2026-01-01,NOPII sample payee,1000\n"],
+            "sample-notes.csv",
+          ),
+        ],
+        gpay: null,
+      },
       [bankPreset, cardPreset],
       db,
       auth,
@@ -311,10 +316,13 @@ describe("automatic statement import", () => {
       .mockRejectedValueOnce(new ClosingBalanceUnavailable());
 
     const response = await importStatementsAutomatically(
-      [
-        await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
-        await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
-      ],
+      {
+        statements: [
+          await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
+          await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
+        ],
+        gpay: null,
+      },
       [bankPreset, cardPreset],
       db,
       auth,
@@ -336,5 +344,35 @@ describe("automatic statement import", () => {
       file_names: ["card-jan.xls"],
     });
     expect(body.files).toHaveLength(2);
+  }, 120_000);
+
+  it("hands one staged Google Pay takeout to every account's import", async () => {
+    runStatementImport.mockResolvedValue(importedNothing());
+
+    const response = await importStatementsAutomatically(
+      {
+        statements: [
+          await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
+          await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
+        ],
+        gpay: new File(
+          ["<html>NOPII sample activity</html>"],
+          "My Activity.html",
+        ),
+      },
+      [bankPreset, cardPreset],
+      db,
+      auth,
+    );
+
+    expect(response.status).toBe(200);
+    const paths = runStatementImport.mock.calls.map(
+      ([, options]) => options.gpayHtmlPath,
+    );
+    expect(paths).toHaveLength(2);
+    expect(paths[0]).toMatch(/\.html$/);
+    expect(paths[1]).toBe(paths[0]);
+    // The staged copy is removed once the batch is done.
+    await expect(access(paths[0])).rejects.toThrow();
   }, 120_000);
 });

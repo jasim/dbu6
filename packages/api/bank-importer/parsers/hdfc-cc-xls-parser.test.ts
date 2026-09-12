@@ -5,9 +5,9 @@ import path from "node:path";
 import { projectPath } from "@sapporta/server";
 import { describe, expect, it } from "vitest";
 import {
-  autoDetectCustomStatementParsers,
+  recognizeStatementFile,
   savedCustomStatementParserPaths,
-} from "../../app/import-draft-journals-from-statement-files.js";
+} from "../statement-recognition.js";
 
 const CC_PARSER = "custom-built-parsers/hdfc-cc-xls/parser.py";
 const FIXTURE =
@@ -40,11 +40,15 @@ describe("HDFC credit-card statement XLS parser", () => {
 
       // The bank-account parser must reject the card export so detection
       // resolves to exactly one parser.
-      const detected = await autoDetectCustomStatementParsers(xlsParserPaths, [
+      const recognition = await recognizeStatementFile(
+        xlsParserPaths,
         inputPath,
-      ]);
-      expect(detected.map((one) => one.parserPath)).toEqual([CC_PARSER]);
-      const output = detected[0].statement;
+      );
+      if (recognition.outcome !== "recognized") {
+        throw new Error(`not recognized: ${JSON.stringify(recognition)}`);
+      }
+      expect(recognition.parserPath).toBe(CC_PARSER);
+      const output = recognition.statement;
       expect(output).toMatchObject({
         account: { kind: "card", identifier: "050505XXXXXX0505" },
         institution: "HDFC Bank Cards Division",

@@ -14,31 +14,37 @@ import {
 } from "../bank-importer/auto-import-plan.js";
 import type { RowScopeAuth } from "../bank-importer/draft-persistence.js";
 import {
-  runStatementImport,
-  type FreeformImportResult,
-} from "../bank-importer/freeform-import.js";
-import {
   importOptionsFromPreset,
   readImportPresets,
   type ImportPreset,
 } from "../bank-importer/import-presets.js";
-import { respondWithImportErrors } from "./freeform-args.js";
 import {
-  filesFromField,
+  runStatementImport,
+  type StatementImportResult,
+} from "../bank-importer/statement-import.js";
+import {
   recognizeStatementFile,
   savedCustomStatementParserPaths,
-  type StatementRecognition,
-} from "./import-draft-journals-from-statement-files.js";
-import { withTempUploads } from "./upload-tmp.js";
+} from "../bank-importer/statement-recognition.js";
+import { respondWithImportErrors } from "./import-error-response.js";
+import {
+  filesFromField,
+  uploadedFile,
+  withTempUpload,
+  withTempUploads,
+} from "./upload-tmp.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
-// Automatic statement import: the user uploads files and nothing else.
+// Automatic statement import: the user uploads statement files, and
+// optionally a Google Pay Takeout, and nothing else.
 //
-//   withTempUploads(files)
+//   withTempUploads(statements)
 //     -> per file: savedCustomStatementParserPaths(ext)
 //                  recognizeStatementFile(candidates, path)
 //     -> planAutoImport(recognitions, presets)   pure: groups, or a rejection
 //     -> per group: runStatementImport(statements, importOptionsFromPreset)
+//
+// The Takeout names UPI recipients in every account the batch imports.
 //
 // Everything the account resolution decided is reported back, whether or not
 // anything was imported, so the user can fix a preset and retry.
@@ -60,8 +66,7 @@ type AutoImportRouteResponse =
       body: { files: AutoImportPlanFile[]; groups: AutoImportGroupResult[] };
     }
   | { status: 400; body: AutoImportErrorBody }
-  | { status: 422; body: AutoImportErrorBody }
-  | { status: 502; body: AutoImportErrorBody };
+  | { status: 422; body: AutoImportErrorBody };
 
 function planFileRow(file: PlannedFile): AutoImportPlanFile {
   switch (file.status) {
@@ -111,7 +116,7 @@ function failedGroup(group: AutoImportGroup): AutoImportFailedGroup {
 
 function groupResult(
   group: AutoImportGroup,
-  result: FreeformImportResult,
+  result: StatementImportResult,
 ): AutoImportGroupResult {
   return {
     preset_name: group.preset.name,
@@ -136,24 +141,13 @@ async function recognizeUploads(
 ): Promise<FileRecognition[]> {
   const recognitions: FileRecognition[] = [];
   for (const [index, inputPath] of paths.entries()) {
-    const file = names[index];
     const candidates = await savedCustomStatementParserPaths(
       path.extname(inputPath),
     );
-    const recognition: StatementRecognition = await recognizeStatementFile(
-      candidates,
-      inputPath,
-    );
-    recognitions.push(
-      recognition.outcome === "recognized"
-        ? {
-            outcome: "recognized",
-            file,
-            parserPath: recognition.parsed.parserPath,
-            statement: recognition.parsed.statement,
-          }
-        : { ...recognition, file },
-    );
+    recognitions.push({
+      ...(await recognizeStatementFile(candidates, inputPath)),
+      file: names[index],
+    });
   }
   return recognitions;
 }
@@ -180,6 +174,7 @@ function planRejection(files: AutoImportPlanFile[]): AutoImportRouteResponse {
 async function importGroups(
   groups: readonly AutoImportGroup[],
   files: AutoImportPlanFile[],
+  gpayHtmlPath: string | null,
   db: unknown,
   auth: RowScopeAuth,
 ): Promise<AutoImportRouteResponse> {
@@ -189,7 +184,7 @@ async function importGroups(
     const response = await respondWithImportErrors(() =>
       runStatementImport(
         group.statements.map((one) => one.statement),
-        importOptionsFromPreset(group.preset),
+        importOptionsFromPreset(group.preset, gpayHtmlPath),
         db,
         auth,
         group.statements.map((one) => one.file),
@@ -218,24 +213,50 @@ async function importGroups(
   return { status: 200, body: { files, groups: imported } };
 }
 
+export interface AutoImportUploads {
+  statements: File[];
+  gpay: File | null;
+}
+
 export async function importStatementsAutomatically(
-  uploads: File[],
+  uploads: AutoImportUploads,
   presets: readonly ImportPreset[],
   db: unknown,
   auth: RowScopeAuth,
 ): Promise<AutoImportRouteResponse> {
+  const { statements, gpay } = uploads;
+  const received = statements
+    .map((file) => `${file.name} (${file.size}B)`)
+    .join(", ");
+  const takeout = gpay
+    ? `; Google Pay takeout ${gpay.name} (${gpay.size}B)`
+    : "";
   console.log(
-    `[auto-statement-upload] received ${uploads.length} file(s): ${uploads
-      .map((file) => `${file.name} (${file.size}B)`)
-      .join(", ")}`,
+    `[auto-statement-upload] received ${statements.length} file(s): ${received}${takeout}`,
   );
 
+  if (gpay === null) return importStaged(statements, null, presets, db, auth);
+  return withTempUpload(
+    gpay,
+    "gpay-auto-statement-upload",
+    ".html",
+    (gpayHtmlPath) => importStaged(statements, gpayHtmlPath, presets, db, auth),
+  );
+}
+
+async function importStaged(
+  statements: File[],
+  gpayHtmlPath: string | null,
+  presets: readonly ImportPreset[],
+  db: unknown,
+  auth: RowScopeAuth,
+): Promise<AutoImportRouteResponse> {
   return withTempUploads(
-    uploads,
+    statements,
     "auto-statement-upload",
     async (_workDir, paths) => {
       const recognitions = await recognizeUploads(
-        uploads.map((file) => file.name),
+        statements.map((file) => file.name),
         paths,
       );
       const plan = planAutoImport(recognitions, presets);
@@ -250,7 +271,7 @@ export async function importStatementsAutomatically(
           )
           .join("; ")}`,
       );
-      return importGroups(plan.groups, files, db, auth);
+      return importGroups(plan.groups, files, gpayHtmlPath, db, auth);
     },
   );
 }
@@ -263,8 +284,8 @@ api.register(
   async ({ c, files: uploadedFiles }) => {
     const auth = requireWorkflowAuth(c);
 
-    const files = filesFromField(uploadedFiles, "files");
-    if (files.length === 0) {
+    const statements = filesFromField(uploadedFiles, "files");
+    if (statements.length === 0) {
       return {
         status: 400 as const,
         body: {
@@ -275,7 +296,7 @@ api.register(
     }
 
     return importStatementsAutomatically(
-      files,
+      { statements, gpay: uploadedFile(uploadedFiles, "gpay") },
       await readImportPresets(),
       c.get("db"),
       auth,

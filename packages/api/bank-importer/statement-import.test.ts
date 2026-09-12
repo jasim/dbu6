@@ -4,7 +4,7 @@ import {
   pickClosingBalance,
   runStatementImport,
   type ImportOptions,
-} from "./freeform-import.js";
+} from "./statement-import.js";
 import {
   normalizeChronological,
   type Abacus,
@@ -18,57 +18,46 @@ import { parseAccount } from "./domain/Account.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 
 describe("pickOpeningBalance", () => {
-  it("returns override when provided, regardless of other sources", () => {
-    expect(pickOpeningBalance(50, 100, 200)).toEqual({
-      value: 50,
-      source: "manual",
-    });
-  });
-
-  it("falls back to LLM opening when override is null", () => {
-    expect(pickOpeningBalance(null, 100, 200)).toEqual({
+  it("prefers the statement's own opening over the checkpoint", () => {
+    expect(pickOpeningBalance(100, 200)).toEqual({
       value: 100,
       source: "statement",
     });
   });
 
-  it("falls back to checkpoint when override and LLM are null", () => {
-    expect(pickOpeningBalance(null, null, 200)).toEqual({
+  it("falls back to checkpoint when the statement prints no opening", () => {
+    expect(pickOpeningBalance(null, 200)).toEqual({
       value: 200,
       source: "checkpoint",
     });
   });
 
   it("returns source=none with null value when every source is empty", () => {
-    expect(pickOpeningBalance(null, null, null)).toEqual({
+    expect(pickOpeningBalance(null, null)).toEqual({
       value: null,
       source: "none",
     });
   });
 
   it("treats 0 as a valid opening, not as 'missing'", () => {
-    expect(pickOpeningBalance(0, 100, 200)).toEqual({
+    expect(pickOpeningBalance(0, 200)).toEqual({
       value: 0,
-      source: "manual",
+      source: "statement",
     });
   });
 });
 
 describe("pickClosingBalance", () => {
-  it("uses manual, statement, final printed row, then none", () => {
-    expect(pickClosingBalance(10, 20, 30)).toEqual({
-      value: 10,
-      source: "manual",
-    });
-    expect(pickClosingBalance(null, 20, 30)).toEqual({
+  it("uses statement, final printed row, then none", () => {
+    expect(pickClosingBalance(20, 30)).toEqual({
       value: 20,
       source: "statement",
     });
-    expect(pickClosingBalance(null, null, 30)).toEqual({
+    expect(pickClosingBalance(null, 30)).toEqual({
       value: 30,
       source: "per-row",
     });
-    expect(pickClosingBalance(null, null, null)).toEqual({
+    expect(pickClosingBalance(null, null)).toEqual({
       value: null,
       source: "none",
     });
@@ -100,37 +89,32 @@ describe("runStatementImport", () => {
   it("requires an effective closing for a credit-card import before writes", async () => {
     const part = stmt(["2026-05-01"], -100, null);
     await expect(
-      runStatementImport(
-        [part],
-        options({ opening: null, closing: null }),
-        stubImportDb(),
-      ),
+      runStatementImport([part], options(), stubImportDb()),
     ).rejects.toBeInstanceOf(ClosingBalanceUnavailable);
   });
 
-  it("checks an incorrect manual closing before filtering an all-duplicate batch", async () => {
-    const part = stmt(["2026-05-01"], -100, -110);
+  it("checks the statement's closing before filtering an all-duplicate batch", async () => {
+    const part = stmt(["2026-05-01"], -100, -999);
     await expect(
       runStatementImport(
         [part],
-        options({ opening: -100, closing: -999 }),
+        options(),
         stubImportDb({ date: "2026-12-31", balance: -999 }),
       ),
     ).rejects.toBeInstanceOf(BalanceMismatchError);
   });
 
-  it("returns manual precedence metadata and mismatch warnings", async () => {
-    const part = stmt(["2026-05-01"], -100, -110);
+  it("reports balance provenance, the statement period, and the checkpoint", async () => {
+    const part = stmt(["2026-05-01"], -100, 0);
     const result = await runStatementImport(
       [part],
-      options({ opening: -90, closing: 10 }),
-      stubImportDb({ date: "2026-12-31", balance: 10 }),
+      options(),
+      stubImportDb({ date: "2026-12-31", balance: 0 }),
     );
     expect(result.balance_metadata).toEqual({
-      opening: { extracted: -100, effective: -90, source: "manual" },
-      closing: { extracted: -110, effective: 10, source: "manual" },
+      opening: { extracted: -100, effective: -100, source: "statement" },
+      closing: { extracted: 0, effective: 0, source: "statement" },
     });
-    expect(result.warnings).toHaveLength(2);
     expect(result.draft_transaction_count).toBe(0);
     expect(result.statement_period).toEqual({
       first_date: "2026-05-01",
@@ -138,20 +122,17 @@ describe("runStatementImport", () => {
     });
     expect(result.reconciliation_checkpoint).toEqual({
       date: "2026-12-31",
-      balance: 10,
+      balance: 0,
     });
   });
 });
 
-function options(overrides: {
-  opening: number | null;
-  closing: number | null;
-}): ImportOptions {
+function options(): ImportOptions {
   return {
     baseAccount: parseAccount("cc:stanc"),
     accountKind: "credit-card",
-    balanceOverrides: overrides,
     customMappingsFilenames: [],
+    gpayHtmlPath: null,
   };
 }
 
@@ -167,7 +148,7 @@ function stubImportDb(checkpoint?: { date: string; balance: number }): any {
     all: () => [],
     get: () => {
       getCount++;
-      return checkpoint && getCount <= 2
+      return checkpoint && getCount <= 1
         ? {
             date: parsePlainDate(checkpoint.date),
             assertion: checkpoint.balance,

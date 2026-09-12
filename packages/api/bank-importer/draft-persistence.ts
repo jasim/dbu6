@@ -56,11 +56,6 @@ export interface PersistSummary {
   backfilled: number;
 }
 
-export interface StatementEdgeOpening {
-  value: number;
-  source: "manual" | "statement";
-}
-
 export type DraftRow = {
   date: Temporal.PlainDate;
   narration: string;
@@ -179,11 +174,13 @@ export function lookupLastReconciled(
 
 // Date filter is the backbone; balance match (when the statement includes
 // the reconciled row itself) trims the checkpoint row and anything earlier
-// that day so we don't re-import it.
+// that day so we don't re-import it. `statementOpening` is the opening the
+// statement prints; when it equals the checkpoint, the whole checkpoint day
+// is new.
 export function newTransactionsSinceReconciliation(
   transactions: Chrono<Abacus>,
   checkpoint: ReconciledCheckpoint | null,
-  statementEdgeOpening: StatementEdgeOpening | null = null,
+  statementOpening: number | null = null,
 ): Chrono<Abacus> {
   if (!checkpoint) return transactions;
   const afterDate = chronoFilter(transactions, (t) => t.date > checkpoint.date);
@@ -191,8 +188,8 @@ export function newTransactionsSinceReconciliation(
   if (onDate.length === 0) return afterDate;
 
   const openingMatches =
-    statementEdgeOpening !== null &&
-    Math.abs(statementEdgeOpening.value - checkpoint.balance) < BALANCE_EPSILON;
+    statementOpening !== null &&
+    Math.abs(statementOpening - checkpoint.balance) < BALANCE_EPSILON;
 
   let anchor = -1;
   let sawNullBalance = false;

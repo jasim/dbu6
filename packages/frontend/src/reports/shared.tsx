@@ -8,7 +8,6 @@ import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { Input } from "@sapporta/ui";
 
 export const today = new Date().toISOString().slice(0, 10);
-export const yearStart = `${today.slice(0, 4)}-01-01`;
 
 export function useReportResult(
   callReport: () => Promise<GridDataset>,

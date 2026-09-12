@@ -7,7 +7,10 @@ import {
 } from "./abacus/index.js";
 import { parseAccount } from "./domain/Account.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
-import { StatementPartInvalidError } from "./import-errors.js";
+import {
+  BalanceMismatchError,
+  StatementPartInvalidError,
+} from "./import-errors.js";
 
 // Stub the persistence tail so the test can inspect exactly what reaches it.
 // Everything before it (assembly, key assignment, balance validation and the
@@ -27,12 +30,11 @@ vi.mock("./draft-import.js", () => ({
       legacy_match_count: 0,
       backfilled_count: 0,
       same_account_skips: [],
-      gpay_enriched_count: 0,
     };
   },
 }));
 
-const { runStatementImport } = await import("./freeform-import.js");
+const { runStatementImport } = await import("./statement-import.js");
 type ImportOptions = Parameters<typeof runStatementImport>[1];
 
 const BASE_ACCOUNT = parseAccount("assets:bank:sample");
@@ -67,8 +69,8 @@ function options(): ImportOptions {
   return {
     baseAccount: BASE_ACCOUNT,
     accountKind: "bank",
-    balanceOverrides: { opening: null, closing: null },
     customMappingsFilenames: [],
+    gpayHtmlPath: null,
   };
 }
 
@@ -209,17 +211,14 @@ describe("runStatementImport over several parts", () => {
     ).toEqual(["a", "b", "c"]);
   });
 
-  it("leaves a single part untouched, including one that only a manual override rescues", async () => {
+  it("leaves a single part to the closing check rather than part validation", async () => {
     const declaredWrong = bank(1000, [["2026-06-17", -100, "a"]], {
       opening: 1000,
       closing: 500,
     });
-    const result = await runStatementImport(
-      [declaredWrong],
-      { ...options(), balanceOverrides: { opening: null, closing: 900 } },
-      stubImportDb(),
-    );
-    expect(result.balance_metadata.closing.source).toBe("manual");
-    expect(result.warnings).toHaveLength(1);
+    await expect(
+      runStatementImport([declaredWrong], options(), stubImportDb()),
+    ).rejects.toBeInstanceOf(BalanceMismatchError);
+    expect(draftImportCalls).toHaveLength(0);
   });
 });

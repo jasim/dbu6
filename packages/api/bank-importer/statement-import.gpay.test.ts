@@ -30,12 +30,11 @@ vi.mock("./draft-import.js", () => ({
       legacy_match_count: 0,
       backfilled_count: 0,
       same_account_skips: [],
-      gpay_enriched_count: 0,
     };
   },
 }));
 
-const { runStatementImport } = await import("./freeform-import.js");
+const { runStatementImport } = await import("./statement-import.js");
 type ImportOptions = Parameters<typeof runStatementImport>[1];
 
 const BASE_ACCOUNT = parseAccount("assets:bank:federal");
@@ -82,7 +81,6 @@ function options(gpayHtmlPath: string | null): ImportOptions {
   return {
     baseAccount: BASE_ACCOUNT,
     accountKind: "bank",
-    balanceOverrides: { opening: null, closing: null },
     customMappingsFilenames: [],
     gpayHtmlPath,
   };
@@ -119,7 +117,7 @@ function keysOf(transactions: Chrono<Abacus>): (string | null | undefined)[] {
   return transactions.map((t) => t.source_transaction_key);
 }
 
-describe("Google Pay enrichment on the universal statement import", () => {
+describe("Google Pay enrichment on the statement import", () => {
   let dir: string;
   let log: ReturnType<typeof vi.spyOn>;
 
@@ -164,11 +162,10 @@ describe("Google Pay enrichment on the universal statement import", () => {
       "ref",
       "semantic",
     ]);
-    expect(draftImportCalls[1].preFiltered).toBe(true);
     expect(result.gpay_enriched_count).toBe(1);
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining(
-        "[freeform-import] GPay takeout: 1 (date,amount) keys; enriched 1 of 3 narration(s)",
+        "[statement-import] GPay takeout: 1 (date,amount) keys; enriched 1 of 3 narration(s)",
       ),
     );
   });
