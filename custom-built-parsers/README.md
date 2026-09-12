@@ -185,9 +185,10 @@ Use a saved parser only when the text has a repeatable structure, for example
 every transaction starts with a date at the same column and narration continues
 until the next date row.
 
-If the text is genuinely unstructured, do not create fragile regex soup. Use the
-app's Import Statement freeform path directly, or manually produce Abacus JSON
-after reading every transaction and reconciling the row count against the source.
+If the text is genuinely unstructured, or a one-off, do not create fragile regex
+soup. Import it as freeform transactions instead: read every transaction into
+Abacus JSON by hand and post it to the importer, as
+[freeform-transactions-guide.md](freeform-transactions-guide.md) describes.
 
 ## Directory Layout
 

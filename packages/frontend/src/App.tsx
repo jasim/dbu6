@@ -4,6 +4,7 @@ import {
   BarChart3,
   BookOpenText,
   CirclePlus,
+  ClipboardPaste,
   FileSearch,
   FileUp,
   Home,
@@ -18,6 +19,7 @@ import { Advanced } from "./Advanced";
 import { defaultReportPath, reportDefinitions } from "./reports/registry";
 import { Welcome } from "./Welcome";
 import { AutoImportStatements } from "./views/AutoImportStatements";
+import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
 import { DraftTransactionsTable } from "./views/draft-transactions/DraftTransactionsTable";
 import { JournalsTable } from "./views/JournalsTable";
 import { PostDrafts } from "./views/PostDrafts";
@@ -53,6 +55,11 @@ export const appNavigation: Navigation = [
         label: "Import statements",
         icon: FileUp,
         to: "/views/import-statements",
+      },
+      {
+        label: "Import freeform transactions",
+        icon: ClipboardPaste,
+        to: "/views/import-freeform-transactions",
       },
     ],
   },
@@ -148,6 +155,10 @@ export const appProtectedRoutes = (
       element={<Navigate to={defaultReportPath} replace />}
     />
     <Route path="views/import-statements" element={<AutoImportStatements />} />
+    <Route
+      path="views/import-freeform-transactions"
+      element={<ImportFreeformTransactions />}
+    />
     <Route path="views/reclassify-drafts" element={<ReclassifyDrafts />} />
     <Route path="views/render-draft-hledger" element={<RenderDraftHledger />} />
     <Route path="views/post-drafts" element={<PostDrafts />} />

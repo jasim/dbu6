@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
-import { importPresetSchema, type ImportPreset } from "dbu6-shared";
+import {
+  importPresetSchema,
+  type ImportPreset,
+  type StatementAccount,
+} from "dbu6-shared";
 import { userConfigPath } from "../user-data.js";
 import { parseAccount } from "./domain/Account.js";
 import type { ImportOptions } from "./statement-import.js";
@@ -119,6 +123,57 @@ export function resolveImportPreset(
       ? `${statement.file} reports account identifier ${statement.identifier}, which none of the presets using ${statement.parserPath} carry (${candidatePresetNames.join(", ")}).`
       : `${statement.file} reports account identifier ${statement.identifier}, which ${matching.length} presets using ${statement.parserPath} carry (${matching.map((preset) => preset.name).join(", ")}).`,
   );
+}
+
+export type NamedImportPresetResolution =
+  | { ok: true; preset: ImportPreset }
+  | {
+      ok: false;
+      reason: "import_preset_not_found";
+      message: string;
+      presetNames: string[];
+    }
+  | {
+      ok: false;
+      reason: "statement_account_identifier_mismatch";
+      message: string;
+      expectedIdentifier: string;
+      statementIdentifier: string;
+    };
+
+// Pick the preset a posted Abacus statement names. A statement often carries
+// no account number, so either side alone is accepted; when the preset and
+// the statement both carry one they must agree, so the rows can never land in
+// another account.
+export function resolveNamedImportPreset(
+  presets: readonly ImportPreset[],
+  name: string,
+  account: StatementAccount | null,
+): NamedImportPresetResolution {
+  const preset = presets.find((candidate) => candidate.name === name);
+  if (!preset) {
+    return {
+      ok: false,
+      reason: "import_preset_not_found",
+      message: `No import preset is named "${name}".`,
+      presetNames: presets.map((candidate) => candidate.name),
+    };
+  }
+  const expected = preset.statement_account_identifier;
+  if (
+    expected === undefined ||
+    account === null ||
+    account.identifier === expected
+  ) {
+    return { ok: true, preset };
+  }
+  return {
+    ok: false,
+    reason: "statement_account_identifier_mismatch",
+    message: `The statement reports account identifier ${account.identifier}, but preset "${preset.name}" expects ${expected}.`,
+    expectedIdentifier: expected,
+    statementIdentifier: account.identifier,
+  };
 }
 
 // How a preset decides an import. The Google Pay Takeout is the one choice

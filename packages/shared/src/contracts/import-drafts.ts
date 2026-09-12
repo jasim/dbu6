@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
+import { abacusImportRequestSchema } from "./abacus.js";
 import { statementAccountSchema } from "./statement-account.js";
 
 const c = initContract();
@@ -171,6 +172,19 @@ export const importDraftsContract = c.router({
       400: autoImportErrorSchema,
       403: autoImportErrorSchema,
       422: autoImportErrorSchema,
+    },
+  }),
+  importAbacusStatement: c.mutation({
+    method: "POST",
+    path: "/import-draft/abacus",
+    summary:
+      "Import one Abacus JSON statement, with its opening and closing balances, into drafts for the named import preset. Coding agents post freeform transactions here; see custom-built-parsers/freeform-transactions-guide.md",
+    body: abacusImportRequestSchema,
+    responses: {
+      200: autoImportGroupResultSchema,
+      400: importErrorSchema,
+      403: importErrorSchema,
+      422: importErrorSchema,
     },
   }),
 });

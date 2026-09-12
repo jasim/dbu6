@@ -45,6 +45,13 @@ create an accurate parser in a single shot. See
 [custom-built-parsers/README.md](./custom-built-parsers/README.md) and
 [custom-built-parsers/import-statement-parser-guide.md](./custom-built-parsers/import-statement-parser-guide.md).
 
+Transactions that no parser reads, in whatever form you have them (text copied
+from a PDF or a web page, HTML, CSV, or a list you typed), go through the Import
+freeform transactions screen. It gives you a prompt for your coding agent, which turns the
+transactions into a statement, asks you for the opening and closing balances,
+and imports them into Drafts. See
+[custom-built-parsers/freeform-transactions-guide.md](./custom-built-parsers/freeform-transactions-guide.md).
+
 ### Automatic categorization
 
 Each imported transaction is assigned an account in two passes.

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { importPresetSchema, type ImportPreset } from "dbu6-shared";
-import { resolveImportPreset } from "./import-presets.js";
+import {
+  resolveImportPreset,
+  resolveNamedImportPreset,
+} from "./import-presets.js";
 
 const BANK_PARSER = "custom-built-parsers/hdfc-bank-xls/parser.py";
 const CARD_PARSER = "custom-built-parsers/hdfc-cc-xls/parser.py";
@@ -147,6 +150,53 @@ describe("resolveImportPreset", () => {
     ).toMatchObject({
       ok: false,
       reason: "statement_account_identifier_mismatch",
+    });
+  });
+});
+
+describe("resolveNamedImportPreset", () => {
+  const presets = [bank, primaryCard, secondCard, parserless];
+  const card = (identifier: string) => ({ kind: "card" as const, identifier });
+
+  it("finds the preset by its exact name", () => {
+    expect(resolveNamedImportPreset(presets, "No parser", null)).toEqual({
+      ok: true,
+      preset: parserless,
+    });
+  });
+
+  it("rejects a name no preset has, listing the names that exist", () => {
+    expect(resolveNamedImportPreset(presets, "card a", null)).toEqual({
+      ok: false,
+      reason: "import_preset_not_found",
+      message: 'No import preset is named "card a".',
+      presetNames: ["Bank", "Card A", "Card B", "No parser"],
+    });
+  });
+
+  it("accepts a statement when either side carries no identifier", () => {
+    expect(resolveNamedImportPreset(presets, "Card A", null)).toMatchObject({
+      ok: true,
+      preset: primaryCard,
+    });
+    expect(
+      resolveNamedImportPreset(presets, "Bank", card("050505XXXXXX0506")),
+    ).toMatchObject({ ok: true, preset: bank });
+  });
+
+  it("accepts a matching identifier and rejects a different one", () => {
+    expect(
+      resolveNamedImportPreset(presets, "Card A", card("050505XXXXXX0505")),
+    ).toMatchObject({ ok: true, preset: primaryCard });
+    expect(
+      resolveNamedImportPreset(presets, "Card A", card("050505XXXXXX0506")),
+    ).toEqual({
+      ok: false,
+      reason: "statement_account_identifier_mismatch",
+      message:
+        'The statement reports account identifier 050505XXXXXX0506, but preset "Card A" expects 050505XXXXXX0505.',
+      expectedIdentifier: "050505XXXXXX0505",
+      statementIdentifier: "050505XXXXXX0506",
     });
   });
 });

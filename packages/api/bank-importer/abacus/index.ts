@@ -1,8 +1,7 @@
 // The Abacus statement module: one type, one wire schema, and every
 // transformation over it. Import from here rather than from the files.
 export {
-  abacusSchema,
-  abacusJsonSchema,
+  abacusStatementFromJson,
   applyCreditCardSignFlip,
   describeStatement,
   parseAbacusJson,

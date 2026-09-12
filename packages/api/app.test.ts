@@ -23,6 +23,7 @@ describe("mounted app routes", () => {
   it("publishes the sub-app routes through /api discovery", () => {
     const paths = mountedPaths();
     expect(paths["/api/import-draft/statements/auto"]?.post).toBeDefined();
+    expect(paths["/api/import-draft/abacus"]?.post).toBeDefined();
     expect(paths["/api/import-presets"]?.get).toBeDefined();
     expect(
       paths["/api/draft-transactions/classify-with-gpay"]?.post,
