@@ -7,17 +7,19 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "typecheck:watch": "tsc --noEmit --watch --preserveWatchOutput",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
     "@sapporta/frontend": "link:/Users/jasim/m/a/code/sapporta/packages/frontend",
     "@sapporta/grid": "link:/Users/jasim/m/a/code/sapporta/packages/grid",
     "@sapporta/rest-core": "3.52.2",
     "@sapporta/shared": "link:/Users/jasim/m/a/code/sapporta/packages/shared",
     "@sapporta/ui": "link:/Users/jasim/m/a/code/sapporta/packages/ui",
-    "dbu6-shared": "workspace:*",
     "better-auth": "^1.6.13",
-    "@js-temporal/polyfill": "0.5.1",
+    "dbu6-shared": "workspace:*",
     "lucide-react": "1.21.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
@@ -26,12 +28,13 @@
     "zustand": "5.0.14"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "4.3.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "tailwindcss": "4.3.1",
     "typescript": "^6.0.3",
     "vite": "8.1.0",
-    "@vitejs/plugin-react": "6.0.3",
-    "@tailwindcss/vite": "4.3.1",
-    "tailwindcss": "4.3.1"
+    "vitest": "^3.2.7"
   }
 }

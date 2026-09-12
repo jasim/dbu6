@@ -86,6 +86,8 @@ function importedNothing(): FreeformImportResult {
       closing: { extracted: null, effective: null, source: "none" },
     },
     warnings: [],
+    statement_period: null,
+    reconciliation_checkpoint: null,
   };
 }
 
@@ -327,6 +329,12 @@ describe("automatic statement import", () => {
     ]);
     expect(body.partial_import).toContain("Sample Bank");
     expect(body.partial_import).toContain("Sample Card");
+    expect(body.failed_group).toEqual({
+      preset_name: "Sample Card",
+      base_account: "liabilities:card:sample",
+      is_credit_card: true,
+      file_names: ["card-jan.xls"],
+    });
     expect(body.files).toHaveLength(2);
   }, 120_000);
 });

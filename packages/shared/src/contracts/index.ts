@@ -14,6 +14,8 @@ export {
   type AutoImportPlanFile,
   type AutoImportGroupResult,
   type AutoImportResult,
+  type AutoImportFailedGroup,
+  type FreeformImportResultBody,
 } from "./import-drafts.js";
 export {
   importPresetsContract,

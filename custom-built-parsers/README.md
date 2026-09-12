@@ -35,9 +35,12 @@ Produce one `<input-basename>.abacus.json` file next to each statement input, in
 the wire shape accepted by `packages/api/bank-importer/parsers/abacus-json.ts`.
 The generated JSON can then be uploaded through the Import Statement UI.
 
-Do not call the import API from a parser workflow. Stop after writing the JSON
-and report the output path, row count, opening/closing values, and whether a
-saved parser was reused or a new parser was added.
+A parser never calls the import API itself: `parser.py` stops after writing the
+JSON. When you build a parser, report the output path, row count, opening/closing
+values, and whether a saved parser was reused or a new parser was added, then let
+the user retry from the Import statements screen. When you are troubleshooting a
+failed import instead, you may re-run it yourself by posting the statement files
+to `POST /api/import-draft/statements/auto` with an agent access token.
 
 ## Abacus JSON Contract
 

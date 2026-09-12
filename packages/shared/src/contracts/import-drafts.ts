@@ -38,6 +38,21 @@ export const resolvedBalanceMetadataSchema = z.object({
   source: balanceSourceSchema,
 });
 
+// The first and last transaction dates of the assembled statement, before
+// the reconciliation filter trims what the ledger already holds. Null when
+// the statement has no rows.
+export const statementPeriodSchema = z.object({
+  first_date: z.string(),
+  last_date: z.string(),
+});
+
+// The ledger's last reconciled balance for the account, the point from which
+// rows count as new. Null when the account has never been reconciled.
+export const reconciliationCheckpointSchema = z.object({
+  date: z.string(),
+  balance: z.number(),
+});
+
 export const freeformImportResultSchema = importSummarySchema.extend({
   opening_balance: z.number().nullable(),
   closing_balance_from_statement: z.number().nullable(),
@@ -47,6 +62,8 @@ export const freeformImportResultSchema = importSummarySchema.extend({
     closing: resolvedBalanceMetadataSchema,
   }),
   warnings: z.array(z.string()),
+  statement_period: statementPeriodSchema.nullable(),
+  reconciliation_checkpoint: reconciliationCheckpointSchema.nullable(),
 });
 
 export const importErrorSchema = z
@@ -120,9 +137,23 @@ export const autoImportResultSchema = z.object({
 export type AutoImportPlanFile = z.infer<typeof autoImportPlanFileSchema>;
 export type AutoImportGroupResult = z.infer<typeof autoImportGroupResultSchema>;
 export type AutoImportResult = z.infer<typeof autoImportResultSchema>;
+export type AutoImportFailedGroup = z.infer<typeof autoImportFailedGroupSchema>;
+export type FreeformImportResultBody = z.infer<
+  typeof freeformImportResultSchema
+>;
+
+// The account whose import raised the error, with the files that went into
+// it. Absent when the batch was rejected before any import ran.
+export const autoImportFailedGroupSchema = z.object({
+  preset_name: z.string(),
+  base_account: z.string(),
+  is_credit_card: z.boolean(),
+  file_names: z.array(z.string()),
+});
 
 export const autoImportErrorSchema = importErrorSchema.extend({
   files: z.array(autoImportPlanFileSchema).optional(),
+  failed_group: autoImportFailedGroupSchema.optional(),
   // Groups whose drafts were already saved when a later group failed. Their
   // files must be removed from the batch before it is retried.
   imported_groups: z.array(autoImportGroupResultSchema).optional(),

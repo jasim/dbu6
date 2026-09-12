@@ -94,6 +94,12 @@ export interface FreeformImportResult extends ImportSummary {
     };
   };
   warnings: string[];
+  // First and last transaction dates of the assembled statement, before the
+  // reconciliation filter; null when it has no rows.
+  statement_period: { first_date: string; last_date: string } | null;
+  // The ledger's last reconciled balance for the account, from which rows
+  // count as new; null when the account has never been reconciled.
+  reconciliation_checkpoint: { date: string; balance: number } | null;
 }
 
 // Pick opening balance by precedence: explicit override → LLM-extracted →
@@ -427,5 +433,15 @@ export async function runStatementImport(
       },
     },
     warnings,
+    statement_period:
+      transactions.length === 0
+        ? null
+        : {
+            first_date: transactions[0].date,
+            last_date: transactions[transactions.length - 1].date,
+          },
+    reconciliation_checkpoint: checkpoint
+      ? { date: checkpoint.date, balance: checkpoint.balance }
+      : null,
   };
 }

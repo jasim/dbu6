@@ -132,6 +132,14 @@ describe("runStatementImport", () => {
     });
     expect(result.warnings).toHaveLength(2);
     expect(result.draft_transaction_count).toBe(0);
+    expect(result.statement_period).toEqual({
+      first_date: "2026-05-01",
+      last_date: "2026-05-01",
+    });
+    expect(result.reconciliation_checkpoint).toEqual({
+      date: "2026-12-31",
+      balance: 10,
+    });
   });
 });
 

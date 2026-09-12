@@ -13,7 +13,7 @@
     "typecheck": "pnpm --filter ./packages/shared typecheck && pnpm --filter ./packages/api typecheck && pnpm --filter ./packages/frontend typecheck",
     "format": "prettier --write \"packages/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"packages/**/*.{ts,tsx,css,json}\"",
-    "test": "pnpm --filter ./packages/api test",
+    "test": "pnpm --filter ./packages/api test && pnpm --filter ./packages/frontend test",
     "test:watch": "pnpm --filter ./packages/api test:watch",
     "prebuild": "pnpm run clean",
     "build": "pnpm typecheck && pnpm --filter ./packages/shared build && pnpm --filter ./packages/api build && pnpm --filter ./packages/frontend build",

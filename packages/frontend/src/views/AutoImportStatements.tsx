@@ -1,25 +1,28 @@
 import { useRef, useState, type DragEvent } from "react";
-import { AlertCircle, Loader2, Upload, X } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  Loader2,
+  Upload,
+  X,
+} from "lucide-react";
 import { getApiBase } from "@sapporta/frontend/platform";
 import { AppPage } from "@sapporta/frontend/shell";
-import type {
-  AutoImportGroupResult,
-  AutoImportPlanFile,
-  AutoImportResult,
-} from "dbu6-shared";
-import { ImportResultPanel } from "./ImportStatement";
-
-// An import that failed. `files` and `imported_groups` are present whenever
-// the server got far enough to decide them; see `autoImportErrorSchema`.
-interface AutoImportError {
-  error: string;
-  message: string | null;
-  hint: string | null;
-  detail: string | null;
-  partialImport: string | null;
-  files: AutoImportPlanFile[];
-  importedGroups: AutoImportGroupResult[];
-}
+import type { AutoImportResult } from "dbu6-shared";
+import { AccountCard, ProblemCard } from "./import-statements/cards";
+import {
+  describeBatch,
+  describeFileStatus,
+} from "./import-statements/describeBatch";
+import {
+  describeProblems,
+  networkError,
+  parseErrorBody,
+  type AutoImportError,
+  type ProblemAction,
+} from "./import-statements/describeProblems";
+import { joinNames } from "./import-statements/format";
 
 const ACCEPTED_EXTENSIONS = [".pdf", ".xls", ".csv", ".txt"];
 
@@ -32,30 +35,6 @@ function fileKey(file: File): string {
   return `${file.name}:${file.size}`;
 }
 
-function parseErrorBody(body: unknown, status: number): AutoImportError {
-  const record =
-    body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const str = (key: string) =>
-    typeof record[key] === "string" ? (record[key] as string) : null;
-  const list = <T,>(key: string): T[] =>
-    Array.isArray(record[key]) ? (record[key] as T[]) : [];
-  return {
-    error: str("error") ?? `HTTP ${status}`,
-    message: str("message"),
-    hint: str("hint"),
-    detail: str("detail"),
-    partialImport: str("partial_import"),
-    files: list<AutoImportPlanFile>("files"),
-    importedGroups: list<AutoImportGroupResult>("imported_groups"),
-  };
-}
-
-// custom-built-parsers/<name>/parser.py -> <name>
-function parserLabel(parserPath: string): string {
-  const parts = parserPath.split("/");
-  return parts.length >= 2 ? parts[parts.length - 2] : parserPath;
-}
-
 export function AutoImportStatements() {
   const [files, setFiles] = useState<File[]>([]);
   const [rejectedNames, setRejectedNames] = useState<string[]>([]);
@@ -64,6 +43,11 @@ export function AutoImportStatements() {
   const [result, setResult] = useState<AutoImportResult | null>(null);
   const [error, setError] = useState<AutoImportError | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function clearOutcome() {
+    setResult(null);
+    setError(null);
+  }
 
   function addFiles(incoming: File[]) {
     const accepted = incoming.filter(isAcceptedStatement);
@@ -75,14 +59,23 @@ export function AutoImportStatements() {
       const fresh = accepted.filter((f) => !seen.has(fileKey(f)));
       return fresh.length === 0 ? prev : [...prev, ...fresh];
     });
-    setResult(null);
-    setError(null);
+    clearOutcome();
   }
 
   function removeFile(index: number) {
     setFiles((prev) => prev.filter((_, i) => i !== index));
-    setResult(null);
-    setError(null);
+    clearOutcome();
+  }
+
+  function handleProblemAction(action: ProblemAction) {
+    if (action.kind === "remove-files") {
+      const drop = new Set(action.fileNames);
+      setFiles((prev) => prev.filter((f) => !drop.has(f.name)));
+    } else if (action.kind === "keep-only-files") {
+      const keep = new Set(action.fileNames);
+      setFiles((prev) => prev.filter((f) => keep.has(f.name)));
+    }
+    clearOutcome();
   }
 
   function handleDrop(event: DragEvent<HTMLDivElement>) {
@@ -95,8 +88,7 @@ export function AutoImportStatements() {
   async function handleSubmit() {
     if (files.length === 0 || loading) return;
     setLoading(true);
-    setError(null);
-    setResult(null);
+    clearOutcome();
 
     const form = new FormData();
     for (const f of files) form.append("files", f);
@@ -108,20 +100,23 @@ export function AutoImportStatements() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        setError(parseErrorBody(body, res.status));
+        const failure = parseErrorBody(body, res.status);
+        // Accounts that imported before the failure are done: their files
+        // leave the batch so a retry sends only what is left.
+        const done = new Set(
+          failure.importedGroups.flatMap((group) => group.file_names),
+        );
+        if (done.size > 0) {
+          setFiles((prev) => prev.filter((f) => !done.has(f.name)));
+        }
+        setError(failure);
         return;
       }
       setResult((await res.json()) as AutoImportResult);
     } catch (err) {
-      setError({
-        error: "upload_failed",
-        message: err instanceof Error ? err.message : "Upload failed",
-        hint: null,
-        detail: null,
-        partialImport: null,
-        files: [],
-        importedGroups: [],
-      });
+      setError(
+        networkError(err instanceof Error ? err.message : "Upload failed"),
+      );
     } finally {
       setLoading(false);
     }
@@ -132,6 +127,13 @@ export function AutoImportStatements() {
   const annotations = new Map(
     plannedFiles.map((row) => [row.file_name, row] as const),
   );
+  const importedGroups = result?.groups ?? error?.importedGroups ?? [];
+  const importedFiles = new Set(
+    importedGroups.flatMap((group) => group.file_names),
+  );
+  const failedFiles = new Set(error?.failedGroup?.file_names ?? []);
+  const batch = describeBatch({ result, error });
+  const problems = error ? describeProblems(error) : [];
   const canSubmit = files.length > 0 && !loading;
 
   return (
@@ -139,14 +141,13 @@ export function AutoImportStatements() {
       <div className="p-8 max-w-2xl space-y-6">
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>
-            Drop every statement you want to import. Each file is recognised on
-            its own and matched to its import preset by the account it reports,
-            so statements from several banks and accounts can go in together.
+            Drop the statement files you downloaded from your bank. Each file is
+            matched to the right account automatically, so you can drop
+            statements from several banks at once.
           </p>
           <p>
-            Imported transactions stay in Draft entries until you review their
-            categories, duplicates, and balances. Nothing here changes the
-            posted books.
+            New transactions go into Drafts for you to review. Nothing here
+            changes your books until you post them.
           </p>
         </div>
 
@@ -205,6 +206,9 @@ export function AutoImportStatements() {
           <ul className="divide-y rounded-md border text-sm">
             {files.map((file, index) => {
               const row = annotations.get(file.name);
+              const status = row
+                ? describeFileStatus(row, { importedFiles, failedFiles })
+                : null;
               return (
                 <li
                   key={fileKey(file)}
@@ -217,7 +221,17 @@ export function AutoImportStatements() {
                         {Math.round(file.size / 1024)} KB
                       </span>
                     </div>
-                    {row && <FileAnnotation row={row} />}
+                    {status && (
+                      <div
+                        className={`mt-0.5 text-xs ${
+                          status.tone === "problem"
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {status.text}
+                      </div>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -234,8 +248,6 @@ export function AutoImportStatements() {
           </ul>
         )}
 
-        {error && <ErrorBanner error={error} />}
-
         <div>
           <button
             onClick={handleSubmit}
@@ -251,116 +263,65 @@ export function AutoImportStatements() {
           </button>
         </div>
 
-        {error && error.importedGroups.length > 0 && (
-          <GroupResults
-            groups={error.importedGroups}
-            heading="Imported before the failure"
-          />
-        )}
-        {result && <GroupResults groups={result.groups} />}
-      </div>
-    </AppPage>
-  );
-}
-
-function FileAnnotation({ row }: { row: AutoImportPlanFile }) {
-  switch (row.status) {
-    case "resolved":
-      return (
-        <div className="mt-0.5 text-xs text-muted-foreground">
-          {parserLabel(row.parser_path)}
-          {row.account ? ` · ${row.account.identifier}` : ""} →{" "}
-          {row.preset_name}
-        </div>
-      );
-    case "unrecognized":
-      return (
-        <div className="mt-0.5 text-xs text-destructive">
-          No saved parser recognised this file
-          {row.candidate_parser_paths.length > 0
-            ? ` (tried ${row.candidate_parser_paths.map(parserLabel).join(", ")})`
-            : ""}
-          .
-        </div>
-      );
-    case "ambiguous":
-      return (
-        <div className="mt-0.5 text-xs text-destructive">
-          Matched more than one parser:{" "}
-          {row.matching_parser_paths.map(parserLabel).join(", ")}.
-        </div>
-      );
-    case "unresolved":
-      return (
-        <div className="mt-0.5 text-xs text-destructive">
-          {parserLabel(row.parser_path)} read it, but no preset claims it:{" "}
-          {row.message}
-        </div>
-      );
-  }
-}
-
-function GroupResults({
-  groups,
-  heading,
-}: {
-  groups: AutoImportGroupResult[];
-  heading?: string;
-}) {
-  return (
-    <div className="space-y-4">
-      {heading && <div className="text-sm font-medium">{heading}</div>}
-      {groups.map((group) => (
-        <div key={group.preset_name + group.base_account} className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            {group.preset_name} ·{" "}
-            <span className="font-mono text-foreground">
-              {group.base_account}
-            </span>
-            {group.is_credit_card ? " (credit card)" : ""} ←{" "}
-            {group.file_names.join(", ")}
-          </p>
-          <ImportResultPanel
-            result={group.result}
-            isCreditCard={group.is_credit_card}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ErrorBanner({ error }: { error: AutoImportError }) {
-  return (
-    <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-4">
-      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-      <div className="space-y-2">
-        <div className="text-sm font-medium text-destructive">
-          {error.files.length > 0
-            ? "Could not process these statements"
-            : "Import failed"}
-        </div>
-        {error.message && (
-          <div className="break-words text-sm text-destructive/80">
-            {error.message}
+        {batch && (
+          <div
+            className={`flex items-start gap-3 rounded-md border p-4 ${
+              batch.tone === "failure" || batch.tone === "partial"
+                ? "border-destructive/50 bg-destructive/10"
+                : "bg-nested"
+            }`}
+          >
+            {batch.tone === "success" ? (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+            ) : batch.tone === "nothing-new" ? (
+              <Info className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+            ) : (
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            )}
+            <div className="space-y-1 text-sm">
+              <div className="font-medium">{batch.text}</div>
+              {batch.removedFiles.length > 0 && (
+                <div className="text-muted-foreground">
+                  {joinNames(batch.removedFiles)}{" "}
+                  {batch.removedFiles.length === 1 ? "has" : "have"} been taken
+                  out of the list above. Fix the problem below and press Process
+                  to import the rest.
+                </div>
+              )}
+              {batch.tone === "failure" && (
+                <div className="text-muted-foreground">
+                  Your files are still in the list above. Once this is sorted
+                  out, press Process again.
+                </div>
+              )}
+            </div>
           </div>
         )}
-        {error.partialImport && (
-          <div className="break-words text-sm text-destructive/80">
-            {error.partialImport}
-          </div>
-        )}
-        {error.detail && (
-          <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-nested p-2 text-xs">
-            {error.detail}
-          </pre>
-        )}
-        {error.hint && (
-          <div className="break-words border-t border-destructive/30 pt-2 text-sm text-foreground/80">
-            {error.hint}
+
+        {problems.map((problem) => (
+          <ProblemCard
+            key={problem.key}
+            problem={problem}
+            onAction={handleProblemAction}
+          />
+        ))}
+
+        {importedGroups.length > 0 && (
+          <div className="space-y-4">
+            {error && (
+              <div className="text-sm font-medium">
+                Imported before the failure
+              </div>
+            )}
+            {importedGroups.map((group) => (
+              <AccountCard
+                key={group.preset_name + group.base_account}
+                group={group}
+              />
+            ))}
           </div>
         )}
       </div>
-    </div>
+    </AppPage>
   );
 }

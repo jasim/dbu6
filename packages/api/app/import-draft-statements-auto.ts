@@ -2,6 +2,7 @@ import path from "node:path";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   importDraftsContract,
+  type AutoImportFailedGroup,
   type AutoImportGroupResult,
   type AutoImportPlanFile,
 } from "dbu6-shared";
@@ -48,6 +49,7 @@ type AutoImportErrorBody = {
   detail?: string;
   hint?: string;
   files?: AutoImportPlanFile[];
+  failed_group?: AutoImportFailedGroup;
   imported_groups?: AutoImportGroupResult[];
   partial_import?: string;
 } & Record<string, unknown>;
@@ -96,6 +98,15 @@ function planFileRow(file: PlannedFile): AutoImportPlanFile {
         candidate_preset_names: file.candidatePresetNames,
       };
   }
+}
+
+function failedGroup(group: AutoImportGroup): AutoImportFailedGroup {
+  return {
+    preset_name: group.preset.name,
+    base_account: group.preset.base_account,
+    is_credit_card: group.preset.is_credit_card ?? false,
+    file_names: group.statements.map((one) => one.file),
+  };
 }
 
 function groupResult(
@@ -165,7 +176,7 @@ function planRejection(files: AutoImportPlanFile[]): AutoImportRouteResponse {
 
 // One preset is one account, so each group is one ordinary statement import.
 // Groups run in sequence: a later failure leaves the earlier groups' drafts
-// saved, which the response says outright.
+// saved, which the response says outright, and names the group that failed.
 async function importGroups(
   groups: readonly AutoImportGroup[],
   files: AutoImportPlanFile[],
@@ -191,6 +202,7 @@ async function importGroups(
         body: {
           ...response.body,
           files,
+          failed_group: failedGroup(group),
           ...(imported.length === 0
             ? {}
             : {
