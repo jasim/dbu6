@@ -34,8 +34,13 @@ describe("plan rejections", () => {
     );
     const [problem] = describeProblems(error);
     expect(describeProblems(error)).toHaveLength(1);
-    expect(problem.title).toBe("We can't read notes.txt yet");
-    expect(problem.why).toContain("no reader for this kind of file yet");
+    expect(problem.subject).toBe("notes.txt");
+    expect(problem.caption).toBeNull();
+    expect(problem.verdict).toBe("The app can't read this file yet.");
+    expect(problem.facts).toEqual([
+      { label: "Readers tried", value: "none fit this file type" },
+    ]);
+    expect(problem.why).toContain("none matches this file");
     expect(problem.actions).toEqual([
       {
         kind: "remove-files",
@@ -88,9 +93,9 @@ describe("plan rejections", () => {
       422,
     );
     const [problem] = describeProblems(error);
-    expect(problem.why).toContain(
-      "None of the 2 existing readers (hdfc-cc-csv and stanc-bank-csv) recognise this file.",
-    );
+    expect(problem.facts).toEqual([
+      { label: "Readers tried", value: "hdfc-cc-csv, stanc-bank-csv" },
+    ]);
     expect(problem.agent?.prompt).toContain(
       "custom-built-parsers/hdfc-cc-csv/parser.py",
     );
@@ -117,9 +122,15 @@ describe("plan rejections", () => {
       422,
     );
     const [problem] = describeProblems(error);
-    expect(problem.title).toBe(
-      "card-aug.xls is a HDFC Bank Cards Division statement for card ending 0505, but no account is set up to receive it",
+    expect(problem.subject).toBe("HDFC Bank Cards Division");
+    expect(problem.caption).toBe("card-aug.xls · card ending 0505");
+    expect(problem.verdict).toBe(
+      "No account is set up to receive this statement.",
     );
+    expect(problem.facts).toEqual([
+      { label: "Statement is for", value: "card ending 0505" },
+      { label: "Reader", value: "hdfc-cc-xls" },
+    ]);
     expect(problem.agent?.prompt).toContain(
       "statement_account_identifier to 050505XXXXXX0505",
     );
@@ -147,11 +158,15 @@ describe("plan rejections", () => {
       422,
     );
     const [problem] = describeProblems(error);
-    expect(problem.title).toBe(
-      "other.xls is for a different account than the one set up",
+    expect(problem.subject).toBe("HDFC BANK Ltd.");
+    expect(problem.caption).toBe("other.xls · account ending 0099");
+    expect(problem.verdict).toBe(
+      "This statement is for a different account than the one set up.",
     );
-    expect(problem.why).toContain("account ending 0099");
-    expect(problem.why).toContain("Sample Bank");
+    expect(problem.facts).toEqual([
+      { label: "Statement is for", value: "account ending 0099" },
+      { label: "Set up for these statements", value: "Sample Bank" },
+    ]);
     expect(problem.actions[0]).toMatchObject({ kind: "remove-files" });
     expect(problem.agent?.prompt).toContain("050505000099");
   });
@@ -181,10 +196,16 @@ describe("account import failures", () => {
       422,
     );
     const [problem] = describeProblems(error);
-    expect(problem.title).toBe(
-      "The transactions in bank-aug.xls don't add up to the closing balance the statement prints",
+    expect(problem.subject).toBe("Sample Bank");
+    expect(problem.caption).toBe("bank-aug.xls");
+    expect(problem.verdict).toBe(
+      "The transactions don't add up to the closing balance the statement prints.",
     );
-    expect(problem.why).toContain("₹2,400.00");
+    expect(problem.facts).toEqual([
+      { label: "Opening plus every transaction", value: "₹2,400.00" },
+      { label: "Closing the statement prints", value: "₹2,500.00" },
+      { label: "Difference", value: "₹100.00" },
+    ]);
     expect(problem.why).toContain("one row was read wrongly");
     expect(problem.agent?.prompt).toContain(
       "into Sample Bank (assets:bank:sample)",
@@ -225,9 +246,10 @@ describe("account import failures", () => {
       422,
     );
     const [problem] = describeProblems(error);
-    expect(problem.title).toBe(
-      "bank-aug-copy.xls looks like the same statement as bank-aug.xls",
+    expect(problem.verdict).toBe(
+      "bank-aug-copy.xls looks like the same statement as bank-aug.xls.",
     );
+    expect(problem.facts).toEqual([]);
     expect(problem.agent).toBeNull();
     expect(problem.actions).toEqual([
       {
@@ -257,10 +279,14 @@ describe("account import failures", () => {
       422,
     );
     const [problem] = describeProblems(error);
-    expect(problem.title).toBe(
-      "There is a gap between bank-jul.xls and bank-sep.xls",
+    expect(problem.verdict).toBe(
+      "There is a gap between bank-jul.xls and bank-sep.xls.",
     );
-    expect(problem.why).toContain("₹1,500.00 of activity happened in between");
+    expect(problem.facts).toEqual([
+      { label: "bank-jul.xls ends at", value: "₹2,500.00" },
+      { label: "bank-sep.xls begins at", value: "₹4,000.00" },
+      { label: "Activity in neither file", value: "₹1,500.00" },
+    ]);
     expect(problem.actions).toEqual([
       {
         kind: "keep-only-files",
@@ -285,10 +311,13 @@ describe("account import failures", () => {
       422,
     );
     const [problem] = describeProblems(error);
-    expect(problem.title).toBe(
-      "This statement doesn't line up with your books",
+    expect(problem.verdict).toBe(
+      "The statement doesn't line up with your books.",
     );
-    expect(problem.why).toContain("on 31 Aug 2026 at ₹2,500.00");
+    expect(problem.facts).toEqual([
+      { label: "Books last confirmed on", value: "31 Aug 2026" },
+      { label: "Confirmed balance", value: "₹2,500.00" },
+    ]);
     expect(problem.agent?.prompt).toContain(
       "balance assertion for assets:bank:sample",
     );
@@ -325,8 +354,10 @@ describe("account import failures", () => {
       removedFiles: ["bank-aug.xls"],
     });
     const [problem] = describeProblems(error);
-    expect(problem.title).toBe(
-      "The app needs the closing balance for Sample Card",
+    expect(problem.subject).toBe("Sample Card");
+    expect(problem.caption).toBe("card-aug.xls");
+    expect(problem.verdict).toBe(
+      "The app needs the closing balance for this card.",
     );
     expect(problem.actions).toEqual([
       {
@@ -348,17 +379,21 @@ describe("account import failures", () => {
       422,
     );
     const [problem] = describeProblems(error);
-    expect(problem.title).toBe("Sample Bank could not be imported");
+    expect(problem.subject).toBe("Sample Bank");
+    expect(problem.verdict).toBe(
+      "The import stopped with an unexpected error.",
+    );
     expect(problem.why).toBe("An unexpected thing happened.");
     expect(problem.agent?.prompt).toContain('"error": "something_new"');
   });
 
   it("explains a lost connection and a missing permission without an agent", () => {
-    expect(describeProblems(parseErrorBody(null, 403))[0].title).toBe(
-      "You don't have permission to import",
+    expect(describeProblems(parseErrorBody(null, 403))[0].verdict).toBe(
+      "You don't have permission to import.",
     );
     const [problem] = describeProblems(parseErrorBody(null, 0));
-    expect(problem.title).toBe("The files could not be sent");
+    expect(problem.subject).toBe("Connection");
+    expect(problem.verdict).toBe("The files could not be sent.");
     expect(problem.agent).toBeNull();
   });
 });

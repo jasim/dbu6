@@ -317,6 +317,7 @@ export function AutoImportStatements() {
               <AccountCard
                 key={group.preset_name + group.base_account}
                 group={group}
+                sources={plannedFiles}
               />
             ))}
           </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AutoImportGroupResult } from "dbu6-shared";
+import type { AutoImportGroupResult, AutoImportPlanFile } from "dbu6-shared";
 import { describeGroup } from "./describeGroup";
 
 function group(
@@ -41,21 +41,43 @@ function group(
   };
 }
 
+const source: AutoImportPlanFile = {
+  status: "resolved",
+  file_name: "Acct_Statement_050505_09092026.xls",
+  parser_path: "custom-built-parsers/hdfc-bank-xls/parser.py",
+  account: { kind: "bank", identifier: "05050505050505" },
+  institution: "HDFC BANK Ltd.",
+  preset_name: "Sample Bank",
+};
+
 describe("describeGroup", () => {
-  it("leads with the new transactions and verifies the money in one line", () => {
-    const summary = describeGroup(group());
+  it("titles the card with the account and puts the numbers in tiles", () => {
+    const summary = describeGroup(group(), [source]);
     expect(summary.tone).toBe("new");
-    expect(summary.headline).toBe(
-      "6 new transactions from Sample Bank, ready to review.",
+    expect(summary.title).toBe("Sample Bank");
+    expect(summary.caption).toBe(
+      "HDFC BANK Ltd. · account ending 0505 · 1 Aug to 31 Aug 2026 · Acct_Statement_050505_09092026.xls",
     );
-    expect(summary.subline).toBe(
-      "Statement 1 Aug to 31 Aug 2026 · Acct_Statement_050505_09092026.xls",
-    );
-    expect(summary.money).toEqual({
+    expect(summary.verdict).toBe("6 new transactions ready to review.");
+    expect(summary.stats).toEqual([
+      { label: "New", value: "6" },
+      { label: "In statement", value: "6" },
+      { label: "Opening", value: "₹1,000.00" },
+      { label: "Closing", value: "₹2,500.00" },
+      { label: "Net change", value: "+₹1,500.00" },
+    ]);
+    expect(summary.breakdown).toEqual([]);
+    expect(summary.balances).toEqual({
       tone: "verified",
-      text: "Balances verified: opening ₹1,000.00 at the start, ₹2,500.00 at the end, net change +₹1,500.00, exactly as the statement prints.",
+      text: "Verified",
+      caption: "Opening and closing balances exactly as the statement prints.",
     });
-    expect(summary.alreadyKnown).toEqual([]);
+  });
+
+  it("captions with the period and files alone when the plan rows are missing", () => {
+    expect(describeGroup(group()).caption).toBe(
+      "1 Aug to 31 Aug 2026 · Acct_Statement_050505_09092026.xls",
+    );
   });
 
   it("says nothing is new when every row was before the last confirmed balance", () => {
@@ -67,15 +89,23 @@ describe("describeGroup", () => {
       }),
     );
     expect(summary.tone).toBe("nothing-new");
-    expect(summary.headline).toBe(
-      "Nothing new from Sample Bank. All 6 transactions were already in your books.",
+    expect(summary.verdict).toBe(
+      "Nothing new. All 6 transactions were already in your books.",
     );
-    expect(summary.alreadyKnown).toEqual([
-      "6 dated on or before your last confirmed balance (31 Aug 2026) were already posted.",
+    expect(summary.stats.slice(0, 3)).toEqual([
+      { label: "New", value: "0" },
+      { label: "In statement", value: "6" },
+      { label: "Already in books", value: "6" },
+    ]);
+    expect(summary.breakdown).toEqual([
+      {
+        label: "Posted on or before 31 Aug 2026, your last confirmed balance",
+        value: "6",
+      },
     ]);
     expect(summary.details).toContainEqual({
-      label: "Already in your books (on or before 31 Aug 2026)",
-      value: "6",
+      label: "Last confirmed balance",
+      value: "₹2,500.00 on 31 Aug 2026",
     });
   });
 
@@ -87,11 +117,13 @@ describe("describeGroup", () => {
         draft_duplicate_count: 2,
       }),
     );
-    expect(summary.headline).toBe(
-      "4 new transactions from Sample Bank. 2 were already in your books.",
-    );
-    expect(summary.alreadyKnown).toEqual([
-      "2 are already waiting in Drafts from an earlier import.",
+    expect(summary.verdict).toBe("4 new transactions ready to review.");
+    expect(summary.stats).toContainEqual({
+      label: "Already in books",
+      value: "2",
+    });
+    expect(summary.breakdown).toEqual([
+      { label: "Already waiting in Drafts from an earlier import", value: "2" },
     ]);
   });
 
@@ -104,9 +136,12 @@ describe("describeGroup", () => {
         },
       }),
     );
-    expect(summary.money.text).toBe(
-      "Balances verified: opening ₹1,000.00 at the start, ₹2,500.00 at the end, net change +₹1,500.00, the statement prints no opening balance, so the opening is your books' last confirmed balance; the closing is the last row's printed balance.",
-    );
+    expect(summary.balances).toEqual({
+      tone: "verified",
+      text: "Verified",
+      caption:
+        "Opening taken from your books' last confirmed balance, as the statement prints none; closing taken from the last row's printed balance.",
+    });
   });
 
   it("flags an unverifiable statement instead of pretending", () => {
@@ -118,10 +153,15 @@ describe("describeGroup", () => {
         },
       }),
     );
-    expect(summary.money.tone).toBe("unverified");
+    expect(summary.balances.tone).toBe("unverified");
+    expect(summary.balances.text).toBe("Not verified");
+    expect(summary.stats.map((stat) => stat.label)).toEqual([
+      "New",
+      "In statement",
+    ]);
   });
 
-  it("reads credit-card balances as amounts owed", () => {
+  it("reads credit-card balances as amounts owed, with no net change", () => {
     const summary = describeGroup(
       group(
         {
@@ -141,8 +181,10 @@ describe("describeGroup", () => {
         { is_credit_card: true, preset_name: "Sample Card" },
       ),
     );
-    expect(summary.money.text).toBe(
-      "Balances verified: ₹1,000.00 owed at the start, ₹2,500.00 owed at the end, exactly as the statement prints.",
-    );
+    expect(summary.title).toBe("Sample Card");
+    expect(summary.stats.slice(2)).toEqual([
+      { label: "Opening", value: "₹1,000.00 owed" },
+      { label: "Closing", value: "₹2,500.00 owed" },
+    ]);
   });
 });

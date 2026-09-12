@@ -19,13 +19,13 @@ import {
   unrecognizedPrompt,
   type FailedGroupFacts,
 } from "./agentPrompts";
+import type { Stat } from "./describeGroup";
 import {
   formatDate,
   formatMoney,
   joinNames,
   maskIdentifier,
   parserLabel,
-  plural,
 } from "./format";
 
 // A failed automatic import as the endpoint reports it. `files` and
@@ -100,7 +100,17 @@ export interface AgentHandoff {
 export interface Problem {
   key: string;
   fileNames: string[];
-  title: string;
+  // Whose statement: the account, the institution, or failing both, the
+  // file. The card's title.
+  subject: string;
+  // The files involved, or the account number, under the title. Null when
+  // the subject already says it all.
+  caption: string | null;
+  // The one sentence that says what went wrong.
+  verdict: string;
+  // The numbers and names behind the verdict, as a label/value table.
+  facts: Stat[];
+  // The likely cause, in a sentence or two.
   why: string;
   // Plain advice the user can act on without the app's help.
   steps: string[];
@@ -129,16 +139,6 @@ function technical(error: AutoImportError): string {
     .join("\n");
 }
 
-function accountPhrase(
-  institution: string | null,
-  account: { kind: string; identifier: string } | null,
-): string {
-  const bank = institution ?? "bank";
-  if (account === null) return `${bank} statement`;
-  const noun = account.kind === "card" ? "card" : "account";
-  return `${bank} statement for ${noun} ${maskIdentifier(account.identifier)}`;
-}
-
 // One card per file the plan could not place. Nothing was imported.
 function planProblems(error: AutoImportError): Problem[] {
   const problems: Problem[] = [];
@@ -151,11 +151,19 @@ function planProblems(error: AutoImportError): Problem[] {
         problems.push({
           key: `unrecognized:${row.file_name}`,
           fileNames: [row.file_name],
-          title: `We can't read ${row.file_name} yet`,
-          why:
-            tried.length === 0
-              ? `The app reads each bank's statement with a reader written for that bank's exact file layout, and there is no reader for this kind of file yet. Nothing was imported, including the other files, so you can fix this and process everything together.`
-              : `The app reads each bank's statement with a reader written for that bank's exact file layout. None of the ${plural(tried.length, "existing reader")} (${joinNames(tried.map(parserLabel))}) recognise this file. Nothing was imported, including the other files, so you can fix this and process everything together.`,
+          subject: row.file_name,
+          caption: null,
+          verdict: "The app can't read this file yet.",
+          facts: [
+            {
+              label: "Readers tried",
+              value:
+                tried.length === 0
+                  ? "none fit this file type"
+                  : tried.map(parserLabel).join(", "),
+            },
+          ],
+          why: `Each bank's statements are read by a reader written for that bank's exact file layout, and none matches this file. Nothing was imported, including the other files, so you can fix this and process everything together.`,
           steps: [],
           actions: [
             {
@@ -179,8 +187,16 @@ function planProblems(error: AutoImportError): Problem[] {
         problems.push({
           key: `ambiguous:${row.file_name}`,
           fileNames: [row.file_name],
-          title: `${row.file_name} was recognised by more than one reader`,
-          why: `Two readers (${joinNames(row.matching_parser_paths.map(parserLabel))}) both claim this file, so the app can't tell which one to trust. This is a problem in the readers, not in your file.`,
+          subject: row.file_name,
+          caption: null,
+          verdict: "More than one reader claims this file.",
+          facts: [
+            {
+              label: "Readers",
+              value: row.matching_parser_paths.map(parserLabel).join(", "),
+            },
+          ],
+          why: "The app can't tell which reader to trust. This is a problem in the readers, not in your file.",
           steps: [],
           actions: [
             {
@@ -211,9 +227,24 @@ function unresolvedProblem(
   row: Extract<AutoImportPlanFile, { status: "unresolved" }>,
   error: AutoImportError,
 ): Problem {
-  const what = accountPhrase(row.institution, row.account);
+  const account = row.account
+    ? `${row.account.kind === "card" ? "card" : "account"} ${maskIdentifier(row.account.identifier)}`
+    : null;
+  const accountFact: Stat[] = account
+    ? [{ label: "Statement is for", value: account }]
+    : [];
+  const readerFact: Stat = {
+    label: "Reader",
+    value: parserLabel(row.parser_path),
+  };
+  const candidates = joinNames(row.candidate_preset_names);
   const base = {
     fileNames: [row.file_name],
+    subject: row.institution ?? row.file_name,
+    caption:
+      [row.institution === null ? null : row.file_name, account]
+        .filter((part): part is string => part !== null)
+        .join(" · ") || null,
     technical: `${row.message}\n${technical(error)}`,
     actions: [
       {
@@ -228,7 +259,8 @@ function unresolvedProblem(
       return {
         ...base,
         key: `no-preset:${row.file_name}`,
-        title: `${row.file_name} is a ${what}, but no account is set up to receive it`,
+        verdict: "No account is set up to receive this statement.",
+        facts: [...accountFact, readerFact],
         why: "The app could read the statement, but it doesn't know which of your accounts it belongs to. Each account that receives statements needs to be set up once.",
         steps: [],
         agent: {
@@ -246,8 +278,12 @@ function unresolvedProblem(
       return {
         ...base,
         key: `identifier-required:${row.file_name}`,
-        title: `The app can't tell which account ${row.file_name} belongs to`,
-        why: `${joinNames(row.candidate_preset_names)} ${row.candidate_preset_names.length === 1 ? "is" : "are"} set up to check the account number printed on the statement, but the reader for these statements didn't report one. This needs a small fix to the reader or to the account's setup.`,
+        verdict: "The app can't tell which of your accounts this belongs to.",
+        facts: [
+          { label: "Set up for these statements", value: candidates },
+          readerFact,
+        ],
+        why: `${candidates} ${row.candidate_preset_names.length === 1 ? "is" : "are"} set up to check the account number printed on the statement, but the reader didn't report one. This needs a small fix to the reader or to the account's setup.`,
         steps: [],
         agent: {
           prompt: identifierRequiredPrompt({
@@ -263,8 +299,13 @@ function unresolvedProblem(
       return {
         ...base,
         key: `identifier-mismatch:${row.file_name}`,
-        title: `${row.file_name} is for a different account than the one set up`,
-        why: `This is a ${what}, but the ${row.candidate_preset_names.length === 1 ? "only account" : "accounts"} set up for these statements (${joinNames(row.candidate_preset_names)}) ${row.candidate_preset_names.length === 1 ? "has" : "have"} a different number. Either this is a statement for an account you haven't set up yet, or it was dropped here by mistake.`,
+        verdict:
+          "This statement is for a different account than the one set up.",
+        facts: [
+          ...accountFact,
+          { label: "Set up for these statements", value: candidates },
+        ],
+        why: `${candidates} ${row.candidate_preset_names.length === 1 ? "has" : "have"} a different account number. Either this is a statement for an account you haven't set up yet, or it was dropped here by mistake.`,
         steps: [],
         actions: [
           {
@@ -314,11 +355,12 @@ function groupProblem(error: AutoImportError): Problem {
   const facts = groupFacts(error);
   const f = error.fields;
   const files = joinNames(facts.fileNames);
-  const filesOrStatement =
-    facts.fileNames.length === 0 ? "the statement" : files;
   const base = {
     key: `${error.error}:${facts.presetName}`,
     fileNames: [...facts.fileNames],
+    subject: facts.presetName,
+    caption: facts.fileNames.length === 0 ? null : files,
+    facts: [] as Stat[],
     technical: technical(error),
     steps: [] as string[],
     actions: [] as ProblemAction[],
@@ -332,14 +374,25 @@ function groupProblem(error: AutoImportError): Problem {
       const gap = error.hint !== null || facts.fileNames.length > 1;
       return {
         ...base,
-        title: `The transactions in ${filesOrStatement} don't add up to the closing balance the statement prints`,
-        why:
-          (computed !== null && closing !== null && difference !== null
-            ? `Starting from the opening balance and applying every transaction gives ${formatMoney(computed)}, but the statement says the closing balance is ${formatMoney(closing)}, a difference of ${formatMoney(difference)}. `
-            : "") +
-          (gap
-            ? "This usually means there is a gap: some days between the statements are missing, or a statement is incomplete."
-            : "This usually means one row was read wrongly."),
+        verdict:
+          "The transactions don't add up to the closing balance the statement prints.",
+        facts:
+          computed !== null && closing !== null && difference !== null
+            ? [
+                {
+                  label: "Opening plus every transaction",
+                  value: formatMoney(computed),
+                },
+                {
+                  label: "Closing the statement prints",
+                  value: formatMoney(closing),
+                },
+                { label: "Difference", value: formatMoney(difference) },
+              ]
+            : [],
+        why: gap
+          ? "This usually means there is a gap: some days between the statements are missing, or a statement is incomplete."
+          : "This usually means one row was read wrongly.",
         steps: gap
           ? [
               "Check that the statements you dropped cover the whole period with no days missing, add the missing one, and press Process again.",
@@ -365,12 +418,25 @@ function groupProblem(error: AutoImportError): Problem {
       const printed = num(f, "printed");
       return {
         ...base,
-        title: `The statement's own running balance doesn't match its transactions between ${formatDate(fromDate)} and ${formatDate(toDate)}`,
-        why:
-          (fromBalance !== null && walked !== null && printed !== null
-            ? `From the printed balance of ${formatMoney(fromBalance)} on ${formatDate(fromDate)}, the transactions lead to ${formatMoney(walked)} on ${formatDate(toDate)}, but the statement prints ${formatMoney(printed)} there. `
-            : "") +
-          "Almost always a row in between was read wrongly by the reader.",
+        verdict: `The running balance doesn't match the transactions between ${formatDate(fromDate)} and ${formatDate(toDate)}.`,
+        facts:
+          fromBalance !== null && walked !== null && printed !== null
+            ? [
+                {
+                  label: `Printed on ${formatDate(fromDate)}`,
+                  value: formatMoney(fromBalance),
+                },
+                {
+                  label: `Transactions lead to, on ${formatDate(toDate)}`,
+                  value: formatMoney(walked),
+                },
+                {
+                  label: `Printed on ${formatDate(toDate)}`,
+                  value: formatMoney(printed),
+                },
+              ]
+            : [],
+        why: "Almost always a row in between was read wrongly by the reader.",
         agent: {
           prompt: balanceMismatchPrompt({
             ...facts,
@@ -392,7 +458,7 @@ function groupProblem(error: AutoImportError): Problem {
       if (error.hint !== null) {
         return {
           ...base,
-          title: `${later} looks like the same statement as ${earlier}`,
+          verdict: `${later} looks like the same statement as ${earlier}.`,
           why: "Both cover the same dates and start and end at the same balances, so one of them is a duplicate download.",
           actions: [
             {
@@ -406,13 +472,27 @@ function groupProblem(error: AutoImportError): Problem {
       }
       return {
         ...base,
-        title: `There is a gap between ${earlier} and ${later}`,
-        why:
+        verdict: `There is a gap between ${earlier} and ${later}.`,
+        facts:
           earlierClosing !== null &&
           laterOpening !== null &&
           difference !== null
-            ? `${earlier} ends at ${formatMoney(earlierClosing)}, but ${later} begins at ${formatMoney(laterOpening)}. ${formatMoney(Math.abs(difference))} of activity happened in between and isn't in either file. Usually a statement for the period between them is missing.`
-            : `${earlier} ends at a different balance than ${later} begins with, so some activity between them is missing from both files.`,
+            ? [
+                {
+                  label: `${earlier} ends at`,
+                  value: formatMoney(earlierClosing),
+                },
+                {
+                  label: `${later} begins at`,
+                  value: formatMoney(laterOpening),
+                },
+                {
+                  label: "Activity in neither file",
+                  value: formatMoney(Math.abs(difference)),
+                },
+              ]
+            : [],
+        why: "The earlier file ends at a different balance than the later one begins with, so activity between them is missing from both. Usually a statement for the period in between is missing.",
         steps: [
           "Download the statement for the missing period, add it here, and press Process again.",
           `Or process ${earlier} on its own now and the rest later, in date order.`,
@@ -453,8 +533,19 @@ function groupProblem(error: AutoImportError): Problem {
             : "";
       return {
         ...base,
-        title: `${joinNames(parts)} both include ${formatDate(date)} but list it differently`,
-        why: `Both files cover ${formatDate(date)}, but the transactions they print for that day don't match${narration ? `, starting at "${narration}"${amount ? ` (${amount})` : ""}` : ""}. This happens when two downloads overlap and one of them was taken before the bank finalised that day.`,
+        verdict: `${joinNames(parts)} both include ${formatDate(date)} but list it differently.`,
+        facts: [
+          { label: "Day in both files", value: formatDate(date) },
+          ...(narration
+            ? [
+                {
+                  label: "First row that differs",
+                  value: amount ? `${narration} (${amount})` : narration,
+                },
+              ]
+            : []),
+        ],
+        why: "This happens when two downloads overlap and one of them was taken before the bank finalised that day.",
         steps: [
           "Download the statements again so their dates don't overlap, or keep only the one you trust for that day, then press Process again.",
         ],
@@ -478,7 +569,7 @@ function groupProblem(error: AutoImportError): Problem {
       const part = text(f, "part") ?? "one of the files";
       return {
         ...base,
-        title: `${part} prints no balances, so it can't be placed next to the other files`,
+        verdict: `${part} prints no balances, so it can't be placed next to the other files.`,
         why: "Without an opening, closing, or running balance the app can't tell where this file fits in the sequence. It can still be imported on its own.",
         steps: [`Process ${part} by itself, then the other files afterwards.`],
         actions: [
@@ -495,8 +586,9 @@ function groupProblem(error: AutoImportError): Problem {
       const part = text(f, "part") ?? "one of the files";
       return {
         ...base,
-        title: `${part} contradicts itself`,
-        why: `Its own opening or closing balance doesn't match its rows${error.detail ? `: ${error.detail}` : ""}. Either the bank's export is broken or the reader misread it.`,
+        verdict: `${part} contradicts itself.`,
+        facts: error.detail ? [{ label: "Detail", value: error.detail }] : [],
+        why: "Its own opening or closing balance doesn't match its rows. Either the bank's export is broken or the reader misread it.",
         agent: {
           prompt: partInvalidPrompt({ ...facts, part, detail: error.detail }),
           afterwards: RETRY_FROM_SCREEN,
@@ -508,8 +600,16 @@ function groupProblem(error: AutoImportError): Problem {
       const balance = num(f, "checkpoint_balance");
       return {
         ...base,
-        title: "This statement doesn't line up with your books",
-        why: `Your books were last confirmed to match the bank${date ? ` on ${formatDate(date)}` : ""}${balance !== null ? ` at ${formatMoney(balance)}` : ""}. The statement has rows on that day, but none of them shows that balance, so the app can't tell which transactions are new. Either your books and the bank have drifted apart, or the statement is missing a row on that day.`,
+        verdict: "The statement doesn't line up with your books.",
+        facts: [
+          ...(date
+            ? [{ label: "Books last confirmed on", value: formatDate(date) }]
+            : []),
+          ...(balance !== null
+            ? [{ label: "Confirmed balance", value: formatMoney(balance) }]
+            : []),
+        ],
+        why: "The statement has rows on that day, but none of them shows the confirmed balance, so the app can't tell which transactions are new. Either your books and the bank have drifted apart, or the statement is missing a row on that day.",
         agent: {
           prompt: reconciliationPrompt({
             ...facts,
@@ -523,7 +623,7 @@ function groupProblem(error: AutoImportError): Problem {
     case "opening_balance_unavailable":
       return {
         ...base,
-        title: `The app needs a starting balance for ${facts.presetName}`,
+        verdict: "The app needs a starting balance for this account.",
         why: "This statement doesn't print running balances or an opening balance, and your books don't have a confirmed balance for this account yet. This only happens the first time an account is imported.",
         steps: [
           "Use the manual import screen and type the opening balance printed on the statement.",
@@ -543,7 +643,7 @@ function groupProblem(error: AutoImportError): Problem {
     case "closing_balance_unavailable":
       return {
         ...base,
-        title: `The app needs the closing balance for ${facts.presetName}`,
+        verdict: "The app needs the closing balance for this card.",
         why: "This card statement doesn't print a total amount owed that the app can find, so it can't check the import against the bank.",
         steps: [
           "Use the manual import screen and type the closing amount printed on the statement.",
@@ -564,7 +664,9 @@ function groupProblem(error: AutoImportError): Problem {
       const date = text(f, "date");
       return {
         ...base,
-        title: `Your books already have a different confirmed balance${date ? ` for ${formatDate(date)}` : ""}`,
+        verdict:
+          "Your books already have a different confirmed balance for that day.",
+        facts: date ? [{ label: "Day", value: formatDate(date) }] : [],
         why: "The statement's closing balance for that day doesn't match the balance already recorded as confirmed in your books.",
         agent: {
           prompt: genericFailurePrompt({
@@ -579,7 +681,7 @@ function groupProblem(error: AutoImportError): Problem {
     case "llm_extraction_failed":
       return {
         ...base,
-        title: "The categorisation service didn't respond",
+        verdict: "The categorisation service didn't respond.",
         why: "Nothing from this account was imported. This is usually temporary.",
         steps: ["Wait a minute and press Process again."],
         agent: null,
@@ -587,8 +689,8 @@ function groupProblem(error: AutoImportError): Problem {
     default:
       return {
         ...base,
-        title: `${facts.presetName} could not be imported`,
-        why: error.message ?? "The import stopped with an unexpected error.",
+        verdict: "The import stopped with an unexpected error.",
+        why: error.message ?? "The server gave no further explanation.",
         agent: {
           prompt: genericFailurePrompt({
             ...facts,
@@ -610,7 +712,10 @@ export function describeProblems(error: AutoImportError): Problem[] {
       {
         key: "forbidden",
         fileNames: [],
-        title: "You don't have permission to import",
+        subject: "Your sign-in",
+        caption: null,
+        verdict: "You don't have permission to import.",
+        facts: [],
         why: "Sign in with an account that manages these books, then try again.",
         steps: [],
         actions: [],
@@ -624,7 +729,10 @@ export function describeProblems(error: AutoImportError): Problem[] {
       {
         key: "upload-failed",
         fileNames: [],
-        title: "The files could not be sent",
+        subject: "Connection",
+        caption: null,
+        verdict: "The files could not be sent.",
+        facts: [],
         why: "The app's server didn't answer. Check that it is running and that you are online, then press Process again.",
         steps: [],
         actions: [],
