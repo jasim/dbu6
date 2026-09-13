@@ -62,15 +62,18 @@ COPY --from=prod-deps --chown=node:node /app/packages/shared/node_modules ./pack
 
 COPY --from=build --chown=node:node /app/packages/api/dist ./packages/api/dist
 COPY --from=build --chown=node:node /app/packages/api/migrations ./packages/api/migrations
+COPY --from=build --chown=node:node /app/packages/api/drizzle.config.ts ./packages/api/drizzle.config.ts
 COPY --from=build --chown=node:node /app/packages/api/package.json ./packages/api/package.json
 COPY --from=build --chown=node:node /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build --chown=node:node /app/packages/shared/package.json ./packages/shared/package.json
 COPY --from=build --chown=node:node /app/packages/frontend/dist ./packages/frontend/dist
 COPY --chown=node:node sapporta.json package.json pnpm-workspace.yaml ./
 
-# Sapporta's default SQLite database lives under /app/data. Mount this path as
-# a persistent volume in production or the database will be lost with the
+# Sapporta writes the SQLite database and user-config/ to the directory in
+# SAPPORTA_DATA_DIR, which this image sets to /app/data. Mount this path as a
+# persistent volume in production or the database will be lost with the
 # container filesystem.
+ENV SAPPORTA_DATA_DIR=/app/data
 RUN mkdir -p /app/data && chown -R node:node /app
 
 USER node
@@ -82,4 +85,6 @@ VOLUME ["/app/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:' + (process.env.SAPPORTA_API_PORT || process.env.PORT || 3000) + '/api/openapi.json').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-CMD ["sh", "-c", "pnpm --filter ./packages/api db:migrate && node packages/api/dist/boot.js"]
+# Run Drizzle Kit directly: `pnpm db:migrate` loads .env.development, which is
+# not in this image. SAPPORTA_DATA_DIR above reaches both commands.
+CMD ["sh", "-c", "cd /app/packages/api && ./node_modules/.bin/drizzle-kit migrate && cd /app && exec node packages/api/dist/boot.js"]

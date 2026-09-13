@@ -34,6 +34,10 @@ vi.mock("./draft-import.js", () => ({
   },
 }));
 
+// runStatementImport resolves the user-config directory before the draft
+// import, and dataPath() refuses to run without a data directory. Nothing here
+// reads files from it.
+vi.stubEnv("SAPPORTA_DATA_DIR", "/nonexistent-sapporta-data-dir");
 const { runStatementImport } = await import("./statement-import.js");
 type ImportOptions = Parameters<typeof runStatementImport>[1];
 

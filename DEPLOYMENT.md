@@ -82,9 +82,14 @@ One Hono process serves `/api/*` and the built SPA on a single
 
 ```bash
 pnpm build                 # tsc → packages/api/dist/, vite build → packages/frontend/dist/
-pnpm --filter ./packages/api db:migrate
+export SAPPORTA_DATA_DIR=/srv/dbu6/data  # an existing directory
+pnpm --filter ./packages/api exec drizzle-kit migrate
 SAPPORTA_API_PORT=3000 pnpm start  # node packages/api/dist/boot.js
 ```
+
+Run Drizzle Kit directly here, not `pnpm db:migrate`: the `pnpm db:*` scripts
+load `.env.development`. Run the migration in the same environment as
+`pnpm start`, so both use the database in the same `SAPPORTA_DATA_DIR`.
 
 The browser loads the SPA from `http://your-host:3000/`, and its relative `fetch("/api/foo")` calls hit the same process.
 
@@ -255,7 +260,7 @@ a provider-specific SDK, edit `packages/api/mailer.ts` in the generated project.
 
 ### Database persistence
 
-`better-sqlite3` stores the database under the project's data directory (resolved by `fromProjectRoot` at boot). In production that directory **must** be on a persistent volume, or the database vanishes on every restart — the single most common deployment bug.
+`better-sqlite3` stores the database as `sqlite.db` in the directory named by `SAPPORTA_DATA_DIR` (absolute, or relative to the project root; no default). The Docker image sets it to `/app/data`. In production that directory **must** be on a persistent volume, or the database vanishes on every restart — the single most common deployment bug.
 
 - **Docker:** named volume or bind mount at the data directory.
 - **systemd on a VPS:** the default filesystem is already persistent; just don't place the project under `/tmp` or a tmpfs mount.

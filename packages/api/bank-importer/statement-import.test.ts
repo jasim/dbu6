@@ -17,6 +17,11 @@ import {
 import { parseAccount } from "./domain/Account.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 
+// runStatementImport resolves the user-config directory before the draft
+// import, and dataPath() refuses to run without a data directory. Nothing here
+// reads files from it.
+vi.stubEnv("SAPPORTA_DATA_DIR", "/nonexistent-sapporta-data-dir");
+
 describe("pickOpeningBalance", () => {
   it("prefers the statement's own opening over the checkpoint", () => {
     expect(pickOpeningBalance(100, 200)).toEqual({

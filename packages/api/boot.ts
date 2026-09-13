@@ -12,6 +12,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import {
   connectProject,
+  databasePath,
   findProjectRootFrom,
   fromProjectRoot,
   setProjectRoot,
@@ -42,9 +43,9 @@ if (!projectRoot) {
   );
 }
 setProjectRoot(projectRoot);
-const { apiDistDir, frontendDistDir, databasePath } =
-  fromProjectRoot(projectRoot);
-const conn = connectProject(databasePath);
+const { apiDistDir, frontendDistDir } = fromProjectRoot(projectRoot);
+// The database is in the directory named by SAPPORTA_DATA_DIR.
+const conn = connectProject(databasePath());
 const sapporta = await loadSapportaProject({
   name: "dbu6",
   slug: "dbu6",

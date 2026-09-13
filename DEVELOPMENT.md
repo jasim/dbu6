@@ -50,7 +50,12 @@ a generated `BETTER_AUTH_SECRET` and `SAPPORTA_MAIL_TRANSPORT=stream`, so
 Nodemailer prints the full generated email source to the API console instead of
 delivering it.
 
-Set `DBU6_DATA_DIR` to put the `data/` directory somewhere else.
+`SAPPORTA_DATA_DIR` in `.env.development` names the directory that holds
+`sqlite.db` and `user-config/`: an absolute path, or a path relative to the
+project root. It has no default. `pnpm dev`, `pnpm setup`, and every
+`pnpm --filter ./packages/api db:*` script load that file, so all of them open
+the same database. Point it somewhere else to keep, say, sample data apart from
+real data.
 
 ### Running multiple Sapporta projects on one machine
 
@@ -114,10 +119,11 @@ what belongs there.
 
 ## User data
 
-Everything specific to the user lives under `data/`, which is gitignored as a
-unit and is the directory the Docker image declares as its volume. Backend
-code resolves these paths through `packages/api/user-data.ts`
-(`userDataDir()`, `userConfigDir()`, `userConfigPath()`). Don't hardcode them.
+Everything specific to the user lives in `SAPPORTA_DATA_DIR` (`data/` in
+development, gitignored as a unit; `/app/data` in the Docker image, which
+declares it as its volume). Backend code resolves these paths through
+`packages/api/user-data.ts` (`userConfigDir()`, `userConfigPath()`), which
+builds on `dataPath()` from `@sapporta/server`. Don't hardcode them.
 
 ### transaction_mappings.mjs
 
