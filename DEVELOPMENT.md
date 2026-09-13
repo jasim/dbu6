@@ -31,6 +31,11 @@ typechecking dbu6, or you will see stale type errors.
   and a clean first.
 - `pnpm setup` — seed `data/user-config/` from `user-config.example/` without
   overwriting edited files.
+- `pnpm seed [YYYY-MM-DD]` — with `pnpm dev` running, create
+  `demo@example.com` (password `demo-password`) holding a year of sample
+  personal finances up to today, or up to the given date. The twelve months
+  before that month are posted journals, and that month so far is HDFC savings
+  drafts. Re-running replaces the demo account's ledger.
 - `pnpm build` — typecheck, compile shared + backend (`tsc`), and bundle the
   frontend (`vite build`).
 - `pnpm start` — run the production server (serves API and SPA on one port).

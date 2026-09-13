@@ -6,6 +6,7 @@
   "scripts": {
     "clean": "node scripts/clean-dist.mjs",
     "setup": "node --env-file=.env.development scripts/setup-user-config.mjs",
+    "seed": "node --env-file=.env.development scripts/seed-sample-data.mjs",
     "predev": "pnpm run setup && pnpm run clean && pnpm --filter ./packages/shared build",
     "dev": "node --env-file=.env.development scripts/dev.mjs",
     "dev:server": "pnpm --filter ./packages/api dev",
