@@ -12,14 +12,32 @@ import {
   moneyColumn,
   openRecordLink,
   textColumn,
+  type ScopeParams,
 } from "./shared.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
 api.register("lastReconciled", reportsContract.lastReconciled, ({ c }) => {
   const scope = authorizeReport(c, "last-reconciled");
-  const rows = allRows<LastReconciledRow>(
-    c.get("sqlite"),
+  const rows = loadLastReconciled(c.get("sqlite"), scope);
+
+  return { status: 200, body: toLastReconciledResult(rows) };
+});
+
+export type LastReconciledRow = {
+  account_id: number;
+  journal_id: number;
+  account_name: string;
+  last_reconciled_date: string;
+  last_balance: number;
+};
+
+export function loadLastReconciled(
+  sqlite: Parameters<typeof allRows>[0],
+  scope: ScopeParams,
+): LastReconciledRow[] {
+  return allRows<LastReconciledRow>(
+    sqlite,
     `${ledgerCtes}
     SELECT
       a.id AS account_id,
@@ -31,13 +49,6 @@ api.register("lastReconciled", reportsContract.lastReconciled, ({ c }) => {
     JOIN scoped_journal_entries je ON je.account_id = a.id
     JOIN scoped_journals j ON j.id = je.journal_id
     WHERE je.account_balance_assertion IS NOT NULL
-      AND a.name IN (
-        'assets:bank:federal',
-        'assets:bank:hdfc',
-        'assets:bank:stanc',
-        'cc:hdfc',
-        'cc:stanc'
-      )
       AND j.id = (
         SELECT je2.journal_id
         FROM scoped_journal_entries je2
@@ -50,17 +61,7 @@ api.register("lastReconciled", reportsContract.lastReconciled, ({ c }) => {
     ORDER BY a.name`,
     scope,
   );
-
-  return { status: 200, body: toLastReconciledResult(rows) };
-});
-
-type LastReconciledRow = {
-  account_id: number;
-  journal_id: number;
-  account_name: string;
-  last_reconciled_date: string;
-  last_balance: number;
-};
+}
 
 function toLastReconciledResult(rows: LastReconciledRow[]): GridDataset {
   const levelColumns = {
