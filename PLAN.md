@@ -6,8 +6,9 @@
   were adopted as proposed when the owner started implementation.
 - **Branches:** dbu6 work is committed on `hdfc-bank-xls-parser` (the owner's choice; `main`
   holds only the initial commit). Sapporta work is on `dbu6-redesign`, branched from `main`.
-- **In progress:** Step 3 (§8).
-- **Next:** Steps 4 and 5, then the P0 discussion for Step 6.
+- **Done:** Step 3, the app shell (§8), 2026-09-15.
+- **In progress:** Step 4 (§9).
+- **Next:** Step 5, then the P0 discussion for Step 6.
 
 This file stands on its own. A coding agent should be able to pick up any step using only
 this file, the two repositories, and (when it is on disk) the design handoff folder. You do
@@ -1110,26 +1111,27 @@ heights and radii, with layouts unchanged. Fix the Sapporta bugs that stop token
   page redesign.
 
 ### Sapporta tasks (behaviour leaks only, §6.8; no new props, slots or nav tokens)
-- [ ] **Sidebar width.** `SidebarRegion` and `SidebarDrawer` stop hardcoding `w-[240px]`: size
-      to the content, or take a `width`. `SidebarShell` and `AppShell` keep 240px, so other apps
-      see no change. Extend `SidebarArchitecture.test.ts`.
-- [ ] **Toaster.** Export the `Toaster` bound to Sapporta's `sonner` instance from
-      `@sapporta/frontend/shell`, so an app-owned shell shows toasts from Sapporta screens.
-      `AppShell` uses the same export.
-- [ ] **Header inset.** Replace the DOM-order contract in `PageHeader.css` with an explicit one
-      any shell can meet: e.g. the shell sets a custom property such as
-      `--sap-page-header-inset` on its scroll region, and `PageHeader` reads it. If that's too
-      broad, document the `data-shell-sidebar-toggle` / `data-shell-scroll-region` contract in
-      the `AppShell` and `PageHeader` doc comments instead.
-- [ ] **`PageHeader` title.** Its size and weight use the existing type tiers instead of
-      `text-[15px] font-[720]`, so Sapporta screens' titles aren't smaller than body text.
-- [ ] **Changesets**, and the `ARCHITECTURE.md` module index if a subpath changes.
+- [x] **Sidebar width.** `SidebarRegion` and `SidebarDrawer` size to their content (`w-auto`);
+      `SidebarShell` keeps 240px. `SidebarArchitecture.test.ts` updated.
+- [x] **Toaster.** `Toaster` (sonner's) is exported from `@sapporta/frontend/shell`. It must be
+      rendered **above `BootLoader`**: a time zone change or workspace switch resets the schema
+      store, the gate remounts everything under it, and a toast posted then needs an outlet
+      that stayed mounted. Sapporta's own `AppShell` renders its Toaster under the gate in
+      generated apps, so it misses those toasts too (follow-up in §13).
+- [x] **Header inset.** `PageHeader.css` is gone. A shell sets `--sap-page-header-inset` on its
+      scroll region while its content-side toggle is present; `PageHeader` (and the narrow
+      table header in `TableGridHeader.tsx`, which is its own `data-page-header`) add it to
+      their leading padding. `AppShell` sets `3rem`.
+- [x] **`PageHeader` title.** `text-sap-body font-bold`; subtitle `text-sap-menu`.
+- [x] **Changeset** `app-owned-shell.md` (frontend minor); no subpath changed. Also fixed:
+      a custom `AccountMenu` trigger always had `aria-expanded="true"`.
 
 ### dbu6 tasks
-- [ ] **Before screenshots** into `dbu6/tmp/redesign/step-3/` of today's shell at 1920px
-      (expanded and collapsed), 900px (rail) and 390px (bottom bar and drawer). The §6.7
-      baseline doesn't cover these.
-- [ ] **`src/shell/AppShell.tsx`.** Replaces Sapporta's `AppShell` in both route groups of
+- [x] **Before screenshots** in `dbu6/tmp/redesign/step-3/before-shell-*.png` at 1920px
+      (expanded, collapsed, collapsed with hover reveal), 900px (rail, drawer) and 390px
+      (bottom bar, drawer, Browse picker). After screenshots: `after-shell-*.png`, plus
+      `after-workspace-settings-toast.png`.
+- [x] **`src/shell/AppShell.tsx`.** Replaces Sapporta's `AppShell` in both route groups of
       `src/SapportaApp.tsx`, and drops `showFrameworkNavigation`. Carry over today's behaviour:
   - navigation only for an authenticated session (`useAuthStore`);
   - the schema load error shown in an `AppPage` (`useSchemaStore`);
@@ -1138,8 +1140,9 @@ heights and radii, with layouts unchanged. Fix the Sapporta bugs that stop token
     the content's top-left;
   - `main` as the single scroll region, with bottom padding when the mobile bar shows;
   - the header-inset contract from the Sapporta task above;
-  - the Sapporta `Toaster` export, styled per 2a (`text-body`).
-- [ ] **`src/shell/Sidebar.tsx`,** per §4.6:
+  - the Sapporta `Toaster` export, styled per 2a (`text-body`), rendered in
+    `SapportaApp.tsx` above `BootLoader` (see the Sapporta task).
+- [x] **`src/shell/Sidebar.tsx`,** per §4.6:
   - header: 34px green tile, "dbu6", and the workspace name from the auth context;
   - today's section labels kept, in `text-label` style. 2a has no labels and a separator
     instead, but that goes with P0's 7-item navigation;
@@ -1148,22 +1151,18 @@ heights and radii, with layouts unchanged. Fix the Sapporta bugs that stop token
   - a badge on an item;
   - the footer card through `AuthAccountMenu renderTrigger`;
   - 248px wide.
-- [ ] **Rail and mobile bottom bar.** Port today's behaviour (the first 8 items plus the active
-      one; the first 3 plus a Browse picker) restyled to 2a. P0 decides whether 7 items still
-      need them.
-- [ ] **Badge.** Wire it to the real count of drafts needing a category (table API `meta.total`,
-      as `PostDrafts.tsx` does), fetched once in the shell, shown on "Draft entries", and
-      hidden at zero.
-- [ ] **Dependencies.** Add `sonner` only if the Sapporta `Toaster` export isn't used. Don't
-      add a second copy (§2.3).
-- [ ] **Tests** for the composition behaviour dbu6 now owns (the cases Sapporta's
-      `SidebarArchitecture.test.ts` covered for `AppShell`):
-  - no navigation without a session;
-  - where the toggle sits when expanded vs. collapsed;
-  - a toggle on an unwrapped page.
-
-  dbu6 has no DOM test environment yet. Add `happy-dom` as Sapporta does, or list these as
-  manual checks in the progress log if the owner prefers.
+- [x] **Rail and mobile bottom bar.** Ported (the first 8 items plus the active one; the first
+      3 plus a Browse picker), restyled to 2a; compact items show a blue dot for a badge.
+      P0 decides whether 7 items still need them.
+- [x] **Badge.** `src/shell/navigation-counts.ts` reads the table API's `meta.total` for
+      drafts with no category. It refetches on each route change (cheap, `limit=1`), so the
+      badge stays honest after categorising. `NavigationItem.badge` is dbu6's extension of
+      Sapporta's item type (`src/shell/navigation.ts`); `App.tsx` sets it on "Draft entries".
+- [x] **Dependencies.** No `sonner` copy. `happy-dom` and `use-sync-external-store` added as
+      dev dependencies (the latter only so vitest can dedupe it, see the log).
+- [x] **Tests** in `src/shell/AppShell.test.tsx` (happy-dom): no navigation without a session;
+      toggle placement expanded vs. collapsed, with the inset variable; the opener on an
+      unwrapped compact page; workspace name and account card; badge shown and hidden at zero.
 
 **Done when**
 - The sidebar matches §4.6 visually with the current items: header, active pill, badge with a
@@ -1465,6 +1464,34 @@ Done criteria (page-specific, plus §4.9):
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
 
+- 2026-09-15 · Step 3 · dbu6 owns its app shell.
+  - **Sapporta** (`dbu6-redesign`, one commit): `SidebarRegion`/`SidebarDrawer` size to
+    content; `Toaster` exported from the shell subpath; `PageHeader.css` replaced by the
+    `--sap-page-header-inset` contract (`PageHeader` and the narrow `TableGridHeader`);
+    header title and subtitle on the `sap-body`/`sap-menu` tiers; `AccountMenu` custom
+    trigger reports the real `aria-expanded`.
+  - **dbu6**: `src/shell/{AppShell,Sidebar,navigation,navigation-counts}.tsx|ts` and
+    `AppShell.test.tsx`; `SapportaApp.tsx` renders dbu6's shell and the Toaster;
+    `App.tsx` marks "Draft entries" with the badge; `--sidebar-avatar` token. Screenshots
+    in `tmp/redesign/step-3/`.
+  - **Deviations:**
+    - The Toaster lives in `SapportaApp.tsx` above `BootLoader`, not in the shell. With it
+      in the shell (as in Sapporta's `AppShell`), the time zone toast on
+      `/workspace/settings` never showed: the store resets the schema, the gate remounts
+      the shell, and the toast finds no outlet. Verified in the browser both ways.
+    - Compact items (rail, bottom bar) show a dot instead of the count.
+    - The navigation picker panel uses `shadow-lg` until Step 4's elevation token exists.
+  - **vitest in dbu6:** `vite.config.ts` now carries a `test` block. Sapporta's tree is
+    transformed by Vite (`server.deps.inline`) so React resolves to dbu6's copy, and
+    `lucide-react` and `use-sync-external-store` (CommonJS, whose `require("react")`
+    bypasses the aliases) are aliased and deduped to dbu6's copies. dbu6 depends on
+    `lucide-react` 1.21; Sapporta resolves the same alias, so one copy serves both.
+  - **Follow-ups:**
+    - Sapporta's own `AppShell` renders its Toaster under `BootLoader` in generated apps
+      (`SapportaApp.tsx` template), so the time zone and workspace-switch toasts are lost
+      there too. Move the Toaster into the template above the gate, or have `BootLoader`
+      keep the shell mounted.
+    - `richColors` toasts use sonner's own green and red, not the 2a tokens.
 - 2026-09-15 · Step 2 · Foundation done in both repos.
   - **Sapporta** (`dbu6-redesign`, three commits): `cn` built on `extendTailwindMerge` with
     the `sap-*` scales plus `extendCn` for apps; `--border`/`--color-border` and a layered

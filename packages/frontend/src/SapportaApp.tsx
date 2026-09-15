@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { Route, Routes, useNavigate } from "react-router-dom";
-import { AppShell, setNavigate } from "@sapporta/frontend/app";
-import { BootLoader } from "@sapporta/frontend/app";
+import { BootLoader, setNavigate } from "@sapporta/frontend/app";
+import { Toaster } from "@sapporta/frontend/shell";
+import { AppShell } from "./shell/AppShell";
 import { AuthGate } from "@sapporta/frontend/auth/runtime";
 import {
   appHomeRoute,
@@ -23,40 +24,45 @@ export function SapportaApp() {
   }, [navigate]);
 
   return (
-    <Routes>
-      {sapportaPublicRoutes}
-      {appPublicRoutes}
+    <>
+      {/* Above BootLoader, so a toast posted while the gate remounts the
+          routes (after a time zone change, say) still has an outlet. */}
+      <Toaster
+        position="top-center"
+        richColors
+        toastOptions={{
+          classNames: { toast: "text-body", title: "font-semibold" },
+        }}
+      />
+      <Routes>
+        {sapportaPublicRoutes}
+        {appPublicRoutes}
 
-      <Route
-        element={
-          <BootLoader>
-            <AppShell
-              navigation={appNavigation}
-              showFrameworkNavigation={false}
-            />
-          </BootLoader>
-        }
-      >
-        {appPublicShellRoutes}
-      </Route>
+        <Route
+          element={
+            <BootLoader>
+              <AppShell navigation={appNavigation} />
+            </BootLoader>
+          }
+        >
+          {appPublicShellRoutes}
+        </Route>
 
-      <Route
-        element={
-          <BootLoader>
-            <AuthGate>
-              <AppShell
-                navigation={appNavigation}
-                showFrameworkNavigation={false}
-              />
-            </AuthGate>
-          </BootLoader>
-        }
-      >
-        {appHomeRoute}
-        {appProtectedRoutes}
-        {sapportaProtectedRoutes}
-        {sapportaNotFoundRoute}
-      </Route>
-    </Routes>
+        <Route
+          element={
+            <BootLoader>
+              <AuthGate>
+                <AppShell navigation={appNavigation} />
+              </AuthGate>
+            </BootLoader>
+          }
+        >
+          {appHomeRoute}
+          {appProtectedRoutes}
+          {sapportaProtectedRoutes}
+          {sapportaNotFoundRoute}
+        </Route>
+      </Routes>
+    </>
   );
 }

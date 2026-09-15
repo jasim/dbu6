@@ -129,6 +129,9 @@
   --waiting-button-bg: #eef0f0;
   --waiting-button-fg: #4b4f4f;
 
+  /* The initials circle in the sidebar's account card */
+  --sidebar-avatar: #d5d8d8;
+
   /* Category hues: one per top-level group; children inherit. The first
      name is the design's key, the alias is the seeded dbu6 group name. */
   --cat-taxes: #475569;
@@ -239,6 +242,7 @@
   --color-waiting-marker: var(--waiting-marker);
   --color-waiting-button-bg: var(--waiting-button-bg);
   --color-waiting-button-fg: var(--waiting-button-fg);
+  --color-sidebar-avatar: var(--sidebar-avatar);
 }
 
 /* ── 4. Base rules ───────────────────────────────────────────────────────

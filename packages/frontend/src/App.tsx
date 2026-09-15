@@ -1,5 +1,5 @@
 import { Route, Navigate } from "react-router-dom";
-import type { Navigation } from "@sapporta/frontend/shell";
+import type { Navigation } from "./shell/navigation";
 import {
   BarChart3,
   BookOpenText,
@@ -70,6 +70,7 @@ export const appNavigation: Navigation = [
         label: "Draft entries",
         icon: LayoutList,
         to: "/tables/draft_transactions",
+        badge: "needsCategory",
       },
       {
         label: "Classify drafts",

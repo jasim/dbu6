@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { parseBoundedInteger } from "@sapporta/shared/validation";
@@ -34,8 +34,22 @@ export default defineConfig({
         "node_modules/react-router-dom",
       ),
       zustand: path.resolve(__dirname, "node_modules/zustand"),
+      // These two ship CommonJS, whose require("react") bypasses the aliases
+      // above under vitest; one copy here keeps them on this project's React.
+      "lucide-react": path.resolve(__dirname, "node_modules/lucide-react"),
+      "use-sync-external-store": path.resolve(
+        __dirname,
+        "node_modules/use-sync-external-store",
+      ),
     },
-    dedupe: ["react", "react-dom", "react-router-dom", "zustand"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "react-router-dom",
+      "zustand",
+      "lucide-react",
+      "use-sync-external-store",
+    ],
   },
   server: {
     port: parseIntegerEnv("SAPPORTA_FRONTEND_PORT", 5173),
@@ -50,6 +64,17 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes("@js-temporal/polyfill")) return "temporal";
         },
+      },
+    },
+  },
+  test: {
+    server: {
+      deps: {
+        // Sapporta is linked from another checkout, so its dependencies
+        // (React, Base UI, sonner, zustand) would load from its own
+        // node_modules as second copies. Transforming them through Vite lets
+        // the aliases above point them at this project's single copies.
+        inline: [/\/sapporta\//],
       },
     },
   },
