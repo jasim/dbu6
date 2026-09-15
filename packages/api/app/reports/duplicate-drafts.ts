@@ -1,51 +1,55 @@
+import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
+import type { DuplicateDiagnostic } from "../../modules/reconciliation/duplicate-diagnostics.js";
+import { findDraftDuplicates } from "../draft-status.js";
 import {
-  duplicateDraftRowsSql,
-  duplicateJournalEntryRowsSql,
-  findDuplicateDiagnostics,
-  type DuplicateDraftSourceRow,
-  type DuplicateJournalEntrySourceRow,
-} from "../../modules/reconciliation/duplicate-diagnostics.js";
-import {
-  allRows,
   authorizeReport,
   dateColumn,
   flatResult,
   hiddenIdColumn,
-  ledgerCtes,
   moneyColumn,
   openRecordLink,
   percentColumn,
   textColumn,
+  type ScopeParams,
 } from "./shared.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
-api.register("duplicateDrafts", reportsContract.duplicateDrafts, ({ c }) => {
-  const scope = authorizeReport(c, "duplicate-drafts");
-  const sqlite = c.get("sqlite");
-  const drafts = allRows<DuplicateDraftSourceRow>(
-    sqlite,
-    `${ledgerCtes}${duplicateDraftRowsSql}`,
-    scope,
-  );
-  const journalEntries = allRows<DuplicateJournalEntrySourceRow>(
-    sqlite,
-    `${ledgerCtes}${duplicateJournalEntryRowsSql}`,
-    scope,
-  );
-  const rows = findDuplicateDiagnostics(drafts, journalEntries);
+api.register(
+  "duplicateDrafts",
+  reportsContract.duplicateDrafts,
+  ({ c, request }) => {
+    const scope = authorizeReport(c, "duplicate-drafts");
+    return {
+      status: 200,
+      body: duplicateDraftsReport(
+        c.get("sqlite"),
+        scope,
+        request.query.base_account_id,
+      ),
+    };
+  },
+);
 
-  return {
-    status: 200,
-    body: toDuplicateDraftsResult(rows),
-  };
-});
+/**
+ * The possible duplicates, for every account or, for Review's tab, one
+ * account without the Base Account column.
+ */
+export function duplicateDraftsReport(
+  sqlite: Database.Database,
+  scope: ScopeParams,
+  accountId?: number,
+): GridDataset {
+  const rows = findDraftDuplicates(sqlite, scope, { accountId });
+  return toDuplicateDraftsResult(rows, accountId === undefined);
+}
 
 function toDuplicateDraftsResult(
-  rows: ReturnType<typeof findDuplicateDiagnostics>,
+  rows: DuplicateDiagnostic[],
+  accountColumn: boolean,
 ): GridDataset {
   return flatResult(
     "duplicate-drafts",
@@ -70,7 +74,9 @@ function toDuplicateDraftsResult(
           ],
         }),
         percentColumn("confidence", "Confidence", { width: 14 }),
-        textColumn("base_account", "Base Account", { width: 34 }),
+        ...(accountColumn
+          ? [textColumn("base_account", "Base Account", { width: 34 })]
+          : []),
         textColumn("direction", "Direction", { width: 14 }),
         moneyColumn("amount", "Amount", { width: 16 }),
         textColumn("narration", "Draft Narration", {

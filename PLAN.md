@@ -9,9 +9,9 @@
   (seen 2026-09-15); the Sapporta checkout is on `main`.
 - **Done:** Step 3, the app shell (§8), Step 4, Sapporta's surfaces (§9), and Step 5,
   dbu6's components and cleanup (§10), all 2026-09-15.
-- **Done:** Step 6, P0, P1 and P2 (§11), each spec agreed and built 2026-09-15.
-- **Spec agreed:** Step 6, P3 (§11, Review), 2026-09-15.
-- **Next:** build P3 as specified.
+- **Done:** Step 6, P0, P1 and P2 (§11), each spec agreed and built 2026-09-15. P3
+  (Review), spec agreed 2026-09-15 and built 2026-09-16.
+- **Next:** Step 6, P4 (Income & expenses): prepare the discussion with the owner.
 
 This file stands on its own. A coding agent should be able to pick up any step using only
 this file, the two repositories, and (when it is on disk) the design handoff folder. You do
@@ -163,8 +163,12 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
   - Hono backend on `@sapporta/server`.
   - Tables in `packages/api/schema/` (Sapporta `sapportaTable`).
   - Custom endpoints in `packages/api/app.ts` and `packages/api/app/`. `app/home.ts`
-    serves `GET /home` (the `homeContract` in `dbu6-shared`), composing the checkpoint,
-    draft-assertion and duplicate queries the reports use.
+    serves `GET /home` (the `homeContract` in `dbu6-shared`); `app/review.ts` serves
+    `GET /review/accounts` and `/review/accounts/:accountId` (`reviewContract`, since P3).
+  - `app/draft-status.ts` (since P3) is the one source for what blocks posting drafts:
+    counts, dates, closing balance, failing balance checks and possible duplicates per
+    account. Home, Review, the posting gate (`app/post-drafts-to-journal.ts`) and the two
+    draft reports read it. `app/account-names.ts` names accounts from import presets.
   - Reports in `packages/api/app/reports/`. They return a `GridDataset` (grid-shaped rows,
     not domain JSON).
 - **`packages/shared`**: ts-rest contracts, imported as `dbu6-shared`.
@@ -184,8 +188,9 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
   - the index route (`/` renders Home, protected);
   - dbu6's routes, including the tool screens under `/views/*` and `/tables/journals`.
 - **`src/redirects.tsx`** maps the retired paths (`/welcome`, `/advanced`,
-  `/tables/accounts`, `/views/import-statements`, `/tables/draft_transactions`) to their new
-  routes, keeping search and hash. `redirects.test.tsx` walks the table.
+  `/tables/accounts`, `/views/import-statements`, `/views/post-drafts`) to their new routes,
+  keeping search and hash. `redirects.test.tsx` walks the table. `/tables/draft_transactions`
+  is Sapporta's raw table again since P3.
 - **`src/shell/`** is dbu6's app shell (D4): `AppShell`, `Sidebar` (sidebar and bottom
   bar), `navigation.ts` (the `{ everyday, more }` shape and the badge), `navigation-counts.ts`.
 - **`src/reports/registry.tsx`** lists the twelve reports with their everyday and accounting
@@ -193,17 +198,23 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
 - **`src/SapportaRoutes.tsx`** holds the framework routes: sign-in and sign-up screens,
   `/account/profile`, `/workspace/settings`, `/tables/:tableName`, `/tables/:tableName/new`,
   `/setup/:tableName/new`, and not found.
-- **Page frames.** dbu6 pages use one of four:
+- **Page frames.** dbu6 pages use one of five:
   - `Screen` and `ScreenTitle` (`src/components/screen.tsx`, since P2): no header bar, the
     title at the top of a scrolling centred column (`wide` 1040px for Home, `narrow` for
-    Import and freeform import), clear of `--sap-page-header-inset`;
+    Import, freeform import and the Review picker), clear of `--sap-page-header-inset`;
+  - Review's account frame (`src/review/ReviewAccount.tsx`, since P3): the account's title
+    and a tab bar at the top, full width; Overview and the report tabs scroll with it, the
+    Drafts grid scrolls inside it;
   - `AppPage` (`@sapporta/frontend/shell`): page frame, 52px header bar, scrolling body;
   - `ReportScreenFrame` + `ReportToolbar` + `ReportGridDataset` (`@sapporta/frontend/report`);
   - `SchemaTableGridView` (`@sapporta/frontend`): the Sapporta data grid bound to a table.
 - **Pages:**
   - `src/home/Home.tsx` (Home, P1; `home/state.ts` picks the greeting and card),
     `src/Advanced.tsx` (All tools until P5), `src/reports/ReportsIndex.tsx`
-  - `src/views/*`: import statements, freeform import, reclassify, post, render hledger, journals, draft transactions
+  - `src/review/*` (Review, P3): `ReviewAccounts.tsx` (`/review`), `ReviewAccount.tsx` (the
+    account frame and tabs), `Overview.tsx` (`overview-state.ts` decides what it says),
+    `DraftsTab.tsx`, `DuplicatesTab.tsx`, `BalanceChecksTab.tsx`, `agentPrompts.ts`, `routes.ts`
+  - `src/views/*`: import statements, freeform import, reclassify, render hledger, journals
   - `src/reports/*`: 12 report screens plus `registry.tsx`
 - **`src/app.css` is the only CSS entry point.** Order: `@import "tailwindcss"` →
   `@sapporta/ui/index.css` (tokens) → `@sapporta/grid/index.css` → `@sapporta/frontend/index.css`
@@ -1771,7 +1782,7 @@ Review button, hledger journal), the label-column layout of `ProblemCard`.
 - `pnpm typecheck`, `pnpm test`, `pnpm format:check`; screenshots at 1920 and 390 in
   `tmp/redesign/p2/` (empty, files added, done, nothing new, each problem tone, freeform).
 
-### P3 · Review (handoff: Review; replaces Draft entries, Check duplicates, Verify balances, Post reviewed entries): Status: Spec agreed (2026-09-15)
+### P3 · Review (handoff: Review; replaces Draft entries, Check duplicates, Verify balances, Post reviewed entries): Status: Built (2026-09-16)
 
 Agreed with the project owner on 2026-09-15. **Import doesn't change** (P2 stands): statements
 from any number of accounts land in the drafts together, and the drafts can hold any number
@@ -2142,6 +2153,98 @@ app was doing, the facts, what to do, what not to do, what to report back):
 ## 13. Progress log
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
+
+- 2026-09-16 · Step 6, P3 · Review built as specified (§11 P3). Uncommitted at the time of writing.
+  - **shared:** `contracts/review.ts` (`reviewContract.accounts` and `.account`, with the
+    account, failing check, duplicate and detail schemas). `reportsContract.duplicateDrafts`
+    and `draftBalanceAssertions` take an optional `base_account_id`.
+  - **api:** `app/draft-status.ts` (`loadDraftStatus`, `findFailingChecks`,
+    `findDraftDuplicates`, each narrowable to one account). `app/account-names.ts`
+    (`importableAccounts`, moved from `home.ts`, and `accountLabel`). `app/review.ts`
+    (`listReviewAccounts`, `loadReviewAccount`), mounted in `app.ts`. `home.ts` takes its
+    counts from the status module. The posting handler's body is
+    `postDraftsToJournal(ledger, accountId)` and refuses on the module's counts. Both draft
+    reports read the module and leave the account column out when narrowed; the balance
+    checks grid then carries the ledger link on its date. Tests: `draft-status.test.ts` (the
+    status and both report filters), `account-names.test.ts`, `review.test.ts`,
+    `post-drafts-to-journal.test.ts` (the three refusals, a missing account, a post), and
+    the review routes in `app.test.ts`.
+  - **frontend:** `reviewApi` and `apiErrorMessage` in `api.ts`. `src/review/` as §2.1 lists
+    it, with tests for `overview-state.ts`, `agentPrompts.ts` and the frame
+    (`ReviewAccount.test.tsx`: a refetch on tab change, a path that isn't a tab, an id that
+    isn't one, a 404). `draft-transaction-quick-filter.ts` moved into `src/review/`; the
+    quick filters write to the tab's URL. `CopyPromptButton`, `Disclosure` and `LoadError`
+    moved into `components/`, shared by Import, freeform import, Home and Review.
+    `format.ts` gained `formatShortDate` and `formatDaySpan` (tested). Home's card and its
+    account chips point at the account's review, and state 3's report links are gone.
+    Routes and redirects as specified; All tools lost "Post drafts"; `PostDrafts.tsx` and
+    `DraftTransactionsTable.tsx` are deleted.
+  - **Verified:** `pnpm typecheck`, `pnpm format:check`, frontend tests (84), API tests (249
+    pass; the four XLS parser tests fail on the pip `xlwt` permission issue noted in P0). In
+    the browser, a Playwright walk-through in the session scratchpad at 1920, each shot also
+    at 390. It used a temporary presets file naming the seed's four statement accounts, and
+    SQL on the dev database for what the seed lacks: a copy of one HDFC Savings draft (a
+    possible duplicate, which also fails the 15 Sep balance check) and two categorised ICICI
+    Amazon Pay drafts as a second account. Checked: Home's card and HDFC's chip link to
+    `/review/1050`; `/review` goes straight to HDFC Savings; Overview lists the three blocks
+    and the waiting reason; "See them in Drafts" opens the tab with an "Account is empty"
+    chip, 3 records and no account chip; unfiltered, the grid shows HDFC's 23 only; "Run the
+    categoriser again" opens Classify drafts; Duplicates and Balance checks show one row
+    each without the account column, and "Copy prompt" puts the prompt on the clipboard;
+    with the second account, the picker lists both by name and the back link shows; after
+    fixing the drafts, Overview is ready with the posting sentence; a draft changed before
+    pressing the button gives the server's 422 words and a refetched summary; posting shows
+    "22 transactions added. HDFC Savings is checked to 15 Sep at ₹3,22,445.00." with "Review
+    ICICI Amazon Pay" and Drafts 0; ICICI shows the no-balance-checks row and posts with
+    "Import statements" next; `/review` then shows "Nothing to review"; SBI Savings shows
+    "No drafts for SBI Savings" without tabs; an unknown account, `/review/abc`,
+    `/views/post-drafts` and `/tables/draft_transactions` behave as specified; no colon paths
+    on the picker, the header or Overview. The database was restored from a backup and the
+    presets file put back afterwards. Screenshots in `tmp/redesign/p3/`: `picker`,
+    `picker-empty`, `overview-blocked`, `overview-ready`, `overview-post-refused`,
+    `overview-no-balance-checks`, `after-posting`, `after-posting-last`, `drafts`,
+    `drafts-needs-category`, `duplicates`, `balance-checks`, `empty`, each also `-390`.
+  - **Not verified in the browser:** setting a category in the grid, then seeing the count
+    drop after a tab switch. The script typed into the category editor and pressed Enter,
+    which the combobox ignores until an option is highlighted, so nothing saved; restoring
+    the database then ended the script's session, and the walk-through wasn't signed in
+    again. `ReviewAccount.test.tsx` covers the refetch on tab change; the grid's editing is
+    Sapporta's, unchanged. The walk-through also found a bug, now fixed with a test: an
+    unknown tab under an account with no drafts stayed put, since the empty state never
+    rendered the redirect route. `ReviewAccount` now checks the path itself.
+  - **Deviations:**
+    - The pure Overview module is `overview-state.ts`, not `overview.ts`: on macOS's
+      case-insensitive file system, `./Overview` resolved to `overview.ts` before
+      `Overview.tsx`.
+    - The account frame is its own layout rather than `Screen` (§2.1). Overview's column is
+      760px, left-aligned under the header.
+    - The Duplicates and Balance checks counts are a small mono badge, white on
+      `--destructive`, not red text: red text on the active ink pill fails contrast.
+    - Names aren't made possessive (as in P1): "None of the drafts for HDFC Savings match
+      another draft or anything already in your books."
+    - Money in sentences uses `formatBalance` (two decimals; "owed" for cards). Day spans
+      read "1–15 Sep", with the year in the frame's subline.
+    - Check rows carry a 26px marker (✓, !, or a dashed ring), like the handoff's balance
+      strip medallion.
+    - On the report tabs, "Copy prompt" sits under the "Ask your coding agent to find out"
+      heading, and the prompt's text is in a collapsed "Preview the prompt". A report that
+      fails to load shows `LoadError` with "Try again".
+    - The posting gate still partitions the drafts for its typed plan, and throws if that
+      disagrees with the status module (both are read in one synchronous pass).
+    - `apiErrorMessage` reads an API error's body before its `Error` message, so Home and
+      the report screens now show the server's words instead of "API error 4xx".
+  - **Findings:** the seed has no possible duplicate or failing balance check (only three
+    uncategorised drafts), so the done criteria's "with a duplicate" needs setup. A copied
+    draft on a day whose balance check sorts before it (by id) fails only the next check.
+    Restoring the dev database from a backup restores its sessions too, signing out any
+    session made since. The grid's category editor is a Base UI combobox: typing filters,
+    and Enter applies only a highlighted option.
+  - **Follow-ups:** seed a possible duplicate and a second account with drafts, so Review's
+    states need no SQL; "Remove this draft" and "Not a duplicate" on the Duplicates tab
+    (from the spec); the sidebar badge could read the draft status; in the Drafts tab,
+    Sapporta's grid header starts 20px from the edge while the frame's header starts at
+    56px; `plural`, `joinNames` and the date formatters serve Home and Review from the import
+    formatting module.
 
 - 2026-09-15 · Step 6, P2 · Import statements built as specified (§11 P2). Uncommitted at the time of writing.
   - **Shell:** dbu6's `NavigationItem` has `shortLabel`; the bottom bar prints it and keeps

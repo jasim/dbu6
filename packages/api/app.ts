@@ -23,6 +23,7 @@ import postDraftsToJournalApi from "./app/post-drafts-to-journal.js";
 import renderDraftHledgerApi from "./app/render-draft-hledger.js";
 import renderJournalsHledgerApi from "./app/render-journals-hledger.js";
 import reportsApi from "./app/reports.js";
+import reviewApi from "./app/review.js";
 import type { SapportaMailer } from "./mailer.js";
 import type { PublicRoutePattern } from "./project-auth/index.js";
 
@@ -47,6 +48,7 @@ export function loadApp(app: TsRestApi<SapportaEnv>, _options: LoadAppOptions) {
   mountApi(app, renderJournalsHledgerApi);
   mountApi(app, postDraftsToJournalApi);
   mountApi(app, homeApi);
+  mountApi(app, reviewApi);
 }
 
 export const publicApiRoutes =

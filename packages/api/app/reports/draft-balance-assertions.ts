@@ -1,3 +1,4 @@
+import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
@@ -8,53 +9,64 @@ import {
   hiddenIdColumn,
   ledgerCtes,
   openRecordLink,
+  type ScopeParams,
 } from "./shared.js";
 import { assertionColumns } from "./assertion-grid.js";
-import {
-  baseAccountRunningBalanceCtes,
-  failingDraftAssertionsSelect,
-} from "../../modules/reconciliation/running-balance.js";
+import { findFailingChecks, type FailingCheck } from "../draft-status.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
 api.register(
   "draftBalanceAssertions",
   reportsContract.draftBalanceAssertions,
-  ({ c }) => {
+  ({ c, request }) => {
     const scope = authorizeReport(c, "draft-balance-assertions");
-    const rows = allRows<DraftBalanceAssertionRow>(
-      c.get("sqlite"),
-      `${ledgerCtes}${baseAccountRunningBalanceCtes}
-      SELECT
-        r.account_id,
-        a.name AS account_name,
-        r.date,
-        r.draft_id,
-        r.running_balance,
-        r.assertion,
-        r.diff
-      FROM (${failingDraftAssertionsSelect}) r
-      JOIN scoped_accounts a ON a.id = r.account_id
-      ORDER BY account_name, date, r.draft_id`,
-      scope,
-    );
-
-    return { status: 200, body: toDraftBalanceAssertionsResult(rows) };
+    return {
+      status: 200,
+      body: draftBalanceAssertionsReport(
+        c.get("sqlite"),
+        scope,
+        request.query.base_account_id,
+      ),
+    };
   },
 );
 
-type DraftBalanceAssertionRow = {
-  account_id: number;
-  account_name: string;
-  date: string;
-  draft_id: number;
-  running_balance: number;
-  assertion: number;
-  diff: number;
-};
+/**
+ * The failing draft balance checks, for every account or, for Review's
+ * tab, one account without the Account column.
+ */
+export function draftBalanceAssertionsReport(
+  sqlite: Database.Database,
+  scope: ScopeParams,
+  accountId?: number,
+): GridDataset {
+  const names = new Map(
+    allRows<{ id: number; name: string }>(
+      sqlite,
+      `${ledgerCtes} SELECT id, name FROM scoped_accounts`,
+      scope,
+    ).map((row) => [row.id, row.name]),
+  );
+  const rows = findFailingChecks(sqlite, scope, { accountId })
+    .map((row) => ({ ...row, account_name: names.get(row.account_id) ?? "" }))
+    // By account name, as SQLite's binary collation orders it; the checks
+    // already come by date and draft within an account.
+    .sort((a, b) =>
+      a.account_name < b.account_name
+        ? -1
+        : a.account_name > b.account_name
+          ? 1
+          : 0,
+    );
+  return toDraftBalanceAssertionsResult(rows, accountId === undefined);
+}
+
+type DraftBalanceAssertionRow = FailingCheck & { account_name: string };
 
 function toDraftBalanceAssertionsResult(
   rows: DraftBalanceAssertionRow[],
+  accountColumn: boolean,
 ): GridDataset {
   const levelColumns = {
     draft: [
@@ -67,6 +79,7 @@ function toDraftBalanceAssertionsResult(
           "draft_id",
           "Open draft transaction",
         ),
+        { accountColumn },
       ),
     ],
   };

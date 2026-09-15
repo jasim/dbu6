@@ -19,6 +19,7 @@ import {
   importPresetsContract,
   journalsContract,
   reportsContract,
+  reviewContract,
 } from "dbu6-shared";
 
 export const reportsApi = createApiClient(reportsContract, {
@@ -40,3 +41,27 @@ export const journalsApi = createApiClient(journalsContract, {
 export const homeApi = createApiClient(homeContract, {
   baseUrl: getApiBase,
 });
+
+export const reviewApi = createApiClient(reviewContract, {
+  baseUrl: getApiBase,
+});
+
+/**
+ * What went wrong, in the server's words: the `error` of an API error body,
+ * else the thrown error's message.
+ */
+export function apiErrorMessage(value: unknown): string {
+  if (value && typeof value === "object" && "body" in value) {
+    const body = value.body;
+    if (
+      body &&
+      typeof body === "object" &&
+      "error" in body &&
+      typeof body.error === "string"
+    ) {
+      return body.error;
+    }
+  }
+  if (value instanceof Error) return value.message;
+  return String(value);
+}

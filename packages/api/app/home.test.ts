@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { importableAccounts, loadHomeSummary } from "./home.js";
+import { loadHomeSummary } from "./home.js";
 
 const scope = { workspaceId: "workspace", userId: "user" };
 
@@ -146,34 +146,5 @@ describe("Home summary", () => {
     const summary = loadHomeSummary(ledger(), scope, []);
     expect(summary.accounts).toEqual([]);
     expect(summary.has_journals).toBe(false);
-  });
-});
-
-describe("importableAccounts", () => {
-  it("keeps one row per base account and names it from a single preset", () => {
-    expect(
-      importableAccounts([
-        {
-          name: "Bank PDF",
-          base_account: "assets:bank:sample",
-          custom_mappings_filenames: [],
-        },
-        {
-          name: "Bank XLS",
-          base_account: "assets:bank:sample",
-          custom_mappings_filenames: [],
-          is_credit_card: true,
-        },
-        {
-          name: "Only Card",
-          base_account: "liabilities:cards:only-card",
-          custom_mappings_filenames: [],
-          is_credit_card: true,
-        },
-      ]),
-    ).toEqual([
-      { path: "assets:bank:sample", name: "Sample", kind: "card" },
-      { path: "liabilities:cards:only-card", name: "Only Card", kind: "card" },
-    ]);
   });
 });

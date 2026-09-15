@@ -1,7 +1,7 @@
 import { Navigate, Route, useLocation } from "react-router-dom";
 
 /**
- * Paths the old sidebar used, and where each lives now (PLAN.md §11 P0).
+ * Paths the old sidebar used, and where each lives now (PLAN.md §11 P0, P3).
  * Bookmarks and history keep working; the search and hash come along, since
  * Sapporta's table page writes its filters to the old table URL.
  */
@@ -10,7 +10,7 @@ export const retiredPaths: Readonly<Record<string, string>> = {
   "/advanced": "/tools",
   "/tables/accounts": "/accounts",
   "/views/import-statements": "/import",
-  "/tables/draft_transactions": "/review",
+  "/views/post-drafts": "/review",
 };
 
 function Redirect({ to }: { to: string }) {

@@ -6,6 +6,7 @@ import {
 } from "@sapporta/frontend/report";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { Input } from "@sapporta/ui";
+import { apiErrorMessage } from "../api";
 
 export const today = new Date().toISOString().slice(0, 10);
 
@@ -37,7 +38,7 @@ export function useReportResult(
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(formatError(err));
+        setError(apiErrorMessage(err));
         setResult(null);
       })
       .finally(() => {
@@ -111,20 +112,4 @@ export function DateInput({
       />
     </label>
   );
-}
-
-function formatError(value: unknown): string {
-  if (value instanceof Error) return value.message;
-  if (value && typeof value === "object" && "body" in value) {
-    const body = value.body;
-    if (
-      body &&
-      typeof body === "object" &&
-      "error" in body &&
-      typeof body.error === "string"
-    ) {
-      return body.error;
-    }
-  }
-  return String(value);
 }

@@ -14,11 +14,15 @@ import { Home as HomePage } from "./home/Home";
 import { retiredRoutes } from "./redirects";
 import { ReportsIndex } from "./reports/ReportsIndex";
 import { reportDefinitions } from "./reports/registry";
+import { BalanceChecksTab } from "./review/BalanceChecksTab";
+import { DraftsTab } from "./review/DraftsTab";
+import { DuplicatesTab } from "./review/DuplicatesTab";
+import { Overview } from "./review/Overview";
+import { ReviewAccount } from "./review/ReviewAccount";
+import { ReviewAccounts } from "./review/ReviewAccounts";
 import { AutoImportStatements } from "./views/AutoImportStatements";
 import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
-import { DraftTransactionsTable } from "./views/draft-transactions/DraftTransactionsTable";
 import { JournalsTable } from "./views/JournalsTable";
-import { PostDrafts } from "./views/PostDrafts";
 import { ReclassifyDrafts } from "./views/ReclassifyDrafts";
 import { RenderDraftHledger } from "./views/RenderDraftHledger";
 
@@ -64,7 +68,15 @@ export const appProtectedRoutes = (
         today's screen, so the sidebar already points where it will. */}
     <Route path="accounts" element={<TablePage tableName="accounts" />} />
     <Route path="import" element={<AutoImportStatements />} />
-    <Route path="review" element={<DraftTransactionsTable />} />
+    <Route path="review" element={<ReviewAccounts />} />
+    <Route path="review/:accountId" element={<ReviewAccount />}>
+      <Route index element={<Overview />} />
+      <Route path="drafts" element={<DraftsTab />} />
+      <Route path="duplicates" element={<DuplicatesTab />} />
+      <Route path="balance-checks" element={<BalanceChecksTab />} />
+      {/* Matches every other path, which ReviewAccount sends to Overview. */}
+      <Route path="*" element={null} />
+    </Route>
     <Route path="reports" element={<ReportsIndex />} />
     {reportDefinitions.map(({ id, Component }) => (
       <Route key={id} path={`reports/${id}`} element={<Component />} />
@@ -82,7 +94,6 @@ export const appProtectedRoutes = (
     />
     <Route path="views/reclassify-drafts" element={<ReclassifyDrafts />} />
     <Route path="views/render-draft-hledger" element={<RenderDraftHledger />} />
-    <Route path="views/post-drafts" element={<PostDrafts />} />
     <Route path="tables/journals" element={<JournalsTable />} />
 
     {retiredRoutes}

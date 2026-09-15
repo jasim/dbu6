@@ -15,7 +15,7 @@ import {
   freeformTransactionsPrompt,
   type FreeformAccountKind,
 } from "./freeform-transactions/freeformTransactionsPrompt";
-import { CopyPromptButton } from "./import-statements/cards";
+import { CopyPromptButton } from "../components/copy-prompt-button";
 
 interface LedgerAccount {
   id: number;

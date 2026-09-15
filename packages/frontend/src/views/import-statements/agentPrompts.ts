@@ -19,7 +19,7 @@ balance_metadata, statement_period, reconciliation_checkpoint). Errors are
 4xx/5xx JSON with an \`error\` code and a \`message\`. Imports only create Draft
 transactions; they never post to the books.`;
 
-const PII_RULE = `Never put real names, account numbers, references, or amounts in the
+export const PII_RULE = `Never put real names, account numbers, references, or amounts in the
 repository. Use the 050505 / NOPII / sample conventions in AGENTS.md for any
 fixture or test.`;
 

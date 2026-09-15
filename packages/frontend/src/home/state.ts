@@ -1,4 +1,5 @@
 import type { HomeAccount, HomeSummary } from "dbu6-shared";
+import { reviewHref, REVIEW_ROUTE } from "../review/routes";
 import { joinNames, plural } from "../views/import-statements/format";
 
 /*
@@ -26,8 +27,6 @@ export interface HomeCard {
   count?: number;
   title: string;
   body: string;
-  /** Text links after the body, for the checks Review does not show yet. */
-  links: readonly HomeLink[];
   action: HomeLink;
 }
 
@@ -37,10 +36,9 @@ export interface HomeView {
   card: HomeCard;
 }
 
-const REVIEW = "/review";
-
 export function homeState(summary: HomeSummary): HomeView {
   const { accounts, totals } = summary;
+  const review = reviewTarget(summary);
 
   if (accounts.length === 0) {
     return {
@@ -49,7 +47,6 @@ export function homeState(summary: HomeSummary): HomeView {
       card: {
         title: "Add your first account",
         body: "dbu6 imports statements from the banks and cards you set up. Each needs an account and an import preset.",
-        links: [],
         action: { label: "Open accounts", to: "/accounts" },
       },
     };
@@ -63,20 +60,7 @@ export function homeState(summary: HomeSummary): HomeView {
         count: totals.failing_checks + totals.duplicates,
         title: problemsTitle(totals.failing_checks, totals.duplicates),
         body: "They have to be fixed before those drafts can be added to your books.",
-        links: [
-          ...(totals.failing_checks > 0
-            ? [
-                {
-                  label: "See the balance checks",
-                  to: "/reports/draft-balance-assertions",
-                },
-              ]
-            : []),
-          ...(totals.duplicates > 0
-            ? [{ label: "See the duplicates", to: "/reports/duplicate-drafts" }]
-            : []),
-        ],
-        action: { label: "Review the drafts", to: REVIEW },
+        action: { label: "Review the drafts", to: review },
       },
     };
   }
@@ -96,8 +80,7 @@ export function homeState(summary: HomeSummary): HomeView {
             ? `They're waiting in the drafts for ${where}.`
             : "They're waiting in the drafts."
         } Nothing is added to your books until you've checked them.`,
-        links: [],
-        action: { label: "Review transactions", to: REVIEW },
+        action: { label: "Review transactions", to: review },
       },
     };
   }
@@ -113,8 +96,7 @@ export function homeState(summary: HomeSummary): HomeView {
         body: where
           ? `The drafts for ${where} are categorised and the balances match.`
           : "The drafts are categorised and the balances match.",
-        links: [],
-        action: { label: "Add them to my books", to: "/views/post-drafts" },
+        action: { label: "Add them to my books", to: review },
       },
     };
   }
@@ -127,7 +109,6 @@ export function homeState(summary: HomeSummary): HomeView {
       card: {
         title: "Import your first statement",
         body: `Drop in a statement for ${where}. Nothing reaches your books until you've checked it.`,
-        links: [],
         action: { label: "Import statements", to: "/import" },
       },
     };
@@ -139,10 +120,23 @@ export function homeState(summary: HomeSummary): HomeView {
     card: {
       title: "Every account is checked to its last statement",
       body: "Import the next statement when it arrives.",
-      links: [],
       action: { label: "Import statements", to: "/import" },
     },
   };
+}
+
+/**
+ * Where the drafts are reviewed: the account's own Review when every draft
+ * is on one listed account, else the account picker.
+ */
+function reviewTarget({ accounts, totals }: HomeSummary): string {
+  const pending = accounts.filter((a) => a.drafts > 0);
+  const only = pending[0];
+  return pending.length === 1 &&
+    only?.account_id != null &&
+    only.drafts === totals.drafts
+    ? reviewHref(only.account_id)
+    : REVIEW_ROUTE;
 }
 
 function problemsTitle(failing: number, duplicates: number): string {

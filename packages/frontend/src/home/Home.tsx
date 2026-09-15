@@ -3,13 +3,15 @@ import { Link } from "react-router-dom";
 import type { HomeAccount, HomeSummary } from "dbu6-shared";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import { homeApi } from "../api";
+import { apiErrorMessage, homeApi } from "../api";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/empty-state";
+import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
 import { NextStepCard } from "../components/next-step-card";
 import { StatusChip, type StatusTone } from "../components/status-chip";
 import { accountLedgerHref } from "../reports/links";
+import { reviewHref } from "../review/routes";
 import {
   formatBalance,
   formatDate,
@@ -41,7 +43,7 @@ export function Home() {
         if (live) setSummary(body);
       })
       .catch((e: unknown) => {
-        if (live) setError(e instanceof Error ? e.message : String(e));
+        if (live) setError(apiErrorMessage(e));
       });
     return () => {
       live = false;
@@ -74,7 +76,11 @@ export function Home() {
     >
       <div className="mt-8">
         {error ? (
-          <LoadError message={error} retry={() => setAttempt((n) => n + 1)} />
+          <LoadError
+            title="Couldn't load where your books stand"
+            message={error}
+            retry={() => setAttempt((n) => n + 1)}
+          />
         ) : view ? (
           <StepCard card={view.card} />
         ) : (
@@ -119,44 +125,13 @@ function StepCard({ card }: { card: HomeCard }) {
     <NextStepCard
       count={card.count}
       title={card.title}
-      body={
-        <>
-          {card.body}
-          {card.links.map((link) => (
-            <span key={link.to}>
-              {" "}
-              <Link to={link.to} className="text-primary hover:underline">
-                {link.label}
-              </Link>
-              .
-            </span>
-          ))}
-        </>
-      }
+      body={card.body}
       action={
         <Button render={<Link to={card.action.to} />} nativeButton={false}>
           {card.action.label}
         </Button>
       }
     />
-  );
-}
-
-/** The backend's error word for word, and a way to try again. */
-function LoadError({ message, retry }: { message: string; retry: () => void }) {
-  return (
-    <div
-      role="alert"
-      className="rounded-card border border-sap-border bg-card px-7 py-[26px]"
-    >
-      <h2 className="text-heading text-foreground">
-        Couldn't load where your books stand
-      </h2>
-      <p className="mt-[5px] text-body text-destructive">{message}</p>
-      <Button className="mt-4" variant="outline" size="sm" onClick={retry}>
-        Try again
-      </Button>
-    </div>
   );
 }
 
@@ -217,7 +192,16 @@ function AccountRow({ account }: { account: HomeAccount }) {
           {accountSubline(account)}
         </div>
       </div>
-      <StatusChip tone={status.tone}>{status.label}</StatusChip>
+      {account.account_id !== null && account.drafts > 0 ? (
+        <Link
+          to={reviewHref(account.account_id)}
+          className="-my-2 inline-flex min-h-11 items-center rounded-control no-underline outline-none hover:[&>span]:underline hover:[&>span]:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        >
+          <StatusChip tone={status.tone}>{status.label}</StatusChip>
+        </Link>
+      ) : (
+        <StatusChip tone={status.tone}>{status.label}</StatusChip>
+      )}
     </li>
   );
 }

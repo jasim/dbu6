@@ -4,7 +4,6 @@ import {
   Database,
   FileText,
   FileUp,
-  Send,
   Settings2,
   Wand2,
 } from "lucide-react";
@@ -40,12 +39,6 @@ const importTools: readonly LinkCardProps[] = [
     description: "Preview draft transactions as hledger journal text.",
     to: "/views/render-draft-hledger",
     icon: FileText,
-  },
-  {
-    label: "Post drafts",
-    description: "Convert a checked draft into journals and journal entries.",
-    to: "/views/post-drafts",
-    icon: Send,
   },
 ];
 

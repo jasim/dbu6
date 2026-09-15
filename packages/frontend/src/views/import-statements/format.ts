@@ -54,6 +54,32 @@ export function formatDate(iso: string): string {
   return `${parts.d} ${MONTHS[parts.m - 1]} ${parts.y}`;
 }
 
+// "2026-08-01" -> "1 Aug", the everyday screens' date. Anything else is
+// returned untouched.
+export function formatShortDate(iso: string): string {
+  const parts = isoParts(iso);
+  if (!parts) return iso;
+  return `${parts.d} ${MONTHS[parts.m - 1]}`;
+}
+
+// A span of days as a sentence reads it: "1–13 Sep", "28 Aug – 13 Sep", or
+// across a new year "28 Dec 2025 – 3 Jan 2026". `withYear` adds the year to
+// a span within one year: "1–13 Sep 2026".
+export function formatDaySpan(
+  from: string,
+  to: string,
+  { withYear = false }: { withYear?: boolean } = {},
+): string {
+  const a = isoParts(from);
+  const b = isoParts(to);
+  if (!a || !b) return `${formatDate(from)} – ${formatDate(to)}`;
+  if (a.y !== b.y) return `${formatDate(from)} – ${formatDate(to)}`;
+  const year = withYear ? ` ${b.y}` : "";
+  if (from === to) return `${a.d} ${MONTHS[a.m - 1]}${year}`;
+  if (a.m === b.m) return `${a.d}–${b.d} ${MONTHS[b.m - 1]}${year}`;
+  return `${a.d} ${MONTHS[a.m - 1]} – ${b.d} ${MONTHS[b.m - 1]}${year}`;
+}
+
 // "1 Aug to 31 Aug 2026" when both dates share a year, else two full dates.
 export function formatDateRange(from: string, to: string): string {
   const a = isoParts(from);

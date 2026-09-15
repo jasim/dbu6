@@ -87,11 +87,10 @@ describe("homeState", () => {
     expect(view.greeting).toBe("A few things to fix first");
     expect(view.card.count).toBe(3);
     expect(view.card.title).toBe("A few things to fix in the drafts");
-    expect(view.card.links.map((l) => l.to)).toEqual([
-      "/reports/draft-balance-assertions",
-      "/reports/duplicate-drafts",
-    ]);
-    expect(view.card.action.to).toBe("/review");
+    expect(view.card.action).toEqual({
+      label: "Review the drafts",
+      to: "/review/2",
+    });
   });
 
   it("names the one kind of problem when there is only one", () => {
@@ -103,9 +102,6 @@ describe("homeState", () => {
       summary([account({ drafts: 3, duplicates: 2 })]),
     ).card;
     expect(duplicates.title).toBe("2 possible duplicate entries in the drafts");
-    expect(duplicates.links).toEqual([
-      { label: "See the duplicates", to: "/reports/duplicate-drafts" },
-    ]);
   });
 
   it("counts the drafts needing a category and says where they are", () => {
@@ -127,6 +123,11 @@ describe("homeState", () => {
     expect(view.card.body).toBe(
       "They're waiting in the drafts for Sample Savings. Nothing is added to your books until you've checked them.",
     );
+    // Drafts on two accounts: the picker, not one account's Review.
+    expect(view.card.action).toEqual({
+      label: "Review transactions",
+      to: "/review",
+    });
   });
 
   it("does not name accounts when the drafts sit on unlisted ones", () => {
@@ -143,6 +144,7 @@ describe("homeState", () => {
     expect(view.state).toBe("uncategorised");
     expect(view.card.title).toBe("1 transaction needs a category");
     expect(view.card.body).toMatch(/^They're waiting in the drafts\. /);
+    expect(view.card.action.to).toBe("/review");
   });
 
   it("offers to post when every draft is categorised and clean", () => {
@@ -152,7 +154,10 @@ describe("homeState", () => {
     expect(view.card.body).toBe(
       "The drafts for Sample Savings are categorised and the balances match.",
     );
-    expect(view.card.action.to).toBe("/views/post-drafts");
+    expect(view.card.action).toEqual({
+      label: "Add them to my books",
+      to: "/review/2",
+    });
   });
 
   it("says so when nothing is pending", () => {

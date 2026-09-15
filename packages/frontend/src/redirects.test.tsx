@@ -54,6 +54,9 @@ describe("retired routes", () => {
   });
 
   it("leaves paths that still exist alone", async () => {
-    expect(await landingFor("/views/post-drafts")).toBe("/views/post-drafts");
+    // The raw draft table is on All tools again; Review is per account.
+    expect(
+      await landingFor("/tables/draft_transactions?filter[id][eq]=5"),
+    ).toBe("/tables/draft_transactions?filter[id][eq]=5");
   });
 });

@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Copy } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { AutoImportGroupResult, AutoImportPlanFile } from "dbu6-shared";
 import { cn } from "@sapporta/ui/cn";
+import { CopyPromptButton } from "../../components/copy-prompt-button";
+import { Disclosure } from "../../components/disclosure";
 import { Button } from "../../components/ui/button";
 import {
   StatusChip,
@@ -11,28 +12,6 @@ import {
 } from "../../components/status-chip";
 import { describeGroup, type Stat } from "./describeGroup";
 import type { Problem, ProblemAction } from "./describeProblems";
-
-export function CopyPromptButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => setCopied(true));
-      }}
-    >
-      <Copy />
-      {copied ? "Copied" : "Copy prompt"}
-    </Button>
-  );
-}
 
 // The glyph that says a status line's tone in shape as well as colour.
 const GLYPH: Record<StatusTone, string | null> = {
@@ -105,35 +84,6 @@ function FactTable({ rows, heading }: { rows: Stat[]; heading?: string }) {
 }
 
 // Collapsed by default; the summary reads as a link.
-function Disclosure({
-  summary,
-  children,
-}: {
-  summary: string;
-  children: ReactNode;
-}) {
-  return (
-    <details className="group/disclosure">
-      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control text-row font-semibold text-primary outline-none hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
-        <span
-          aria-hidden="true"
-          className="w-3 text-ink-meta group-open/disclosure:hidden"
-        >
-          ▸
-        </span>
-        <span
-          aria-hidden="true"
-          className="hidden w-3 text-ink-meta group-open/disclosure:inline"
-        >
-          ▾
-        </span>
-        {summary}
-      </summary>
-      <div className="mb-2 mt-1 space-y-4">{children}</div>
-    </details>
-  );
-}
-
 // Whose statement: the title and its caption, with the status on the right.
 function Subject({
   title,

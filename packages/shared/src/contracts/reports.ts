@@ -16,6 +16,12 @@ const optionalDateRangeQuery = z.object({
 
 const noParamsQuery = z.object({});
 
+// The draft reports narrow to one base account for Review's tabs; without
+// it they list every account.
+const draftAccountQuery = z.object({
+  base_account_id: z.coerce.number().int().positive().optional(),
+});
+
 export const reportsContract = c.router({
   trialBalance: c.query({
     method: "GET",
@@ -146,7 +152,7 @@ export const reportsContract = c.router({
     path: "/reports/draft-balance-assertions",
     summary: "Draft Balance Assertions",
     metadata: { tags: ["reports"] },
-    query: noParamsQuery,
+    query: draftAccountQuery,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
@@ -158,7 +164,7 @@ export const reportsContract = c.router({
     path: "/reports/duplicate-drafts",
     summary: "Duplicate Drafts",
     metadata: { tags: ["reports"] },
-    query: noParamsQuery,
+    query: draftAccountQuery,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
