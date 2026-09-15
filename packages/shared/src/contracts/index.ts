@@ -42,3 +42,10 @@ export {
 } from "./statement-account.js";
 export { draftTransactionsContract } from "./draft-transactions.js";
 export { journalsContract } from "./journals.js";
+export {
+  homeContract,
+  homeAccountSchema,
+  homeSummarySchema,
+  type HomeAccount,
+  type HomeSummary,
+} from "./home.js";

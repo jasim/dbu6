@@ -9,8 +9,9 @@
   (seen 2026-09-15); the Sapporta checkout is on `main`.
 - **Done:** Step 3, the app shell (§8), Step 4, Sapporta's surfaces (§9), and Step 5,
   dbu6's components and cleanup (§10), all 2026-09-15.
-- **Done:** Step 6, P0 (§11), spec agreed and built 2026-09-15.
-- **Next:** prepare the P1 discussion (§11). P1–P9 each start with a discussion.
+- **Done:** Step 6, P0 and P1 (§11), each spec agreed and built 2026-09-15.
+- **Spec agreed:** Step 6, P2 (§11, Import statements) and P3 (§11, Review), both 2026-09-15.
+- **Next:** build P2 as specified, then P3.
 
 This file stands on its own. A coding agent should be able to pick up any step using only
 this file, the two repositories, and (when it is on disk) the design handoff folder. You do
@@ -161,7 +162,9 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
 - **`packages/api`**
   - Hono backend on `@sapporta/server`.
   - Tables in `packages/api/schema/` (Sapporta `sapportaTable`).
-  - Custom endpoints in `packages/api/app.ts` and `packages/api/app/`.
+  - Custom endpoints in `packages/api/app.ts` and `packages/api/app/`. `app/home.ts`
+    serves `GET /home` (the `homeContract` in `dbu6-shared`), composing the checkpoint,
+    draft-assertion and duplicate queries the reports use.
   - Reports in `packages/api/app/reports/`. They return a `GridDataset` (grid-shaped rows,
     not domain JSON).
 - **`packages/shared`**: ts-rest contracts, imported as `dbu6-shared`.
@@ -195,8 +198,8 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
   - `ReportScreenFrame` + `ReportToolbar` + `ReportGridDataset` (`@sapporta/frontend/report`);
   - `SchemaTableGridView` (`@sapporta/frontend`): the Sapporta data grid bound to a table.
 - **Pages:**
-  - `src/Welcome.tsx` (Home until P1), `src/Advanced.tsx` (All tools until P5),
-    `src/reports/ReportsIndex.tsx`
+  - `src/home/Home.tsx` (Home, P1; `home/state.ts` picks the greeting and card),
+    `src/Advanced.tsx` (All tools until P5), `src/reports/ReportsIndex.tsx`
   - `src/views/*`: import statements, freeform import, reclassify, post, render hledger, journals, draft transactions
   - `src/reports/*`: 12 report screens plus `registry.tsx`
 - **`src/app.css` is the only CSS entry point.** Order: `@import "tailwindcss"` →
@@ -1496,39 +1499,584 @@ count (`navigation-counts.ts`) once per route change at shell level, which is th
   `tmp/redesign/p0/` for `/`, `/accounts`, `/import`, `/review`, `/reports`, `/tools` and
   the drawer.
 
-### P1 · Home (handoff: Home): Status: Not started
-- **The next-step logic, as a state machine:**
-  - no accounts → add an account
-  - nothing imported → import
-  - uncategorised drafts → review
-  - duplicates or balance mismatch → review
-  - all clear → add to books
-  - nothing pending → up to date
-- How `ProgressSteps` is derived.
-- Accounts card: balance, checked-to date, status.
-- The "month so far" card's data source.
-- Greeting and household name.
+### P1 · Home (handoff: Home): Status: Built (2026-09-15)
 
-### P2 · Import statements (handoff: Import): Status: Not started
-- A preview and matching step before import (needs a dry-run endpoint).
-- "Change" to override the matched account.
-- Google Pay Takeout revealed inside the card.
-- A design for results and problem cards (the handoff doesn't cover these).
-- Where freeform import lives.
-- Going to Review after import.
+Agreed with the project owner on 2026-09-15, one question at a time. Build order: the
+`home` contract and handler with tests, the state function with tests, then the page.
 
-### P3 · Review (handoff: Review; replaces Draft entries, Classify drafts, Check duplicates, Verify balances, Post reviewed entries): Status: Not started
-- A custom list vs. the Sapporta grid: do we still need inline edits of other columns?
-- Scope: one account at a time (posting is per account) vs. "this import".
-- The category picker: command palette, and "apply to all similar".
-- Merchant names.
-- Mark-as-duplicate (needs a mutation).
-- What "Already checked" means.
-- Bulk actions.
-- Gating the primary action.
-- The balance strip's data.
-- 400+ rows: the Sapporta grid doesn't virtualise.
-- Where "run the categoriser again" goes.
+**Purpose and single primary action:** say where the books stand and give one thing to do.
+Home is about the reconciled situation of each importable account, which accounts have
+drafts waiting, and whatever blocks posting, said plainly. **There is no "month so far"
+card**: the owner wants figures on the reports, not on Home. The one primary action is the
+next-step card's button.
+
+**Route(s) and redirects:** `/` (P0). `usePageTitle("Home")`. No new routes.
+`/reports/last-reconciled` stays as the Import checkpoint report on All tools; Home takes
+over its role for everyday use.
+
+**Section order (with layout notes)**
+
+1. **Date eyebrow** ("Tuesday, 15 September 2026", `text-label` uppercase `ink-meta`).
+2. **Greeting** in `text-display`, chosen by the state (below), with the workspace name
+   under it in `text-body ink-meta` as the household line (renamed in workspace settings).
+3. **NextStepCard**, one per page, chosen by the state. The medallion shows a count only in
+   states 3–5; `NextStepCard` gets an optional `count` (no medallion when absent).
+4. **"Your accounts" card**: header (`text-heading`) with a ghost "Add an account" → `/accounts`;
+   one row per account (below); an `EmptyState` when there are none.
+
+No `ProgressSteps` (decided: the card and the rows already say where the user is). Page
+frame as the handoff: `px-14 py-10` at desktop, a single column, content width about
+1040px; at 390px everything stacks and the card's action sits under its text.
+
+**What an account is (decided, revised once).** The unique `base_account` paths across every
+import preset (`readImportPresets`), resolved to ledger accounts by name. Not a path-prefix
+rule (bank accounts need not live under `assets:bank`), and not the raw accounts table.
+`kind` is card when any preset for that account sets `is_credit_card`. The row's name is the
+preset's `name` when exactly one preset points at the account, otherwise the path's last
+segment made readable (as `categoryName` does); the path is the `title`.
+
+**Account row (facts only, no staleness guess):**
+- name (16.5px/600), linking to the account ledger (`accountLedgerHref`);
+- subline (`text-meta ink-meta`): "Checked to 13 Sep · ₹3,26,445" from the last posted
+  balance assertion (the checkpoint query), or "Nothing imported yet";
+- status chip, in this order: **problem** "Problems in drafts" when its drafts have failing
+  balance checks or possible duplicates; **attention** "12 drafts waiting" when it has
+  drafts; **ok** "Checked" when it has a checkpoint and no drafts; **waiting** "Not imported"
+  otherwise. A preset whose base account is not in the ledger shows "Account missing"
+  (problem) with the path.
+
+**The state, in precedence order** (a pure function of the `home` response; decided:
+problems before categories, since a wrong balance usually means a wrong or missing
+statement):
+
+| # | Condition | Greeting | Card title / body / button |
+|---|---|---|---|
+| 1 | no accounts (no presets) | "Let's set up your first account" | "Add your first account" / "dbu6 imports statements from the banks and cards you set up. Each needs an account and an import preset." / "Open accounts" → `/accounts` |
+| 2 | accounts, but no drafts and no journals on any of them | "Nothing imported yet" | "Import your first statement" / "Drop in a statement from HDFC Savings or ICICI Amazon Pay. Nothing reaches your books until you've checked it." / "Import statements" → `/import` |
+| 3 | failing balance checks or possible duplicates in the drafts | "A few things to fix first" | count = failing + duplicates. Title: "3 balance checks fail in the drafts", or "2 possible duplicate entries in the drafts", or "A few things to fix in the drafts" when both. Body: "They have to be fixed before those drafts can be added to your books." followed by inline links "See the balance checks" (`/reports/draft-balance-assertions`) and "See the duplicates" (`/reports/duplicate-drafts`) until P3 folds them into Review. Button: "Review the drafts" → `/review` |
+| 4 | uncategorised drafts | "You're nearly up to date" | count = uncategorised. "12 transactions need a category" / "They're waiting in HDFC Savings's drafts. Nothing is added to your books until you've checked them." / "Review transactions" → `/review` |
+| 5 | drafts, all categorised, no problems | "Ready to add to your books" | count = drafts. "21 transactions ready to add" / "HDFC Savings's drafts are categorised and the balances match." / "Add them to my books" → `/views/post-drafts` until P3 |
+| 6 | nothing pending | "You're up to date" | "Every account is checked to its last statement" / "Import the next statement when it arrives." / "Import statements" → `/import` |
+
+When drafts sit on several accounts, the body names them ("across HDFC Savings and ICICI
+Amazon Pay"). Counts in titles use `plural`.
+
+**Copy** is in the table. Card header "Your accounts"; empty state "No accounts set up yet"
+/ "Add a bank or card account and an import preset, then import its first statement." with
+an outline "Open accounts". Sublines as above.
+
+**States:** *loading*: the card and the accounts card keep their shape (a card-height
+skeleton each; no spinner). *error*: the backend error word for word where the card would
+be, with a "Try again" outline button. *empty*: state 1. *large volume*: every account is
+listed, no paging (presets are a handful).
+
+**Data and API changes**
+- **New contract in `dbu6-shared`: `homeContract.summary`, `GET /home`** (auth as the
+  workflow endpoints, `requireWorkflowAuth`; scope as reports). Response:
+  ```
+  {
+    accounts: [{ account_id: number | null, path, name, kind: "bank" | "card",
+                 checked_to: string | null, checked_balance: number | null,
+                 drafts, uncategorised, duplicates, failing_checks }],
+    totals: { drafts, uncategorised, duplicates, failing_checks },
+    has_journals: boolean
+  }
+  ```
+- **Handler `packages/api/app/home.ts`** composes existing queries: `readImportPresets`
+  (unique base accounts), `loadLastReconciled` (already exported), the draft counts by
+  `base_account_id` (total and `account_id IS NULL`), `failingDraftAssertionsSelect` grouped
+  by account, and the duplicate-drafts query grouped by base account (move that SQL into a
+  shared module if the report keeps it inline). A test per state with a seeded SQLite, as
+  the report tests do.
+- **Frontend:** `homeApi` in `src/api.ts`; `src/home/state.ts` (`homeState(summary)` →
+  the state number, greeting and card content) with a test per state; `src/home/Home.tsx`
+  replaces `Welcome.tsx`.
+- **Badge:** unchanged for now (`totals.uncategorised` is the same number; switching the
+  sidebar to it is a follow-up).
+
+**Components used:** `NextStepCard` (count made optional), `StatusChip`, `EmptyState`,
+dbu6 `Button` (default, outline, ghost), `accountLedgerHref`, `plural` from the import
+formatting module, a mono balance span (not `Amount`: a balance has no direction).
+
+**Old screens retired or folded in:** `Welcome.tsx` and its five-section workflow wall go.
+Its guidance text is not kept (Help & support was left out in P0). The Import checkpoint
+report stays on All tools.
+
+**Done criteria (page-specific, plus §4.9)**
+- `homeState` has a passing test for each of the six states, and the handler a test for
+  the counts and the checkpoint on seeded data.
+- With the seed, Home shows state 3 or 4 with the HDFC Savings drafts and the account
+  rows; after posting, state 6. Screenshots of both at 1920 and 390 in `tmp/redesign/p1/`.
+- The page makes one request. No colon paths outside `title` attributes.
+- `pnpm typecheck`, `pnpm test`, `pnpm format:check`.
+
+### P2 · Import statements (handoff: Import): Status: Spec agreed (2026-09-15)
+
+Agreed with the project owner on 2026-09-15, one question at a time. **The page keeps
+today's flow**: drop the files, press one button, and the server imports in one request
+(`POST /import-draft/statements/auto`); results or problems appear afterwards. The owner
+called the handoff's Import screen a throwaway idea. There is no check-before-import step,
+no dry-run endpoint and no "Change" (the preset match is strict, so nothing is guessed).
+Server behaviour is unchanged: all or nothing when a file can't be placed, and a partial
+import when a later account fails. Build order: the shell's `shortLabel`, then the Import
+page (frame, dropzone, file list, Google Pay row, button), then the outcome (results card,
+problem cards and their tones), then the freeform screen, then tests and screenshots.
+
+**Purpose and single primary action:** import statement files into drafts. The one primary
+button is "Import N statements" before an import (and on retry after a failure), and
+"Review N transactions" once an import brought something new.
+
+**Route(s) and redirects:** `/import` (P0). `usePageTitle("Import statements")`. The freeform
+screen stays at `/views/import-freeform-transactions`. No new routes. Links that name the
+old path move to the new one: `REVIEW_DRAFTS_ROUTE` in `describeGroup.ts` (today
+`/views/reclassify-drafts`) becomes `/review`, and `agentPrompts.ts`' mention of
+`/views/import-statements` becomes `/import`.
+
+**Section order (with layout notes)**
+
+The frame is Home's: no `AppPage` 52px bar or breadcrumb; the title and description sit at
+the top of the content, clear of `--sap-page-header-inset`. A single column about 760px
+wide, `px-14 py-10` at desktop; everything stacks at 390px.
+
+1. **Header:** title (`text-title`) and description (`text-body ink-soft`).
+2. **Dropzone** (2a: 2px dashed outline border, `#FCFCFC`, 18px radius): "Drop your statement
+   files here", the formats line, an outline "Choose files" button. Clicking anywhere in the
+   zone opens the picker; "Choose files" is the keyboard path. The native input stays hidden.
+   **No extension filter:** the `accept` list, `ACCEPTED_EXTENSIONS` and the "Skipped …"
+   message go. Every dropped file is sent, and a type no parser lists comes back
+   `unrecognized` ("Readers tried: none fit this file type"), like any unreadable statement.
+   Under the zone, one quiet ghost-link line to freeform import.
+3. **File list:** one card, headed "3 statements" with a ghost "Clear all". Each row: a type
+   tile (the extension uppercased, e.g. XLS), the file name (truncates), the size in mono,
+   and a remove button (44px target). After an import, a status line under the name in the
+   problem's tone (below), with a glyph.
+4. **Google Pay row:** its own row below the statements, styled like a file row. Empty: the
+   title, one sentence and an outline "Choose file" (hidden native input, `.html,.htm`).
+   Chosen: an HTML type tile, the name, the size and a remove button. A Takeout is added only
+   through this row; an `.html` dropped on the dropzone is treated as a statement. It never
+   counts towards "N statements".
+5. **Button:** the primary import button, with its waiting reason.
+6. **Outcome:** the summary sentence, then the problem cards, then the results card.
+
+**The done state** (after a request that imported without failure):
+- The dropzone, the Google Pay row and the import button hide. The file list stays, with
+  each file's outcome line, and no remove buttons.
+- With new transactions: primary "Review N transactions" → `/review` (N = the sum of
+  `draft_transaction_count`), and outline "Import more statements", which clears the page.
+- With nothing new: "Import more statements" is the only action, and the primary.
+
+**The failure state:** the dropzone and the file list stay (a missing statement can be
+added), "Import N statements" stays primary for the retry, and the problem cards explain.
+After a partial import, the accounts that imported become rows in the results card and
+their files leave the list, as today.
+
+**Results card** (one card, one row per imported account, replacing today's `AccountCard`):
+- the account (the preset's name) and a caption: institution · "account ending 0505" ·
+  statement dates · file names;
+- a status chip: ok "21 new", or waiting "Nothing new";
+- the counts as a sentence: "8 in the statement: 5 new, 3 already in your books" ("The
+  statement has no transactions." when empty);
+- balances: "✓ Balances match the statement" with opening → closing in mono (cards read as
+  amounts owed, `formatBalance`), or, in the waiting tone, "Balances not checked: the
+  statement prints no closing balance";
+- "Named 6 UPI payments from Google Pay", only when `gpay_enriched_count` > 0;
+- a collapsed "Details": the "Not new because" breakdown, the ledger account path, the
+  parser, the balance sources, the last confirmed balance.
+- **Gone:** the six stat tiles, the per-card "Review drafts" button, the hledger journal
+  disclosure (Render hledger on All tools covers it). **Not added:** a needs-a-category count.
+
+**Problem cards** (content and behaviour kept, `describeProblems.ts` wording kept):
+- **Tone by kind.** Destructive (the numbers don't add up): `balance_mismatch`,
+  `segment_balance_mismatch`, `statement_boundary_mismatch` (a gap, or the same statement
+  twice), `statement_disagreement`, `statement_part_invalid`,
+  `reconciliation_match_failed`, `assertion_conflict`. Attention (something needs setting
+  up): `unrecognized`, `ambiguous`, every `unresolved` reason, `opening_balance_unavailable`,
+  `closing_balance_unavailable`, `statement_part_unjoinable`, and the permission card (403).
+  The cards without a kind of their own take destructive: the connection card and the
+  unexpected-error card, which today also covers codes such as `ambiguous_duplicate`,
+  `import_account_not_found` and `categorization_config_error`. The summary sentence and each
+  file's status line take the tone of the most serious problem, with a "!" glyph.
+- **Anatomy:** the file or account and its caption with a "Not imported" status chip; the
+  verdict as a `text-subheading`; the facts table (figures in mono; a mismatch always shows
+  its computed and printed figures and the difference); the why and the steps as plain
+  paragraphs (no label column); the actions as outline buttons; then "Ask your coding agent
+  to fix this" (copy prompt, preview) and "Technical details" (the server's words), both
+  collapsed.
+- **Freeform link:** the unrecognised-file card gains an outline "Import them freeform
+  instead" → `/views/import-freeform-transactions`.
+
+**Copy**
+- Title "Import statements". Description: "Drop the statement files you downloaded from your
+  bank. Each one is matched to its account, so you can drop statements from several banks
+  at once. New transactions wait in Review, and your books don't change until you add them."
+- Dropzone: "Drop your statement files here" / "PDF, Excel or CSV. Add as many as you like."
+  (a hint, not a filter) / "Choose files". Under it: "Transactions that aren't in a
+  statement file? Import them freeform".
+- File list header: "N statements" (`plural`), "Clear all".
+- Google Pay row: "Names from Google Pay (optional)" / "Add the activity page from your
+  Google Pay Takeout, and UPI payments get the recipient's name before they're categorised."
+  / "Choose file". Today's "It never changes which transactions count as already imported"
+  goes.
+- Button: "Import N statements" ("Import statement" for one); waiting reason "Add at least
+  one statement"; while importing, a spinner and "Importing…" with "Reading, checking and
+  categorising. This can take a minute." underneath.
+- Summary sentences as `describeBatch.ts` has them today. Every "Process" in
+  `describeBatch.ts`, `describeProblems.ts` and the page ("press Process again", "Process
+  X on its own") becomes "Import".
+- Done state: "Review N transactions", "Import more statements".
+
+**States:** *empty*: the dropzone and the waiting button. *loading*: the button's importing
+state; the dropzone, the remove buttons and the Google Pay row are disabled; no skeletons.
+*error*: the problem cards (including the connection and permission cards); a network
+failure keeps every file. *large volume*: no paging; the file list grows and results have
+one row per account.
+
+**Navigation label:** dbu6's `NavigationItem` (`shell/navigation.ts`) gains an optional
+`shortLabel`; the mobile bottom bar shows it when present. Import statements sets
+`shortLabel: "Import"`. The sidebar, the drawer, the page title and the item's accessible
+name keep "Import statements".
+
+**Freeform import** (`views/ImportFreeformTransactions.tsx`, same flow and wording):
+- Home's frame instead of `AppPage`; title and description styled as on Import.
+- The kind's two native radios become a two-option segmented RadioGroup; the account's
+  native `<select>` becomes the Select primitive, still filtered to assets or liabilities.
+  Both primitives are added to `components/ui/` on `@base-ui/react` (D5).
+- The three numbered steps, the copy-prompt button and the prompt preview stay.
+
+**Data and API changes:** none. P2 is frontend only.
+
+**Components used:** dbu6 `Button` (default, outline, ghost), `StatusChip`, new
+`components/ui/radio-group.tsx` and `select.tsx`, a local type tile, the import formatting
+module (`plural`, `formatBalance`, `formatDateRange`, `maskIdentifier`), `CopyPromptButton`.
+
+**Old screens retired or folded in:** nothing retired. Gone from the Import page: the
+breadcrumb bar, the client-side extension filter and its message, the native Google Pay
+input and its long help text, "Process", the per-account `AccountCard` (tiles, per-card
+Review button, hledger journal), the label-column layout of `ProblemCard`.
+
+**Done criteria (page-specific, plus §4.9)**
+- `describeProblems` gives every error code a tone, with a test for each group; the
+  `describeBatch` and `describeGroup` tests follow the new wording and fields.
+- In the browser with the seed and the parser fixtures: a successful import (done state,
+  "Review N transactions" opens `/review`); a re-import of the same file (nothing new); an
+  unrecognised file, including an `.html` dropped on the zone (attention tone, the freeform
+  button, "Remove this file" then a retry); a balance problem (destructive tone, the
+  figures shown); a Takeout added through its row.
+- At 390px the bottom bar reads "Import" in full.
+- The freeform screen renders with the new controls and still produces the same prompt.
+- No native file input, radio or select is visible on either screen.
+- `pnpm typecheck`, `pnpm test`, `pnpm format:check`; screenshots at 1920 and 390 in
+  `tmp/redesign/p2/` (empty, files added, done, nothing new, each problem tone, freeform).
+
+### P3 · Review (handoff: Review; replaces Draft entries, Check duplicates, Verify balances, Post reviewed entries): Status: Spec agreed (2026-09-15)
+
+Agreed with the project owner on 2026-09-15. **Import doesn't change** (P2 stands): statements
+from any number of accounts land in the drafts together, and the drafts can hold any number
+of accounts at any time. **Review starts when you pick one account that has drafts.**
+Everything after that is scoped to the account: its overview says what blocks posting or
+that it's safe to post, and holds the post button; its tabs are the drafts table, the
+possible duplicates and the balance checks. Posting already runs per account.
+
+**No Sapporta changes, and categorising works as today** (owner, 2026-09-15): no per-row or
+per-selection categorise action, and "Run the categoriser again" is today's Classify drafts
+screen, unchanged.
+
+Build order: the draft status module and the `review` contract and handler, with tests;
+the report account filter; routes and redirects; the account picker; the account frame and
+tabs; Overview with posting; the Drafts tab; the Duplicates and Balance checks tabs with
+their prompts; Home's links; tests and screenshots.
+
+**Purpose and single primary action**
+- `/review` (the picker): choose an account. No primary button; the rows are links, like
+  the reports index.
+- `/review/:accountId` (Overview): add this account's drafts to the books. The one primary
+  button is "Add N to my books", in the waiting style until every check passes.
+- The Drafts, Duplicates and Balance checks tabs have no primary button. Their actions are
+  outline buttons ("Run the categoriser again", "Copy prompt").
+
+**Route(s) and redirects**
+- `/review`: the account picker. When exactly one account has drafts, it replaces itself
+  with `/review/:accountId`. `usePageTitle("Review")`.
+- `/review/:accountId`: Overview. `:accountId` is the ledger account's id (the drafts'
+  `base_account_id`). A non-numeric id redirects to `/review`.
+- `/review/:accountId/drafts`: the Drafts tab. The grid's filters, search and page live in
+  its query string, as on today's `/review`.
+- `/review/:accountId/duplicates` and `/review/:accountId/balance-checks`: the other tabs.
+- Any other path under `/review/:accountId/` redirects to Overview.
+- `usePageTitle` on the account pages: "HDFC Savings · Review".
+- **Redirects** (`redirects.tsx`, walked by `redirects.test.tsx`): `/views/post-drafts` →
+  `/review` is added. `/views/reclassify-drafts` stays as it is.
+- **`/tables/draft_transactions` stops redirecting** and shows Sapporta's raw table again
+  (every account, as a raw table on All tools). Decided while writing: `/review` no longer
+  shows every account's drafts, and the reports' "Open draft transaction" links resolve to
+  `/tables/draft_transactions?filter[id]…`, which the redirect sent to the picker without
+  the row.
+- `/views/render-draft-hledger` stays on All tools (decided).
+
+**Section order (with layout notes)**
+
+The frame is Home's: no `AppPage` bar; the header sits at the top of the content, clear of
+`--sap-page-header-inset`; `px-14 py-10` at desktop, `px-5 py-8` at 390px.
+
+*The picker (`/review`)*, a single column about 760px wide:
+1. Title and description.
+2. One card with a row per account that has drafts, sorted by name. Each row links to
+   `/review/:accountId`: the account's name (16.5px/600, the path in `title`), a subline
+   (`text-meta ink-meta`) "21 drafts · 1–13 Sep", a status chip, and a "›".
+   **Chip precedence:** problem "Problems to fix" when it has failing balance checks or
+   possible duplicates; attention "12 need a category"; ok "Ready to add".
+3. An `EmptyState` instead of the card when no account has drafts.
+
+*The account frame (every `/review/:accountId` page)*, full content width:
+1. **Back link:** ghost "‹ All accounts" → `/review`, shown only when another account also
+   has drafts (with one account, `/review` would come straight back).
+2. **Header:** the account's name (`text-title`, path in `title`); under it (`text-body
+   ink-meta`) "21 drafts · 1–13 Sep 2026 · checked to 31 Aug", or "… · nothing added yet"
+   when the account has no posted balance check.
+3. **Tabs:** Overview · Drafts 21 · Duplicates 2 · Balance checks 3. They are links (each
+   tab is a route), styled as the handoff's pill tabs: the active tab ink-filled with
+   `aria-current="page"`; the count in mono after the label; the Duplicates and Balance
+   checks counts in the destructive tone when above zero and left out at zero; the Drafts
+   count always shown. At 390px the tab row scrolls sideways. Not the Tabs primitive,
+   since each tab is its own URL.
+4. **The tab's content.** Overview's column is about 760px wide; the other tabs use the
+   full width for their grids.
+
+*Overview*:
+1. **Verdict** (`text-heading`): "Ready to add to your books", "Not ready to add yet", or
+   after posting, "Added to your books".
+2. **Checks card**, one row per check, in tab order. Each row: a glyph (✓ ok, ! problem or
+   attention, a waiting dot), a sentence, and a ghost link to the tab that fixes it.
+   - **Categories:** ✓ "All 21 transactions have a category", or ! (attention) "12
+     transactions need a category" with "See them in Drafts" → the Drafts tab with the
+     `account_id` is-empty filter in its URL (shown as a chip).
+   - **Duplicates:** ✓ "No possible duplicates", or ! (problem) "2 possible duplicates" with
+     "See the duplicates".
+   - **Balance checks:** ✓ "Every balance check passes", or ! (problem) "3 balance checks
+     fail, the first on 5 Sep" with "See the balance checks". When the drafts carry no
+     balance check at all (freeform drafts, say): waiting "These drafts have no balance
+     checks". That doesn't block posting, since the posting gate doesn't either.
+3. **What posting does**, shown only when nothing blocks (`text-body ink-soft`): "Adds 21
+   transactions from 1–13 Sep. HDFC Savings will then be checked to 13 Sep at ₹3,26,445."
+   The second sentence is left out when the drafts have no balance check. No confirmation
+   dialog (decided while writing: the sentence says what happens, and the owner wants to
+   press post from here).
+4. **The button:** "Add 21 to my books". Waiting reason: the unmet checks in tab order,
+   joined with " · ": "12 still need a category · 3 balance checks fail". While posting:
+   a spinner and "Adding…".
+
+**After posting** (a 200 response): the verdict reads "Added to your books"; the checks card
+is replaced by an ok line: "21 transactions added. HDFC Savings is checked to 13 Sep at
+₹3,26,445." Then, if another account has drafts, a primary "Review ICICI Amazon Pay" (the
+first by name) and a ghost "All accounts"; otherwise a primary "Import statements" →
+`/import`. The tab counts refresh to zero. A 422 (the drafts changed since the page loaded)
+shows the server's error word for word above the button, and the summary is fetched again.
+
+*Drafts tab*:
+1. **Grid:** today's draft table (`SchemaTableGridView` for `draft_transactions`, with its
+   header, search, Export, delete, filters, in-place cell editing and quick filters), locked
+   to the account through Sapporta's existing `rootRows.fixedFilters`
+   (`[eqCondition("base_account_id", accountId)]`, memoised on the id, since a new array
+   recreates the grid's session). The lock is not a filter chip and can't be removed. The
+   user's own filters, search and page stay in the URL and show as chips. The quick filters
+   keep their labels and write to the tab's URL instead of `/review`. `registerAs` as
+   today; no New record button (`onNewRecord` isn't passed).
+2. **The grid's header is Sapporta's, unchanged:** it reads "Draft Transactions" with the
+   record count, and while this tab is open it names the browser tab.
+3. **"Run the categoriser again"**, an outline button above the grid, is a link to today's
+   Classify drafts screen (`/views/reclassify-drafts`), unchanged: its presets, account
+   picker, custom mapping files text field, optional Google Pay file, and the classify
+   requests over that account's drafts with no category. Coming back to Review fetches the
+   summary again.
+4. **Removing a draft** (the extra one of a duplicate pair) is the grid's own delete.
+
+*Duplicates tab*:
+1. **Summary** (`text-body ink-soft`): "2 possible duplicates. Each draft below looks like
+   another draft or an entry already in your books. If one is extra, select it in Drafts
+   and delete it. If both are real transactions, ask your coding agent to find out why they
+   match."
+2. **Grid:** the `duplicate-drafts` report for this account (`ReportResultBody`, no report
+   frame or Run button), without the Base Account column. Its links to open the draft, the
+   matched draft and the matched journal stay.
+3. **"Ask your coding agent to find out"**: an outline `CopyPromptButton` and a collapsed
+   preview of the prompt (below).
+4. **At zero:** `EmptyState` "No possible duplicates" / "None of HDFC Savings's drafts match
+   another draft or anything already in your books." The prompt is left out.
+
+*Balance checks tab*:
+1. **Summary:** "3 balance checks fail. The first is on 5 Sep, where the drafts' running
+   balance is ₹10,000 away from the statement's." Figures in mono (`formatMoney` of the
+   absolute difference).
+2. **Grid:** the `draft-balance-assertions` report for this account, without the Account
+   column. Its links (the account ledger to that date, the draft) stay.
+3. **"Ask your coding agent to find out"**, as on Duplicates.
+4. **At zero:** `EmptyState` "Every balance check passes" / "On every day the statement
+   printed a balance, the drafts add up to it." When the drafts carry no balance check:
+   "These drafts have no balance checks" / "Drafts from a statement carry the statement's
+   balances. These don't, so there's nothing to compare."
+
+**The prompts** (`src/review/agentPrompts.ts`, in the manner of the import prompts: what the
+app was doing, the facts, what to do, what not to do, what to report back):
+- **Both start with the account facts:** the name and ledger path, the account id, the
+  draft count and dates, the last posted balance check (date and figure), and how to read
+  the data: with `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` (the agent token the import
+  prompts describe), `GET /api/review/accounts/:accountId`,
+  `GET /api/reports/duplicate-drafts?base_account_id=…`,
+  `GET /api/reports/draft-balance-assertions?base_account_id=…`,
+  `GET /api/tables/draft_transactions?filter[base_account_id][eq]=…&sort=date,id&limit=1000`
+  and the account ledger report; or `data/sqlite.db`, read-only. Both say: don't change
+  drafts, journals or balance checks without first saying exactly what and why; and the
+  PII rule (shared with the import prompts) for anything written into the repository.
+- **Duplicates prompt:** each possible duplicate as a line: date, direction and amount, the
+  draft (id, narration, category), what it matched (the other draft's id and narration, or
+  the journal and entry ids with the entry's comment and account), the match type and
+  confidence. Asks, for each: are they one real transaction (which draft goes) or two (and
+  why `packages/api/modules/reconciliation/journal-transaction-matcher.ts` matched them)?
+  It names transfers between the user's own accounts as a common cause. Report a verdict
+  per line and the change proposed.
+- **Balance checks prompt:** each failing check as a line: date, draft id, running balance,
+  the statement's balance, the difference. Explains how the check is computed
+  (`packages/api/modules/reconciliation/running-balance.ts`: posted entries on the account,
+  including ones posted from other accounts, come before drafts on the same date; only the
+  last draft of each day carries the statement's balance). Asks the agent to find the first
+  failing day, list the account's posted entries and drafts around it with the running
+  balance, and find what explains the difference: a draft repeating an entry already
+  posted from another account (a card payment or transfer), a missing or extra draft, an
+  edited amount or date, or a gap between statements. Report the cause and the exact fix.
+- **Size:** at most 50 lines of rows, then "and N more (read them from the API above)".
+
+**Copy**
+- Picker: title "Review". Description: "Pick an account to check its drafts and add them to
+  your books. Each account is checked and added on its own." Empty state: "Nothing to
+  review" / "Drafts appear here after you import statements." with an outline "Import
+  statements" → `/import`.
+- Frame: "All accounts"; tab labels "Overview", "Drafts", "Duplicates", "Balance checks".
+- Overview, Duplicates, Balance checks and the prompts: as above.
+- An account with no drafts (after posting, or a stale link): `EmptyState` "No drafts for
+  HDFC Savings" / "Everything imported for this account is already in your books." with an
+  outline "Import statements"; the tabs hide.
+- Unknown account (404): "We couldn't find this account." with a ghost "All accounts".
+
+**States**
+- *Loading:* the picker keeps its card shape with row-height skeletons; the frame shows the
+  header and tab bar as skeletons; tabs render their own loading (the grid's, or a
+  skeleton line for a summary). No full-page spinner.
+- *Error:* the backend error word for word where the content would be, with an outline "Try
+  again".
+- *Empty:* as in Copy.
+- *Large volume:* the picker lists every account; the Drafts grid pages as Sapporta's grid
+  does; the report grids scroll; the prompts cap their rows at 50.
+- *Freshness:* the frame fetches the account summary on entry, on every tab change, and
+  after posting. Category edits in the grid, and the Classify screen's results, show in the tab
+  counts once you switch tab. The sidebar badge refreshes on route change, as in P0.
+
+**Data and API changes**
+- **Draft status module, `packages/api/app/draft-status.ts`**, the one source for what
+  blocks posting. `loadDraftStatus(sqlite, scope)` returns, for every account with drafts:
+  `drafts`, `uncategorised`, `first_date`, `last_date`, `balance_checks` (drafts carrying a
+  statement balance), `closing` (the last of those: date and balance, or null), `failing`
+  (rows of `failingDraftAssertionsSelect`) and `duplicates` (`findDuplicateDiagnostics`
+  rows). It holds the queries `home.ts` runs today (the draft counts, the failing checks,
+  `countDuplicates`). **Home, Review and the posting gate all read it**: `loadHomeSummary`
+  takes its counts from it, and `post-drafts-to-journal.ts` blocks on its `uncategorised`,
+  `duplicates` and `failing` for the account instead of its own three queries, so the
+  Overview's ticks and the gate can't disagree. Counts are the report's rows, as in P1 (one
+  draft matching twice counts twice).
+- **Account names, `packages/api/app/account-names.ts`:** `importableAccounts` moves here
+  from `home.ts`. A new `accountLabel(path, accountType, presets)` gives the display name and
+  kind for any account: a single preset's name, else the path's last segment made readable;
+  card when a preset says so, else when the account is a Liability. Home and Review use it.
+- **New contract in `dbu6-shared`, `contracts/review.ts`** (auth as `/home`:
+  `requireWorkflowAuth`, scope as reports):
+  ```
+  reviewAccount = { account_id, path, name, kind: "bank" | "card",
+                    drafts, uncategorised, duplicates, failing_checks,
+                    first_date: string | null, last_date: string | null }
+
+  GET  /review/accounts
+       → { accounts: reviewAccount[] }            // accounts with drafts, by name
+
+  GET  /review/accounts/:accountId
+       → { account: reviewAccount,                 // drafts may be 0
+           checked_to: string | null, checked_balance: number | null,
+           balance_checks: number,
+           closing: { date, balance } | null,
+           failing: [{ date, draft_id, running_balance, assertion, diff }],
+           duplicates: [{ date, draft_id, other_draft_id, matched_journal_id,
+                          matched_journal_entry_id, match_kind, match_type,
+                          confidence, direction, amount, narration,
+                          other_narration, draft_category, matched_category }],
+           other_accounts: [{ account_id, name, drafts }] }
+       404 when the account isn't in scope
+  ```
+- **Handler `packages/api/app/review.ts`**, registered in `app.ts`. Tests on a seeded
+  in-memory ledger, as `home.test.ts` does: the list (only accounts with drafts, names from
+  presets and without), the detail (counts, closing, failing, duplicates, other accounts,
+  an account with no drafts, 404).
+- **Report filter:** `reportsContract.duplicateDrafts` and `draftBalanceAssertions` take an
+  optional `base_account_id` (`z.coerce.number().int().positive()`). With it, the rows are
+  that account's and the account column is left out; without it, All tools' reports are
+  unchanged.
+- **Unchanged:** `POST /draft-transactions/post-to-journal` (Overview calls it),
+  `/draft-transactions/classify` and `/classify-with-gpay` (the Classify screen still calls
+  them). **No Sapporta changes.**
+- **Frontend:** `reviewApi` in `src/api.ts`. `src/review/`: `ReviewAccounts.tsx` (picker),
+  `ReviewAccount.tsx` (frame, tabs, `Outlet` with the summary and a `refresh` in context),
+  `Overview.tsx`, `DraftsTab.tsx`, `DuplicatesTab.tsx`, `BalanceChecksTab.tsx`,
+  `overview.ts` (a pure function from the summary to the verdict, the check rows, the
+  waiting reason and the posting sentence) with tests, `agentPrompts.ts` with tests.
+  `draft-transaction-quick-filter.ts` moves into `src/review/`.
+- **Home (P1's "until P3" items):** `homeState`'s action for states 3–5 goes to
+  `/review/:accountId` when exactly one account has drafts, else `/review`; state 5's "Add
+  them to my books" goes there too, not to `/views/post-drafts`. State 3's inline links go,
+  and `HomeCard.links` with them. On Home's account rows, the status chip of an account with
+  drafts links to `/review/:accountId`.
+
+**Components used:** dbu6 `Button` (default, outline, ghost; waiting), `StatusChip`,
+`EmptyState`, `CopyPromptButton` (moved out of `import-statements/cards.tsx` into
+`components/`, since three screens use it), Sapporta's `SchemaTableGridView`
+(`rootRows.fixedFilters`, `actions`) and `eqCondition` (`@sapporta/shared/filter`),
+`ReportResultBody` (`reports/shared.tsx`), the import formatting module (`plural`,
+`formatBalance`, `formatDateRange`, `formatMoney`).
+
+**Old screens retired or folded in**
+- Deleted: `views/PostDrafts.tsx` (becomes Overview) and
+  `views/draft-transactions/DraftTransactionsTable.tsx` (becomes the Drafts tab).
+- Kept unchanged: `views/ReclassifyDrafts.tsx` and `views/AccountImportInputs.tsx`, at
+  `/views/reclassify-drafts`, linked from the Drafts tab and All tools.
+- Folded in: the Duplicate drafts and Draft balance assertions reports, per account, as tabs.
+  The all-account reports stay on All tools and the reports index.
+- All tools loses the "Post drafts" tile (its route redirects). P5 decides the rest of that
+  page.
+- Not built (from the handoff): the custom transaction list, merchant names, the command
+  palette with "apply to all similar", the bulk bar, "Mark as duplicate", "Already
+  checked", a per-row or per-selection categorise action. **Follow-ups:** "Remove this
+  draft" and "Not a duplicate" buttons on the
+  Duplicates tab (they need a delete mutation and somewhere to record the dismissal); a
+  grouped balance diagnosis ("off by ₹10,000 since 5 Sep, likely cause …"); recording
+  whether a category came from a rule, the AI or the user.
+
+**Done criteria (page-specific, plus §4.9)**
+- `loadDraftStatus` has tests. The posting handler, which has none today, gets a test for
+  each of its three refusals and for a successful post, now reading the module. The `review`
+  handler and the report filter have tests. `overview.ts` has a test for each verdict and
+  for the waiting reason with one and with several unmet checks. The prompts have tests
+  that the facts and the 50-line cap appear. `homeState`'s tests follow the new targets.
+  `redirects.test.tsx` covers the new redirect and no longer the table one.
+- In the browser with the seed (HDFC Savings has drafts, with a duplicate): `/review` goes
+  straight to HDFC Savings; Overview lists what blocks; "See them in Drafts" opens Drafts
+  filtered; the Drafts grid shows only this account, with no account chip; setting a
+  category in the grid lowers the count after a tab switch; "Run the categoriser again"
+  opens the Classify screen as it is today; Duplicates and Balance checks show only this
+  account, and "Copy prompt" copies; after fixing, "Add N to my books" posts and the done
+  state appears; `/views/post-drafts` lands on `/review`; `/tables/draft_transactions`
+  shows the raw table. With drafts on a second account (import
+  a parser fixture), the picker lists both and "All accounts" shows.
+- No colon paths outside `title` attributes on the picker, the header and Overview (the
+  grids keep their account columns).
+- `pnpm typecheck`, `pnpm test`, `pnpm format:check`; screenshots at 1920 and 390 in
+  `tmp/redesign/p3/` (picker, Overview blocked, Overview ready, after posting, Drafts,
+  Duplicates, Balance checks, empty).
 
 ### P4 · Income & expenses (handoff: Report and Report-full): Status: Not started
 - Summary and full detail: tabs or separate routes?
@@ -1592,6 +2140,110 @@ count (`navigation-counts.ts`) once per route change at shell level, which is th
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
 
+- 2026-09-15 · Step 6, P3 · Spec agreed with the owner (§11 P3); nothing built.
+  - **Decided:** import stays as P2 specifies. The owner first heard, and rejected, an idea
+    to limit each import to one account. Review starts by picking one account that has
+    drafts; `/review` skips the picker when only one account has any. Each account has
+    an Overview (what blocks posting, or "safe to post", and the only post button) and
+    tabs for Drafts, Duplicates and Balance checks. The tabs are links with counts, not a
+    left rail, since the grid needs the width. Render hledger stays on All tools. The
+    Duplicates and Balance checks tabs are read-only reports filtered to the account, each
+    with its own copy-prompt for the coding agent. The sidebar label stays "Review"; the
+    button reads "Add N to my books". Post drafts and the draft table's screen fold in and
+    are deleted.
+  - **Revised the same day:** no Sapporta changes (a grid title prop was dropped, so the
+    Drafts tab keeps Sapporta's "Draft Transactions" header). Categorising stays as it is:
+    no "Categorise N" action or `set-category` endpoint, and no new categorise endpoint.
+    "Run the categoriser again" links to the unchanged Classify drafts screen, custom
+    mapping files text field included. The column relabelling and the renamed quick
+    filters were dropped too.
+  - **Filled in while writing, not asked separately:** no confirmation before posting (a
+    sentence says what posting does); `/tables/draft_transactions` stops redirecting to
+    `/review` (reverses P0's row), so the reports' "Open draft transaction" links land on
+    the row; one draft status module feeds Home, Review and the posting gate; Home's
+    status chips link to the account's review; state 3's inline report links go.
+  - **Found:** Sapporta's grid already has `rootRows.fixedFilters`: always applied, never
+    shown as a chip. The grid doesn't use React Query, so an outside change reloads
+    through `session.reloadRows()` or `reloadTGridRows`. `SchemaTableGridView` always
+    titles its header with the table label and names the browser tab
+    (`PageHeader.documentTitle` exists but isn't passed through). `ReportGridDataset`
+    already renders without the report frame (`ReportResultBody`). The posting handler
+    has no tests. Reading the matcher, a card payment already posted from the bank side isn't flagged as a
+    duplicate of the card's "payment received" draft: keyed journals skip the payment
+    match. It shows up only as failing balance checks, which the balance-checks prompt
+    names as a likely cause.
+  - **Follow-ups:** "Remove this draft" and "Not a duplicate" on the Duplicates tab; a
+    grouped balance diagnosis ("off by ₹10,000 since 5 Sep, likely cause …"); recording
+    whether a category came from a rule, the AI or the user; the handoff's category
+    palette, merchant names and bulk bar.
+
+- 2026-09-15 · Step 6, P2 · Spec agreed with the owner (§11 P2); nothing built.
+  - **Decided:** keep today's one-request import. The handoff's Import screen is a throwaway
+    idea, so there is no check-before-import endpoint, no "Change" and no per-file matching
+    before import. After a successful import the page stays in a done state ("Review N
+    transactions" primary, "Import more statements"), rather than jumping to Review. One
+    results card with a row per account, without the tiles, the hledger journal or a
+    needs-a-category count. Problem cards keep their content: destructive when the numbers
+    don't add up, attention when something needs setting up. The Google Pay Takeout gets
+    its own row. The dropzone doesn't filter by extension, and an `.html` dropped there is
+    treated like any other statement, not routed to the Takeout row. Freeform import stays
+    a separate screen, linked from Import and restyled lightly. The bottom bar shows
+    "Import" through a `shortLabel`. No API changes.
+  - **Filled in while writing, not asked separately:** the tones of the permission (attention),
+    connection and unexpected-error (destructive) cards; the Google Pay row and remove
+    buttons hide in the done state.
+  - **Found:** each card's "Review drafts" link points at `/views/reclassify-drafts` (the
+    Classify tool), not Review. `agentPrompts.ts` still names `/views/import-statements`.
+    Recognition is cheap: each saved parser ran in 0.1–0.3s on its fixture; categorisation
+    (rules, then the LLM) is the slow part of an import. `AccountImportInputs.tsx` is used
+    only by `ReclassifyDrafts.tsx` (P3/P8), not by Import.
+
+- 2026-09-15 · Step 6, P1 · Home built as specified (§11 P1). Uncommitted at the time of writing.
+  - **shared:** `contracts/home.ts` (`homeContract.summary`, `GET /home`, the account and
+    totals schemas). **api:** `app/home.ts` (`loadHomeSummary`, `importableAccounts`) with
+    `home.test.ts` on an in-memory ledger (checkpoints, draft counts, a failing check, a
+    duplicate pair, an account no preset names, a preset with no account). **frontend:**
+    `homeApi`; `home/state.ts` (`homeState`) with a test per state plus the one-problem and
+    unlisted-drafts cases; `home/Home.tsx`; `NextStepCard` takes an optional `count` and a
+    `ReactNode` body and wraps at narrow widths; `Welcome.tsx` deleted.
+  - **Verified:** `pnpm typecheck` (all three packages), frontend `pnpm test` (54), the
+    handler test, `pnpm format:check`. In the browser with the seed: state 4 (3 need a
+    category, HDFC Savings "22 drafts waiting", the other three "Checked" with their
+    checkpoints and balances); then, by editing the demo drafts and re-seeding between
+    each, states 3, 5 and 6, and state 1 with an empty presets file. Screenshots at 1920
+    and 390 in `tmp/redesign/p1/` (`home-seed`, `home-problems`, `home-ready`,
+    `home-up-to-date`, `home-no-accounts`).
+  - **Deviations:** the card body for state 3 renders its links as short sentences after
+    the text ("See the balance checks."). Bodies say "the drafts for HDFC Savings" rather
+    than a possessive, which reads badly with several names. The header honours
+    `--sap-page-header-inset` so the drawer toggle clears the date at 390px. `duplicates`
+    counts the report's rows, so one duplicated draft can count more than once (3 in the
+    demo, where it also matched posted entries).
+  - **Findings:** the dev install's `import-presets.json` names "Example Bank" and
+    "Example Credit Card", accounts the seed never creates, so on this machine Home shows
+    them as "Account missing" unless the file is changed; the screenshots used a
+    temporary presets file matching the seed, restored afterwards. `pnpm seed` reads
+    `SAPPORTA_API_URL`, which only mise sets, so outside a mise shell it aims at port 3000;
+    run it as `mise exec -- pnpm seed` or export the variable. Re-running the seed within
+    a minute fails at sign-in (rate limited), as does the screenshot script's login. In
+    dev, React StrictMode fetches `/home` twice; production makes one request.
+  - **Follow-ups:** the seed could write presets for the demo accounts, or P6 could move
+    presets into the app; the sidebar badge could read `totals.uncategorised` from `/home`
+    instead of its own request; `plural`/`joinNames` now serve Home from the import
+    formatting module and may deserve a shared home.
+- 2026-09-15 · Step 6, P1 · Spec agreed with the owner (§11 P1); nothing built.
+  - **Decided:** no "month so far" card (figures belong to the reports); Home shows the
+    reconciled situation, which accounts have drafts, and what blocks posting, in plain
+    words. "Your accounts" is the unique set of base accounts across the import presets
+    (first answered as a path-prefix rule, then revised: users need not keep banks under
+    `assets:bank`). Rows show facts only, no staleness guess. Problems (failing balance
+    checks, duplicates) outrank uncategorised drafts in the next-step order. One
+    `GET /home` contract. Date eyebrow and greeting, no ProgressSteps. "Add an account"
+    opens `/accounts` until P6.
+  - **Found:** import presets are a JSON file on disk read by one GET endpoint, not
+    editable in the app; the month figures in every report come from posted journals only,
+    so a mid-month card would have read near-empty; `loadLastReconciled` is already an
+    exported query the handler can reuse.
 - 2026-09-15 · Step 6, P0 · Built as specified (§11 P0). Uncommitted at the time of writing.
   - **dbu6:** `App.tsx` carries the six-item navigation and the new routes; `redirects.tsx`
     holds the retired-path table (search and hash preserved) with a test; `shell/` lost the

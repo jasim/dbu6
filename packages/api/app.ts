@@ -15,6 +15,7 @@ import type {
   TsRestApi,
 } from "@sapporta/server";
 import classifyDraftTransactionsApi from "./app/classify-draft-transactions.js";
+import homeApi from "./app/home.js";
 import importDraftAbacusApi from "./app/import-draft-abacus.js";
 import importDraftStatementsAutoApi from "./app/import-draft-statements-auto.js";
 import importPresetsApi from "./app/import-presets.js";
@@ -45,6 +46,7 @@ export function loadApp(app: TsRestApi<SapportaEnv>, _options: LoadAppOptions) {
   mountApi(app, renderDraftHledgerApi);
   mountApi(app, renderJournalsHledgerApi);
   mountApi(app, postDraftsToJournalApi);
+  mountApi(app, homeApi);
 }
 
 export const publicApiRoutes =

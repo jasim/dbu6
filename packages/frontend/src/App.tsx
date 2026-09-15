@@ -10,10 +10,10 @@ import {
 } from "lucide-react";
 import { TablePage } from "@sapporta/frontend";
 import { Advanced } from "./Advanced";
+import { Home as HomePage } from "./home/Home";
 import { retiredRoutes } from "./redirects";
 import { ReportsIndex } from "./reports/ReportsIndex";
 import { reportDefinitions } from "./reports/registry";
-import { Welcome } from "./Welcome";
 import { AutoImportStatements } from "./views/AutoImportStatements";
 import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
 import { DraftTransactionsTable } from "./views/draft-transactions/DraftTransactionsTable";
@@ -44,7 +44,7 @@ export const appNavigation: Navigation = {
 };
 
 // `/` is Home. It needs a session, so it renders inside the auth gate.
-export const appHomeRoute = <Route index element={<Welcome />} />;
+export const appHomeRoute = <Route index element={<HomePage />} />;
 
 // Routes here render without requiring a signed-in session.
 export const appPublicRoutes = <></>;
