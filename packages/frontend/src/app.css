@@ -82,6 +82,11 @@
   --sap-kbd-bg: #ffffff;
   --sap-proj-chip-kbd-bg: #f6f7f7;
 
+  /* The one shadow for floating layers (popovers, menus, dialogs). Cards
+     use --shadow-card from section 3; nothing else casts a shadow. */
+  --sap-shadow-elevated:
+    0 8px 24px rgb(20 22 22 / 0.1), 0 1px 2px rgb(20 22 22 / 0.06);
+
   /* Radii: 11px controls, 16px cards */
   --sap-radius: 11px;
   --sap-radius-sm: 6px;
@@ -131,6 +136,9 @@
 
   /* The initials circle in the sidebar's account card */
   --sidebar-avatar: #d5d8d8;
+
+  /* The category pill's fill */
+  --category-bg: #f5f6f6;
 
   /* Category hues: one per top-level group; children inherit. The first
      name is the design's key, the alias is the seeded dbu6 group name. */
@@ -243,6 +251,7 @@
   --color-waiting-button-bg: var(--waiting-button-bg);
   --color-waiting-button-fg: var(--waiting-button-fg);
   --color-sidebar-avatar: var(--sidebar-avatar);
+  --color-category-bg: var(--category-bg);
 }
 
 /* ── 4. Base rules ───────────────────────────────────────────────────────
@@ -276,4 +285,15 @@ body {
 
 /* ── 5. Shell (Step 3) ───────────────────────────────────────────────────── */
 
-/* ── 6. Grid and tables (Step 4) ─────────────────────────────────────────── */
+/* ── 6. Grid and tables (Step 4) ─────────────────────────────────────────
+   The grid reads these from :root (the names are listed at the top of
+   Sapporta's sapporta-preset.module.css). Row and header heights come from
+   the tiers in section 3; column widths are passed as props. */
+:root {
+  --sap-grid-cell-padding: 0 14px;
+  --sap-grid-header-cell-padding: 0 14px;
+  --sap-grid-header-font-weight: 600;
+  --sap-grid-nested-cell-min-height: 44px;
+  --sap-grid-row-header-column-width: 48px;
+  --sap-grid-nested-row-header-column-width: 36px;
+}

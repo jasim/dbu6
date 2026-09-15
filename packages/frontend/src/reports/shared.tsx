@@ -57,6 +57,12 @@ export function useReportResult(
   };
 }
 
+// The grid's default tracks were sized for 12px mono. At 15px a lakh-scale
+// figure such as 12,34,567.00 needs about 128px, and a timestamp 176px.
+const REPORT_COLUMN_SIZING = {
+  minWidths: { numeric: 128, timestamp: 176 },
+} as const;
+
 export function ReportResultBody<TInput = unknown>({
   error,
   linkContext,
@@ -77,6 +83,7 @@ export function ReportResultBody<TInput = unknown>({
             dataset={result}
             links={links}
             linkContext={linkContext}
+            columnSizing={REPORT_COLUMN_SIZING}
           />
         ) : null}
       </div>
@@ -94,13 +101,13 @@ export function DateInput({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sap-data">
-      <span className="text-sap-subtle">{label}:</span>
+    <label className="flex items-center gap-2 text-row">
+      <span className="text-ink-meta">{label}:</span>
       <Input
         type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-sap-ctl w-[140px] rounded-[5px] text-sap-emph mono"
+        className="tnum h-sap-ctl w-[140px] rounded-control font-mono text-row"
       />
     </label>
   );
