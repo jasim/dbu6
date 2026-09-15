@@ -169,6 +169,10 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
     counts, dates, closing balance, failing balance checks and possible duplicates per
     account. Home, Review, the posting gate (`app/post-drafts-to-journal.ts`) and the two
     draft reports read it. `app/account-names.ts` names accounts from import presets.
+    `app/account-standing.ts` (since 2026-09-16) joins them per ledger account (label,
+    last checkpoint, draft status); Home and Review both project their rows from it.
+    Whether each check passes or blocks is `postingChecks` in dbu6-shared
+    (`contracts/posting-checks.ts`).
   - Reports in `packages/api/app/reports/`. They return a `GridDataset` (grid-shaped rows,
     not domain JSON).
 - **`packages/shared`**: ts-rest contracts, imported as `dbu6-shared`.
@@ -2154,6 +2158,38 @@ app was doing, the facts, what to do, what not to do, what to report back):
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
 
+- 2026-09-16 · Second legibility review of P1–P3 · Four findings fixed at the owner's request;
+  screen copy unchanged.
+  - **An account's standing travels whole.** `app/account-standing.ts` builds it once;
+    `homeAccountSchema` is a union on `in_ledger` (an account a preset names but the
+    ledger lacks carries no id, checkpoint or counts), and `checked_to`/`checked_balance`
+    became `checkpoint: DatedBalance | null`, `first_date`/`last_date` became
+    `draft_span: DateSpan | null` (`contracts/dated-balance.ts`, `contracts/date-span.ts`,
+    also used by the import result). Home now reads an account's kind the way Review
+    does: a Liability whose preset omits `is_credit_card` is a card on both.
+  - **Posting checks have one vocabulary.** `contracts/posting-blocks.ts` is now
+    `contracts/posting-checks.ts`: `postingChecks(counts)` gives every check
+    (`categories`, `duplicates`, `balance-checks`) a state (`passes`, `blocks`, or `none`
+    for drafts without balance checks); `postingBlocks` filters it. `balance_checks` moved
+    into `draftCountsSchema` (off `reviewAccountDetailSchema`). Review's tabs derive from
+    the checks (`review/routes.ts` `REVIEW_TABS`, `checkTab`); the shared sentences live in
+    `review/posting-checks.ts` (`checkText`), and `agree()` in `format.ts` picks the verb.
+    The gate's refusal codes are unchanged.
+  - **Abacus rows keep what parsing proved.** `Money` is the one-way union the wire schema
+    states; `direction`/`amount` in `domain/Money.ts` are the only direction rule (the
+    same `deposit > 0` rule transaction keys used, so keys are unchanged), and stored
+    drafts become `Money` through `moneyFromColumns`, which refuses rows that move both
+    ways or neither. `validateTransactions` is gone (both calls re-parsed rows the JSON
+    parser had already accepted). The freeform route parses a `BalancedStatement` and runs
+    `verifyDeclaredBalances` before importing. **Behaviour change:** a freeform statement
+    whose rows print balances is now refused when its opening doesn't lead to its closing;
+    before, only the closing was checked in that case. Its `balance_mismatch` carries no
+    gap hint.
+  - **Import-error prompts take the server's reply.** Each prompt in
+    `views/import-statements/agentPrompts.ts` takes its plan file or `RefusalOf<code>` and
+    reads the contract's fields; the segment prompt names its own code and figures instead
+    of posing as `balance_mismatch`. A `balance_mismatch` across several files no longer
+    guesses a gap: the card follows `suspected_gap`.
 - 2026-09-16 · Legibility review of P1–P3 · Five findings fixed at the owner's request, behaviour and copy
   unchanged except where noted.
   - **What blocks posting has one definition.** `postingBlocks(counts)` in dbu6-shared

@@ -80,9 +80,9 @@ describe("listReviewAccounts", () => {
         drafts: 1,
         uncategorised: 0,
         duplicates: 0,
+        balance_checks: 0,
         failing_checks: 0,
-        first_date: "2026-03-04",
-        last_date: "2026-03-04",
+        draft_span: { first_date: "2026-03-04", last_date: "2026-03-04" },
       },
       {
         account_id: 4,
@@ -92,9 +92,9 @@ describe("listReviewAccounts", () => {
         drafts: 1,
         uncategorised: 0,
         duplicates: 0,
+        balance_checks: 0,
         failing_checks: 0,
-        first_date: "2026-03-05",
-        last_date: "2026-03-05",
+        draft_span: { first_date: "2026-03-05", last_date: "2026-03-05" },
       },
       {
         account_id: 2,
@@ -104,9 +104,9 @@ describe("listReviewAccounts", () => {
         drafts: 3,
         uncategorised: 1,
         duplicates: 1,
+        balance_checks: 2,
         failing_checks: 1,
-        first_date: "2026-03-02",
-        last_date: "2026-03-13",
+        draft_span: { first_date: "2026-03-02", last_date: "2026-03-13" },
       },
     ]);
   });
@@ -117,10 +117,13 @@ describe("loadReviewAccount", () => {
     const detail = loadReviewAccount(ledger(), scope, presets, 2);
 
     expect(detail).toMatchObject({
-      account: { account_id: 2, name: "Sample Savings", drafts: 3 },
-      checked_to: "2026-02-10",
-      checked_balance: 1500,
-      balance_checks: 2,
+      account: {
+        account_id: 2,
+        name: "Sample Savings",
+        drafts: 3,
+        balance_checks: 2,
+      },
+      checkpoint: { date: "2026-02-10", balance: 1500 },
       closing: { date: "2026-03-02", balance: 1460 },
       failing: [
         {
@@ -168,13 +171,11 @@ describe("loadReviewAccount", () => {
         drafts: 0,
         uncategorised: 0,
         duplicates: 0,
+        balance_checks: 0,
         failing_checks: 0,
-        first_date: null,
-        last_date: null,
+        draft_span: null,
       },
-      checked_to: null,
-      checked_balance: null,
-      balance_checks: 0,
+      checkpoint: null,
       closing: null,
       failing: [],
       duplicates: [],

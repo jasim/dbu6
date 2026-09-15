@@ -170,6 +170,46 @@ describe("importAbacusStatement", () => {
     ).toEqual(["2026-09-03", "2026-09-05"]);
   });
 
+  it("checks the rows against both balances before importing, whether or not they print balances", async () => {
+    // Rows whose printed balances walk to the closing, but from an opening
+    // 1,000 off: the walk alone would never compare the opening.
+    const printed = request({
+      opening: -1500,
+      closing: -4000,
+      rows: [
+        {
+          date: "2026-09-03",
+          narration: "NOPII SAMPLE MERCHANT ONE",
+          withdrawal: 500,
+          deposit: 0,
+          balance: -3000,
+        },
+        {
+          date: "2026-09-05",
+          narration: "NOPII SAMPLE MERCHANT TWO",
+          withdrawal: 1000,
+          deposit: 0,
+          balance: -4000,
+        },
+      ],
+    });
+
+    const response = await importAbacusStatement(
+      printed,
+      accountNames,
+      db,
+      auth,
+    );
+
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({
+      error: "balance_mismatch",
+      computed_final: -3000,
+      statement_closing: -4000,
+    });
+    expect(runStatementImport).not.toHaveBeenCalled();
+  });
+
   it("labels the source when the request gives no name", async () => {
     runStatementImport.mockResolvedValue(imported(2));
     const { source_name: _name, ...unnamed } = request(

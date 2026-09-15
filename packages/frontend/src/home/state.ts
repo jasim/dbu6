@@ -1,11 +1,13 @@
 import {
-  findBlock,
   isProblem,
   postingBlocks,
+  postingCheck,
   type HomeAccount,
+  type HomeLedgerAccount,
   type HomeSummary,
   type ProblemBlock,
 } from "dbu6-shared";
+import { checkText } from "../review/posting-checks";
 import { reviewHref, REVIEW_ROUTE } from "../review/routes";
 import { joinNames, plural } from "../format";
 
@@ -46,9 +48,8 @@ export interface HomeView {
 export function homeState(summary: HomeSummary): HomeView {
   const { accounts, totals } = summary;
   const review = reviewTarget(summary);
-  const blocks = postingBlocks(totals);
-  const problems = blocks.filter(isProblem);
-  const uncategorised = findBlock(blocks, "uncategorised");
+  const problems = postingBlocks(totals).filter(isProblem);
+  const categories = postingCheck(totals, "categories");
 
   if (accounts.length === 0) {
     return {
@@ -75,16 +76,16 @@ export function homeState(summary: HomeSummary): HomeView {
     };
   }
 
-  if (uncategorised) {
-    const where = named(accounts.filter((a) => a.uncategorised > 0));
+  if (categories.state === "blocks") {
+    const where = named(
+      inLedger(accounts).filter((account) => account.uncategorised > 0),
+    );
     return {
       state: "uncategorised",
       greeting: "You're nearly up to date",
       card: {
-        count: uncategorised.count,
-        title: `${plural(uncategorised.count, "transaction")} ${
-          uncategorised.count === 1 ? "needs" : "need"
-        } a category`,
+        count: categories.count,
+        title: checkText(categories),
         body: `${
           where
             ? `They're waiting in the drafts for ${where}.`
@@ -137,11 +138,9 @@ export function homeState(summary: HomeSummary): HomeView {
  * is on one listed account, else the account picker.
  */
 function reviewTarget({ accounts, totals }: HomeSummary): string {
-  const pending = accounts.filter((a) => a.drafts > 0);
-  const only = pending[0];
-  return pending.length === 1 &&
-    only?.account_id != null &&
-    only.drafts === totals.drafts
+  const pending = inLedger(accounts).filter((account) => account.drafts > 0);
+  const [only] = pending;
+  return pending.length === 1 && only.drafts === totals.drafts
     ? reviewHref(only.account_id)
     : REVIEW_ROUTE;
 }
@@ -150,11 +149,19 @@ function problemsTitle(problems: readonly ProblemBlock[]): string {
   const [only] = problems;
   if (problems.length > 1 || !only) return "A few things to fix in the drafts";
   switch (only.kind) {
-    case "failing-checks":
-      return `${plural(only.count, "balance check")} ${only.count === 1 ? "fails" : "fail"} in the drafts`;
+    case "balance-checks":
+      return `${checkText(only)} in the drafts`;
     case "duplicates":
+      // Home's own words for them (PLAN.md §11 P1).
       return `${plural(only.count, "possible duplicate entry", "possible duplicate entries")} in the drafts`;
   }
+}
+
+/** The listed accounts the ledger has; only they can hold drafts. */
+function inLedger(accounts: readonly HomeAccount[]): HomeLedgerAccount[] {
+  return accounts.filter(
+    (account): account is HomeLedgerAccount => account.in_ledger,
+  );
 }
 
 /** "HDFC Savings and ICICI Amazon Pay", or "" when no listed account applies. */

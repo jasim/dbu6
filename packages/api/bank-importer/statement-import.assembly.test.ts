@@ -6,6 +6,7 @@ import {
   type AbacusStatement,
 } from "./abacus/index.js";
 import { parseAccount } from "./domain/Account.js";
+import { moneyFromColumns } from "./domain/Money.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
 import {
   BalanceMismatchError,
@@ -55,8 +56,10 @@ function bank(
     return {
       date,
       narration,
-      withdrawal: amount < 0 ? -amount : 0,
-      deposit: amount > 0 ? amount : 0,
+      ...moneyFromColumns({
+        withdrawal: amount < 0 ? -amount : 0,
+        deposit: amount > 0 ? amount : 0,
+      }),
       balance,
     };
   });

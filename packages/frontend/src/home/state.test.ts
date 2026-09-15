@@ -1,42 +1,59 @@
 import { describe, expect, it } from "vitest";
-import type { HomeAccount, HomeSummary } from "dbu6-shared";
+import type {
+  DraftCounts,
+  HomeAccount,
+  HomeLedgerAccount,
+  HomeSummary,
+} from "dbu6-shared";
 import { homeState } from "./state";
 
-function account(overrides: Partial<HomeAccount> = {}): HomeAccount {
+function account(
+  overrides: Partial<HomeLedgerAccount> = {},
+): HomeLedgerAccount {
   return {
+    in_ledger: true,
     account_id: 2,
     path: "assets:bank:sample-savings",
     name: "Sample Savings",
     kind: "bank",
-    checked_to: "2026-08-31",
-    checked_balance: 250000,
+    checkpoint: { date: "2026-08-31", balance: 250000 },
     drafts: 0,
     uncategorised: 0,
     duplicates: 0,
+    balance_checks: 0,
     failing_checks: 0,
     ...overrides,
   };
 }
 
+const missing: HomeAccount = {
+  in_ledger: false,
+  path: "assets:bank:missing-050505",
+  name: "Not Yet Added",
+  kind: "bank",
+};
+
 function summary(
   accounts: HomeAccount[],
   overrides: Partial<HomeSummary> = {},
 ): HomeSummary {
+  const listed = accounts.filter((a): a is HomeLedgerAccount => a.in_ledger);
   return {
     accounts,
     totals: {
-      drafts: sum(accounts, "drafts"),
-      uncategorised: sum(accounts, "uncategorised"),
-      duplicates: sum(accounts, "duplicates"),
-      failing_checks: sum(accounts, "failing_checks"),
+      drafts: sum(listed, "drafts"),
+      uncategorised: sum(listed, "uncategorised"),
+      duplicates: sum(listed, "duplicates"),
+      balance_checks: sum(listed, "balance_checks"),
+      failing_checks: sum(listed, "failing_checks"),
     },
-    has_journals: accounts.some((a) => a.checked_to !== null),
+    has_journals: listed.some((a) => a.checkpoint !== null),
     ...overrides,
   };
 }
 
-function sum(accounts: HomeAccount[], key: keyof HomeAccount): number {
-  return accounts.reduce((total, a) => total + Number(a[key]), 0);
+function sum(accounts: HomeLedgerAccount[], key: keyof DraftCounts): number {
+  return accounts.reduce((total, a) => total + a[key], 0);
 }
 
 describe("homeState", () => {
@@ -54,14 +71,13 @@ describe("homeState", () => {
   it("asks for the first statement when nothing has been imported", () => {
     const view = homeState(
       summary([
-        account({ checked_to: null, checked_balance: null }),
+        account({ checkpoint: null }),
         account({
           account_id: 1,
           path: "liabilities:cards:sample-card",
           name: "Sample Card",
           kind: "card",
-          checked_to: null,
-          checked_balance: null,
+          checkpoint: null,
         }),
       ]),
     );
@@ -137,6 +153,7 @@ describe("homeState", () => {
           drafts: 3,
           uncategorised: 1,
           duplicates: 0,
+          balance_checks: 0,
           failing_checks: 0,
         },
       }),
@@ -148,7 +165,9 @@ describe("homeState", () => {
   });
 
   it("offers to post when every draft is categorised and clean", () => {
-    const view = homeState(summary([account({ drafts: 21 })]));
+    // An account the ledger doesn't have yet holds no drafts, so the only
+    // account with drafts still gets its own Review.
+    const view = homeState(summary([account({ drafts: 21 }), missing]));
     expect(view.state).toBe("ready");
     expect(view.card.count).toBe(21);
     expect(view.card.body).toBe("The entries are ready for posting.");

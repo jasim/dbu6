@@ -3,8 +3,18 @@
 // it said (with the concrete facts from the response), what the agent should
 // do, which repository documents govern the work, and what to report back.
 // Prompts that let the agent retry the import end with `RERUN_BLOCK`.
+//
+// Each prompt takes the server's own reply for its case, a plan file or an
+// account's refusal, and reads the contract's fields as they are named.
 
+import type { AutoImportPlanFile } from "dbu6-shared";
 import { PII_RULE } from "../../agent-prompt-rules";
+import type { AccountRefusal, RefusalOf } from "./outcome";
+
+type PlanFile<Status extends AutoImportPlanFile["status"]> = Extract<
+  AutoImportPlanFile,
+  { status: Status }
+>;
 
 export const RERUN_BLOCK = `Re-running the import yourself: with the dev server running, POST the statement
 file(s) to the same endpoint the screen uses. You need an agent access token,
@@ -21,28 +31,25 @@ balance_metadata, statement_period, reconciliation_checkpoint). Errors are
 4xx/5xx JSON with an \`error\` code and a \`message\`. Imports only create Draft
 transactions; they never post to the books.`;
 
-function quoted(message: string | null): string {
-  return message === null ? "" : `\nServer message: "${message}"\n`;
+function quoted(message: string): string {
+  return `\nServer message: "${message}"\n`;
 }
 
 function list(items: readonly string[]): string {
   return items.join(", ");
 }
 
-export function unrecognizedPrompt(facts: {
-  fileName: string;
-  candidateParserPaths: readonly string[];
-}): string {
+export function unrecognizedPrompt(file: PlanFile<"unrecognized">): string {
   const tried =
-    facts.candidateParserPaths.length === 0
+    file.candidate_parser_paths.length === 0
       ? "There is no saved parser at all for this file extension yet."
-      : `The parsers it tried and that rejected the file were: ${list(facts.candidateParserPaths)}.`;
+      : `The parsers it tried and that rejected the file were: ${list(file.candidate_parser_paths)}.`;
   return `I tried to import a bank statement into my books app (this repository) through
 the automatic importer at /import. It said no saved parser
 recognised the file, so nothing was imported. Please build a deterministic
 parser for this statement format so the import works.
 
-The file is called ${facts.fileName}. Ask me where it is on disk if you can't
+The file is called ${file.file_name}. Ask me where it is on disk if you can't
 find it, and ask me which bank and which of my accounts it belongs to if the
 file doesn't make that obvious. ${tried}
 
@@ -73,14 +80,11 @@ custom-built-parsers/import-statement-parser-guide.md exactly. In particular:
 When you are done, tell me. I will drop the file into the importer again myself.`;
 }
 
-export function ambiguousPrompt(facts: {
-  fileName: string;
-  matchingParserPaths: readonly string[];
-}): string {
+export function ambiguousPrompt(file: PlanFile<"ambiguous">): string {
   return `The automatic statement importer in this repository
 (POST /api/import-draft/statements/auto, screen /import)
-reported that ${facts.fileName} matched more than one saved parser:
-${list(facts.matchingParserPaths)}. Auto-detection requires exactly one match,
+reported that ${file.file_name} matched more than one saved parser:
+${list(file.matching_parser_paths)}. Auto-detection requires exactly one match,
 so nothing was imported.
 
 Tighten the fingerprints of those parsers (see custom-built-parsers/README.md
@@ -94,30 +98,25 @@ Then run each parser against my real file and confirm exactly one accepts it.
 Tell me when it is done and I will retry the import.`;
 }
 
-export function noPresetPrompt(facts: {
-  fileName: string;
-  parserPath: string;
-  institution: string | null;
-  identifier: string | null;
-  kind: "bank" | "card" | null;
-}): string {
+export function noPresetPrompt(file: PlanFile<"unresolved">): string {
+  const { account } = file;
   const who =
-    facts.identifier === null
+    account === null
       ? "but the parser reported no account identifier"
-      : `and found it is a ${facts.institution ?? "bank"} statement for ${facts.kind === "card" ? "card" : "account"} identifier ${facts.identifier}`;
+      : `and found it is a ${file.institution ?? "bank"} statement for ${account.kind === "card" ? "card" : "account"} identifier ${account.identifier}`;
   const identifierLine =
-    facts.identifier === null
+    account === null
       ? "Leave statement_account_identifier unset unless the statement prints an identifier the parser should be emitting."
-      : `Set statement_account_identifier to ${facts.identifier}.`;
-  return `The automatic statement importer in this repository read ${facts.fileName}
-with ${facts.parserPath} ${who}, but no entry in
+      : `Set statement_account_identifier to ${account.identifier}.`;
+  return `The automatic statement importer in this repository read ${file.file_name}
+with ${file.parser_path} ${who}, but no entry in
 data/user-config/import-presets.json uses that parser, so nothing was imported.
 
 Add a preset for this account to data/user-config/import-presets.json. Ask me
 for the account's display name, its ledger account (base_account), whether it
 is a credit card, and which custom_mappings_filenames to use if you cannot
 infer them from the existing presets. Set custom_statement_parser_path to
-${facts.parserPath}. ${identifierLine} Follow the shape documented in
+${file.parser_path}. ${identifierLine} Follow the shape documented in
 packages/shared/src/contracts/import-presets.ts and the examples in
 user-config.example/import-presets.json.
 
@@ -127,16 +126,11 @@ the file I give you.
 ${RERUN_BLOCK}`;
 }
 
-export function identifierRequiredPrompt(facts: {
-  fileName: string;
-  parserPath: string;
-  candidatePresetNames: readonly string[];
-  message: string | null;
-}): string {
-  return `The automatic statement importer in this repository read ${facts.fileName}
-with ${facts.parserPath}, but the parser emitted no \`account\` identifier and
-the preset(s) using that parser (${list(facts.candidatePresetNames)}) require
-one, so nothing was imported.${quoted(facts.message)}
+export function identifierRequiredPrompt(file: PlanFile<"unresolved">): string {
+  return `The automatic statement importer in this repository read ${file.file_name}
+with ${file.parser_path}, but the parser emitted no \`account\` identifier and
+the preset(s) using that parser (${list(file.candidate_preset_names)}) require
+one, so nothing was imported.${quoted(file.message)}
 Either make the parser emit the account or card number the statement prints
 (see the "Emitted account identifier" section of
 custom-built-parsers/import-statement-parser-guide.md) with a sanitized
@@ -148,58 +142,51 @@ ${PII_RULE}
 Tell me when it is done and I will retry the import.`;
 }
 
-export function identifierMismatchPrompt(facts: {
-  fileName: string;
-  parserPath: string;
-  identifier: string | null;
-  candidatePresetNames: readonly string[];
-  message: string | null;
-}): string {
-  return `The automatic statement importer in this repository read ${facts.fileName}
-with ${facts.parserPath}. It reports account identifier ${facts.identifier ?? "(none)"},
-but the preset(s) that use this parser (${list(facts.candidatePresetNames)})
-carry a different statement_account_identifier, so nothing was imported.${quoted(facts.message)}
+export function identifierMismatchPrompt(file: PlanFile<"unresolved">): string {
+  const identifier = file.account?.identifier ?? null;
+  return `The automatic statement importer in this repository read ${file.file_name}
+with ${file.parser_path}. It reports account identifier ${identifier ?? "(none)"},
+but the preset(s) that use this parser (${list(file.candidate_preset_names)})
+carry a different statement_account_identifier, so nothing was imported.${quoted(file.message)}
 This is a statement for an account I have not set up yet. Add a new preset to
 data/user-config/import-presets.json that shares custom_statement_parser_path
-${facts.parserPath} and has statement_account_identifier ${facts.identifier ?? "(ask me)"}.
+${file.parser_path} and has statement_account_identifier ${identifier ?? "(ask me)"}.
 Ask me for its display name, ledger account (base_account), and whether it is
 a credit card. Keep the existing presets unchanged.
 
 Tell me when it is done and I will retry the import.`;
 }
 
-export interface FailedGroupFacts {
-  fileNames: readonly string[];
-  presetName: string;
-  baseAccount: string;
-  parserPaths: readonly string[];
-  message: string | null;
-}
-
-function groupIntro(facts: FailedGroupFacts, code: string): string {
+// What every refusal prompt opens with: the account, its files, the error
+// code as the server sent it, and the saved parsers that read those files.
+function groupIntro(refusal: AccountRefusal): string {
+  const group = refusal.failed_group;
+  const parserPaths = Array.from(
+    new Set(
+      refusal.files.flatMap((file) =>
+        file.status === "resolved" && group.file_names.includes(file.file_name)
+          ? [file.parser_path]
+          : [],
+      ),
+    ),
+  );
   const parsers =
-    facts.parserPaths.length === 0
+    parserPaths.length === 0
       ? "the saved parser"
-      : `the saved parser (${list(facts.parserPaths)})`;
+      : `the saved parser (${list(parserPaths)})`;
   return `The automatic statement importer in this repository refused to import
-${list(facts.fileNames)} into ${facts.presetName} (${facts.baseAccount}) with
-error ${code}. The files were read by ${parsers}.`;
+${list(group.file_names)} into ${group.preset_name} (${group.base_account}) with
+error ${refusal.error}. The files were read by ${parsers}.`;
 }
 
 export function balanceMismatchPrompt(
-  facts: FailedGroupFacts & {
-    computedFinal: number;
-    statementClosing: number;
-    difference: number;
-    suspectRange: { fromDate: string; toDate: string } | null;
-  },
+  refusal: RefusalOf<"balance_mismatch" | "segment_balance_mismatch">,
 ): string {
-  const numbers = ` Computed final balance ${facts.computedFinal}, statement closing ${facts.statementClosing}, difference ${facts.difference}.`;
-  const range =
-    facts.suspectRange === null
-      ? ""
-      : ` The suspect rows are between ${facts.suspectRange.fromDate} and ${facts.suspectRange.toDate}.`;
-  return `${groupIntro(facts, facts.suspectRange ? "segment_balance_mismatch" : "balance_mismatch")}${numbers}${range}${quoted(facts.message)}
+  const numbers =
+    refusal.error === "balance_mismatch"
+      ? ` Computed final balance ${refusal.computed_final}, statement closing ${refusal.statement_closing}, difference ${refusal.difference}.`
+      : ` From the balance ${refusal.from_balance} printed on ${refusal.from_date}, the rows lead to ${refusal.walked} on ${refusal.to_date}, where the statement prints ${refusal.printed}, difference ${refusal.difference}. The suspect rows are between ${refusal.from_date} and ${refusal.to_date}.`;
+  return `${groupIntro(refusal)}${numbers}${quoted(refusal.message)}
 Please find out why. Run the saved parser on the file(s) I give you and compare
 its output with the statement: check the opening and closing balances it
 emits, every printed running balance, and whether the files together cover the
@@ -215,17 +202,11 @@ ${RERUN_BLOCK}`;
 }
 
 export function boundaryGapPrompt(
-  facts: FailedGroupFacts & {
-    earlierSource: string;
-    laterSource: string;
-    earlierClosing: number;
-    laterOpening: number;
-    difference: number;
-  },
+  refusal: RefusalOf<"statement_boundary_mismatch">,
 ): string {
-  return `${groupIntro(facts, "statement_boundary_mismatch")} ${facts.earlierSource} ends at
-${facts.earlierClosing} and ${facts.laterSource} starts at ${facts.laterOpening},
-difference ${facts.difference}.${quoted(facts.message)}
+  return `${groupIntro(refusal)} ${refusal.earlier_source} ends at
+${refusal.earlier_closing} and ${refusal.later_source} starts at ${refusal.later_opening},
+difference ${refusal.difference}.${quoted(refusal.message)}
 Run the saved parser on both files and tell me the exact last date of the
 earlier one and the first date of the later one, and whether the difference
 could be explained by rows at those edges rather than by a missing statement.
@@ -238,16 +219,12 @@ ${RERUN_BLOCK}`;
 }
 
 export function disagreementPrompt(
-  facts: FailedGroupFacts & {
-    date: string;
-    parts: readonly string[];
-    row: string;
-  },
+  refusal: RefusalOf<"statement_disagreement">,
 ): string {
-  return `${groupIntro(facts, "statement_disagreement")} The parts disagree on ${facts.date}
-(${list(facts.parts)}); the first differing row is ${facts.row}.${quoted(facts.message)}
+  return `${groupIntro(refusal)} The parts disagree on ${refusal.date}
+(${list(refusal.parts)}); the first differing row is ${JSON.stringify(refusal.row)}.${quoted(refusal.message)}
 Run the saved parser on both files, print every row each one has on
-${facts.date}, and tell me which file is right, or whether both are and the
+${refusal.date}, and tell me which file is right, or whether both are and the
 importer's assembly in packages/api/bank-importer/abacus/assemble.ts should
 accept this case. If the parser is the cause, fix it with a sanitized fixture
 and test. ${PII_RULE}
@@ -258,10 +235,10 @@ ${RERUN_BLOCK}`;
 }
 
 export function partInvalidPrompt(
-  facts: FailedGroupFacts & { part: string; detail: string },
+  refusal: RefusalOf<"statement_part_invalid">,
 ): string {
-  return `${groupIntro(facts, "statement_part_invalid")} The part ${facts.part} is not
-self-consistent: ${facts.detail}.${quoted(facts.message)}
+  return `${groupIntro(refusal)} The part ${refusal.part} is not
+self-consistent: ${refusal.detail}.${quoted(refusal.message)}
 Run the saved parser on that file and compare its emitted opening, closing,
 and running balances with what the statement prints. Decide whether the bank's
 export is broken or the parser misreads it. If the parser is the cause, fix it
@@ -273,17 +250,14 @@ ${RERUN_BLOCK}`;
 }
 
 export function reconciliationPrompt(
-  facts: FailedGroupFacts & {
-    checkpointDate: string;
-    checkpointBalance: number;
-  },
+  refusal: RefusalOf<"reconciliation_match_failed">,
 ): string {
-  return `${groupIntro(facts, "reconciliation_match_failed")} The ledger's last reconciled
-balance for that account is ${facts.checkpointBalance} on ${facts.checkpointDate},
+  return `${groupIntro(refusal)} The ledger's last reconciled
+balance for that account is ${refusal.checkpoint_balance} on ${refusal.checkpoint_date},
 but no statement row on that date carries that balance and the statement's
-opening does not match it either.${quoted(facts.message)}
-Please compare the ledger and the statement around ${facts.checkpointDate}:
-find the balance assertion for ${facts.baseAccount} on that date, list the
+opening does not match it either.${quoted(refusal.message)}
+Please compare the ledger and the statement around ${refusal.checkpoint_date}:
+find the balance assertion for ${refusal.failed_group.base_account} on that date, list the
 ledger postings for that account on and just before that date, run the saved
 parser on the file and list the statement's rows for that day with their
 printed balances, and tell me exactly where they diverge and what the correct
@@ -296,13 +270,16 @@ After the fix you may re-run the import.
 ${RERUN_BLOCK}`;
 }
 
-export function openingBalancePrompt(facts: FailedGroupFacts): string {
-  return `${groupIntro(facts, "opening_balance_unavailable")} The statement prints no
+export function openingBalancePrompt(
+  refusal: RefusalOf<"opening_balance_unavailable">,
+): string {
+  const baseAccount = refusal.failed_group.base_account;
+  return `${groupIntro(refusal)} The statement prints no
 running balances and no opening balance, and the ledger has no reconciled
-balance for ${facts.baseAccount} yet, so the importer cannot compute the
-balances.${quoted(facts.message)}
+balance for ${baseAccount} yet, so the importer cannot compute the
+balances.${quoted(refusal.message)}
 Ask me for the opening balance printed on the statement (or the balance the
-day before it starts). Then add a balance assertion for ${facts.baseAccount}
+day before it starts). Then add a balance assertion for ${baseAccount}
 on the day before the statement's first transaction with that amount, following
 how balance assertions are recorded in this repository, and tell me what you
 added. If the parser could have emitted an opening balance the statement does
@@ -313,10 +290,12 @@ Then re-run the import yourself or tell me and I will retry.
 ${RERUN_BLOCK}`;
 }
 
-export function closingBalancePrompt(facts: FailedGroupFacts): string {
-  return `${groupIntro(facts, "closing_balance_unavailable")} This is a credit-card
+export function closingBalancePrompt(
+  refusal: RefusalOf<"closing_balance_unavailable">,
+): string {
+  return `${groupIntro(refusal)} This is a credit-card
 statement and the parser emitted no closing balance and no printed running
-balance on the last row, so the importer cannot verify it.${quoted(facts.message)}
+balance on the last row, so the importer cannot verify it.${quoted(refusal.message)}
 Check whether the statement prints a total amount due or closing balance. If
 it does, make the parser emit it as \`closing\` through abacus.ledger_balance
 (see custom-built-parsers/import-statement-parser-guide.md), with a sanitized
@@ -328,13 +307,12 @@ Then re-run the import yourself or tell me and I will retry.
 ${RERUN_BLOCK}`;
 }
 
-export function genericFailurePrompt(
-  facts: FailedGroupFacts & { code: string; payload: string },
-): string {
-  return `${groupIntro(facts, facts.code)}${quoted(facts.message)}
+// For a code without a prompt of its own: the whole reply goes to the agent.
+export function genericFailurePrompt(refusal: AccountRefusal): string {
+  return `${groupIntro(refusal)}${quoted(refusal.message)}
 The full error payload was:
 
-${facts.payload}
+${JSON.stringify(refusal, null, 2)}
 
 Please find out what went wrong, starting from the error class in
 packages/api/bank-importer/import-errors.ts and the import pipeline in

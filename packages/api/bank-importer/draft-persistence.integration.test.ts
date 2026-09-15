@@ -110,10 +110,11 @@ describe("draft persistence reconciliation", () => {
   it("places one assertion on the final effective draft only after dedupe", () => {
     const { db, sqlite } = setup();
     const first = tx("first-key");
-    const second = {
+    const second: Abacus = {
       ...tx("second-key"),
       narration: "Second",
       withdrawal: 10,
+      deposit: 0,
       balance: -235.5,
     };
     const categorized = unsafeAsChrono([

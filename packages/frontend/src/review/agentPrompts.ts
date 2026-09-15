@@ -10,6 +10,8 @@ import type {
 } from "dbu6-shared";
 import { PII_RULE } from "../agent-prompt-rules";
 import { plural } from "../format";
+import { duplicatesText, failingChecksText } from "./posting-checks";
+import { reviewHref } from "./routes";
 
 /** Rows listed in a prompt before the rest are left to the API. */
 export const PROMPT_ROW_LIMIT = 50;
@@ -17,8 +19,8 @@ export const PROMPT_ROW_LIMIT = 50;
 export function duplicatesPrompt(detail: ReviewAccountDetail): string {
   const { account } = detail;
   return `I'm reviewing drafts in my books app (this repository) before adding them to
-the books, on the screen /review/${account.account_id}/duplicates. It flags
-${plural(detail.duplicates.length, "possible duplicate")} in the drafts for ${account.name}, and it
+the books, on the screen ${reviewHref(account.account_id, "duplicates")}. It flags
+${duplicatesText(detail.duplicates.length)} in the drafts for ${account.name}, and it
 won't add those drafts to the books while any are left.
 
 ${accountFacts(detail)}
@@ -47,8 +49,8 @@ change you propose for it.`;
 export function balanceChecksPrompt(detail: ReviewAccountDetail): string {
   const { account, failing } = detail;
   return `I'm reviewing drafts in my books app (this repository) before adding them to
-the books, on the screen /review/${account.account_id}/balance-checks.
-${plural(failing.length, "balance check")} ${failing.length === 1 ? "fails" : "fail"} in the drafts for ${account.name}: on those days
+the books, on the screen ${reviewHref(account.account_id, "balance-checks")}.
+${failingChecksText(failing.length)} in the drafts for ${account.name}: on those days
 the drafts' running balance doesn't reach the balance the statement printed,
 and the app won't add the drafts to the books until every check passes.
 
@@ -84,17 +86,16 @@ const GROUND_RULES = `Don't change drafts, journals or balance checks without fi
 what you would change and why. ${PII_RULE}`;
 
 function accountFacts(detail: ReviewAccountDetail): string {
-  const { account } = detail;
-  const dates =
-    account.first_date && account.last_date
-      ? ` dated ${account.first_date} to ${account.last_date}`
-      : "";
-  const checkpoint =
-    detail.checked_to === null
+  const { account, checkpoint } = detail;
+  const dates = account.draft_span
+    ? ` dated ${account.draft_span.first_date} to ${account.draft_span.last_date}`
+    : "";
+  const checked =
+    checkpoint === null
       ? "It has no posted balance check yet."
-      : `Its last posted balance check is ${amount(detail.checked_balance ?? 0)} on ${detail.checked_to}.`;
+      : `Its last posted balance check is ${amount(checkpoint.balance)} on ${checkpoint.date}.`;
   return `The account is ${account.name}: ledger account ${account.path}, account id
-${account.account_id}. It has ${plural(account.drafts, "draft")}${dates} waiting in Review. ${checkpoint}`;
+${account.account_id}. It has ${plural(account.drafts, "draft")}${dates} waiting in Review. ${checked}`;
 }
 
 function readingTheData(accountId: number): string {

@@ -54,8 +54,8 @@ export async function runDraftImport(
     auth,
   } = input;
 
-  // processStatement throws on empty input (validateTransactions), so the
-  // short-circuit is load-bearing when reconciliation has consumed everything.
+  // When reconciliation has consumed everything there is nothing to
+  // categorize, so the categorizer isn't asked.
   const { hledgerJournal, categorized } =
     newTransactions.length === 0
       ? {

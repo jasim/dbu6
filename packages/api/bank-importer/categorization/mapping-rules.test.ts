@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Abacus } from "../abacus/index.js";
+import { moneyFromColumns } from "../domain/Money.js";
 import {
   classifyWith,
   compileMappings,
@@ -37,8 +38,10 @@ function transaction(
   return {
     date: "2026-01-01",
     narration,
-    withdrawal: direction === "withdrawal" ? 100 : 0,
-    deposit: direction === "deposit" ? 100 : 0,
+    ...moneyFromColumns({
+      withdrawal: direction === "withdrawal" ? 100 : 0,
+      deposit: direction === "deposit" ? 100 : 0,
+    }),
     balance: 0,
   };
 }

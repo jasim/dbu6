@@ -10,8 +10,9 @@ import {
 } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  findBlock,
-  postingBlocks,
+  isBlock,
+  isProblem,
+  postingChecks,
   type ReviewAccountDetail,
 } from "dbu6-shared";
 import { ApiError } from "@sapporta/shared/client";
@@ -27,7 +28,14 @@ import {
   reviewAccountQuery,
   useRefetchOnNavigate,
 } from "../queries";
-import { parseAccountId, REVIEW_ROUTE, reviewHref, reviewPage } from "./routes";
+import {
+  checkTab,
+  parseAccountId,
+  REVIEW_ROUTE,
+  reviewHref,
+  reviewPage,
+  type ReviewTab,
+} from "./routes";
 
 /** A post made from this visit's Overview, and the summary it was made from. */
 export interface ReviewPosted {
@@ -201,47 +209,50 @@ function FrameHeader({ detail }: { detail: ReviewAccountDetail }) {
 }
 
 /** "21 drafts · 1–13 Sep 2026 · checked to 31 Aug". */
-function headerLine({ account, checked_to }: ReviewAccountDetail): string {
+function headerLine({ account, checkpoint }: ReviewAccountDetail): string {
   const parts: string[] = [];
-  if (account.drafts > 0) {
-    parts.push(plural(account.drafts, "draft"));
-    if (account.first_date && account.last_date) {
-      parts.push(
-        formatDaySpan(account.first_date, account.last_date, {
-          withYear: true,
-        }),
-      );
-    }
+  if (account.drafts > 0) parts.push(plural(account.drafts, "draft"));
+  if (account.draft_span) {
+    parts.push(formatDaySpan(account.draft_span, { withYear: true }));
   }
   parts.push(
-    checked_to === null
+    checkpoint === null
       ? "nothing added yet"
-      : `checked to ${formatShortDate(checked_to)}`,
+      : `checked to ${formatShortDate(checkpoint.date)}`,
   );
   const line = parts.join(" · ");
   return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
+const TAB_LABELS: Record<ReviewTab, string> = {
+  drafts: "Drafts",
+  duplicates: "Duplicates",
+  "balance-checks": "Balance checks",
+};
+
+interface TabLink {
+  label: string;
+  to: string;
+  end?: boolean;
+  count?: number;
+  problems?: number;
+}
+
 function Tabs({ detail }: { detail: ReviewAccountDetail }) {
   const { account } = detail;
-  const blocks = postingBlocks(account);
-  const tabs = [
+  const tabs: TabLink[] = [
     { label: "Overview", to: reviewHref(account.account_id), end: true },
-    {
-      label: "Drafts",
-      to: reviewHref(account.account_id, "drafts"),
-      count: account.drafts,
-    },
-    {
-      label: "Duplicates",
-      to: reviewHref(account.account_id, "duplicates"),
-      problems: findBlock(blocks, "duplicates")?.count,
-    },
-    {
-      label: "Balance checks",
-      to: reviewHref(account.account_id, "balance-checks"),
-      problems: findBlock(blocks, "failing-checks")?.count,
-    },
+    // One tab per check, in the checks' order. Drafts counts every draft;
+    // a check's own tab counts the problems it flags.
+    ...postingChecks(account).map((check) => {
+      const tab = checkTab(check.kind);
+      return {
+        label: TAB_LABELS[tab],
+        to: reviewHref(account.account_id, tab),
+        count: tab === "drafts" ? account.drafts : undefined,
+        problems: isBlock(check) && isProblem(check) ? check.count : undefined,
+      };
+    }),
   ];
   return (
     <nav

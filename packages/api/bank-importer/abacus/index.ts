@@ -4,9 +4,9 @@ export {
   abacusStatementFromJson,
   describeStatement,
   parseAbacusJson,
-  validateTransactions,
   type Abacus,
   type AbacusStatement,
+  type BalancedStatement,
 } from "./Abacus.js";
 export {
   BALANCE_TOLERANCE,
@@ -16,6 +16,7 @@ export {
   normalizeExtractedTransactions,
   synthesizeRunningBalances,
   verifyClosingBalance,
+  verifyDeclaredBalances,
   type DateOrderAnalysis,
   type DateTransition,
 } from "./balances.js";

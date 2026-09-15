@@ -1,3 +1,5 @@
+import { POSTING_CHECK_KINDS, type PostingCheckKind } from "dbu6-shared";
+
 /*
  * Review's URLs (PLAN.md §11 P3). An account's Overview is
  * `/review/:accountId`; each tab is its own route under it.
@@ -5,7 +7,26 @@
 
 export const REVIEW_ROUTE = "/review";
 
-export type ReviewTab = "drafts" | "duplicates" | "balance-checks";
+/**
+ * The tab where each posting check is looked into: categories are chosen in
+ * the Drafts table, and the other two checks have a tab of their own.
+ */
+const CHECK_TABS = {
+  categories: "drafts",
+  duplicates: "duplicates",
+  "balance-checks": "balance-checks",
+} as const satisfies Record<PostingCheckKind, string>;
+
+export type ReviewTab = (typeof CHECK_TABS)[PostingCheckKind];
+
+/** An account's tabs after Overview, in the checks' order. */
+export const REVIEW_TABS: readonly ReviewTab[] = POSTING_CHECK_KINDS.map(
+  (kind) => CHECK_TABS[kind],
+);
+
+export function checkTab(kind: PostingCheckKind): ReviewTab {
+  return CHECK_TABS[kind];
+}
 
 export function reviewHref(accountId: number, tab?: ReviewTab): string {
   return tab
@@ -19,8 +40,6 @@ export function needsCategoryHref(accountId: number): string {
   return `${reviewHref(accountId, "drafts")}?${query}`;
 }
 
-const TABS: readonly ReviewTab[] = ["drafts", "duplicates", "balance-checks"];
-
 /**
  * Which of an account's pages a path is: a tab, "overview", or null for a
  * path under the account that is neither.
@@ -33,7 +52,7 @@ export function reviewPage(
     .slice(reviewHref(accountId).length)
     .replace(/^\/|\/$/g, "");
   if (rest === "") return "overview";
-  return TABS.find((tab) => tab === rest) ?? null;
+  return REVIEW_TABS.find((tab) => tab === rest) ?? null;
 }
 
 /** The account id in a Review URL, or null when it isn't one. */

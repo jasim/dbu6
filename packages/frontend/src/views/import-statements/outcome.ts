@@ -20,6 +20,12 @@ export type AccountRefusal = Extract<
   { failed_group: unknown }
 >;
 
+/** An account's refusal with one error code, its fields as the contract names them. */
+export type RefusalOf<Code extends AccountRefusal["error"]> = Extract<
+  AccountRefusal,
+  { error: Code }
+>;
+
 export type ImportFailure =
   /** The request never got an answer. */
   | { kind: "network"; message: string }

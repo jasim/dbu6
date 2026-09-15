@@ -8,6 +8,7 @@ import {
 } from "../bank-importer/domain/Account.js";
 import { type Chrono, unsafeAsChrono } from "../bank-importer/domain/Chrono.js";
 import type { DraftCategorizedTransaction } from "../bank-importer/domain/DraftCategorizedTransaction.js";
+import { moneyFromColumns } from "../bank-importer/domain/Money.js";
 import type { RowScopeAuth } from "../bank-importer/draft-persistence.js";
 import { accounts, accountsTable } from "../schema/accounts.js";
 import {
@@ -63,8 +64,7 @@ export function loadCategorizedDrafts(
       transaction: {
         date: formatPlainDate(d.date),
         narration: d.narration,
-        withdrawal: d.withdrawal,
-        deposit: d.deposit,
+        ...moneyFromColumns(d),
         balance: d.balance_assertion_base_account,
         source_reference: d.source_reference,
         source_transaction_key: d.source_transaction_key,

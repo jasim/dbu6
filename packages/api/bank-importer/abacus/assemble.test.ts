@@ -15,6 +15,7 @@ import {
   StatementPartInvalidError,
   StatementPartUnjoinableError,
 } from "../import-errors.js";
+import { moneyFromColumns } from "../domain/Money.js";
 
 // [date, signed amount, printed balance or null, narration?]
 type Row = [string, number, number | null, string?];
@@ -23,8 +24,10 @@ function rows(spec: Row[]): Abacus[] {
   return spec.map(([date, amount, balance, narration], i) => ({
     date,
     narration: narration ?? `row ${i + 1}`,
-    withdrawal: amount < 0 ? -amount : 0,
-    deposit: amount > 0 ? amount : 0,
+    ...moneyFromColumns({
+      withdrawal: amount < 0 ? -amount : 0,
+      deposit: amount > 0 ? amount : 0,
+    }),
     balance,
   }));
 }

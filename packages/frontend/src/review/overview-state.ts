@@ -1,23 +1,28 @@
 import {
-  findBlock,
+  isBlock,
   postingBlocks,
+  postingChecks,
   type PostingBlock,
+  type PostingCheck,
+  type PostingCheckKind,
   type ReviewAccountDetail,
 } from "dbu6-shared";
 import type { StatusTone } from "../components/status-chip";
 import {
+  agree,
   formatBalance,
   formatDaySpan,
   formatShortDate,
   plural,
 } from "../format";
-import { needsCategoryHref, reviewHref } from "./routes";
+import { checkText } from "./posting-checks";
+import { checkTab, needsCategoryHref, reviewHref } from "./routes";
 
 /*
  * What an account's Overview says, as a pure function of its summary
  * (PLAN.md §11 P3): the verdict, one row per check in tab order, why the
- * post button waits, and what posting will do. The checks are the posting
- * gate's own blocks (`postingBlocks`), so the ticks and a refusal agree.
+ * post button waits, and what posting will do. The rows are the posting
+ * gate's own checks (`postingChecks`), so the ticks and a refusal agree.
  */
 
 /** A figure inside a sentence, set in mono. */
@@ -34,7 +39,7 @@ export interface OverviewLink {
 }
 
 export interface CheckRow {
-  check: "categories" | "duplicates" | "balance-checks";
+  check: PostingCheckKind;
   tone: StatusTone;
   text: string;
   /** The tab that fixes it; absent when there is nothing to fix. */
@@ -67,27 +72,18 @@ export function overviewView(detail: ReviewAccountDetail): OverviewView {
 
   return {
     verdict: ready ? "Ready to add to your books" : "Not ready to add yet",
-    checks: [
-      categoriesCheck(detail, blocks),
-      duplicatesCheck(detail, blocks),
-      balanceChecksCheck(detail, blocks),
-    ],
+    checks: postingChecks(account).map((check) => checkRow(check, detail)),
     waiting: ready ? undefined : blocks.map(waitingReason).join(" · "),
     posting: ready ? postingPhrase(detail) : undefined,
     button: `Add ${account.drafts} to my books`,
   };
 }
 
-/** One unmet check, as the waiting button lists it. */
+/** One unmet check, as the waiting button lists it: "12 still need a category". */
 function waitingReason(block: PostingBlock): string {
-  switch (block.kind) {
-    case "uncategorised":
-      return `${block.count} still ${block.count === 1 ? "needs" : "need"} a category`;
-    case "duplicates":
-      return plural(block.count, "possible duplicate");
-    case "failing-checks":
-      return `${plural(block.count, "balance check")} ${block.count === 1 ? "fails" : "fail"}`;
-  }
+  return block.kind === "categories"
+    ? `${block.count} still ${agree(block.count, "needs", "need")} a category`
+    : checkText(block);
 }
 
 /**
@@ -118,97 +114,52 @@ export function postedView(
   };
 }
 
-function categoriesCheck(
-  { account }: ReviewAccountDetail,
-  blocks: readonly PostingBlock[],
-): CheckRow {
-  const missing = findBlock(blocks, "uncategorised");
-  if (!missing) {
+function checkRow(check: PostingCheck, detail: ReviewAccountDetail): CheckRow {
+  if (!isBlock(check)) {
     return {
-      check: "categories",
-      tone: "ok",
-      text:
-        account.drafts === 1
-          ? "The transaction has a category"
-          : `All ${account.drafts} transactions have a category`,
+      check: check.kind,
+      tone: check.state === "none" ? "waiting" : "ok",
+      text: checkText(check),
     };
   }
-  return {
-    check: "categories",
-    tone: missing.severity,
-    text: `${plural(missing.count, "transaction")} ${missing.count === 1 ? "needs" : "need"} a category`,
-    link: {
-      label: missing.count === 1 ? "See it in Drafts" : "See them in Drafts",
-      to: needsCategoryHref(account.account_id),
-    },
-  };
-}
-
-function duplicatesCheck(
-  { account }: ReviewAccountDetail,
-  blocks: readonly PostingBlock[],
-): CheckRow {
-  const duplicates = findBlock(blocks, "duplicates");
-  if (!duplicates) {
-    return {
-      check: "duplicates",
-      tone: "ok",
-      text: "No possible duplicates",
-    };
+  const accountId = detail.account.account_id;
+  const tab = reviewHref(accountId, checkTab(check.kind));
+  switch (check.kind) {
+    case "categories":
+      return {
+        check: check.kind,
+        tone: check.severity,
+        text: checkText(check),
+        link: {
+          label: check.count === 1 ? "See it in Drafts" : "See them in Drafts",
+          to: needsCategoryHref(accountId),
+        },
+      };
+    case "duplicates":
+      return {
+        check: check.kind,
+        tone: check.severity,
+        text: checkText(check),
+        link: { label: "See the duplicates", to: tab },
+      };
+    case "balance-checks": {
+      // A failing check is one of the detail's failing rows, in date order.
+      const day = formatShortDate(detail.failing[0].date);
+      return {
+        check: check.kind,
+        tone: check.severity,
+        text: `${checkText(check)}, ${check.count === 1 ? "on" : "the first on"} ${day}`,
+        link: { label: "See the balance checks", to: tab },
+      };
+    }
   }
-  return {
-    check: "duplicates",
-    tone: duplicates.severity,
-    text: plural(duplicates.count, "possible duplicate"),
-    link: {
-      label: "See the duplicates",
-      to: reviewHref(account.account_id, "duplicates"),
-    },
-  };
-}
-
-function balanceChecksCheck(
-  detail: ReviewAccountDetail,
-  blocks: readonly PostingBlock[],
-): CheckRow {
-  const { account, failing } = detail;
-  if (detail.balance_checks === 0) {
-    return {
-      check: "balance-checks",
-      tone: "waiting",
-      text: "These drafts have no balance checks",
-    };
-  }
-  const failingChecks = findBlock(blocks, "failing-checks");
-  const first = failing[0];
-  if (!failingChecks || !first) {
-    return {
-      check: "balance-checks",
-      tone: "ok",
-      text: "Every balance check passes",
-    };
-  }
-  const day = formatShortDate(first.date);
-  return {
-    check: "balance-checks",
-    tone: failingChecks.severity,
-    text:
-      failingChecks.count === 1
-        ? `1 balance check fails, on ${day}`
-        : `${failingChecks.count} balance checks fail, the first on ${day}`,
-    link: {
-      label: "See the balance checks",
-      to: reviewHref(account.account_id, "balance-checks"),
-    },
-  };
 }
 
 function postingPhrase(detail: ReviewAccountDetail): Phrase {
   const { account } = detail;
-  const span =
-    account.first_date && account.last_date
-      ? ` from ${formatDaySpan(account.first_date, account.last_date)}`
-      : "";
+  const span = account.draft_span
+    ? ` from ${formatDaySpan(account.draft_span)}`
+    : "";
   return [
     `Adds ${plural(account.drafts, "transaction")}${span}.`,
     ...checkedTo(detail, "will then be"),

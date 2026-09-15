@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountLabel, importableAccounts } from "./account-names.js";
+import { accountLabel, importablePaths } from "./account-names.js";
 
 const presets = [
   {
@@ -26,16 +26,12 @@ const presets = [
   },
 ];
 
-describe("importableAccounts", () => {
-  it("keeps one row per base account and names it from a single preset", () => {
-    expect(importableAccounts(presets)).toEqual([
-      { path: "assets:bank:sample", name: "Sample", kind: "card" },
-      { path: "liabilities:cards:only-card", name: "Only Card", kind: "card" },
-      {
-        path: "assets:bank:sample-savings",
-        name: "Sample Savings",
-        kind: "bank",
-      },
+describe("importablePaths", () => {
+  it("keeps one path per base account, in first-seen order", () => {
+    expect(importablePaths(presets)).toEqual([
+      "assets:bank:sample",
+      "liabilities:cards:only-card",
+      "assets:bank:sample-savings",
     ]);
   });
 });
@@ -65,5 +61,16 @@ describe("accountLabel", () => {
     expect(
       accountLabel("liabilities:loans:sample-loan", "Liability", presets),
     ).toEqual({ name: "Sample loan", kind: "card" });
+  });
+
+  it("reads an account the ledger doesn't have as a bank unless a preset says card", () => {
+    expect(accountLabel("assets:bank:sample-savings", null, presets)).toEqual({
+      name: "Sample Savings",
+      kind: "bank",
+    });
+    expect(accountLabel("liabilities:cards:only-card", null, presets)).toEqual({
+      name: "Only Card",
+      kind: "card",
+    });
   });
 });

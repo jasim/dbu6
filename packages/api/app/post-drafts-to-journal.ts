@@ -157,7 +157,7 @@ export function postDraftsToJournal(
 /** The 422 for the first block, in the codes and counts callers read. */
 function refusal(block: PostingBlock, account: string): PostingResponse {
   switch (block.kind) {
-    case "uncategorised":
+    case "categories":
       return {
         status: 422,
         body: {
@@ -175,7 +175,7 @@ function refusal(block: PostingBlock, account: string): PostingResponse {
           duplicate_count: block.count,
         },
       };
-    case "failing-checks":
+    case "balance-checks":
       return {
         status: 422,
         body: {

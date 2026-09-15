@@ -8,7 +8,8 @@ function ledger(): Database.Database {
   const sqlite = new Database(":memory:");
   sqlite.exec(`
     CREATE TABLE accounts (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT, parent_id INTEGER
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT,
+      parent_id INTEGER, account_type TEXT
     );
     CREATE TABLE journals (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT, description TEXT
@@ -25,11 +26,12 @@ function ledger(): Database.Database {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'liabilities:credit-cards:sample-card', NULL),
-      (2, 'workspace', 'user', 'assets:bank:sample-savings', NULL),
-      (3, 'workspace', 'user', 'expenses:groceries', NULL),
-      (4, 'workspace', 'user', 'assets:bank:no-preset', NULL),
-      (5, 'workspace', 'other-user', 'assets:bank:sample-savings', NULL);
+      (1, 'workspace', 'user', 'liabilities:credit-cards:sample-card', NULL, 'Liability'),
+      (2, 'workspace', 'user', 'assets:bank:sample-savings', NULL, 'Asset'),
+      (3, 'workspace', 'user', 'expenses:groceries', NULL, 'Expense'),
+      (4, 'workspace', 'user', 'assets:bank:no-preset', NULL, 'Asset'),
+      (5, 'workspace', 'other-user', 'assets:bank:sample-savings', NULL, 'Asset'),
+      (6, 'workspace', 'user', 'liabilities:loans:sample-loan', NULL, 'Liability');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-10', 'Opening'),
@@ -82,39 +84,35 @@ describe("Home summary", () => {
 
     expect(summary.accounts).toEqual([
       {
-        account_id: null,
+        in_ledger: false,
         path: "assets:bank:missing-050505",
         name: "Not Yet Added",
         kind: "bank",
-        checked_to: null,
-        checked_balance: null,
-        drafts: 0,
-        uncategorised: 0,
-        duplicates: 0,
-        failing_checks: 0,
       },
       {
+        in_ledger: true,
         account_id: 1,
         path: "liabilities:credit-cards:sample-card",
         name: "Sample Card",
         kind: "card",
-        checked_to: "2026-02-20",
-        checked_balance: 300,
+        checkpoint: { date: "2026-02-20", balance: 300 },
         drafts: 0,
         uncategorised: 0,
         duplicates: 0,
+        balance_checks: 0,
         failing_checks: 0,
       },
       {
+        in_ledger: true,
         account_id: 2,
         path: "assets:bank:sample-savings",
         name: "Sample Savings",
         kind: "bank",
-        checked_to: "2026-02-10",
-        checked_balance: 1500,
+        checkpoint: { date: "2026-02-10", balance: 1500 },
         drafts: 3,
         uncategorised: 1,
         duplicates: 1,
+        balance_checks: 1,
         failing_checks: 1,
       },
     ]);
@@ -123,9 +121,26 @@ describe("Home summary", () => {
       drafts: 4,
       uncategorised: 2,
       duplicates: 1,
+      balance_checks: 1,
       failing_checks: 1,
     });
     expect(summary.has_journals).toBe(true);
+  });
+
+  it("names and kinds an account the way Review does", () => {
+    // A loan preset that doesn't say it is a card: the ledger's Liability
+    // type decides, on Home as on Review.
+    const summary = loadHomeSummary(ledger(), scope, [
+      {
+        name: "Sample Loan",
+        base_account: "liabilities:loans:sample-loan",
+        custom_mappings_filenames: [],
+      },
+    ]);
+
+    expect(summary.accounts).toMatchObject([
+      { in_ledger: true, name: "Sample Loan", kind: "card", checkpoint: null },
+    ]);
   });
 
   it("reports nothing imported when the preset accounts have no entries", () => {
@@ -136,7 +151,9 @@ describe("Home summary", () => {
 
     expect(summary.has_journals).toBe(false);
     expect(summary.totals.drafts).toBe(0);
-    expect(summary.accounts.map((a) => [a.name, a.checked_to])).toEqual([
+    expect(
+      summary.accounts.map((a) => [a.name, a.in_ledger && a.checkpoint]),
+    ).toEqual([
       ["Sample Card", null],
       ["Sample Savings", null],
     ]);

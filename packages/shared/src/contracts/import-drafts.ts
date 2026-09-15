@@ -2,6 +2,8 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { abacusImportRequestSchema } from "./abacus.js";
+import { dateSpanSchema } from "./date-span.js";
+import { datedBalanceSchema } from "./dated-balance.js";
 import { statementImportErrorSchema } from "./import-errors.js";
 import { statementAccountSchema } from "./statement-account.js";
 
@@ -40,21 +42,6 @@ export const resolvedBalanceMetadataSchema = z.object({
   source: balanceSourceSchema,
 });
 
-// The first and last transaction dates of the assembled statement, before
-// the reconciliation filter trims what the ledger already holds. Null when
-// the statement has no rows.
-export const statementPeriodSchema = z.object({
-  first_date: z.string(),
-  last_date: z.string(),
-});
-
-// The ledger's last reconciled balance for the account, the point from which
-// rows count as new. Null when the account has never been reconciled.
-export const reconciliationCheckpointSchema = z.object({
-  date: z.string(),
-  balance: z.number(),
-});
-
 export const statementImportResultSchema = importSummarySchema.extend({
   opening_balance: z.number().nullable(),
   closing_balance_from_statement: z.number().nullable(),
@@ -63,8 +50,13 @@ export const statementImportResultSchema = importSummarySchema.extend({
     opening: resolvedBalanceMetadataSchema,
     closing: resolvedBalanceMetadataSchema,
   }),
-  statement_period: statementPeriodSchema.nullable(),
-  reconciliation_checkpoint: reconciliationCheckpointSchema.nullable(),
+  // The first and last transaction dates of the assembled statement, before
+  // the reconciliation filter trims what the ledger already holds. Null when
+  // the statement has no rows.
+  statement_period: dateSpanSchema.nullable(),
+  // The ledger's last reconciled balance for the account, the point from
+  // which rows count as new. Null when the account has never been reconciled.
+  reconciliation_checkpoint: datedBalanceSchema.nullable(),
 });
 
 // One uploaded file as the automatic import sees it. Recognition runs every

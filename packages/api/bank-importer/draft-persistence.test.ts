@@ -173,7 +173,7 @@ describe("newTransactionsSinceReconciliation — anchoring cases", () => {
   });
 
   it("keeps first-day continuation rows when statement opening matches checkpoint", () => {
-    const txns = [
+    const txns: Abacus[] = [
       {
         date: "2026-04-01",
         narration: "IB BILLPAY DR-HDFCSI-050505XXXXXX0505",

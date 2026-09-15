@@ -6,7 +6,10 @@ import {
   type AbacusImportRequest,
   type AbacusImportResult,
 } from "dbu6-shared";
-import { abacusStatementFromJson } from "../bank-importer/abacus/index.js";
+import {
+  abacusStatementFromJson,
+  verifyDeclaredBalances,
+} from "../bank-importer/abacus/index.js";
 import { parseAccount } from "../bank-importer/domain/Account.js";
 import {
   loadAccountsByName,
@@ -19,15 +22,17 @@ import { requireWorkflowAuth } from "./workflow-auth.js";
 // Import of one Abacus statement posted as JSON by a coding agent, for
 // freeform transactions (custom-built-parsers/freeform-transactions-guide.md).
 //
-//   the ledger account and its kind, as the user chose them
-//     -> runStatementImport([statement], options)
+//   the statement, with both balances -> BalancedStatement
+//     -> verifyDeclaredBalances: the rows lead from the opening to the closing
+//     -> runStatementImport([statement], the account and kind the user chose)
 //
 // Everything the import needs is in the request, so no import preset is
 // involved: freeform rows are categorized without a preset's custom mappings.
-// The contract requires the opening and closing balances, so the rows are
-// always checked against both before anything is saved. The response is raw
-// data for the agent to explain: the per-account result the automatic import
-// reports, or the import error's own payload.
+// The contract requires the opening and closing balances, and the parsed
+// statement keeps them in its type, so the rows are checked against both
+// before anything is saved. The response is raw data for the agent to
+// explain: the per-account result the automatic import reports, or the
+// import error's own payload.
 
 type AbacusImportRouteResponse =
   | { status: 200; body: AbacusImportResult }
@@ -59,9 +64,11 @@ export async function importAbacusStatement(
   console.log(
     `[abacus-import] ${statement.rows.length} row(s) from ${JSON.stringify(sourceName)} into ${base_account}`,
   );
-  const response = await respondWithImportErrors(() =>
-    runStatementImport(
-      [abacusStatementFromJson(statement)],
+  const response = await respondWithImportErrors(() => {
+    const balanced = abacusStatementFromJson(statement);
+    verifyDeclaredBalances(balanced);
+    return runStatementImport(
+      [balanced],
       {
         baseAccount: parseAccount(base_account),
         accountKind: accountKindOf(is_credit_card),
@@ -71,8 +78,8 @@ export async function importAbacusStatement(
       db,
       auth,
       [sourceName],
-    ),
-  );
+    );
+  });
   if (response.status !== 200) return response;
   return {
     status: 200,

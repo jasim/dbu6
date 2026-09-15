@@ -15,14 +15,12 @@ function detail(
       drafts: 21,
       uncategorised: 0,
       duplicates: 0,
+      balance_checks: 13,
       failing_checks: 0,
-      first_date: "2026-09-01",
-      last_date: "2026-09-13",
+      draft_span: { first_date: "2026-09-01", last_date: "2026-09-13" },
       ...account,
     },
-    checked_to: "2026-08-31",
-    checked_balance: 250000,
-    balance_checks: 13,
+    checkpoint: { date: "2026-08-31", balance: 250000 },
     closing: { date: "2026-09-13", balance: 326445 },
     failing: [],
     duplicates: [],
@@ -112,11 +110,12 @@ describe("overviewView", () => {
   it("doesn't block drafts that carry no balance checks", () => {
     const view = overviewView(
       detail(
-        { drafts: 1, first_date: "2026-09-13" },
         {
+          drafts: 1,
           balance_checks: 0,
-          closing: null,
+          draft_span: { first_date: "2026-09-13", last_date: "2026-09-13" },
         },
+        { closing: null },
       ),
     );
 

@@ -1,4 +1,4 @@
-import type { AccountKind } from "dbu6-shared";
+import type { AccountKind, DatedBalance, DateSpan } from "dbu6-shared";
 import { userConfigDir } from "../user-data.js";
 import type { Account } from "./domain/Account.js";
 import { unsafeAsChrono } from "./domain/Chrono.js";
@@ -6,7 +6,6 @@ import { enrichWithGPayHtml } from "./domain/GPayIndex.js";
 import {
   assembleStatements,
   synthesizeRunningBalances,
-  validateTransactions,
   verifyClosingBalance,
   type AbacusStatement,
 } from "./abacus/index.js";
@@ -60,10 +59,10 @@ export interface StatementImportResult extends ImportSummary {
   };
   // First and last transaction dates of the assembled statement, before the
   // reconciliation filter; null when it has no rows.
-  statement_period: { first_date: string; last_date: string } | null;
+  statement_period: DateSpan | null;
   // The ledger's last reconciled balance for the account, from which rows
   // count as new; null when the account has never been reconciled.
-  reconciliation_checkpoint: { date: string; balance: number } | null;
+  reconciliation_checkpoint: DatedBalance | null;
 }
 
 // Pick opening balance by precedence: statement → reconciliation checkpoint.
@@ -123,7 +122,6 @@ export async function runStatementImport(
     assembled.transactions,
     opts.baseAccount,
   );
-  validateTransactions(transactions);
   if (parts.length > 1) {
     console.log(
       `[statement-import] assembled ${transactions.length} transactions across ${parts.length} part(s): opening=${opening} (first part), closing=${closing} (last part)`,

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Chrono } from "../domain/Chrono.js";
+import { moneyFromColumns } from "../domain/Money.js";
 import {
   analyzeDateOrder,
   computeRunningBalances,
@@ -19,7 +20,12 @@ function row(
   balance: number | null = null,
   narration = "test",
 ): Abacus {
-  return { date, narration, deposit, withdrawal, balance };
+  return {
+    date,
+    narration,
+    ...moneyFromColumns({ withdrawal, deposit }),
+    balance,
+  };
 }
 
 function chrono(
@@ -281,7 +287,7 @@ describe("computeRunningBalances", () => {
 
   it("forward-walks trailing null rows from the last printed checkpoint", () => {
     const txns = chrono([
-      row("2025-01-01", 0, 0, 10000),
+      row("2025-01-01", 500, 0, 10000),
       row("2025-01-02", 1000, 0, null),
       row("2025-01-03", 0, 200, null),
     ]);
@@ -306,7 +312,7 @@ describe("normalizeExtractedTransactions", () => {
     date: string,
     narration: string,
     balance: number | null = null,
-  ) => ({
+  ): Abacus => ({
     date,
     narration,
     withdrawal: 100,

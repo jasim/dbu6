@@ -1,5 +1,10 @@
 import type Database from "better-sqlite3";
-import { NO_DRAFTS, type DraftCounts } from "dbu6-shared";
+import {
+  NO_DRAFTS,
+  type DatedBalance,
+  type DateSpan,
+  type DraftCounts,
+} from "dbu6-shared";
 import {
   duplicateDraftRowsSql,
   duplicateJournalEntryRowsSql,
@@ -17,7 +22,7 @@ import { allRows, ledgerCtes, type ScopeParams } from "./reports/shared.js";
 /*
  * What an account's drafts hold (PLAN.md §11 P3). Home, Review, the posting
  * gate and the two draft reports all read these queries. What blocks posting
- * is decided from the counts by `postingBlocks` in dbu6-shared, which the gate
+ * is decided from the counts by `postingChecks` in dbu6-shared, which the gate
  * and the screens share, so a tick on Review and a refusal from the gate
  * cannot disagree.
  *
@@ -40,12 +45,12 @@ export interface DraftAccountStatus {
   drafts: number;
   /** Drafts with no category (`account_id` is null). */
   uncategorised: number;
-  first_date: string;
-  last_date: string;
+  /** The drafts' first and last dates. */
+  draft_span: DateSpan;
   /** Drafts carrying a balance the statement printed. */
   balance_checks: number;
   /** The last of those, by date then id. */
-  closing: { date: string; balance: number } | null;
+  closing: DatedBalance | null;
   failing: FailingCheck[];
   duplicates: DuplicateDiagnostic[];
 }
@@ -124,7 +129,11 @@ export function loadDraftStatus(
       return [
         row.account_id,
         {
-          ...row,
+          account_id: row.account_id,
+          drafts: row.drafts,
+          uncategorised: row.uncategorised,
+          draft_span: { first_date: row.first_date, last_date: row.last_date },
+          balance_checks: row.balance_checks,
           closing: closing
             ? { date: closing.date, balance: closing.balance }
             : null,
@@ -145,6 +154,7 @@ export function draftCounts(
     drafts: status.drafts,
     uncategorised: status.uncategorised,
     duplicates: status.duplicates.length,
+    balance_checks: status.balance_checks,
     failing_checks: status.failing.length,
   };
 }

@@ -6,6 +6,10 @@
 // lives in dbu6-shared (`abacusJsonSchema`); this module is the home of its
 // in-memory type, parsing, validation, and the transformations that keep it
 // in ledger semantics.
+//
+// Every statement is built by `abacusStatementFromJson` from a document the
+// wire schema accepted, and `Abacus` is that schema's row, so the rows need
+// no checking again downstream.
 import {
   abacusJsonSchema,
   type AbacusJson,
@@ -16,6 +20,7 @@ import type { Chrono } from "../domain/Chrono.js";
 import { AbacusJsonParseError } from "../import-errors.js";
 import { normalizeChronological } from "./balances.js";
 
+// One statement row. Its money moves one way (`Money`), as the schema says.
 export type Abacus = Money & {
   date: string;
   narration: string;
@@ -39,12 +44,12 @@ export interface AbacusStatement {
   institution: string | null;
 }
 
-export function validateTransactions(transactions: readonly Abacus[]): void {
-  const result = abacusJsonSchema.shape.rows.safeParse(transactions);
-  if (!result.success) {
-    throw new Error(`Invalid Abacus transactions: ${result.error.message}`);
-  }
-}
+// A statement that states both of its balances, as a freeform import must.
+// `verifyDeclaredBalances` checks its rows against both.
+export type BalancedStatement = AbacusStatement & {
+  opening: number;
+  closing: number;
+};
 
 // Text of an Abacus JSON document -> AbacusStatement.
 export function parseAbacusJson(
@@ -76,7 +81,12 @@ export function parseAbacusJson(
 // A validated Abacus JSON document -> AbacusStatement. Rows are normalized to
 // chronological order; a descending document is reversed so same-day rows
 // keep their relative order. Rows that run in both directions cannot be
-// ordered and are rejected as a malformed document.
+// ordered and are rejected as a malformed document. A document that states
+// both balances makes a `BalancedStatement`.
+export function abacusStatementFromJson(
+  document: AbacusJson & { opening: number; closing: number },
+): BalancedStatement;
+export function abacusStatementFromJson(document: AbacusJson): AbacusStatement;
 export function abacusStatementFromJson(document: AbacusJson): AbacusStatement {
   let transactions: Chrono<Abacus>;
   try {

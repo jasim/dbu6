@@ -578,6 +578,26 @@ describe("problem tones", () => {
       { label: "Printed on 10 Aug 2026", value: "₹2,500.00" },
       { label: "Difference", value: "₹100.00" },
     ]);
+    // The prompt names the error the server sent and the segment's own figures.
+    expect(problem.agent?.prompt).toContain("error segment_balance_mismatch.");
+    expect(problem.agent?.prompt).toContain(
+      "From the balance 1000 printed on 2026-08-01, the rows lead to 2400 on 2026-08-10, where the statement prints 2500, difference 100.",
+    );
+  });
+
+  it("leaves a mismatch across several files to the server's own gap call", () => {
+    const [problem] = describeProblems(
+      refused(422, {
+        ...PAYLOADS.balance_mismatch,
+        files: [resolvedRow],
+        failed_group: {
+          ...failedGroup,
+          file_names: ["bank-aug.xls", "bank-sep.xls"],
+        },
+      }),
+    );
+    expect(problem.why).toContain("one row was read wrongly");
+    expect(problem.agent?.prompt).toContain("error balance_mismatch.");
   });
 });
 

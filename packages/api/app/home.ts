@@ -9,17 +9,17 @@ import {
   type ImportPreset,
 } from "dbu6-shared";
 import { readImportPresets } from "../bank-importer/import-presets.js";
-import { importableAccounts } from "./account-names.js";
-import { draftCounts, loadDraftStatus } from "./draft-status.js";
-import { loadLastReconciled } from "./reports/last-reconciled.js";
+import { accountLabel, importablePaths } from "./account-names.js";
+import { loadAccountStandings } from "./account-standing.js";
+import { draftCounts } from "./draft-status.js";
 import { allRows, ledgerCtes, type ScopeParams } from "./reports/shared.js";
 import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
 
 /*
  * The Home screen's one request (PLAN.md §11 P1): the importable accounts
- * with where their books stand, and what waits in the drafts. The drafts'
- * counts come from the draft status module, which Review, the posting gate
- * and the draft reports read too, so none of them can disagree.
+ * with where their books stand, and what waits in the drafts. Each account is
+ * projected from its standing, which Review reads too, so the two screens
+ * name, count and check it the same way.
  */
 
 const api = new TsRestApi<SapportaEnv>();
@@ -41,17 +41,12 @@ export function loadHomeSummary(
   scope: ScopeParams,
   presets: readonly ImportPreset[],
 ): HomeSummary {
-  const ledgerIds = new Map(
-    allRows<{ id: number; name: string }>(
-      sqlite,
-      `${ledgerCtes} SELECT id, name FROM scoped_accounts`,
-      scope,
-    ).map((row) => [row.name, row.id]),
+  const standings = Array.from(
+    loadAccountStandings(sqlite, scope, presets).values(),
   );
-  const checkpoints = new Map(
-    loadLastReconciled(sqlite, scope).map((row) => [row.account_id, row]),
+  const byPath = new Map(
+    standings.map((standing) => [standing.path, standing]),
   );
-  const drafts = loadDraftStatus(sqlite, scope);
   const journalAccounts = new Set(
     allRows<{ account_id: number }>(
       sqlite,
@@ -60,30 +55,31 @@ export function loadHomeSummary(
     ).map((row) => row.account_id),
   );
 
-  const accounts: HomeAccount[] = importableAccounts(presets)
-    .map((account) => {
-      const id = ledgerIds.get(account.path) ?? null;
-      const checkpoint = id === null ? undefined : checkpoints.get(id);
+  const accounts = importablePaths(presets)
+    .map((path): HomeAccount => {
+      const standing = byPath.get(path);
+      if (standing === undefined) {
+        return { in_ledger: false, path, ...accountLabel(path, null, presets) };
+      }
       return {
-        account_id: id,
-        path: account.path,
-        name: account.name,
-        kind: account.kind,
-        checked_to: checkpoint?.last_reconciled_date ?? null,
-        checked_balance: checkpoint?.last_balance ?? null,
-        ...draftCounts(id === null ? undefined : drafts.get(id)),
+        in_ledger: true,
+        account_id: standing.account_id,
+        path,
+        name: standing.name,
+        kind: standing.kind,
+        checkpoint: standing.checkpoint,
+        ...draftCounts(standing.drafts),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return {
     accounts,
-    totals: Array.from(drafts.values())
-      .map(draftCounts)
+    totals: standings
+      .map((standing) => draftCounts(standing.drafts))
       .reduce(addCounts, NO_DRAFTS),
     has_journals: accounts.some(
-      (account) =>
-        account.account_id !== null && journalAccounts.has(account.account_id),
+      (account) => account.in_ledger && journalAccounts.has(account.account_id),
     ),
   };
 }
@@ -93,6 +89,7 @@ function addCounts(a: DraftCounts, b: DraftCounts): DraftCounts {
     drafts: a.drafts + b.drafts,
     uncategorised: a.uncategorised + b.uncategorised,
     duplicates: a.duplicates + b.duplicates,
+    balance_checks: a.balance_checks + b.balance_checks,
     failing_checks: a.failing_checks + b.failing_checks,
   };
 }

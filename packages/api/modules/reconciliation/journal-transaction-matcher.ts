@@ -1,8 +1,11 @@
 import {
+  direction as transactionDirection,
+  type Direction,
+} from "../../bank-importer/domain/Money.js";
+import {
   normalizeIdentityText,
   sameLegacyTransaction,
   transactionAmountMinor,
-  transactionDirection,
   type TransactionIdentityInput,
 } from "./transaction-identity.js";
 
@@ -57,10 +60,7 @@ export function matchDraftTransactions(
     : null;
 }
 
-function entryAmountMinor(
-  entry: JournalEntryCandidate,
-  direction: "deposit" | "withdrawal",
-) {
+function entryAmountMinor(entry: JournalEntryCandidate, direction: Direction) {
   return Math.round(
     (direction === "deposit" ? entry.credit : entry.debit) * 100,
   );

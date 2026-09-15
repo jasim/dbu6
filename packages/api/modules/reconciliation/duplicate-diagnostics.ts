@@ -5,9 +5,10 @@ import {
   type TransactionMatchType,
 } from "./journal-transaction-matcher.js";
 import {
-  transactionDirection,
-  type TransactionIdentityInput,
-} from "./transaction-identity.js";
+  amount as transactionAmount,
+  direction as transactionDirection,
+} from "../../bank-importer/domain/Money.js";
+import type { TransactionIdentityInput } from "./transaction-identity.js";
 
 export const duplicateDraftRowsSql = `
 SELECT
@@ -145,7 +146,7 @@ export function findDuplicateDiagnostics(
     const left = drafts[leftIndex];
     const leftIdentity = identity(left);
     const direction = transactionDirection(leftIdentity);
-    const amount = direction === "deposit" ? left.deposit : left.withdrawal;
+    const amount = transactionAmount(leftIdentity);
 
     for (
       let rightIndex = leftIndex + 1;

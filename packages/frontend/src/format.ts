@@ -1,7 +1,7 @@
 // Formatting for the everyday screens: money, dates, and identifiers in the
 // words a statement reader would use, never in ledger notation.
 
-import type { AccountKind, StatementAccount } from "dbu6-shared";
+import type { AccountKind, DateSpan, StatementAccount } from "dbu6-shared";
 
 const inr = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -15,8 +15,7 @@ export function formatMoney(value: number): string {
 
 // A ledger balance as the user thinks of it. A card's ledger balance is
 // negative when money is owed, so it is read out as an amount owed.
-export function formatBalance(value: number | null, kind: AccountKind): string {
-  if (value === null) return "not printed";
+export function formatBalance(value: number, kind: AccountKind): string {
   if (kind === "bank") return formatMoney(value);
   if (value === 0) return "nothing owed";
   if (value < 0) return `${formatMoney(Math.abs(value))} owed`;
@@ -65,8 +64,7 @@ export function formatShortDate(iso: string): string {
 // across a new year "28 Dec 2025 – 3 Jan 2026". `withYear` adds the year to
 // a span within one year: "1–13 Sep 2026".
 export function formatDaySpan(
-  from: string,
-  to: string,
+  { first_date: from, last_date: to }: DateSpan,
   { withYear = false }: { withYear?: boolean } = {},
 ): string {
   const a = isoParts(from);
@@ -80,7 +78,10 @@ export function formatDaySpan(
 }
 
 // "1 Aug to 31 Aug 2026" when both dates share a year, else two full dates.
-export function formatDateRange(from: string, to: string): string {
+export function formatDateRange({
+  first_date: from,
+  last_date: to,
+}: DateSpan): string {
   const a = isoParts(from);
   const b = isoParts(to);
   if (!a || !b) return `${formatDate(from)} to ${formatDate(to)}`;
@@ -119,6 +120,11 @@ export function fileTypeLabel(fileName: string): string {
 
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
+}
+
+// The verb that agrees with a count: agree(1, "fails", "fail") -> "fails".
+export function agree(count: number, one: string, many: string): string {
+  return count === 1 ? one : many;
 }
 
 // "a", "a and b", "a, b and c".

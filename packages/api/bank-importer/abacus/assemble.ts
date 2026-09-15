@@ -58,8 +58,8 @@ import {
 import {
   normalizeIdentityText,
   transactionAmountMinor,
-  transactionDirection,
 } from "../../modules/reconciliation/transaction-identity.js";
+import { direction } from "../domain/Money.js";
 import type { Abacus, AbacusStatement } from "./Abacus.js";
 import {
   BALANCE_TOLERANCE,
@@ -434,7 +434,7 @@ function logJoin(
 // must agree too.
 function sameRow(a: Abacus, b: Abacus): boolean {
   return (
-    transactionDirection(a) === transactionDirection(b) &&
+    direction(a) === direction(b) &&
     transactionAmountMinor(a) === transactionAmountMinor(b) &&
     minor(a.balance) === minor(b.balance) &&
     normalizeIdentityText(a.narration) === normalizeIdentityText(b.narration)

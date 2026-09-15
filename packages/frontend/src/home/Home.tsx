@@ -146,8 +146,9 @@ function AccountList({ accounts }: { accounts: readonly HomeAccount[] }) {
 }
 
 function AccountRow({ account }: { account: HomeAccount }) {
-  const ledger =
-    account.account_id === null ? null : accountLedgerHref(account.account_id);
+  const ledger = account.in_ledger
+    ? accountLedgerHref(account.account_id)
+    : null;
   const status = accountStatus(account);
   return (
     <li className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-line-inner px-6 py-3.5">
@@ -172,7 +173,7 @@ function AccountRow({ account }: { account: HomeAccount }) {
           {accountSubline(account)}
         </div>
       </div>
-      {account.account_id !== null && account.drafts > 0 ? (
+      {account.in_ledger && account.drafts > 0 ? (
         <Link
           to={reviewHref(account.account_id)}
           className="-my-2 inline-flex min-h-11 items-center rounded-control no-underline outline-none hover:[&>span]:underline hover:[&>span]:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40"
@@ -187,12 +188,13 @@ function AccountRow({ account }: { account: HomeAccount }) {
 }
 
 function accountSubline(account: HomeAccount): string {
-  if (account.account_id === null) {
+  if (!account.in_ledger) {
     return `${account.path} is not in your accounts yet`;
   }
-  if (account.checked_to === null) return "Nothing imported yet";
-  return `Checked to ${formatDate(account.checked_to)} · ${formatBalance(
-    account.checked_balance,
+  const { checkpoint } = account;
+  if (checkpoint === null) return "Nothing imported yet";
+  return `Checked to ${formatDate(checkpoint.date)} · ${formatBalance(
+    checkpoint.balance,
     account.kind,
   )}`;
 }
@@ -201,7 +203,7 @@ function accountStatus(account: HomeAccount): {
   tone: StatusTone;
   label: string;
 } {
-  if (account.account_id === null) {
+  if (!account.in_ledger) {
     return { tone: "problem", label: "Account missing" };
   }
   if (postingBlocks(account).some(isProblem)) {
@@ -213,7 +215,7 @@ function accountStatus(account: HomeAccount): {
       label: `${plural(account.drafts, "draft")} waiting`,
     };
   }
-  if (account.checked_to !== null) return { tone: "ok", label: "Checked" };
+  if (account.checkpoint !== null) return { tone: "ok", label: "Checked" };
   return { tone: "waiting", label: "Not imported" };
 }
 

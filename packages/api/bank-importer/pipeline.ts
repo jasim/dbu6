@@ -1,4 +1,4 @@
-import { validateTransactions, type Abacus } from "./abacus/index.js";
+import type { Abacus } from "./abacus/index.js";
 import type { Account } from "./domain/Account.js";
 import { type Chrono, chronoMap, unsafeAsChrono } from "./domain/Chrono.js";
 import { UNCATEGORIZED } from "./domain/Account.js";
@@ -24,7 +24,8 @@ export interface PipelineResult {
 
 /**
  * Process parsed bank transactions through the full pipeline:
- * validate → categorize → group → format as hledger journal.
+ * categorize → group → format as hledger journal. The rows were checked
+ * when their statement was parsed (`abacusStatementFromJson`).
  *
  * Callers are responsible for filtering out already-reconciled rows before
  * calling — this stage assumes everything it receives is in scope.
@@ -33,8 +34,6 @@ export async function processStatement(
   transactions: Chrono<Abacus>,
   config: PipelineConfig,
 ): Promise<PipelineResult> {
-  validateTransactions(transactions);
-
   const categorized: Chrono<CategorizedTransaction> = config.categorization
     ? unsafeAsChrono(
         await resolveCategories([...transactions], config.categorization),

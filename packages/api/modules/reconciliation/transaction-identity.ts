@@ -5,8 +5,7 @@ import {
   unsafeAsChrono,
   type Chrono,
 } from "../../bank-importer/domain/Chrono.js";
-
-export type TransactionDirection = "deposit" | "withdrawal";
+import { amount, direction } from "../../bank-importer/domain/Money.js";
 
 export interface TransactionIdentityInput {
   baseAccountId: number | null;
@@ -27,18 +26,12 @@ export function normalizeIdentityText(value: string): string {
     .toLocaleLowerCase("en");
 }
 
-export function transactionDirection(
-  transaction: Pick<Abacus, "deposit" | "withdrawal">,
-): TransactionDirection {
-  return transaction.deposit > 0 ? "deposit" : "withdrawal";
-}
-
-export function transactionAmountMinor(
-  transaction: Pick<Abacus, "deposit" | "withdrawal">,
-): number {
-  const amount =
-    transaction.deposit > 0 ? transaction.deposit : transaction.withdrawal;
-  return Math.round(amount * 100);
+/** The amount in paise, which identities and matches compare exactly. */
+export function transactionAmountMinor(transaction: {
+  withdrawal: number;
+  deposit: number;
+}): number {
+  return Math.round(amount(transaction) * 100);
 }
 
 function digest(value: string): string {
@@ -52,7 +45,7 @@ function fallbackIdentityBase(
   return [
     normalizeIdentityText(baseAccount),
     transaction.date,
-    transactionDirection(transaction),
+    direction(transaction),
     String(transactionAmountMinor(transaction)),
     normalizeIdentityText(transaction.narration),
   ].join("|");
@@ -67,7 +60,7 @@ function referencedIdentityBase(
     normalizeIdentityText(baseAccount),
     normalizeIdentityText(sourceReference),
     transaction.date,
-    transactionDirection(transaction),
+    direction(transaction),
     String(transactionAmountMinor(transaction)),
   ].join("|");
 }
@@ -119,7 +112,7 @@ export function sameLegacyTransaction(
 ): boolean {
   if (left.baseAccountId !== right.baseAccountId) return false;
   if (left.date !== right.date) return false;
-  if (transactionDirection(left) !== transactionDirection(right)) return false;
+  if (direction(left) !== direction(right)) return false;
   if (transactionAmountMinor(left) !== transactionAmountMinor(right))
     return false;
 

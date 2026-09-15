@@ -38,13 +38,20 @@ export {
 export {
   draftCountsSchema,
   NO_DRAFTS,
+  POSTING_CHECK_KINDS,
+  postingCheck,
+  postingChecks,
   postingBlocks,
+  isBlock,
   isProblem,
-  findBlock,
   type DraftCounts,
+  type PostingCheck,
+  type PostingCheckKind,
   type PostingBlock,
   type ProblemBlock,
-} from "./posting-blocks.js";
+} from "./posting-checks.js";
+export { datedBalanceSchema, type DatedBalance } from "./dated-balance.js";
+export { dateSpanSchema, type DateSpan } from "./date-span.js";
 export {
   abacusImportRequestSchema,
   abacusJsonSchema,
@@ -73,6 +80,7 @@ export {
   homeAccountSchema,
   homeSummarySchema,
   type HomeAccount,
+  type HomeLedgerAccount,
   type HomeSummary,
 } from "./home.js";
 export {

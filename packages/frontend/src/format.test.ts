@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  agree,
   fileTypeLabel,
   formatDaySpan,
   formatFileSize,
   formatShortDate,
 } from "./format";
+
+const span = (first_date: string, last_date: string) => ({
+  first_date,
+  last_date,
+});
 
 describe("formatFileSize", () => {
   it("reads bytes, kilobytes and megabytes", () => {
@@ -37,20 +43,30 @@ describe("formatShortDate", () => {
 
 describe("formatDaySpan", () => {
   it("names the month once for days within it", () => {
-    expect(formatDaySpan("2026-09-01", "2026-09-13")).toBe("1–13 Sep");
-    expect(formatDaySpan("2026-09-01", "2026-09-13", { withYear: true })).toBe(
-      "1–13 Sep 2026",
-    );
+    expect(formatDaySpan(span("2026-09-01", "2026-09-13"))).toBe("1–13 Sep");
+    expect(
+      formatDaySpan(span("2026-09-01", "2026-09-13"), { withYear: true }),
+    ).toBe("1–13 Sep 2026");
   });
 
   it("names both months, or both years, when the span crosses them", () => {
-    expect(formatDaySpan("2026-08-28", "2026-09-13")).toBe("28 Aug – 13 Sep");
-    expect(formatDaySpan("2025-12-28", "2026-01-03")).toBe(
+    expect(formatDaySpan(span("2026-08-28", "2026-09-13"))).toBe(
+      "28 Aug – 13 Sep",
+    );
+    expect(formatDaySpan(span("2025-12-28", "2026-01-03"))).toBe(
       "28 Dec 2025 – 3 Jan 2026",
     );
   });
 
   it("reads a single day as one date", () => {
-    expect(formatDaySpan("2026-09-13", "2026-09-13")).toBe("13 Sep");
+    expect(formatDaySpan(span("2026-09-13", "2026-09-13"))).toBe("13 Sep");
+  });
+});
+
+describe("agree", () => {
+  it("picks the verb form for a count", () => {
+    expect(agree(1, "fails", "fail")).toBe("fails");
+    expect(agree(0, "fails", "fail")).toBe("fail");
+    expect(agree(3, "needs", "need")).toBe("need");
   });
 });

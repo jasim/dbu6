@@ -101,7 +101,7 @@ function caption(
   return [
     ...institutions,
     ...accounts,
-    period ? formatDateRange(period.first_date, period.last_date) : null,
+    period ? formatDateRange(period) : null,
     joinNames(group.file_names),
   ]
     .filter((part): part is string => part !== null && part !== "")

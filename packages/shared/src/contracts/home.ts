@@ -2,28 +2,40 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { accountKindSchema } from "./account-kind.js";
-import { draftCountsSchema } from "./posting-blocks.js";
+import { datedBalanceSchema } from "./dated-balance.js";
+import { draftCountsSchema } from "./posting-checks.js";
 
 const c = initContract();
 
-/**
- * One importable account, as Home lists it: an account named as a base
- * account by at least one import preset, with where its books stand and
- * what is waiting in its drafts.
- */
-export const homeAccountSchema = z.object({
-  // Null when a preset names an account the ledger does not have.
-  account_id: z.number().nullable(),
+const importableAccountFields = {
   path: z.string(),
   // The preset's name when one preset points here, else a readable segment.
   name: z.string(),
   kind: accountKindSchema,
-  // The last posted balance assertion: its date and figure.
-  checked_to: z.string().nullable(),
-  checked_balance: z.number().nullable(),
-  ...draftCountsSchema.shape,
-});
+};
+
+/**
+ * One importable account, as Home lists it: an account named as a base
+ * account by at least one import preset. When the ledger has it, where its
+ * books stand and what is waiting in its drafts; when a preset names an
+ * account the ledger does not have, neither.
+ */
+export const homeAccountSchema = z.discriminatedUnion("in_ledger", [
+  z.object({
+    in_ledger: z.literal(false),
+    ...importableAccountFields,
+  }),
+  z.object({
+    in_ledger: z.literal(true),
+    account_id: z.number(),
+    ...importableAccountFields,
+    // The last posted balance assertion; null before the first.
+    checkpoint: datedBalanceSchema.nullable(),
+    ...draftCountsSchema.shape,
+  }),
+]);
 export type HomeAccount = z.infer<typeof homeAccountSchema>;
+export type HomeLedgerAccount = Extract<HomeAccount, { in_ledger: true }>;
 
 export const homeSummarySchema = z.object({
   accounts: z.array(homeAccountSchema),

@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
+import { postingCheck } from "dbu6-shared";
 import { reportsApi } from "../api";
 import { EmptyState } from "../components/empty-state";
-import { plural } from "../format";
 import { duplicatesPrompt } from "./agentPrompts";
+import { checkText, duplicatesText } from "./posting-checks";
 import {
   AccountReport,
   AskYourAgent,
@@ -18,14 +19,15 @@ import { reviewHref } from "./routes";
  */
 export function DuplicatesTab() {
   const { detail } = useReviewAccount();
-  const { account, duplicates } = detail;
+  const { account } = detail;
+  const check = postingCheck(account, "duplicates");
 
-  if (duplicates.length === 0) {
+  if (check.state === "passes") {
     return (
       <ReportTab>
         <EmptyState
           className="max-w-[760px]"
-          title="No possible duplicates"
+          title={checkText(check)}
           body={`None of the drafts for ${account.name} match another draft or anything already in your books.`}
         />
       </ReportTab>
@@ -35,9 +37,8 @@ export function DuplicatesTab() {
   return (
     <ReportTab>
       <ReportSummary>
-        {plural(duplicates.length, "possible duplicate")}. Each draft below
-        looks like another draft or an entry already in your books. If one is
-        extra, select it in{" "}
+        {duplicatesText(check.count)}. Each draft below looks like another draft
+        or an entry already in your books. If one is extra, select it in{" "}
         <Link
           to={reviewHref(account.account_id, "drafts")}
           className="text-primary hover:underline"

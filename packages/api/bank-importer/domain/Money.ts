@@ -1,11 +1,45 @@
-// Keep the domain type ergonomic for values assembled from parsed columns.
-// The wire schemas in dbu6-shared enforce the directional union at system
-// boundaries.
-export type Money = {
-  withdrawal: number;
-  deposit: number;
-};
+import { z } from "zod";
+import { depositMoneySchema, withdrawalMoneySchema } from "dbu6-shared";
 
-export function isWithdrawal(m: Money): boolean {
-  return m.withdrawal > 0;
+// Money moves one way: a positive withdrawal or a positive deposit, never
+// both. The wire schemas in dbu6-shared state the rule and every statement
+// row is parsed against them; a stored draft's columns become Money through
+// `moneyFromColumns`. Direction and amount are read here and nowhere else, so
+// a row's transaction key, its journal match, its group and its category all
+// agree on which way it moved.
+export type Money =
+  z.infer<typeof withdrawalMoneySchema> | z.infer<typeof depositMoneySchema>;
+
+export type Direction = "withdrawal" | "deposit";
+
+// Withdrawal and deposit as a table or a match candidate holds them, not yet
+// known to move one way.
+type MoneyColumns = { withdrawal: number; deposit: number };
+
+export function direction(money: MoneyColumns): Direction {
+  return money.deposit > 0 ? "deposit" : "withdrawal";
+}
+
+export function amount(money: MoneyColumns): number {
+  return direction(money) === "deposit" ? money.deposit : money.withdrawal;
+}
+
+export function isWithdrawal(money: MoneyColumns): boolean {
+  return direction(money) === "withdrawal";
+}
+
+const moneySchema = z.union([withdrawalMoneySchema, depositMoneySchema]);
+
+/** A stored row's columns as Money; throws when they don't move one way. */
+export function moneyFromColumns(columns: MoneyColumns): Money {
+  const parsed = moneySchema.safeParse({
+    withdrawal: columns.withdrawal,
+    deposit: columns.deposit,
+  });
+  if (!parsed.success) {
+    throw new Error(
+      `A withdrawal of ${columns.withdrawal} and a deposit of ${columns.deposit} must be one positive amount and one zero.`,
+    );
+  }
+  return parsed.data;
 }

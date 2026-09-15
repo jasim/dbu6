@@ -3,15 +3,14 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
 import {
-  allRows,
   authorizeReport,
   flatResult,
   hiddenIdColumn,
-  ledgerCtes,
   openRecordLink,
   type ScopeParams,
 } from "./shared.js";
 import { assertionColumns } from "./assertion-grid.js";
+import { loadLedgerAccounts } from "../account-standing.js";
 import { findFailingChecks, type FailingCheck } from "../draft-status.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -42,11 +41,10 @@ export function draftBalanceAssertionsReport(
   accountId?: number,
 ): GridDataset {
   const names = new Map(
-    allRows<{ id: number; name: string }>(
-      sqlite,
-      `${ledgerCtes} SELECT id, name FROM scoped_accounts`,
-      scope,
-    ).map((row) => [row.id, row.name]),
+    loadLedgerAccounts(sqlite, scope).map((account) => [
+      account.id,
+      account.name,
+    ]),
   );
   const rows = findFailingChecks(sqlite, scope, { accountId })
     .map((row) => ({ ...row, account_name: names.get(row.account_id) ?? "" }))

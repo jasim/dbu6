@@ -2,6 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { formatPlainDate } from "@sapporta/shared/temporal";
 import type { Abacus } from "../../bank-importer/abacus/index.js";
 import { enrichWithGPayHtml } from "../../bank-importer/domain/GPayIndex.js";
+import { moneyFromColumns } from "../../bank-importer/domain/Money.js";
 import {
   resolveCategories,
   type CategorizationConfig,
@@ -52,8 +53,7 @@ export async function classifyDraftTransactions(input: {
   const sourceTransactions: Abacus[] = drafts.map((draft) => ({
     date: formatPlainDate(draft.date),
     narration: draft.narration,
-    withdrawal: draft.withdrawal,
-    deposit: draft.deposit,
+    ...moneyFromColumns(draft),
     balance: null,
   }));
   const enrichment = gpayHtmlPath

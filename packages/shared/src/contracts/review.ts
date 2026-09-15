@@ -2,7 +2,9 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { accountKindSchema } from "./account-kind.js";
-import { draftCountsSchema } from "./posting-blocks.js";
+import { dateSpanSchema } from "./date-span.js";
+import { datedBalanceSchema } from "./dated-balance.js";
+import { draftCountsSchema } from "./posting-checks.js";
 
 const c = initContract();
 
@@ -18,8 +20,7 @@ export const reviewAccountSchema = z.object({
   kind: accountKindSchema,
   ...draftCountsSchema.shape,
   // The drafts' first and last dates; null when there are none.
-  first_date: z.string().nullable(),
-  last_date: z.string().nullable(),
+  draft_span: dateSpanSchema.nullable(),
 });
 export type ReviewAccount = z.infer<typeof reviewAccountSchema>;
 
@@ -57,12 +58,10 @@ export type ReviewDuplicate = z.infer<typeof reviewDuplicateSchema>;
 export const reviewAccountDetailSchema = z.object({
   // `drafts` may be 0: everything imported is already in the books.
   account: reviewAccountSchema,
-  // The last posted balance assertion on the account.
-  checked_to: z.string().nullable(),
-  checked_balance: z.number().nullable(),
-  // Drafts carrying a statement balance, and the last of them.
-  balance_checks: z.number(),
-  closing: z.object({ date: z.string(), balance: z.number() }).nullable(),
+  // The last posted balance assertion on the account; null before the first.
+  checkpoint: datedBalanceSchema.nullable(),
+  // The last balance the drafts carry from a statement; null when none does.
+  closing: datedBalanceSchema.nullable(),
   failing: z.array(reviewFailingCheckSchema),
   duplicates: z.array(reviewDuplicateSchema),
   // The other accounts with drafts, by name.

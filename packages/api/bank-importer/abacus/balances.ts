@@ -1,5 +1,5 @@
 // Ordering and running-balance arithmetic over Abacus rows.
-import type { Abacus } from "./Abacus.js";
+import type { Abacus, BalancedStatement } from "./Abacus.js";
 import { type Chrono, chronoMap, unsafeAsChrono } from "../domain/Chrono.js";
 import {
   BalanceMismatchError,
@@ -225,6 +225,24 @@ export function verifyClosingBalance(
   if (final === null) return;
   if (Math.abs(final - closing) > BALANCE_TOLERANCE) {
     throw new BalanceMismatchError(final, closing, BALANCE_TOLERANCE, hint);
+  }
+}
+
+// A statement that states both balances must lead from one to the other: the
+// opening plus every row reaches the closing. The import still walks any
+// balances the rows print against the closing, so together the rows are
+// checked against both, whether or not they print balances.
+export function verifyDeclaredBalances(statement: BalancedStatement): void {
+  const reached = statement.transactions.reduce(
+    (balance, row) => balance + row.deposit - row.withdrawal,
+    statement.opening,
+  );
+  if (Math.abs(reached - statement.closing) > BALANCE_TOLERANCE) {
+    throw new BalanceMismatchError(
+      reached,
+      statement.closing,
+      BALANCE_TOLERANCE,
+    );
   }
 }
 

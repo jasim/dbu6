@@ -1,7 +1,12 @@
 import Database from "better-sqlite3";
 import { gridDatasetSchema } from "@sapporta/shared/grid-dataset";
 import { describe, expect, it } from "vitest";
-import { NO_DRAFTS, postingBlocks } from "dbu6-shared";
+import {
+  NO_DRAFTS,
+  postingBlocks,
+  postingCheck,
+  postingChecks,
+} from "dbu6-shared";
 import { draftCounts, loadDraftStatus } from "./draft-status.js";
 import { draftBalanceAssertionsReport } from "./reports/draft-balance-assertions.js";
 import { duplicateDraftsReport } from "./reports/duplicate-drafts.js";
@@ -72,8 +77,7 @@ describe("loadDraftStatus", () => {
       account_id: 2,
       drafts: 4,
       uncategorised: 1,
-      first_date: "2026-03-01",
-      last_date: "2026-03-05",
+      draft_span: { first_date: "2026-03-01", last_date: "2026-03-05" },
       balance_checks: 3,
       closing: { date: "2026-03-05", balance: 1540 },
       failing: [
@@ -100,8 +104,7 @@ describe("loadDraftStatus", () => {
       account_id: 4,
       drafts: 1,
       uncategorised: 1,
-      first_date: "2026-03-03",
-      last_date: "2026-03-03",
+      draft_span: { first_date: "2026-03-03", last_date: "2026-03-03" },
       balance_checks: 0,
       closing: null,
       failing: [],
@@ -122,11 +125,34 @@ describe("loadDraftStatus", () => {
   it("counts an account with no drafts as nothing", () => {
     expect(draftCounts(undefined)).toEqual(NO_DRAFTS);
   });
+
+  it("counts the balance checks the drafts carry and the ones that fail", () => {
+    const status = loadDraftStatus(ledger(), scope);
+    expect(draftCounts(status.get(2))).toMatchObject({
+      balance_checks: 3,
+      failing_checks: 1,
+    });
+  });
 });
 
-describe("postingBlocks", () => {
-  it("blocks nothing when the drafts are categorised and clean, with or without balance checks", () => {
-    expect(postingBlocks({ ...NO_DRAFTS, drafts: 21 })).toEqual([]);
+describe("postingChecks", () => {
+  it("passes every check when the drafts are categorised and clean", () => {
+    expect(
+      postingChecks({ ...NO_DRAFTS, drafts: 21, balance_checks: 13 }),
+    ).toEqual([
+      { kind: "categories", state: "passes", drafts: 21 },
+      { kind: "duplicates", state: "passes" },
+      { kind: "balance-checks", state: "passes" },
+    ]);
+  });
+
+  it("has no balance checks to pass when the drafts carry none, which doesn't block", () => {
+    const counts = { ...NO_DRAFTS, drafts: 21 };
+    expect(postingCheck(counts, "balance-checks")).toEqual({
+      kind: "balance-checks",
+      state: "none",
+    });
+    expect(postingBlocks(counts)).toEqual([]);
   });
 
   it("lists every block in tab order, problems marked apart from categories", () => {
@@ -135,12 +161,23 @@ describe("postingBlocks", () => {
         drafts: 21,
         uncategorised: 12,
         duplicates: 2,
+        balance_checks: 13,
         failing_checks: 3,
       }),
     ).toEqual([
-      { kind: "uncategorised", severity: "attention", count: 12 },
-      { kind: "duplicates", severity: "problem", count: 2 },
-      { kind: "failing-checks", severity: "problem", count: 3 },
+      {
+        kind: "categories",
+        state: "blocks",
+        severity: "attention",
+        count: 12,
+      },
+      { kind: "duplicates", state: "blocks", severity: "problem", count: 2 },
+      {
+        kind: "balance-checks",
+        state: "blocks",
+        severity: "problem",
+        count: 3,
+      },
     ]);
   });
 });

@@ -1,9 +1,9 @@
 import { Link, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  findBlock,
   isProblem,
   postingBlocks,
+  postingCheck,
   type ReviewAccount,
 } from "dbu6-shared";
 import { usePageTitle } from "@sapporta/frontend/shell";
@@ -13,7 +13,7 @@ import { LoadError } from "../components/load-error";
 import { Screen, ScreenTitle } from "../components/screen";
 import { StatusChip, type StatusTone } from "../components/status-chip";
 import { Button } from "../components/ui/button";
-import { formatDaySpan, plural } from "../format";
+import { agree, formatDaySpan, plural } from "../format";
 import { reviewAccountsQuery } from "../queries";
 import { reviewHref } from "./routes";
 
@@ -121,10 +121,9 @@ function AccountRow({ account }: { account: ReviewAccount }) {
 
 /** "21 drafts · 1–13 Sep". */
 export function draftsLine(account: ReviewAccount): string {
-  const span =
-    account.first_date && account.last_date
-      ? ` · ${formatDaySpan(account.first_date, account.last_date)}`
-      : "";
+  const span = account.draft_span
+    ? ` · ${formatDaySpan(account.draft_span)}`
+    : "";
   return `${plural(account.drafts, "draft")}${span}`;
 }
 
@@ -132,15 +131,14 @@ function accountStatus(account: ReviewAccount): {
   tone: StatusTone;
   label: string;
 } {
-  const blocks = postingBlocks(account);
-  if (blocks.some(isProblem)) {
+  if (postingBlocks(account).some(isProblem)) {
     return { tone: "problem", label: "Problems to fix" };
   }
-  const uncategorised = findBlock(blocks, "uncategorised");
-  if (uncategorised) {
+  const categories = postingCheck(account, "categories");
+  if (categories.state === "blocks") {
     return {
-      tone: uncategorised.severity,
-      label: `${uncategorised.count} ${uncategorised.count === 1 ? "needs" : "need"} a category`,
+      tone: categories.severity,
+      label: `${categories.count} ${agree(categories.count, "needs", "need")} a category`,
     };
   }
   return { tone: "ok", label: "Ready to add" };

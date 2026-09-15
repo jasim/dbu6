@@ -1,7 +1,9 @@
+import { postingCheck } from "dbu6-shared";
 import { reportsApi } from "../api";
 import { EmptyState } from "../components/empty-state";
-import { formatMoney, formatShortDate, plural } from "../format";
+import { formatMoney, formatShortDate } from "../format";
 import { balanceChecksPrompt } from "./agentPrompts";
+import { checkText, failingChecksText } from "./posting-checks";
 import {
   AccountReport,
   AskYourAgent,
@@ -10,6 +12,13 @@ import {
 } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 
+// Why the tab is empty, under the check's own line.
+const EMPTY_BODY = {
+  none: "Drafts from a statement carry the statement's balances. These don't, so there's nothing to compare.",
+  passes:
+    "On every day the statement printed a balance, the drafts add up to it.",
+};
+
 /**
  * The Balance checks tab (PLAN.md §11 P3): the days the drafts' running
  * balance misses the statement's, read-only, with a prompt to find out why.
@@ -17,33 +26,27 @@ import { useReviewAccount } from "./ReviewAccount";
 export function BalanceChecksTab() {
   const { detail } = useReviewAccount();
   const { account, failing } = detail;
-  const first = failing[0];
+  const check = postingCheck(account, "balance-checks");
 
-  if (!first) {
+  if (check.state !== "blocks") {
     return (
       <ReportTab>
-        {detail.balance_checks === 0 ? (
-          <EmptyState
-            className="max-w-[760px]"
-            title="These drafts have no balance checks"
-            body="Drafts from a statement carry the statement's balances. These don't, so there's nothing to compare."
-          />
-        ) : (
-          <EmptyState
-            className="max-w-[760px]"
-            title="Every balance check passes"
-            body="On every day the statement printed a balance, the drafts add up to it."
-          />
-        )}
+        <EmptyState
+          className="max-w-[760px]"
+          title={checkText(check)}
+          body={EMPTY_BODY[check.state]}
+        />
       </ReportTab>
     );
   }
 
+  // A failing check is one of the detail's failing rows, in date order.
+  const first = failing[0];
   return (
     <ReportTab>
       <ReportSummary>
-        {plural(failing.length, "balance check")}{" "}
-        {failing.length === 1 ? "fails. It is" : "fail. The first is"} on{" "}
+        {failingChecksText(check.count)}.{" "}
+        {check.count === 1 ? "It is" : "The first is"} on{" "}
         {formatShortDate(first.date)}, where the drafts' running balance is{" "}
         <span className="tnum font-mono">
           {formatMoney(Math.abs(first.diff))}
