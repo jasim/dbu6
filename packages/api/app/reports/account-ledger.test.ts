@@ -181,6 +181,7 @@ describe("Account Ledger result", () => {
       "journal:10",
       "journal:11",
     ]);
+    expect(ledgerRows[0]?.kind).toBe("opening");
     expect(ledgerRows[0]?.children).toBeUndefined();
     expect(ledgerRows[1]?.columns.balance).toBe(70);
     expect(ledgerRows[2]?.columns.balance).toBe(65);
@@ -213,8 +214,10 @@ describe("Account Ledger result", () => {
       },
     ]);
 
-    expect(
-      account.childFooterRows?.entries?.map((row) => row.columns.balance),
-    ).toEqual([65, 15]);
+    // The opening balance counts toward the closing balance but not toward
+    // the period's debit and credit totals.
+    expect(account.childFooterRows?.entries?.map((row) => row.columns)).toEqual(
+      [{ description: "Closing balance", debit: 20, credit: 5, balance: 65 }],
+    );
   });
 });

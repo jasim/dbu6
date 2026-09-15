@@ -5,12 +5,12 @@ import {
   allRows,
   authorizeReport,
   dateColumn,
-  footerRow,
   hiddenIdColumn,
   ledgerCtes,
   moneyColumn,
   oneRow,
   openRecordLink,
+  sum,
   textColumn,
 } from "./shared.js";
 
@@ -188,20 +188,24 @@ export function toAccountLedgerResult(
   const levelColumns = {
     account: [
       hiddenIdColumn("id", "Account ID"),
+      // Fills the row, so the entries nested under it can use the full width.
       textColumn("name", "Account Name", {
-        width: 52,
+        minWidth: 52,
         links: [openRecordLink("accounts", "id", "Open account")],
       }),
       textColumn("account_type", "Account Type", { width: 16 }),
     ],
     entries: [
       hiddenIdColumn("journal_id", "Journal ID"),
-      dateColumn("date", "Date", { width: 12 }),
+      dateColumn("date", "Date", { width: 15 }),
+      // The text columns give way so the amounts, and the balance footers
+      // under them, stay on screen at laptop widths.
       textColumn("description", "Description", {
-        width: 56,
+        minWidth: 20,
+        maxWidth: 56,
         links: [openRecordLink("journals", "journal_id", "Open journal")],
       }),
-      textColumn("accounts", "Accounts", { width: 52 }),
+      textColumn("accounts", "Accounts", { minWidth: 16, maxWidth: 52 }),
       moneyColumn("debit", "Debit", { width: 16, zeroDisplay: "blank" }),
       moneyColumn("credit", "Credit", { width: 16, zeroDisplay: "blank" }),
       moneyColumn("balance", "Balance", { width: 18, strong: true }),
@@ -209,14 +213,18 @@ export function toAccountLedgerResult(
     journal_entries: [
       hiddenIdColumn("entry_id", "Entry ID"),
       hiddenIdColumn("account_id", "Account ID"),
-      textColumn("account_name", "Account", { width: 52 }),
+      textColumn("account_name", "Account", { minWidth: 16, maxWidth: 52 }),
       moneyColumn("debit", "Debit", { width: 16, zeroDisplay: "blank" }),
       moneyColumn("credit", "Credit", { width: 16, zeroDisplay: "blank" }),
       moneyColumn("assertion", "Balance Assertion", {
         width: 18,
         strong: true,
       }),
-      textColumn("comment", "Comment", { width: 56, textDisplay: "multiLine" }),
+      textColumn("comment", "Comment", {
+        minWidth: 20,
+        maxWidth: 56,
+        textDisplay: "multiLine",
+      }),
     ],
   };
   const openingBalance = Number(account?.opening_balance ?? 0);
@@ -239,16 +247,13 @@ export function toAccountLedgerResult(
       },
     };
   });
-  const periodNet =
-    account && ["Revenue", "Liability", "Equity"].includes(account.account_type)
-      ? openingBalance - balance
-      : balance - openingBalance;
   const visibleEntries =
     fromDate !== null && openingBalance !== 0
       ? [
           {
             rowKey: `opening:${fromDate}`,
             levelName: "entries",
+            kind: "opening" as const,
             columns: {
               journal_id: null,
               date: fromDate,
@@ -270,23 +275,19 @@ export function toAccountLedgerResult(
           columns: account,
           children: { entries: visibleEntries },
           childFooterRows: {
+            // One row: the period's debits and credits under their columns,
+            // and the balance they leave. Labelled in Description, as the
+            // opening row is: the first column is a date too narrow for it.
             entries: [
-              footerRow(
-                {
-                  rowKey: "closing-balance",
-                  label: "Closing Balance",
-                  columns: { balance },
+              {
+                rowKey: "closing-balance",
+                columns: {
+                  description: "Closing balance",
+                  debit: sum(rows, "debit"),
+                  credit: sum(rows, "credit"),
+                  balance,
                 },
-                levelColumns.entries,
-              ),
-              footerRow(
-                {
-                  rowKey: "period-net",
-                  label: "Period Net",
-                  columns: { balance: periodNet },
-                },
-                levelColumns.entries,
-              ),
+              },
             ],
           },
         },
