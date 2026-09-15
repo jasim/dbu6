@@ -16,7 +16,7 @@ const links = {
 
 export function TrialBalanceReport() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const asOfDate = searchParams.get("as_of_date") ?? today;
+  const asOfDate = searchParams.get("as_of_date") ?? today();
   const report = useReportResult(["trial-balance", asOfDate], () =>
     callReport({ as_of_date: asOfDate }),
   );

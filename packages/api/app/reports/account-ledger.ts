@@ -30,14 +30,7 @@ api.register(
     };
     const account = oneRow<AccountInfoRow>(
       sqlite,
-      `${ledgerCtes}
-    , account_tree AS (
-      SELECT id FROM scoped_accounts WHERE id = @accountId
-      UNION ALL
-      SELECT a.id
-      FROM scoped_accounts a
-      JOIN account_tree t ON a.parent_id = t.id
-    )
+      `${ledgerCtes}${accountTreeCte}
     SELECT
       a.id,
       a.name,
@@ -57,14 +50,7 @@ api.register(
     );
     const rows = allRows<AccountLedgerTransactionRow>(
       sqlite,
-      `${ledgerCtes}
-    , account_tree AS (
-      SELECT id FROM scoped_accounts WHERE id = @accountId
-      UNION ALL
-      SELECT a.id
-      FROM scoped_accounts a
-      JOIN account_tree t ON a.parent_id = t.id
-    )
+      `${ledgerCtes}${accountTreeCte}
     SELECT
       j.id AS journal_id,
       j.date,
@@ -140,20 +126,26 @@ type AccountLedgerQuery = {
   toDate: string | null;
 };
 
+/**
+ * `account_tree`: the ledger's account and every account under it. `UNION`,
+ * not `UNION ALL`, so a loop in `parent_id` ends instead of recursing forever.
+ */
+const accountTreeCte = `
+    , account_tree AS (
+      SELECT id FROM scoped_accounts WHERE id = @accountId
+      UNION
+      SELECT a.id
+      FROM scoped_accounts a
+      JOIN account_tree t ON a.parent_id = t.id
+    )`;
+
 export function loadAccountLedgerJournalEntries(
   sqlite: Parameters<typeof allRows>[0],
   query: AccountLedgerQuery,
 ): AccountLedgerJournalEntryRow[] {
   return allRows<AccountLedgerJournalEntryRow>(
     sqlite,
-    `${ledgerCtes}
-    , account_tree AS (
-      SELECT id FROM scoped_accounts WHERE id = @accountId
-      UNION ALL
-      SELECT a.id
-      FROM scoped_accounts a
-      JOIN account_tree t ON a.parent_id = t.id
-    ),
+    `${ledgerCtes}${accountTreeCte},
     matching_journals AS (
       SELECT DISTINCT j.id
       FROM scoped_journal_entries je

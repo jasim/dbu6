@@ -1,15 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
+import { appTimeZone } from "@sapporta/frontend";
 import {
   ReportError,
   ReportGridDataset,
   type ReportCellLinkResolvers,
 } from "@sapporta/frontend/report";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
+import { Temporal } from "@sapporta/shared/temporal";
 import { Input } from "@sapporta/ui";
 import { apiErrorMessage } from "../api";
 import { FRESH_QUERY } from "../queries";
 
-export const today = new Date().toISOString().slice(0, 10);
+/**
+ * Today's date (`YYYY-MM-DD`) in the workspace's time zone, the zone the
+ * reports count days in. Read when called, so it follows midnight and the
+ * zone the boot sequence publishes.
+ */
+export function today(): string {
+  return Temporal.Now.plainDateISO(appTimeZone()).toString();
+}
 
 /**
  * A report's grid, fetched when the screen opens and again with Run.

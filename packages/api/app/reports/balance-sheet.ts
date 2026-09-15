@@ -1,7 +1,13 @@
+import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
-import { allRows, authorizeReport, ledgerCtes } from "./shared.js";
+import {
+  allRows,
+  authorizeReport,
+  ledgerCtes,
+  type ScopeParams,
+} from "./shared.js";
 import {
   sectionAccountResult,
   sectionFooterRow,
@@ -13,8 +19,25 @@ const api = new TsRestApi<SapportaEnv>();
 
 api.register("balanceSheet", reportsContract.balanceSheet, ({ c, request }) => {
   const scope = authorizeReport(c, "balance-sheet");
+  return {
+    status: 200,
+    body: balanceSheetReport(c.get("sqlite"), {
+      ...scope,
+      asOfDate: request.query.as_of_date,
+    }),
+  };
+});
+
+/**
+ * Every asset, liability and equity account with entries of its own up to the
+ * date, parents included, since an entry can sit on a parent account.
+ */
+export function balanceSheetReport(
+  sqlite: Database.Database,
+  query: ScopeParams & { asOfDate: string },
+): GridDataset {
   const rows = allRows<SectionAccountRow>(
-    c.get("sqlite"),
+    sqlite,
     `${ledgerCtes}
     SELECT
       a.account_type AS section,
@@ -32,17 +55,13 @@ api.register("balanceSheet", reportsContract.balanceSheet, ({ c, request }) => {
       WHERE j.date <= @asOfDate
     ) je ON je.account_id = a.id
     WHERE a.account_type IN ('Asset', 'Liability', 'Equity')
-      AND NOT EXISTS (
-        SELECT 1 FROM scoped_accounts child WHERE child.parent_id = a.id
-      )
     GROUP BY a.account_type, a.id, a.name
     HAVING COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0) != 0
     ORDER BY a.account_type, a.name`,
-    { ...scope, asOfDate: request.query.as_of_date },
+    query,
   );
-
-  return { status: 200, body: toBalanceSheetResult(rows) };
-});
+  return toBalanceSheetResult(rows);
+}
 
 function toBalanceSheetResult(rows: SectionAccountRow[]): GridDataset {
   const sections = ["Asset", "Liability", "Equity"];

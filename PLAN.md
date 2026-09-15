@@ -11,7 +11,8 @@
   dbu6's components and cleanup (§10), all 2026-09-15.
 - **Done:** Step 6, P0, P1 and P2 (§11), each spec agreed and built 2026-09-15. P3
   (Review), spec agreed 2026-09-15 and built 2026-09-16.
-- **Next:** Step 6, P4 (Income & expenses): prepare the discussion with the owner.
+- **In discussion:** Step 6, P4 (Income & expenses), since 2026-09-16. Questions 1–9
+  are decided; the report tree bugs they surfaced are fixed (§13).
 
 This file stands on its own. A coding agent should be able to pick up any step using only
 this file, the two repositories, and (when it is on disk) the design handoff folder. You do
@@ -165,6 +166,8 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
   - Custom endpoints in `packages/api/app.ts` and `packages/api/app/`. `app/home.ts`
     serves `GET /home` (the `homeContract` in `dbu6-shared`); `app/review.ts` serves
     `GET /review/accounts` and `/review/accounts/:accountId` (`reviewContract`, since P3).
+  - `app/account-tree.ts` (since 2026-09-16): `branchTops`, the top of each account's
+    branch through `parent_id`. Spending breakdown groups by it; P4's groups will too.
   - `app/draft-status.ts` (since P3) is the one source for what blocks posting drafts:
     counts, dates, closing balance, failing balance checks and possible duplicates per
     account. Home, Review, the posting gate (`app/post-drafts-to-journal.ts`) and the two
@@ -231,7 +234,10 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
 
 **Data you'll meet in the UI**
 - **`accounts`**: `name` is an hledger path, `account_type` is Asset/Liability/Equity/Revenue/Expense,
-  and `parent_id` forms a tree.
+  and `parent_id` forms a tree. **Hierarchy comes only from `parent_id`, never from the
+  name** (owner, 2026-09-16): groups, parents, children and roll-ups follow the tree
+  (`app/account-tree.ts`, or a recursive CTE with `UNION`). The name's last segment may
+  serve as a display label; splitting the name to find a group or parent is not allowed.
 - **Seeded top-level expense groups:**
   - `housing`, `utilities`, `food`, `transport`, `insurance`, `health`
   - `personal`, `shopping`, `subscriptions`, `entertainment`, `travel`
@@ -736,7 +742,8 @@ the same day, when implementation started. Steps list the decisions they depend 
   screens and the grid use too.
 - **Domain components** (Amount, CategoryLabel, NeedsCategory, TransactionRow, StatusChip,
   ProgressSteps, NextStepCard, EmptyState) go in `dbu6/packages/frontend/src/components/`.
-- **Calendar** is not in Base UI. Decide in Step 6, page P4.
+- **Calendar:** none (decided in P4, 2026-09-16). Reports pick whole months with two
+  Select menus; exact days still arrive through links and show as text.
 
 **D6. Colour meanings that 2a changes. Decided (2026-09-15).**
 - **Money out vs. errors.** Sapporta's `--sap-negative` painted both negative figures
@@ -2096,15 +2103,84 @@ app was doing, the facts, what to do, what not to do, what to report back):
   `tmp/redesign/p3/` (picker, Overview blocked, Overview ready, after posting, Drafts,
   Duplicates, Balance checks, empty).
 
-### P4 · Income & expenses (handoff: Report and Report-full): Status: Not started
-- Summary and full detail: tabs or separate routes?
-- Presets: does "This year" mean the Indian financial year (April–March)?
-- Grouping by the first path segment.
-- The monthly series.
+### P4 · Income & expenses (handoff: Report and Report-full): Status: In discussion
+
+**Decided so far (2026-09-16)**
+1. **Route:** a new everyday page at `/reports/income-expenses` for "Where your money
+   went". `/reports/income-statement` stays as the accountant's grid (Monthly summary's
+   links point there). **Spending breakdown folds in:** its everyday card retires; the
+   `expense-breakdown` report keeps its route and its All tools entry.
+2. **One page.** Summary and full detail aren't split: the period, the figures, the
+   month-by-month chart, every spending group ranked (each opens to its categories), the
+   income groups, then the link to the accountant's view. No separate "Every category"
+   view or route.
+3. **The three figures are "Income", "Spending" and "Remaining"**, not the handoff's
+   "Money in / Money out / You saved": they are income-statement totals (gross salary,
+   employer PF and EPF interest count as income; income tax counts as spending; SIPs and
+   PPF deposits don't), not cash through a bank. *Proposed with it, not asked separately:*
+   the lines under them ("Mostly salary", "Across 17 groups", "21% of your income"), and
+   when spending is higher, Remaining in ink on a neutral panel instead of the green one,
+   since overspending isn't an error.
+4. **Periods:** presets This month · Last month · Last 12 months · This financial year
+   (1 April – 31 March) · Last financial year · Pick months. **The default is Last 12
+   months**, so the page isn't near-empty early in a financial year. *Filled in while
+   writing:* Last 12 months is this month so far and the eleven whole months before it
+   (1 October 2025 – 16 September 2026 on 16 September), so the chart has twelve bars
+   and nothing posted this month is left out. The resolved dates show under the title.
+   A preset goes into the URL by name (`?period=last-12-months`), so a bookmark stays
+   relative; picked months and links from other reports use `from_date`/`to_date`, and a
+   range that matches a preset exactly lights it up. "Today" is the workspace's
+   (`today()` in `reports/shared.tsx`, on `appTimeZone()`).
+5. **Pick months, no calendar.** "Pick months" opens a popover with From and To month
+   menus (the Select primitive from P2), listing the months from the first posted entry
+   to this month; each change refetches. No calendar and no new dependency (closes D5's
+   calendar question). A link arriving with exact days still works, and the header shows
+   those dates as text ("5–20 Mar 2026").
+6. **The lists follow the account tree, level by level, never the name** (a rule for the
+   whole app, §2.1). Spending and Income each start with their top accounts (no parent
+   of that type), ranked by total, largest first, with a share and a bar. Each row opens
+   to its children, ranked the same way, and so on down. A row's total is every entry on
+   the account or below it, so it always matches its Account history. Chosen over
+   "groups start where the tree first branches" and "the top of the branch is the group
+   (flat)": someone may keep one account above every group, and then the list is one row
+   that opens to the groups. An account whose parent was left empty is a top account
+   until its parent is set. *Not done:* setting the parent from the name when an account
+   is created (that would derive hierarchy from the name); P6 decides how the parent gets
+   set.
+   *Filled in while writing, to confirm at spec review:* entries made directly on an
+   account that has children show, when it's opened, as a row of their own among the
+   children ("Food, not in a sub-account"), so the children add up to the row; shares
+   are of the whole section (Groceries is 7% of all spending), at every level; rows whose
+   subtree has no entries in the period are left out; an account's colour is its own hue
+   when its name matches a hue key, else its parent's through the tree, else grey (the
+   name only labels the account, the tree decides inheritance).
+7. **Month-by-month chart:** a pair of bars per month in the period, income green and
+   spending ink, with a legend; the current month is labelled "so far"; each bar's figures
+   show on hover and to screen readers. Hidden when the period is a single month. Past 24
+   months, one pair per financial year. **Clicking a month narrows the whole page to that
+   month** (it becomes a picked range, so the URL carries its dates).
+8. **Drafts don't exist for this page.** Drafts are a short-lived holding space while
+   statements are imported; everything outside the draft workflow (Import, Review,
+   posting) ignores them completely: no "not counted yet" line, no draft counts, no
+   assumption that a period sits in drafts. A period with no entries shows an
+   `EmptyState` ("No income or spending in these months") instead of three zeros.
+9. **Rows and the accountant's view.** Clicking a row with children opens or closes it
+   (a chevron shows which); every account row also has a "›" to Account history for that
+   account and the page's dates (the ledger includes sub-accounts, so the figures agree).
+   A leaf has only the "›". The "not in a sub-account" row has no link, since the
+   parent's history would include its sub-accounts. "Collapse all" shows in a section's
+   header once a row is open; open rows aren't kept in the URL. At the bottom, one ghost
+   link, "See these figures as an income statement", opens `/reports/income-statement`
+   with the resolved dates, in place of the handoff's Revenue / Expenses / Net card.
+
+**Fixed before the spec (2026-09-16), since the new page stands on the same totals:**
+the income statement and balance sheet dropped entries on parent accounts, Spending
+breakdown double-counted deeper branches and dropped childless top-level accounts, and
+the account ledger never finished on a loop in `parent_id` (§13).
+
+**Still open**
 - Reading the `GridDataset` vs. new JSON endpoints.
-- A calendar for "Pick dates" (D5).
 - Download format.
-- The accountant's-view link.
 
 ### P5 · All tools (handoff: Advanced): Status: Not started
 - Renamed labels, with their technical names still visible.
@@ -2235,6 +2311,63 @@ Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and foll
   - **Follow-ups:** the sidebar badge still counts through the table API (owner: keep it
     for now). `ReclassifyDrafts.tsx` and `RenderDraftHledger.tsx` still load with their own
     effects; P8 rebuilds them.
+- 2026-09-16 · Step 6, P4 · Discussion started; report tree bugs fixed. Uncommitted at the time of writing.
+  - **Decided:** P4 questions 1–9 (§11 P4): a new `/reports/income-expenses` page, the
+    income statement grid kept, Spending breakdown folded in; one page, no separate full
+    detail view; the figures are Income, Spending and Remaining; financial-year presets,
+    defaulting to Last 12 months; Pick months with two month menus, no calendar (D5);
+    the lists follow `parent_id` level by level, never the account name (made an app-wide
+    rule, §2.1), so one account above every group still works; the month chart, where
+    clicking a month narrows the page; drafts are ignored outside the draft workflow; rows open level by level with a link to
+    Account history, and one link to the income statement at the bottom.
+  - **Report screens count today in the workspace's time zone** (owner's request).
+    `reports/shared.tsx` exported `today` as a constant, the UTC date when the module
+    loaded: in India it was yesterday until 05:30, it didn't follow midnight, and it was
+    read before the boot sequence publishes the zone. It is now `today()`,
+    `Temporal.Now.plainDateISO(appTimeZone())`; the Balance sheet and Trial balance call it
+    for their default date. `reports/today.test.ts` fixes the clock at 20:00 UTC on 10
+    March and expects 11 March in Kolkata. Frontend `pnpm typecheck` and tests (87) pass.
+    Not checked in the browser: the in-app browser had no session, and signing in means
+    typing a password, which the agent doesn't do.
+  - **Bugs found preparing the discussion, fixed at the owner's request:**
+    - The income statement and the balance sheet summed only accounts without children,
+      so an entry on a parent account (`expenses:entertainment` itself, say) vanished from
+      the totals. Nothing prevents such entries: the categoriser resolves any account
+      name, and the grid's category editor lists every account. Monthly summary counted
+      them, so reports disagreed. Both now list every account with entries of its own,
+      parents included (hledger's flat-list convention).
+    - Spending breakdown made a category of every expense account with children, so an
+      account three levels down counted under each ancestor, and a top-level account
+      without children was in no category at all. It now puts each account under the top
+      of its branch (`app/account-tree.ts`, `branchTops`), once, the category's own
+      account included. A parent loop stops instead of running forever.
+    - The account ledger's recursive `account_tree` used `UNION ALL`, so a loop in
+      `parent_id` (possible through the accounts table) recursed forever and hung the
+      request. It is now one `accountTreeCte` with `UNION`, used by the ledger's three
+      queries (it was written out three times).
+  - **api:** `incomeStatementReport`, `balanceSheetReport` and `expenseBreakdownReport` are
+    exported from their report modules (the handlers call them), as the draft reports
+    already are. Tests: `app/account-tree.test.ts`, and `app/reports/tree-totals.test.ts`
+    (one ledger with parent entries, a three-level branch and a childless top-level
+    account, against all three reports; each failed on the old queries with the wrong
+    totals; plus the ledger on a parent loop, which would hang rather than fail if it
+    regressed. In plain SQLite, the old query on a loop returned rows without end and the
+    `UNION` one returned each account once).
+  - **Verified:** API `pnpm typecheck`, `pnpm format:check`, API tests (256 pass; the four
+    XLS parser tests fail on the pip `xlwt` issue, as in P3). Read-only against the dev
+    database: three posted September entries (net 13,250) sit on `expenses:entertainment`,
+    which has children, so September's income statement read 65,080 of spending where
+    every expense entry sums to 78,330. The income statement and Spending breakdown now
+    both read 78,330, for September and for all time.
+  - **Follow-ups:** `categoryGroup` and `categoryHue` in `components/category.ts` find an
+    account's group from the second segment of its name, against the §2.1 rule; only
+    `CategoryLabel` uses them and no screen renders it yet, so P4 replaces them with the
+    group the API reports. Home's date eyebrow (`todayLabel` in `home/Home.tsx`) formats in the
+    browser's time zone, not the workspace's. A root `expenses` account above every group would make
+    Spending breakdown a single category (correct totals, no grouping); P4's grouping
+    question decides what a group is. In the income statement grid a parent's row shows
+    its own entries, while its ledger link includes its sub-accounts.
+
 - 2026-09-16 · Step 6, P3 · Review built as specified (§11 P3). Uncommitted at the time of writing.
   - **shared:** `contracts/review.ts` (`reviewContract.accounts` and `.account`, with the
     account, failing check, duplicate and detail schemas). `reportsContract.duplicateDrafts`

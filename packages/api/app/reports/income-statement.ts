@@ -1,7 +1,13 @@
+import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
-import { allRows, authorizeReport, ledgerCtes } from "./shared.js";
+import {
+  allRows,
+  authorizeReport,
+  ledgerCtes,
+  type ScopeParams,
+} from "./shared.js";
 import {
   sectionAccountResult,
   sectionFooterRow,
@@ -16,9 +22,28 @@ api.register(
   reportsContract.incomeStatement,
   ({ c, request }) => {
     const scope = authorizeReport(c, "income-statement");
-    const rows = allRows<SectionAccountRow>(
-      c.get("sqlite"),
-      `${ledgerCtes}
+    return {
+      status: 200,
+      body: incomeStatementReport(c.get("sqlite"), {
+        ...scope,
+        fromDate: request.query.from_date ?? null,
+        toDate: request.query.to_date ?? null,
+      }),
+    };
+  },
+);
+
+/**
+ * Every income and expense account with entries of its own in the period,
+ * parents included, since an entry can sit on a parent account.
+ */
+export function incomeStatementReport(
+  sqlite: Database.Database,
+  query: ScopeParams & { fromDate: string | null; toDate: string | null },
+): GridDataset {
+  const rows = allRows<SectionAccountRow>(
+    sqlite,
+    `${ledgerCtes}
       SELECT
         a.account_type AS section,
         a.id AS account_id,
@@ -36,25 +61,16 @@ api.register(
           AND (@toDate IS NULL OR j.date <= @toDate)
       ) je ON je.account_id = a.id
       WHERE a.account_type IN ('Revenue', 'Expense')
-        AND NOT EXISTS (
-          SELECT 1 FROM scoped_accounts child WHERE child.parent_id = a.id
-        )
       GROUP BY a.account_type, a.id, a.name
       HAVING CASE WHEN a.account_type = 'Revenue'
                   THEN COALESCE(SUM(je.credit), 0) - COALESCE(SUM(je.debit), 0)
                   ELSE COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0)
              END != 0
       ORDER BY a.account_type, a.name`,
-      {
-        ...scope,
-        fromDate: request.query.from_date ?? null,
-        toDate: request.query.to_date ?? null,
-      },
-    );
-
-    return { status: 200, body: toIncomeStatementResult(rows) };
-  },
-);
+    query,
+  );
+  return toIncomeStatementResult(rows);
+}
 
 function toIncomeStatementResult(rows: SectionAccountRow[]): GridDataset {
   const result = sectionAccountResult({

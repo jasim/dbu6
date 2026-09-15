@@ -1,6 +1,8 @@
+import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
+import { branchTops } from "../account-tree.js";
 import {
   allRows,
   authorizeReport,
@@ -11,6 +13,7 @@ import {
   openRecordLink,
   sum,
   textColumn,
+  type ScopeParams,
 } from "./shared.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -20,35 +23,35 @@ api.register(
   reportsContract.expenseBreakdown,
   ({ c, request }) => {
     const scope = authorizeReport(c, "expense-breakdown");
-    const rows = allRows<ExpenseBreakdownRow>(
-      c.get("sqlite"),
-      `${ledgerCtes}
-      , categories AS (
-        SELECT a.id AS category_id, a.name AS category_name
-        FROM scoped_accounts a
-        WHERE a.account_type = 'Expense'
-          AND EXISTS (
-            SELECT 1 FROM scoped_accounts child WHERE child.parent_id = a.id
-          )
-      ),
-      descendants(category_id, id, parent_id) AS (
-        SELECT c.category_id, a.id, a.parent_id
-        FROM scoped_accounts a
-        JOIN categories c ON a.parent_id = c.category_id
-        UNION ALL
-        SELECT d.category_id, a.id, a.parent_id
-        FROM scoped_accounts a
-        JOIN descendants d ON a.parent_id = d.id
-      )
+    return {
+      status: 200,
+      body: expenseBreakdownReport(c.get("sqlite"), {
+        ...scope,
+        fromDate: request.query.from_date ?? null,
+        toDate: request.query.to_date ?? null,
+      }),
+    };
+  },
+);
+
+/**
+ * Spending in the period by category. A category is the top of a branch of
+ * expense accounts (`branchTops`), and each account with entries of its own
+ * is listed under exactly one, the category's own account included.
+ */
+export function expenseBreakdownReport(
+  sqlite: Database.Database,
+  query: ScopeParams & { fromDate: string | null; toDate: string | null },
+): GridDataset {
+  const accounts = allRows<ExpenseAccountRow>(
+    sqlite,
+    `${ledgerCtes}
       SELECT
-        c.category_id,
-        c.category_name,
         a.id AS account_id,
         a.name,
+        a.parent_id,
         COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0) AS amount
-      FROM categories c
-      JOIN descendants d ON d.category_id = c.category_id
-      JOIN scoped_accounts a ON a.id = d.id
+      FROM scoped_accounts a
       LEFT JOIN (
         SELECT je.account_id, je.debit, je.credit
         FROM scoped_journal_entries je
@@ -56,22 +59,33 @@ api.register(
         WHERE (@fromDate IS NULL OR j.date >= @fromDate)
           AND (@toDate IS NULL OR j.date <= @toDate)
       ) je ON je.account_id = a.id
-      WHERE NOT EXISTS (
-        SELECT 1 FROM scoped_accounts child WHERE child.parent_id = a.id
-      )
-      GROUP BY c.category_id, c.category_name, a.id, a.name
-      HAVING COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0) != 0
-      ORDER BY c.category_name, amount DESC`,
-      {
-        ...scope,
-        fromDate: request.query.from_date ?? null,
-        toDate: request.query.to_date ?? null,
-      },
-    );
+      WHERE a.account_type = 'Expense'
+      GROUP BY a.id, a.name, a.parent_id`,
+    query,
+  );
+  const tops = branchTops(accounts);
+  const rows = accounts
+    .filter((account) => account.amount !== 0)
+    .map((account): ExpenseBreakdownRow => {
+      const top = tops.get(account.account_id)!;
+      return {
+        category_id: top.account_id,
+        category_name: top.name,
+        account_id: account.account_id,
+        name: account.name,
+        amount: account.amount,
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+  return toExpenseBreakdownResult(rows);
+}
 
-    return { status: 200, body: toExpenseBreakdownResult(rows) };
-  },
-);
+type ExpenseAccountRow = {
+  account_id: number;
+  name: string;
+  parent_id: number | null;
+  amount: number;
+};
 
 type ExpenseBreakdownRow = {
   category_id: number;
