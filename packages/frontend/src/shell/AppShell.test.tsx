@@ -58,22 +58,14 @@ const AUTH_CONTEXT = {
   isOwner: true,
 } satisfies AuthContextResponse;
 
-const NAVIGATION: Navigation = [
-  {
-    label: "Home",
-    items: [{ label: "Accounting home", to: "/welcome" }],
-  },
-  {
-    label: "Review drafts",
-    items: [
-      {
-        label: "Draft entries",
-        to: "/tables/draft_transactions",
-        badge: "needsCategory",
-      },
-    ],
-  },
-];
+const NAVIGATION: Navigation = {
+  everyday: [
+    { label: "Home", to: "/" },
+    { label: "Review", to: "/review", badge: "needsCategory" },
+    { label: "Reports", to: "/reports" },
+  ],
+  more: [{ label: "All tools", to: "/tools" }],
+};
 
 let host: HTMLDivElement;
 let root: Root;
@@ -187,22 +179,50 @@ describe("dbu6 app shell", () => {
     ).toBeInstanceOf(HTMLButtonElement);
   });
 
-  it("shows the needs-a-category count on Draft entries and hides it at zero", async () => {
+  it("shows the needs-a-category count on Review and hides it at zero", async () => {
     installMedia({ desktop: true });
     needsCategory = 12;
     await renderShell(page("Application content"));
 
-    const draftEntries = navLink("/tables/draft_transactions");
-    expect(draftEntries.textContent).toContain("12");
-    expect(navLink("/welcome").textContent).not.toContain("12");
+    const review = navLink("/review");
+    expect(review.textContent).toContain("12");
+    expect(review.getAttribute("aria-label")).toBe("Review, 12");
+    expect(navLink("/").textContent).not.toContain("12");
 
     needsCategory = 0;
     await act(() => root.unmount());
     root = createRoot(host);
     await renderShell(page("Application content"));
-    expect(navLink("/tables/draft_transactions").textContent).toBe(
-      "Draft entries",
+    expect(navLink("/review").textContent).toBe("Review");
+    expect(navLink("/review").getAttribute("aria-label")).toBeNull();
+  });
+
+  it("lists every item in the sidebar, with a rule before the second group", async () => {
+    installMedia({ desktop: true });
+    await renderShell(page("Application content"));
+
+    const nav = host.querySelector("aside nav");
+    const hrefs = Array.from(nav?.querySelectorAll("a") ?? []).map((a) =>
+      a.getAttribute("href"),
     );
+    expect(hrefs).toEqual(["/", "/review", "/reports", "/tools"]);
+    expect(nav?.querySelector("hr")).toBeInstanceOf(HTMLElement);
+    expect(nav?.textContent).not.toContain("Everyday");
+  });
+
+  it("keeps only the everyday items on the bottom bar of a compact screen", async () => {
+    installMedia({ desktop: false });
+    await renderShell(page("Application content"));
+
+    const bars = Array.from(
+      host.querySelectorAll<HTMLElement>('nav[aria-label="Primary"]'),
+    ).filter((nav) => nav.className.includes("fixed"));
+    expect(bars).toHaveLength(1);
+    const hrefs = Array.from(bars[0].querySelectorAll("a")).map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(hrefs).toEqual(["/", "/review", "/reports"]);
+    expect(host.querySelector('a[href="/tools"]')).toBeNull();
   });
 });
 

@@ -37,7 +37,7 @@ const workflowSections: readonly WorkflowSection[] = [
     icon: CirclePlus,
     secondaryAction: {
       label: "View accounts",
-      to: "/tables/accounts",
+      to: "/accounts",
     },
   },
   {
@@ -53,7 +53,7 @@ const workflowSections: readonly WorkflowSection[] = [
     description:
       "Drop in the statements you downloaded. Each one is matched to its bank or credit card account, and the transactions remain in draft while you check them.",
     action: "Import statements",
-    to: "/views/import-statements",
+    to: "/import",
     icon: FileUp,
     primary: true,
   },
@@ -62,7 +62,7 @@ const workflowSections: readonly WorkflowSection[] = [
     description:
       "Now you can correct the categories and confirm that there are no duplicate transactions or balance differences. Nothing reaches the books until these checks are clear.",
     action: "Review draft entries",
-    to: "/tables/draft_transactions",
+    to: "/review",
     icon: ListChecks,
   },
   {
@@ -94,7 +94,7 @@ const bookViews = [
 ] as const;
 
 export function Welcome() {
-  usePageTitle("Accounting home");
+  usePageTitle("Home");
   return (
     <div className="flex-1 overflow-y-auto bg-sap-surface">
       <div className="mx-auto max-w-[900px] px-5 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-14">

@@ -1,7 +1,4 @@
-import type {
-  NavigationItem as SapportaNavigationItem,
-  NavigationSection as SapportaNavigationSection,
-} from "@sapporta/frontend/shell";
+import type { NavigationItem as SapportaNavigationItem } from "@sapporta/frontend/shell";
 
 /** A live count an item can show beside its label. */
 export type NavigationBadge = "needsCategory";
@@ -10,17 +7,17 @@ export interface NavigationItem extends SapportaNavigationItem {
   badge?: NavigationBadge;
 }
 
-export interface NavigationSection extends SapportaNavigationSection {
-  items: readonly NavigationItem[];
+/**
+ * The everyday destinations, then the door to everything else. The sidebar
+ * shows both groups with a rule between them; the bottom bar shows only the
+ * first.
+ */
+export interface Navigation {
+  everyday: readonly NavigationItem[];
+  more: readonly NavigationItem[];
 }
-
-export type Navigation = readonly NavigationSection[];
 
 export type NavigationCounts = Partial<Record<NavigationBadge, number>>;
-
-export function navigationItems(navigation: Navigation): NavigationItem[] {
-  return navigation.flatMap((section) => section.items);
-}
 
 /** The count to show on an item, or nothing when there is none or it is zero. */
 export function badgeCount(

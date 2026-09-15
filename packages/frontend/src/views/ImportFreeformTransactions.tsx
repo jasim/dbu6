@@ -164,11 +164,8 @@ export function ImportFreeformTransactions() {
           <Step number={3} title="Review the drafts">
             <p className="text-row text-ink-soft">
               The agent tells you what it imported. Then check the new rows in{" "}
-              <Link
-                to="/tables/draft_transactions"
-                className="text-primary hover:underline"
-              >
-                Draft entries
+              <Link to="/review" className="text-primary hover:underline">
+                Review
               </Link>
               .
             </p>

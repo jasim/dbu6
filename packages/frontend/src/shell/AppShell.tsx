@@ -9,7 +9,7 @@ import {
 } from "@sapporta/frontend/shell";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { useSchemaStore } from "@sapporta/frontend/schema";
-import { MobileBottomNav, NavigationRail, Sidebar } from "./Sidebar";
+import { MobileBottomNav, Sidebar } from "./Sidebar";
 import type { Navigation } from "./navigation";
 import { useNavigationCounts } from "./navigation-counts";
 
@@ -65,9 +65,6 @@ function AppShellLayout({ navigation }: AppShellProps) {
               toggle={toggleInSidebar ? toggle : undefined}
             />
           </SidebarRegion>
-        )}
-        {showNavigation && !sidebar.isDesktop && (
-          <NavigationRail navigation={navigation} counts={counts} />
         )}
         <div data-shell-content className="relative min-w-0 flex-1">
           {toggleInContent && (

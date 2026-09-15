@@ -18,6 +18,8 @@ import {
 } from "./draft-transaction-quick-filter";
 
 const DRAFT_TRANSACTIONS_TABLE = "draft_transactions";
+// Where this grid is mounted; filters are written to its URL.
+const REVIEW_ROUTE = "/review";
 
 export function DraftTransactionsTable() {
   const tableSchema = useSchemaStore((state) =>
@@ -64,7 +66,7 @@ function DraftTransactionsTableWithSchema({
   );
   const route = useMemo(
     () => ({
-      path: `/tables/${DRAFT_TRANSACTIONS_TABLE}`,
+      path: REVIEW_ROUTE,
       searchParams,
       navigate,
     }),
@@ -125,10 +127,9 @@ function QuickFilterButtons(
                 tableSchema,
               );
               const query = next.toString();
-              navigate(
-                `/tables/${DRAFT_TRANSACTIONS_TABLE}${query ? `?${query}` : ""}`,
-                { replace: true },
-              );
+              navigate(`${REVIEW_ROUTE}${query ? `?${query}` : ""}`, {
+                replace: true,
+              });
               if (props.surface === "action-sheet") props.close();
             }}
           >

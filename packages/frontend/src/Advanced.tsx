@@ -1,7 +1,6 @@
-import type { LucideIcon } from "lucide-react";
 import {
-  ArrowRight,
   BarChart3,
+  ClipboardPaste,
   Database,
   FileText,
   FileUp,
@@ -9,25 +8,25 @@ import {
   Settings2,
   Wand2,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import { useSchemaStore } from "@sapporta/frontend/schema";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import { reportDefinitions } from "./reports/registry";
+import { LinkCard, type LinkCardProps } from "./components/link-card";
+import { reportDefinitions, reportDescription } from "./reports/registry";
 
-type ToolLink = {
-  label: string;
-  description: string;
-  to: string;
-  icon: LucideIcon;
-};
-
-const importTools: readonly ToolLink[] = [
+const importTools: readonly LinkCardProps[] = [
   {
     label: "Import statements",
     description:
       "Import PDF, CSV, or XLS statements, each matched to its account by a saved parser and import preset.",
-    to: "/views/import-statements",
+    to: "/import",
     icon: FileUp,
+  },
+  {
+    label: "Import freeform transactions",
+    description:
+      "Paste transactions as text and let the agent turn them into draft rows.",
+    to: "/views/import-freeform-transactions",
+    icon: ClipboardPaste,
   },
   {
     label: "Reclassify drafts",
@@ -51,7 +50,7 @@ const importTools: readonly ToolLink[] = [
 ];
 
 export function Advanced() {
-  usePageTitle("Advanced");
+  usePageTitle("All tools");
   const tables = useSchemaStore((state) => state.tables);
 
   return (
@@ -60,7 +59,7 @@ export function Advanced() {
         <header className="max-w-[720px] border-b border-sap-border pb-7">
           <div className="flex items-center gap-2 text-label uppercase text-primary">
             <Settings2 className="size-4" strokeWidth={1.8} />
-            Advanced
+            All tools
           </div>
           <h1 className="mt-3 text-title text-foreground sm:text-display">
             Every table, report, and specialist tool
@@ -79,7 +78,7 @@ export function Advanced() {
           >
             <div className="grid gap-2">
               {tables.map((table) => (
-                <AdvancedLink
+                <LinkCard
                   key={table.name}
                   label={table.label}
                   description={table.name}
@@ -96,7 +95,7 @@ export function Advanced() {
           >
             <div className="grid gap-2">
               {importTools.map((tool) => (
-                <AdvancedLink key={tool.to} {...tool} />
+                <LinkCard key={tool.to} {...tool} />
               ))}
             </div>
           </AdvancedSection>
@@ -108,10 +107,10 @@ export function Advanced() {
           >
             <div className="grid gap-2 sm:grid-cols-2">
               {reportDefinitions.map((report) => (
-                <AdvancedLink
+                <LinkCard
                   key={report.id}
                   label={report.label}
-                  description="Accounting report"
+                  description={reportDescription(report)}
                   to={`/reports/${report.id}`}
                   icon={BarChart3}
                 />
@@ -141,28 +140,5 @@ function AdvancedSection({
       <p className="mt-1 text-meta text-ink-meta">{description}</p>
       <div className="mt-4">{children}</div>
     </section>
-  );
-}
-
-function AdvancedLink({ label, description, to, icon: Icon }: ToolLink) {
-  return (
-    <Link
-      to={to}
-      className="group flex items-center gap-3 rounded-card border bg-card px-4 py-3 text-foreground no-underline transition-colors hover:bg-sap-row-hover"
-    >
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-muted text-ink-meta">
-        <Icon className="size-4" strokeWidth={1.8} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-row font-semibold">{label}</span>
-        <span className="mt-0.5 block truncate text-meta text-ink-meta">
-          {description}
-        </span>
-      </span>
-      <ArrowRight
-        className="size-4 shrink-0 text-sap-subtle transition-transform group-hover:translate-x-0.5"
-        strokeWidth={1.8}
-      />
-    </Link>
   );
 }

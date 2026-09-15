@@ -5,10 +5,12 @@
 - **Decided 2026-09-15:** every decision in §5. D2, D3, D5's generic primitives, D6 and D7
   were adopted as proposed when the owner started implementation.
 - **Branches:** dbu6 work is committed on `hdfc-bank-xls-parser` (the owner's choice; `main`
-  holds only the initial commit). Sapporta work is on `dbu6-redesign`, branched from `main`.
+  holds only the initial commit). Sapporta's `dbu6-redesign` was merged into its `main`
+  (seen 2026-09-15); the Sapporta checkout is on `main`.
 - **Done:** Step 3, the app shell (§8), Step 4, Sapporta's surfaces (§9), and Step 5,
   dbu6's components and cleanup (§10), all 2026-09-15.
-- **Next:** Step 6 starts with the P0 discussion (§11). Nothing in Step 6 is built.
+- **Done:** Step 6, P0 (§11), spec agreed and built 2026-09-15.
+- **Next:** prepare the P1 discussion (§11). P1–P9 each start with a discussion.
 
 This file stands on its own. A coding agent should be able to pick up any step using only
 this file, the two repositories, and (when it is on disk) the design handoff folder. You do
@@ -173,9 +175,18 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
   `BootLoader` → `AuthGate` → `AppShell` (from `@sapporta/frontend/app`), with
   `navigation={appNavigation}` and `showFrameworkNavigation={false}`.
 - **`src/App.tsx`** holds:
-  - `appNavigation`: 7 labelled groups (Home, Set up, Import, Review drafts, Finish, Explore, Admin);
-  - the home redirect (`/` → `/welcome`);
-  - dbu6's routes.
+  - `appNavigation`: five everyday items (Home `/`, Accounts `/accounts`, Import statements
+    `/import`, Review `/review` with the badge, Reports `/reports`) and one more (All tools
+    `/tools`), since P0;
+  - the index route (`/` renders Home, protected);
+  - dbu6's routes, including the tool screens under `/views/*` and `/tables/journals`.
+- **`src/redirects.tsx`** maps the retired paths (`/welcome`, `/advanced`,
+  `/tables/accounts`, `/views/import-statements`, `/tables/draft_transactions`) to their new
+  routes, keeping search and hash. `redirects.test.tsx` walks the table.
+- **`src/shell/`** is dbu6's app shell (D4): `AppShell`, `Sidebar` (sidebar and bottom
+  bar), `navigation.ts` (the `{ everyday, more }` shape and the badge), `navigation-counts.ts`.
+- **`src/reports/registry.tsx`** lists the twelve reports with their everyday and accounting
+  cards; `ReportsIndex.tsx` (the `/reports` page) and `Advanced.tsx` (`/tools`) read it.
 - **`src/SapportaRoutes.tsx`** holds the framework routes: sign-in and sign-up screens,
   `/account/profile`, `/workspace/settings`, `/tables/:tableName`, `/tables/:tableName/new`,
   `/setup/:tableName/new`, and not found.
@@ -184,7 +195,8 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
   - `ReportScreenFrame` + `ReportToolbar` + `ReportGridDataset` (`@sapporta/frontend/report`);
   - `SchemaTableGridView` (`@sapporta/frontend`): the Sapporta data grid bound to a table.
 - **Pages:**
-  - `src/Welcome.tsx`, `src/Advanced.tsx`
+  - `src/Welcome.tsx` (Home until P1), `src/Advanced.tsx` (All tools until P5),
+    `src/reports/ReportsIndex.tsx`
   - `src/views/*`: import statements, freeform import, reclassify, post, render hledger, journals, draft transactions
   - `src/reports/*`: 12 report screens plus `registry.tsx`
 - **`src/app.css` is the only CSS entry point.** Order: `@import "tailwindcss"` →
@@ -300,8 +312,9 @@ nothing else in the workspace)
     `sonner` (the toast queue is module state).
   - Today dbu6's frontend can't resolve `@base-ui/react`, `sonner`, `class-variance-authority`
     or `clsx` at all. They are only Sapporta's dependencies.
-- **Branches.** dbu6: `hdfc-bank-xls-parser`. Sapporta: `dbu6-redesign`, off `main`
-  (decided by the owner on 2026-09-15). Don't commit to `main` in either repo.
+- **Branches.** dbu6: `hdfc-bank-xls-parser`; don't commit to its `main`. Sapporta:
+  `dbu6-redesign` was merged into `main` on 2026-09-15 and the checkout is on `main`; ask
+  the owner before committing further Sapporta work.
 - **Release.** When the Sapporta changes are stable: release Sapporta, then run
   `pnpm package-sources:use-npm` in dbu6.
 
@@ -1359,17 +1372,129 @@ Old screens retired or folded in:
 Done criteria (page-specific, plus §4.9):
 ```
 
-### P0 · Navigation and routes: Status: Not started
-- Collapse today's 7 groups and 20 links to 5 + 2: Home, Accounts, Import statements, Review,
-  Reports | All tools, Help & support.
-- New routes (`/`, `/accounts`, `/import`, `/review`, `/reports`, `/tools`, `/help`) and
-  redirects from the old ones.
-- What `/reports` lands on.
-- Whether Help exists.
-- The source of the Review badge count. Step 3 already wires it on "Draft entries".
-- Where the import checkpoint and freeform import go.
-- **With 7 items, does the dbu6 shell still need** the icon rail, the mobile bottom bar's
-  "first 3 plus Browse" picker, and section labels? Simplify `src/shell/` to match (D4).
+### P0 · Navigation and routes: Status: Built (2026-09-15)
+
+Agreed with the project owner on 2026-09-15, one question at a time. Build order: routes
+and redirects, then the sidebar and shell, then the reports index, then All tools' missing
+links, then tests and screenshots.
+
+**Purpose and single primary action:** navigation only. No screen in P0 has a primary
+action; the reports index is a list of links.
+
+**Route(s) and redirects**
+
+Sidebar items, in order (5 everyday, a rule, 1 more):
+
+| Item | Route | Renders in P0 (until the page's own step) | Old path, now a redirect |
+|---|---|---|---|
+| Home | `/` | today's `Welcome` (until P1) | `/welcome` → `/` |
+| Accounts | `/accounts` | Sapporta's `TablePage` bound to `accounts` (until P6) | `/tables/accounts` → `/accounts` |
+| Import statements | `/import` | `AutoImportStatements` (until P2) | `/views/import-statements` → `/import` |
+| Review (badge) | `/review` | `DraftTransactionsTable` (until P3) | `/tables/draft_transactions` → `/review` |
+| Reports | `/reports` | the new reports index (this step) | `/reports/:unknown` → `/reports` (was trial balance) |
+| All tools | `/tools` | `Advanced` (until P5) | `/advanced` → `/tools` |
+
+- **Help & support is left out.** Decided: nothing exists behind it; add the item when there
+  is content. The sidebar is 5 + 1, not the handoff's 5 + 2.
+- **`/` is protected.** The public shell route for `/welcome` goes; a signed-out visit to `/`
+  reaches sign-in through `AuthGate`. `appPublicShellRoutes` becomes empty.
+- **Tool URLs stay where they are.** `/views/import-freeform-transactions`,
+  `/views/reclassify-drafts`, `/views/render-draft-hledger`, `/views/post-drafts`,
+  `/tables/journals`, `/tables/:tableName`, `/tables/:tableName/new`, `/setup/:tableName/new`
+  and every `/reports/<id>` keep working unchanged. They are what All tools links to.
+- **Redirects** are `<Navigate replace>` routes in `App.tsx`. `defaultReportPath` is retired;
+  the unknown-report fallback lands on the index.
+- **Internal links** move to the new paths where the target has one: `Welcome.tsx`,
+  `Advanced.tsx`, `views/PostDrafts.tsx`, `views/ImportFreeformTransactions.tsx`,
+  `views/import-statements/describeGroup.ts`. The redirects cover anything missed.
+- **Active-item rule:** Sapporta's `isNavigationItemActive` already treats `/` as exact and
+  every other item as a prefix, so `/reports/<id>` highlights Reports and `/tables/journals`
+  highlights nothing. No change.
+
+**Section order (with layout notes)**
+
+- **Sidebar** (dbu6's `Sidebar.tsx`, 248px, §4.6): header (brand tile, "dbu6", workspace
+  name, collapse toggle) → the five everyday items → a rule (`mx-5 my-3.5`, `--sap-border`)
+  → All tools in the secondary style (15px, `py-2.5`) → the account card. **No group labels.**
+- **Icons stay everywhere**, 18px monochrome Lucide, one per item, shared by the sidebar,
+  the drawer and the bottom bar: `Home`, `Landmark` (Accounts), `FileUp` (Import
+  statements), `ListChecks` (Review), `BarChart3` (Reports), `Settings2` (All tools).
+- **Shell simplification (D4):** delete `NavigationRail`, `NavigationPicker`,
+  `includeActiveRailItem` and the `RAIL_ITEMS`/`BOTTOM_BAR_ITEMS` logic. Medium widths use
+  the toggle and the drawer, as compact screens do. The **mobile bottom bar shows the five
+  everyday items**; All tools is reached from the drawer. The dbu6 `Navigation` type becomes
+  two named lists, `everyday` and `more`, instead of labelled sections; `navigationItems`
+  flattens both.
+- **Reports index** (`/reports`, new `src/reports/ReportsIndex.tsx`, on `AppPage` or the
+  Advanced page frame): title and description → "Everyday" group, six cards → a rule →
+  "Accounting view" group, eight cards. Cards are the link card `Advanced.tsx` already
+  renders (name, one-line description, arrow), extracted into
+  `src/components/link-card.tsx` so both screens share it, with the handoff's green marker
+  on everyday cards and grey on accounting ones. Two columns at desktop, one at 390px.
+
+**Copy**
+
+- Sidebar labels: Home · Accounts · Import statements · Review · Reports · All tools.
+- Reports index title: "Reports". Description: "Every report dbu6 can show. The everyday
+  ones use plain words; the accounting view shows the same books the way a bookkeeper
+  would."
+- Everyday cards (handoff names, mapped to today's reports):
+  - Where your money went, "Income and spending for a period" → `income-statement`
+  - What you own and owe, "Balance sheet, in plain words" → `balance-sheet`
+  - Account history, "Every entry for one account" → `account-ledger`
+  - Month by month, "Totals for each month side by side" → `monthly-summary`
+  - Net worth over time, "How your position has changed" → `net-worth`
+  - Spending breakdown, "Expenses grouped and ranked" → `expense-breakdown`
+- Accounting cards:
+  - Income statement, "Revenue, expenses and net income" → `income-statement`
+  - Balance sheet, "Assets, liabilities and equity" → `balance-sheet`
+  - Trial balance, "Debit and credit totals per account" → `trial-balance`
+  - All in-flows to asset accounts, "Every rupee that arrived" → `asset-inflows`
+  - Balance assertions, "Recorded balance checks" → `balance-assertions`
+  - Draft balance assertions, "Balance checks for drafts not yet added" → `draft-balance-assertions`
+  - Duplicate drafts, "Drafts that may be repeats" → `duplicate-drafts`
+  - Import checkpoint, "The last date and balance recorded for each account" → `last-reconciled`
+- Until P4 and P7 build the plain-language versions, "Where your money went" and "Income
+  statement" open the same screen, as do "What you own and owe" and "Balance sheet". That
+  is expected; note it in the card's description only if it confuses in testing.
+- The registry's labels (`reports/registry.tsx`) gain the plain and accounting names and
+  descriptions above, so All tools and the index read from one list.
+
+**States:** the index is static (no loading or error state). The Review badge is hidden at
+zero and when the count fails to load, as today.
+
+**Data and API changes:** none. The badge keeps reading the draft table's null-category row
+count (`navigation-counts.ts`) once per route change at shell level, which is the handoff's
+"fetch once at layout level". A dedicated counts endpoint is a P3 follow-up if needed.
+
+**Components used:** dbu6 `Sidebar`/`AppShell` (D4) on Sapporta's `SidebarProvider`,
+`SidebarRegion`, `SidebarToggle`, `AuthAccountMenu`, `isNavigationItemActive`; Sapporta's
+`TablePage` for the interim Accounts route; the shared link card; `AppPage`.
+
+**Old screens retired or folded in**
+
+- Retired: the public `/welcome` route; the seven sidebar groups and their labels; the rail,
+  the Browse picker and the overflow logic; `defaultReportPath`.
+- Nothing else is removed. Every old sidebar link is reachable from All tools: the tables
+  and reports already are; **P0 adds "Import freeform transactions" to All tools' tool
+  list**, since it is on no other screen after the sidebar changes. "Add an account" is the
+  accounts table's own New button and `/setup/accounts/new` keeps working.
+- Classify drafts, Check duplicates, Verify balances and Post reviewed entries stay as
+  screens under All tools until P3 decides what folds into Review.
+
+**Done criteria (page-specific, plus §4.9)**
+
+- The sidebar shows exactly the six items above with the rule, no labels, the badge on
+  Review, and the account card; at 390px the bottom bar shows the five everyday items and
+  the drawer shows all six.
+- Every route in the old sidebar and §6.5 either still renders or redirects to its new path
+  (a test walks the redirect table); `/` signed out reaches sign-in.
+- The reports index lists all twelve reports in the two groups and each card opens its report.
+- Every old sidebar destination is linked from `/tools`.
+- `AppShell.test.tsx` updated (rail cases removed, bottom bar and badge-on-Review cases added).
+- `pnpm typecheck`, `pnpm test`, `pnpm format:check`; screenshots at 1920 and 390 in
+  `tmp/redesign/p0/` for `/`, `/accounts`, `/import`, `/review`, `/reports`, `/tools` and
+  the drawer.
 
 ### P1 · Home (handoff: Home): Status: Not started
 - **The next-step logic, as a state machine:**
@@ -1467,6 +1592,44 @@ Done criteria (page-specific, plus §4.9):
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
 
+- 2026-09-15 · Step 6, P0 · Built as specified (§11 P0). Uncommitted at the time of writing.
+  - **dbu6:** `App.tsx` carries the six-item navigation and the new routes; `redirects.tsx`
+    holds the retired-path table (search and hash preserved) with a test; `shell/` lost the
+    rail, the Browse picker and the overflow logic, and `Navigation` is `{ everyday, more }`;
+    `reports/registry.tsx` gained the everyday and accounting cards and lost
+    `defaultReportPath`; `reports/ReportsIndex.tsx` is the `/reports` page;
+    `components/link-card.tsx` is the card link shared with All tools; All tools gained
+    "Import freeform transactions" and now calls itself All tools; Welcome and freeform
+    import link to the new paths; the draft grid writes its filters to `/review`.
+  - **Verified:** `pnpm typecheck`, frontend `pnpm test` (46, including 7 redirect cases
+    and the bottom-bar and badge-on-Review cases), `pnpm format:check`. In the browser:
+    signed-out `/` reaches sign-in; each retired path redirects with its query string; All
+    tools links every old destination; the index shows 14 cards. Screenshots in
+    `tmp/redesign/p0/` at 1920 and 390, plus the drawer.
+  - **Deviations:** `navigationItems` was dropped rather than kept (nothing used it). The
+    unknown-report fallback (`/reports/:reportName` → `/reports`) drops the query string,
+    since it belongs to no report. The `/tools` page's eyebrow and tab title say "All tools"
+    (a two-word change ahead of P5).
+  - **Findings:** Sapporta's `dbu6-redesign` is merged into `main` and the checkout sits on
+    `main` (§2.3 updated). dbu6's `pnpm test` fails two API parser tests in this sandbox
+    (`hdfc-bank-xls-parser`, `federal-bank-xls-parser`: pip cannot write `xlwt` into
+    `/Library/Python/3.9/site-packages`); unrelated to P0.
+  - **Follow-ups:** at 390px the bottom bar truncates "Import statements" to "Import
+    stat…" (five labels in 390px); P2 may pick a shorter label or the bar may drop labels.
+    Sapporta's table header on `/accounts` renders a self-link to `/tables/accounts`
+    (`aria-current`), which works through the redirect; a `TablePage` prop for the mounted
+    path would remove the hop. The two API parser tests need a writable Python
+    environment (a venv) to run here.
+- 2026-09-15 · Step 6, P0 · Spec agreed with the owner (§11 P0); nothing built.
+  - **Decided:** no Help & support item (5 + 1); `/` is the protected Home and the public
+    `/welcome` goes; `/reports` is an index of all twelve reports grouped everyday /
+    accounting; the new everyday routes render today's screens until their pages are
+    built; tool URLs under `/views`, `/tables` and `/reports/<id>` stay; the rail and
+    picker go and the bottom bar shows the five everyday items; icons stay everywhere.
+  - **Found:** `/welcome` renders without a session today; `/reports/:unknown` lands on
+    trial balance; freeform import is on no screen but the sidebar, so All tools must
+    gain it; the handoff's twelve report cards count two reports twice and omit the
+    checkpoint and draft balance assertions.
 - 2026-09-15 · Step 5 · dbu6's components and page cleanup.
   - **5b:** `src/components/` holds the category module, `ui/button.tsx`, `Amount`,
     `CategoryLabel`/`NeedsCategory`, `StatusChip`, `ProgressSteps`, `NextStepCard`,
