@@ -1,3 +1,4 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -7,6 +8,7 @@ import { useThemeStore } from "@sapporta/frontend/shell";
 // @sapporta/ui's tokens and base rules — edit it to customize.
 import "./app.css";
 import { SapportaApp } from "./SapportaApp";
+import { queryClient } from "./query-client";
 
 // The type scale app.css registers, so class merging keeps a size next to a
 // colour instead of reading `text-body` as one.
@@ -28,8 +30,10 @@ useThemeStore.getState().forceMode("light");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <SapportaApp />
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <SapportaApp />
+      </BrowserRouter>
+    </QueryClientProvider>
   </StrictMode>,
 );

@@ -6,9 +6,9 @@
   were adopted as proposed when the owner started implementation.
 - **Branches:** dbu6 work is committed on `hdfc-bank-xls-parser` (the owner's choice; `main`
   holds only the initial commit). Sapporta work is on `dbu6-redesign`, branched from `main`.
-- **Done:** Step 3, the app shell (§8), 2026-09-15.
-- **In progress:** Step 4 (§9).
-- **Next:** Step 5, then the P0 discussion for Step 6.
+- **Done:** Step 3, the app shell (§8), Step 4, Sapporta's surfaces (§9), and Step 5,
+  dbu6's components and cleanup (§10), all 2026-09-15.
+- **Next:** Step 6 starts with the P0 discussion (§11). Nothing in Step 6 is built.
 
 This file stands on its own. A coding agent should be able to pick up any step using only
 this file, the two repositories, and (when it is on disk) the design handoff folder. You do
@@ -1198,12 +1198,12 @@ radius, 16px card radius.
 - **Don't add variants or slots to Sapporta components for 2a.** dbu6 owns those components (D4, D5).
 
 ### Tasks (Sapporta unless noted)
-- [ ] **Grid variables.** Make the grid's existing `--grid-*` variables settable from `:root`:
-      `.presetGrid` reads e.g. `var(--sap-grid-cell-padding, 0 10px)` instead of declaring fixed
-      values on the element. This covers cell padding, header weight (760) and tracking,
-      row-header width (40/30px), nested-level row height (31px) and indents. It adds reach, not
-      new knobs.
-- [ ] **Fixed grid sizes → existing tiers** (`sapporta-preset.module.css`, `table-card.css`,
+- [x] **Grid variables.** `.presetGrid` reads `var(--sap-grid-<name>, <default>)` for cell
+      padding, header weight/tracking/cell padding, row-header width (40/30px), nested row
+      height (31px) and indents (58/46px); the names are listed at the top of
+      `sapporta-preset.module.css`. The report grid's indent is
+      `--sap-report-grid-nested-indent`. dbu6 sets its values in `app.css` section 6.
+- [x] **Fixed grid sizes → existing tiers** (`sapporta-preset.module.css`, `table-card.css`,
       `ReportGridDataset.css`, `TGrid.tsx`, `ReportGridDataset.tsx`):
   - card label 12px → a text tier; card title 15px and level titles `text-[11px]` → text tiers;
   - card radius 6px → `--radius`;
@@ -1213,19 +1213,21 @@ radius, 16px card radius.
   Leave the expand chevron (28px), cell action buttons (24px), header menu button (16px) and
   nested indents (58/46px, report 18px) fixed, unless the 2a scale makes them unusable. Then
   derive them from `--height-sap-*`.
-- [ ] **Column widths:** check the default widths (`column-sizing.ts` `trackForColumnWidth`) at
-      15px mono with lakh-scale ₹ amounts and dates; make them configurable if they truncate.
-      Pass `columnSizing.minPx` through `TGrid` and `ReportGridDataset`.
-- [ ] **Stable hooks:** add `data-grid-part` to the selection summary parts, text cells and
-      level status text.
-- [ ] **Table page chrome** (about 40 fixed values) → radius and height tokens:
+- [x] **Column widths:** the numeric track is a fixed 112px, sized for 12px mono; at 15px a
+      lakh-scale figure needs about 128px. `columnSizing.minWidths` (per named width kind)
+      raises a floor and lifts the ceiling with it; `TGrid` and `ReportGridDataset` take
+      `columnSizing`. dbu6's report frame passes `{ numeric: 128, timestamp: 176 }`. The
+      table route (`SchemaTableGridView`) has no pass-through yet (follow-up).
+- [x] **Stable hooks:** `data-grid-part` on the selection summary's content, labels and
+      values, the text cell, and the level status text.
+- [x] **Table page chrome** (about 40 fixed values) → radius and height tokens:
   - `table/page/`: `TablePagers`, `TableHeaderControls`, `TableViewSwitch`, `TableGridHeader`,
     `RecordDetailSheet`, `TableGridSurface`
   - `table/filters/`: `FilterCardsBar`, `FilterCard`, `DateRangeCard`, `ConditionEditor`,
     `HeaderFilterPopover`, `inputs/*`
-- [ ] **Report chrome:** `report/components/ReportChrome.tsx`, `ReportSummaryStats.tsx`,
+- [x] **Report chrome:** `report/components/ReportChrome.tsx`, `ReportSummaryStats.tsx`,
       `report/fields/DateRangeField.tsx` → tokens.
-- [ ] **Primitives** (`packages/ui/src/ui/primitives`), token fixes only (D5):
+- [x] **Primitives** (`packages/ui/src/ui/primitives`), token fixes only (D5):
   - Button, Badge, Input, Checkbox, Switch: heights, radius and type from the existing tiers,
     replacing `h-8`/`h-9`/`h-10`, `text-xs`/`text-sm` and `rounded-md`. No 2a variants; dbu6
     owns its Button.
@@ -1234,18 +1236,21 @@ radius, 16px card radius.
   - Kbd: use its inverted token.
   - `styles/combobox.ts`: sizes from the tiers.
   - No new primitives in `@sapporta/ui` (D5).
-- [ ] **Forms** (`table/form/`): `FormField` and `NewRecordPage` sizes. The textarea copies
-      Input's styles by hand.
-- [ ] **Auth, profile, workspace settings** (`auth/components/`):
+- [x] **Forms** (`table/form/`): `FormField` and `NewRecordPage` sizes. The textarea still
+      copies Input's styles by hand (now on the tiers), with a comment saying so.
+- [x] **Auth, profile, workspace settings** (`auth/components/`):
   - `text-sm` → the scale; `text-red-600` → the danger token
   - `bg-sap-brand text-white` → `bg-primary text-primary-foreground`
   - style the links
   - no brand slot (P9 decides whether sign-in gets a branded layout)
-- [ ] **Boot and not found:** `app/boot/BootLoader.tsx` and the not-found view → the scale.
-- [ ] **dbu6:** grid overrides in `app.css` section 6, only where tokens don't cover it.
-- [ ] **Card-layout breakpoint:** leave `NARROW_TABLE_PAGE_MAX_WIDTH = 760` (`table-page-mode.ts`)
-      as it is unless it becomes a problem.
-- [ ] **Changesets, and the `ARCHITECTURE.md` module index** if exports change.
+- [x] **Boot and not found:** `app/boot/BootLoader.tsx` → the scale (the not-found view had
+      no fixed sizes).
+- [x] **dbu6:** `app.css` section 6 sets the grid variables (14px cell padding, 600 header
+      weight, 44px nested rows, 48/36px row-header gutters) and section 1 sets
+      `--sap-shadow-elevated`.
+- [x] **Card-layout breakpoint:** unchanged.
+- [x] **Changesets** (ui minor, grid minor, frontend minor); no subpath changed. Commits
+      `b45d182d`, `fa399dc0`, `4de4cf99` on `dbu6-redesign`.
 
 **Done when**
 - `/tables/draft_transactions`, `/tables/accounts`, `/setup/accounts/new`, a report with nested
@@ -1274,16 +1279,18 @@ Review, Income & expenses, All tools) get **only** the mechanical cleanup below;
 rebuilt in Step 6.
 
 ### 5a: token cleanup
-- [ ] **`text-sm`/`text-xs` → the 2a scale:** `text-meta` for helper text, `text-row` or
+- [x] **`text-sm`/`text-xs` → the 2a scale:** `text-meta` for helper text, `text-row` or
       `text-body` for content.
-- [ ] **`bg-nested` and `bg-sap-panel` → real tokens:** `bg-muted`, `bg-card`.
-- [ ] **Tailwind default palette (`green-*`, `amber-*`) → tokens:** `money-in-*`, `attention-*`,
+- [x] **`bg-nested` and `bg-sap-panel` → real tokens:** `bg-muted`, `bg-card`.
+- [x] **Tailwind default palette (`green-*`, `amber-*`) → tokens:** `money-in-*`, `attention-*`,
       `destructive`.
-- [ ] **Hand-rolled buttons and links → dbu6's `Button` (5b).** `disabled:opacity-50` → the
-      waiting style with a reason shown.
-- [ ] **`JournalsTable.tsx`:** move "Render as hledger" into the table header actions instead of
-      absolute positioning.
-- [ ] **Files:** `src/Welcome.tsx`, `src/Advanced.tsx`, `src/views/AutoImportStatements.tsx`,
+- [x] **Hand-rolled buttons and links → dbu6's `Button` (5b).** `disabled:opacity-50` → the
+      waiting style with a reason shown ("Add at least one file", "Choose an account first",
+      "Categorize every draft first", and so on). One primary per screen: Import statements
+      on Home, Process, Classify rows, Post reviewed entries.
+- [x] **`JournalsTable.tsx`:** "Render as hledger" is a table header action (`actions` prop of
+      `SchemaTableGridView`).
+- [x] **Files:** `src/Welcome.tsx`, `src/Advanced.tsx`, `src/views/AutoImportStatements.tsx`,
       `src/views/import-statements/cards.tsx`, `src/views/ImportFreeformTransactions.tsx`,
       `src/views/ReclassifyDrafts.tsx`, `src/views/PostDrafts.tsx`,
       `src/views/RenderDraftHledger.tsx`, `src/views/AccountImportInputs.tsx`,
@@ -1297,23 +1304,19 @@ Translate the handoff's `components/*.tsx` to this stack:
 - `@sapporta/ui/cn` instead of `@/lib/utils`;
 - dbu6's `Button`, and Sapporta's Checkbox and Popover, instead of `@/components/ui/*`.
 
-- [ ] **Dependencies.** Add `class-variance-authority` and `@base-ui/react` to
-      `packages/frontend/package.json`. Point `@base-ui/react` at a single copy in
-      `vite.config.ts`, the same way React is (§2.3), and use the version range `@sapporta/ui` uses.
-- [ ] **`components/ui/button.tsx`:**
-  - built on `@base-ui/react/button`, like Sapporta's, so `render` works for links;
-  - the handoff's `button-variants.ts` (§4.6), with `sm` at 44px (§4.10);
-  - a waiting style that takes the reason to show underneath.
-- [ ] **Other generic primitives** (Tabs, Collapsible, ToggleGroup, Select, RadioGroup, Card,
-      Separator, Command): **don't build them here.** Add each to `components/ui/` when a
-      Step 6 page needs it (D5).
-- [ ] **`Amount`.**
-- [ ] **`CategoryLabel` and `NeedsCategory`,** plus one authoritative category module:
-  - path → top-level group → hue key (with the §4.3 aliases);
-  - path → friendly name (`food-delivery` → "Food delivery").
-- [ ] **`StatusChip`, `ProgressSteps`, `NextStepCard`, `EmptyState`, `TransactionRow`.**
-- [ ] **Unit tests** for amount formatting (sign, `en-IN` grouping) and category name and hue
-      derivation. Use seed-style account paths, no personal data.
+- [x] **Dependencies.** `class-variance-authority` and `@base-ui/react` (1.6.0, the version
+      Sapporta has installed) added; `@base-ui/react` aliased and deduped to one copy in
+      `vite.config.ts`. `@tanstack/react-query` likewise (see the log).
+- [x] **`components/ui/button.tsx`:** Base UI button, the handoff's variants with `sm` at
+      44px, and `waiting="<reason>"`, which disables the button, switches it to the waiting
+      fill and shows the reason underneath.
+- [x] **Other generic primitives:** none built (D5).
+- [x] **`Amount`** (`components/amount.tsx`, with `formatAmount`).
+- [x] **`CategoryLabel` and `NeedsCategory`** (`components/category-label.tsx`) on
+      `components/category.ts`: `categoryGroup`, `categoryHue` (with the §4.3 aliases),
+      `categoryHueColor`, `categoryName`.
+- [x] **`StatusChip`, `ProgressSteps`, `NextStepCard`, `EmptyState`, `TransactionRow`.**
+- [x] **Unit tests:** `components/amount.test.ts`, `components/category.test.ts`.
 
 **Done when**
 - Searching `packages/frontend/src` finds:
@@ -1464,6 +1467,48 @@ Done criteria (page-specific, plus §4.9):
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
 
+- 2026-09-15 · Step 5 · dbu6's components and page cleanup.
+  - **5b:** `src/components/` holds the category module, `ui/button.tsx`, `Amount`,
+    `CategoryLabel`/`NeedsCategory`, `StatusChip`, `ProgressSteps`, `NextStepCard`,
+    `EmptyState`, `TransactionRow`, with tests for amounts and categories. Two tokens added
+    to `app.css`: `--sidebar-avatar` (Step 3) and `--category-bg` (the pill fill, #F5F6F6).
+  - **5a:** the twelve files in §10 moved onto the tokens and dbu6's `Button`; the done
+    grep is empty. "Render as hledger" is a header action. Native selects, radios, file
+    inputs and the raw table stay until Step 6.
+  - **Also fixed:** `/setup/accounts/new` rendered blank, before this work too: Sapporta's
+    record form calls `useQueryClient()` and dbu6's `main.tsx`, older than the scaffold
+    template, never mounted a `QueryClientProvider`. `src/query-client.ts` and the provider
+    are now in place (and `@tanstack/react-query` is deduped like React). This was the "No
+    QueryClient set" console error logged in Step 2.
+  - Screenshots in `tmp/redesign/step-5/` (every route, 1920 and 390).
+  - **Follow-ups:** the amount sizes in `Amount` (18/20/33px) and the row sizes in
+    `TransactionRow` (15/16.5px) are literal px from the handoff, not tiers; fine until a
+    second component needs them. Sapporta's `SchemaTableGridView` has no `columnSizing`
+    pass-through, so `/tables/*` still use the 112px numeric track.
+- 2026-09-15 · Step 4 · Sapporta's surfaces on the tiers (three commits on `dbu6-redesign`).
+  - **ui:** every primitive and the combobox on `h-sap-ctl`/`text-sap-*`/`rounded-*`;
+    `--sap-shadow-elevated` → `shadow-sap-elevated` for floating layers (D7);
+    `bg-sap-kbd-inverted`; no shadows on in-flow surfaces.
+  - **grid:** `--sap-grid-*` reach; `columnSizing.minWidths`; popups on the elevation token;
+    `data-grid-part` hooks.
+  - **frontend:** table chrome, filters, forms, report chrome, auth/profile/settings, boot
+    loader and the shell components on the tiers; `TGrid`/`ReportGridDataset` take
+    `columnSizing`; the narrow table header keeps the inset contract.
+  - **dbu6:** `app.css` section 6 and the elevation value; `reports/shared.tsx` passes
+    `{ numeric: 128, timestamp: 176 }`. Screenshots in `tmp/redesign/step-4/` (filter
+    popover, cell editor, the hledger dialog, the record detail sheet at 390).
+  - **Deviations:** `SapportaMark` keeps `rounded-[6px]` (a 17px mark). The tooltip lost its
+    border (a light hairline on an inverted fill). The checkbox box stays 16px and the
+    switch 20×36px: no tier names them. `AccountMenu`'s panel took `rounded-lg`.
+  - **Follow-ups:**
+    - Inside the cards presentation, `table-card.css` redefines `--text-sap-data` as the
+      body size, so the card label mapped to `sap-data` reads at body size there.
+    - `ReportGridDataset.css`'s nested-indent rule (0,1,0) loses to the preset's
+      `.presetGrid[data-grid-depth]` (0,2,0), so reports indent 58/46px, not 18px. Left as
+      it was.
+    - `.levelStatusRetry` stays 24px inside a 29px band; a 44px scale may want the band
+      taller.
+    - The 14 pre-existing typecheck errors in Sapporta's grid test files remain.
 - 2026-09-15 · Step 3 · dbu6 owns its app shell.
   - **Sapporta** (`dbu6-redesign`, one commit): `SidebarRegion`/`SidebarDrawer` size to
     content; `Toaster` exported from the shell subpath; `PageHeader.css` replaced by the
