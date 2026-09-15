@@ -115,9 +115,7 @@ export function PostDrafts() {
     }
   }
 
-  // Why posting can't start yet; undefined once every check passes. Passed
-  // as either `waiting` or `disabled`, never both: Button's own `disabled`
-  // yields to an explicit prop.
+  // Why posting can't start yet; undefined once every check passes.
   const postWaiting = loadingCounts
     ? "Checking the draft"
     : counts === null
@@ -131,10 +129,6 @@ export function PostDrafts() {
             : counts.failing > 0
               ? "Fix the failing balance checks first"
               : undefined;
-  const postState =
-    postWaiting === undefined
-      ? { disabled: posting }
-      : { waiting: postWaiting };
 
   return (
     <AppPage section="Finish" title="Post reviewed entries">
@@ -206,7 +200,7 @@ export function PostDrafts() {
         )}
 
         {baseAccountId !== null && (
-          <Button onClick={handlePost} {...postState}>
+          <Button onClick={handlePost} waiting={postWaiting} disabled={posting}>
             {posting ? <Loader2 className="animate-spin" /> : <Send />}
             {posting ? "Posting…" : "Post reviewed entries"}
           </Button>

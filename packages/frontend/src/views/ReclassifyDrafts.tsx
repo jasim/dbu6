@@ -162,9 +162,7 @@ export function ReclassifyDrafts() {
     }
   }
 
-  // Why classifying can't start yet; undefined once it can. Passed as either
-  // `waiting` or `disabled`, never both: Button's own `disabled` yields to an
-  // explicit prop.
+  // Why classifying can't start yet; undefined once it can.
   const classifyWaiting =
     baseAccountId === null
       ? "Choose an account first"
@@ -173,10 +171,6 @@ export function ReclassifyDrafts() {
         : rows.length === 0
           ? "Every draft already has an account"
           : undefined;
-  const classifyState =
-    classifyWaiting === undefined
-      ? { disabled: classifying }
-      : { waiting: classifyWaiting };
 
   return (
     <AppPage section="Review drafts" title="Classify draft entries">
@@ -221,7 +215,11 @@ export function ReclassifyDrafts() {
             {gpayFile && <FileSummary file={gpayFile} />}
           </div>
 
-          <Button onClick={handleReclassify} {...classifyState}>
+          <Button
+            onClick={handleReclassify}
+            waiting={classifyWaiting}
+            disabled={classifying}
+          >
             {classifying ? <Loader2 className="animate-spin" /> : <Wand2 />}
             {classifying
               ? "Classifying…"

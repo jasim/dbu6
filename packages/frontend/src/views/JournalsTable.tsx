@@ -265,7 +265,7 @@ function HledgerDialog({
             type="button"
             variant="outline"
             onClick={() => navigator.clipboard.writeText(text)}
-            {...(text ? {} : { waiting: "Nothing to copy" })}
+            waiting={text ? undefined : "Nothing to copy"}
           >
             Copy
           </Button>

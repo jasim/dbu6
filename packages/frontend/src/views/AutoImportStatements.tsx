@@ -144,12 +144,6 @@ export function AutoImportStatements() {
   const failedFiles = new Set(error?.failedGroup?.file_names ?? []);
   const batch = describeBatch({ result, error });
   const problems = error ? describeProblems(error) : [];
-  // Either waiting (nothing to send yet) or disabled (a request in flight),
-  // never both: Button's own `disabled` yields to an explicit prop.
-  const submitState =
-    files.length === 0
-      ? { waiting: "Add at least one file" }
-      : { disabled: loading };
 
   return (
     <AppPage section="Import" title="Import statements">
@@ -313,7 +307,11 @@ export function AutoImportStatements() {
         </div>
 
         <div>
-          <Button onClick={handleSubmit} {...submitState}>
+          <Button
+            onClick={handleSubmit}
+            waiting={files.length === 0 ? "Add at least one file" : undefined}
+            disabled={loading}
+          >
             {loading && <Loader2 className="animate-spin" />}
             {loading
               ? "Processing..."

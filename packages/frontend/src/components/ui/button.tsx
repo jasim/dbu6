@@ -61,8 +61,11 @@ export const Button = React.forwardRef<HTMLElement, ButtonProps>(
     { className, variant, size, waiting, disabled, ...props },
     ref,
   ) {
+    // `disabled` is taken out of `props` above so a caller's value composes
+    // with `waiting` instead of replacing it: waiting always disables.
     const button = (
       <ButtonPrimitive
+        {...props}
         ref={ref}
         className={cn(
           buttonVariants({ variant, size }),
@@ -70,7 +73,6 @@ export const Button = React.forwardRef<HTMLElement, ButtonProps>(
           className,
         )}
         disabled={waiting !== undefined || disabled}
-        {...props}
       />
     );
     if (waiting === undefined) return button;

@@ -104,9 +104,7 @@ export function RenderDraftHledger() {
                 onClick={() =>
                   navigator.clipboard.writeText(result.hledger_journal)
                 }
-                {...(result.hledger_journal
-                  ? {}
-                  : { waiting: "Nothing to copy" })}
+                waiting={result.hledger_journal ? undefined : "Nothing to copy"}
               >
                 Copy
               </Button>
