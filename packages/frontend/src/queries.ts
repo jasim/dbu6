@@ -1,8 +1,13 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  queryOptions,
+  type QueryClient,
+} from "@tanstack/react-query";
+import type { DateSpan } from "dbu6-shared";
 import { ApiError } from "@sapporta/shared/client";
-import { homeApi, reviewApi } from "./api";
+import { homeApi, reportsApi, reviewApi } from "./api";
 
 /*
  * How the screens read the server: one TanStack query per request, with its
@@ -40,6 +45,22 @@ export function reviewAccountQuery(accountId: number) {
   return queryOptions({
     queryKey: [...DRAFT_STATUS_KEY, "review-account", accountId],
     queryFn: () => reviewApi.account({ params: { accountId }, query: {} }),
+    ...FRESH_QUERY,
+  });
+}
+
+/**
+ * Where your money went for a period. A new period keeps showing the last
+ * one's figures until its own arrive, so nothing jumps.
+ */
+export function incomeExpensesQuery(dates: DateSpan) {
+  return queryOptions({
+    queryKey: ["reports", "income-expenses", dates.first_date, dates.last_date],
+    queryFn: () =>
+      reportsApi.incomeExpenses({
+        query: { from_date: dates.first_date, to_date: dates.last_date },
+      }),
+    placeholderData: keepPreviousData,
     ...FRESH_QUERY,
   });
 }

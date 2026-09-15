@@ -1,16 +1,17 @@
+import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
+import { loadMonthlyAmounts, type MonthlyAmount } from "./account-amounts.js";
 import {
-  allRows,
   authorizeReport,
   dateColumn,
   flatResult,
-  ledgerCtes,
   moneyColumn,
   monthEnd,
   percentColumn,
   sum,
+  type ScopeParams,
 } from "./shared.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -20,56 +21,47 @@ api.register(
   reportsContract.monthlySummary,
   ({ c, request }) => {
     const scope = authorizeReport(c, "monthly-summary");
-    const rows = allRows<MonthlySummarySourceRow>(
-      c.get("sqlite"),
-      `${ledgerCtes}
-    SELECT
-      strftime('%Y-%m-01', j.date) AS month,
-      COALESCE(SUM(CASE WHEN a.account_type = 'Revenue'
-                        THEN je.credit - je.debit
-                        ELSE 0 END), 0) AS income,
-      COALESCE(SUM(CASE WHEN a.account_type = 'Expense'
-                        THEN je.debit - je.credit
-                        ELSE 0 END), 0) AS expenses
-    FROM scoped_journal_entries je
-    JOIN scoped_journals j ON j.id = je.journal_id
-    JOIN scoped_accounts a ON a.id = je.account_id
-    WHERE a.account_type IN ('Revenue', 'Expense')
-      AND (@fromDate IS NULL OR j.date >= @fromDate)
-      AND (@toDate IS NULL OR j.date <= @toDate)
-    GROUP BY strftime('%Y-%m-01', j.date)
-    ORDER BY strftime('%Y-%m-01', j.date)`,
-      {
+    return {
+      status: 200,
+      body: monthlySummaryReport(c.get("sqlite"), {
         ...scope,
         fromDate: request.query.from_date ?? null,
         toDate: request.query.to_date ?? null,
-      },
-    );
-
-    return { status: 200, body: toMonthlySummaryResult(rows) };
+      }),
+    };
   },
 );
 
-type MonthlySummarySourceRow = {
+/** Income and spending for each month in the period with entries. */
+export function monthlySummaryReport(
+  sqlite: Database.Database,
+  query: ScopeParams & { fromDate: string | null; toDate: string | null },
+): GridDataset {
+  const { fromDate, toDate, ...scope } = query;
+  return toMonthlySummaryResult(
+    loadMonthlyAmounts(sqlite, scope, { fromDate, toDate }),
+  );
+}
+
+type MonthlySummaryRow = {
+  // The month's first day, `YYYY-MM-01`, and its last.
   month: string;
+  month_end: string;
   income: number;
   expenses: number;
-};
-
-type MonthlySummaryRow = MonthlySummarySourceRow & {
-  month_end: string;
   net: number;
   savings_rate: number;
 };
 
-function toMonthlySummaryResult(
-  sourceRows: MonthlySummarySourceRow[],
-): GridDataset {
-  const rows = sourceRows.map((row) => {
-    const net = Number(row.income ?? 0) - Number(row.expenses ?? 0);
+function toMonthlySummaryResult(months: MonthlyAmount[]): GridDataset {
+  const rows = months.map((row): MonthlySummaryRow => {
+    const month = `${row.month}-01`;
+    const net = row.income - row.spending;
     return {
-      ...row,
-      month_end: monthEnd(row.month),
+      month,
+      month_end: monthEnd(month),
+      income: row.income,
+      expenses: row.spending,
       net,
       savings_rate: row.income > 0 ? net / row.income : 0,
     };

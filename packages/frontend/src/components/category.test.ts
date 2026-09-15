@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { accountPathName } from "dbu6-shared";
-import { categoryGroup, categoryHue, categoryHueColor } from "./category";
+import { accountHue, categoryHueColor, ownHue } from "./category";
 
 // accountPathName lives in dbu6-shared, which has no test runner of its own;
 // the API names accounts with it too.
@@ -21,34 +21,35 @@ describe("account path names", () => {
   });
 });
 
-describe("category groups and hues", () => {
-  it("takes the group after the bookkeeping prefix", () => {
-    expect(categoryGroup("expenses:food:food-delivery")).toBe("food");
-    expect(categoryGroup("income:salary:gross-pay")).toBe("salary");
-    expect(categoryGroup("food:groceries")).toBe("food");
-    expect(categoryGroup("expenses")).toBeNull();
-    expect(categoryGroup("")).toBeNull();
+describe("account hues", () => {
+  it("takes the hue the account's own name asks for", () => {
+    expect(ownHue("expenses:food")).toBe("food");
+    expect(ownHue("expenses:taxes")).toBe("taxes");
+    expect(ownHue("Expenses:Food ")).toBe("food");
+    expect(ownHue("expenses:food:groceries")).toBeNull();
+    expect(ownHue("expenses")).toBeNull();
+    expect(ownHue("")).toBeNull();
   });
 
   it("maps the seeded group names onto the design's hue keys", () => {
-    expect(categoryHue("expenses:housing:rent")).toBe("home");
-    expect(categoryHue("expenses:child:activities")).toBe("children");
-    expect(categoryHue("expenses:entertainment:movies")).toBe("fun");
-    expect(categoryHue("expenses:education:courses-books")).toBe("learning");
-    expect(categoryHue("expenses:finance:bank-charges")).toBe("fees");
-    expect(categoryHue("expenses:food:groceries")).toBe("food");
-    expect(categoryHue("expenses:taxes:income-tax")).toBe("taxes");
+    expect(ownHue("expenses:housing")).toBe("home");
+    expect(ownHue("expenses:child")).toBe("children");
+    expect(ownHue("expenses:entertainment")).toBe("fun");
+    expect(ownHue("expenses:education")).toBe("learning");
+    expect(ownHue("expenses:finance")).toBe("fees");
   });
 
-  it("falls back to the neutral hue for groups without one", () => {
-    expect(categoryHue("income:salary:gross-pay")).toBe("other");
-    expect(categoryHue("assets:bank:sample-savings")).toBe("other");
-    expect(categoryHue("")).toBe("other");
+  it("inherits the parent's colour, and never asks for the fallback", () => {
+    expect(accountHue("expenses:food:groceries", "food")).toBe("food");
+    expect(accountHue("expenses:food:other", "food")).toBe("food");
+    expect(accountHue("expenses:shopping:travel", "shopping")).toBe("travel");
+    expect(accountHue("income:salary")).toBe("other");
+    expect(accountHue("expenses")).toBe("other");
   });
 
   it("names the CSS variable app.css defines", () => {
     expect(categoryHueColor("home")).toBe("var(--cat-home)");
-    expect(categoryHueColor(categoryHue("expenses:housing:rent"))).toBe(
+    expect(categoryHueColor(accountHue("expenses:housing"))).toBe(
       "var(--cat-home)",
     );
   });

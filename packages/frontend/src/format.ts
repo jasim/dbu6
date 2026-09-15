@@ -45,6 +45,28 @@ function isoParts(iso: string): { y: number; m: number; d: number } | null {
   return { y: Number(match[1]), m, d: Number(match[3]) };
 }
 
+const LONG_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+type MonthNames = "short" | "long";
+
+// 3 -> "Mar", or "March" with long names.
+export function monthName(month: number, names: MonthNames = "short"): string {
+  return (names === "long" ? LONG_MONTHS : MONTHS)[month - 1]!;
+}
+
 // "2026-08-01" -> "1 Aug 2026". Anything else is returned untouched.
 export function formatDate(iso: string): string {
   const parts = isoParts(iso);
@@ -62,34 +84,62 @@ export function formatShortDate(iso: string): string {
 
 // A span of days as a sentence reads it: "1–13 Sep", "28 Aug – 13 Sep", or
 // across a new year "28 Dec 2025 – 3 Jan 2026". `withYear` adds the year to
-// a span within one year: "1–13 Sep 2026".
+// a span within one year: "1–13 Sep 2026". `months: "long"` spells the
+// months out: "1 October 2025 – 16 September 2026".
 export function formatDaySpan(
   { first_date: from, last_date: to }: DateSpan,
-  { withYear = false }: { withYear?: boolean } = {},
+  {
+    withYear = false,
+    months = "short",
+  }: { withYear?: boolean; months?: MonthNames } = {},
 ): string {
   const a = isoParts(from);
   const b = isoParts(to);
   if (!a || !b) return `${formatDate(from)} – ${formatDate(to)}`;
-  if (a.y !== b.y) return `${formatDate(from)} – ${formatDate(to)}`;
+  const day = (p: { d: number; m: number }) =>
+    `${p.d} ${monthName(p.m, months)}`;
+  if (a.y !== b.y) return `${day(a)} ${a.y} – ${day(b)} ${b.y}`;
   const year = withYear ? ` ${b.y}` : "";
-  if (from === to) return `${a.d} ${MONTHS[a.m - 1]}${year}`;
-  if (a.m === b.m) return `${a.d}–${b.d} ${MONTHS[b.m - 1]}${year}`;
-  return `${a.d} ${MONTHS[a.m - 1]} – ${b.d} ${MONTHS[b.m - 1]}${year}`;
+  if (from === to) return `${day(a)}${year}`;
+  if (a.m === b.m) return `${a.d}–${day(b)}${year}`;
+  return `${day(a)} – ${day(b)}${year}`;
+}
+
+// "2026-03" -> "Mar 2026", or "March 2026" with long month names.
+export function formatMonth(
+  month: string,
+  months: MonthNames = "short",
+): string {
+  const parts = isoParts(`${month}-01`);
+  if (!parts) return month;
+  return `${monthName(parts.m, months)} ${parts.y}`;
+}
+
+// A span of whole months: "Mar 2026", "Mar – Jun 2026", or across a new
+// year "Nov 2025 – Feb 2026". Months are `YYYY-MM`.
+export function formatMonthSpan(from: string, to: string): string {
+  const a = isoParts(`${from}-01`);
+  const b = isoParts(`${to}-01`);
+  if (!a || !b) return `${from} – ${to}`;
+  if (from === to) return formatMonth(from);
+  if (a.y !== b.y) return `${formatMonth(from)} – ${formatMonth(to)}`;
+  return `${monthName(a.m)} – ${monthName(b.m)} ${b.y}`;
 }
 
 // "1 Aug to 31 Aug 2026" when both dates share a year, else two full dates.
-export function formatDateRange({
-  first_date: from,
-  last_date: to,
-}: DateSpan): string {
+// `joiner` reads the span into a sentence: "between 1 Apr and 30 Apr 2026".
+export function formatDateRange(
+  { first_date: from, last_date: to }: DateSpan,
+  joiner = "to",
+): string {
   const a = isoParts(from);
   const b = isoParts(to);
-  if (!a || !b) return `${formatDate(from)} to ${formatDate(to)}`;
+  if (!a || !b) return `${formatDate(from)} ${joiner} ${formatDate(to)}`;
   if (from === to) return formatDate(from);
   if (a.y === b.y) {
-    return `${a.d} ${MONTHS[a.m - 1]} to ${b.d} ${MONTHS[b.m - 1]} ${b.y}`;
+    return `${a.d} ${MONTHS[a.m - 1]} ${joiner} ${b.d} ${MONTHS[b.m - 1]} ${b.y}`;
   }
-  return `${formatDate(from)} to ${formatDate(to)}`;
+  return `${formatDate(from)} ${joiner} ${formatDate(to)}`;
 }
 
 // An account or card number is shown by its last four characters only.

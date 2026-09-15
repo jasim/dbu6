@@ -1,6 +1,7 @@
 import { Checkbox } from "@sapporta/ui/checkbox";
 import { cn } from "@sapporta/ui/cn";
 import { Amount, type Direction } from "./amount";
+import type { CategoryHueKey } from "./category";
 import { CategoryLabel, NeedsCategory } from "./category-label";
 
 export interface Transaction {
@@ -13,8 +14,8 @@ export interface Transaction {
   raw: string;
   amount: number;
   direction: Direction;
-  /** The category's account path, or nothing while it still needs one. */
-  categoryPath?: string;
+  /** The category's account path and hue, or nothing while it still needs one. */
+  category?: { path: string; hue: CategoryHueKey };
 }
 
 /**
@@ -57,8 +58,11 @@ export function TransactionRow({
         </span>
       </span>
       <span>
-        {transaction.categoryPath ? (
-          <CategoryLabel path={transaction.categoryPath} />
+        {transaction.category ? (
+          <CategoryLabel
+            path={transaction.category.path}
+            hue={transaction.category.hue}
+          />
         ) : (
           <NeedsCategory onClick={() => onCategorise?.(transaction.id)} />
         )}

@@ -29,6 +29,7 @@ describe("mounted app routes", () => {
       paths["/api/draft-transactions/classify-with-gpay"]?.post,
     ).toBeDefined();
     expect(paths["/api/reports/duplicate-drafts"]?.get).toBeDefined();
+    expect(paths["/api/reports/income-expenses"]?.get).toBeDefined();
     expect(paths["/api/review/accounts"]?.get).toBeDefined();
     expect(paths["/api/review/accounts/{accountId}"]?.get).toBeDefined();
   });

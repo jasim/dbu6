@@ -2,7 +2,13 @@
 // router from here so `packages/shared/src/index.ts` can pick everything up in
 // one place.
 
-export { reportsContract } from "./reports.js";
+export {
+  reportsContract,
+  incomeExpensesAccountSchema,
+  incomeExpensesSchema,
+  type IncomeExpenses,
+  type IncomeExpensesAccount,
+} from "./reports.js";
 export {
   importDraftsContract,
   importSummarySchema,

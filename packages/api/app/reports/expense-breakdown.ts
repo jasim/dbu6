@@ -3,12 +3,11 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
 import { branchTops } from "../account-tree.js";
+import { loadAccountAmounts } from "./account-amounts.js";
 import {
-  allRows,
   authorizeReport,
   footerRow,
   hiddenIdColumn,
-  ledgerCtes,
   moneyColumn,
   openRecordLink,
   sum,
@@ -43,26 +42,12 @@ export function expenseBreakdownReport(
   sqlite: Database.Database,
   query: ScopeParams & { fromDate: string | null; toDate: string | null },
 ): GridDataset {
-  const accounts = allRows<ExpenseAccountRow>(
-    sqlite,
-    `${ledgerCtes}
-      SELECT
-        a.id AS account_id,
-        a.name,
-        a.parent_id,
-        COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0) AS amount
-      FROM scoped_accounts a
-      LEFT JOIN (
-        SELECT je.account_id, je.debit, je.credit
-        FROM scoped_journal_entries je
-        JOIN scoped_journals j ON j.id = je.journal_id
-        WHERE (@fromDate IS NULL OR j.date >= @fromDate)
-          AND (@toDate IS NULL OR j.date <= @toDate)
-      ) je ON je.account_id = a.id
-      WHERE a.account_type = 'Expense'
-      GROUP BY a.id, a.name, a.parent_id`,
-    query,
-  );
+  const { fromDate, toDate, ...scope } = query;
+  const accounts = loadAccountAmounts(sqlite, scope, {
+    types: ["Expense"],
+    fromDate,
+    toDate,
+  });
   const tops = branchTops(accounts);
   const rows = accounts
     .filter((account) => account.amount !== 0)
@@ -79,13 +64,6 @@ export function expenseBreakdownReport(
     .sort((a, b) => b.amount - a.amount);
   return toExpenseBreakdownResult(rows);
 }
-
-type ExpenseAccountRow = {
-  account_id: number;
-  name: string;
-  parent_id: number | null;
-  amount: number;
-};
 
 type ExpenseBreakdownRow = {
   category_id: number;

@@ -6,6 +6,7 @@ import balanceSheetApi from "./reports/balance-sheet.js";
 import draftBalanceAssertionsApi from "./reports/draft-balance-assertions.js";
 import duplicateDraftsApi from "./reports/duplicate-drafts.js";
 import expenseBreakdownApi from "./reports/expense-breakdown.js";
+import incomeExpensesApi from "./reports/income-expenses.js";
 import incomeStatementApi from "./reports/income-statement.js";
 import lastReconciledApi from "./reports/last-reconciled.js";
 import monthlySummaryApi from "./reports/monthly-summary.js";
@@ -22,6 +23,7 @@ function mountReport(reportApi: TsRestApi<SapportaEnv>) {
 mountReport(trialBalanceApi);
 mountReport(balanceSheetApi);
 mountReport(incomeStatementApi);
+mountReport(incomeExpensesApi);
 mountReport(assetInflowsApi);
 mountReport(expenseBreakdownApi);
 mountReport(accountLedgerApi);

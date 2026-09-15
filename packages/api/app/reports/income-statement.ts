@@ -2,12 +2,8 @@ import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
-import {
-  allRows,
-  authorizeReport,
-  ledgerCtes,
-  type ScopeParams,
-} from "./shared.js";
+import { loadAccountAmounts } from "./account-amounts.js";
+import { authorizeReport, type ScopeParams } from "./shared.js";
 import {
   sectionAccountResult,
   sectionFooterRow,
@@ -41,34 +37,19 @@ export function incomeStatementReport(
   sqlite: Database.Database,
   query: ScopeParams & { fromDate: string | null; toDate: string | null },
 ): GridDataset {
-  const rows = allRows<SectionAccountRow>(
-    sqlite,
-    `${ledgerCtes}
-      SELECT
-        a.account_type AS section,
-        a.id AS account_id,
-        a.name,
-        CASE WHEN a.account_type = 'Revenue'
-             THEN COALESCE(SUM(je.credit), 0) - COALESCE(SUM(je.debit), 0)
-             ELSE COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0)
-        END AS balance
-      FROM scoped_accounts a
-      LEFT JOIN (
-        SELECT je.account_id, je.debit, je.credit
-        FROM scoped_journal_entries je
-        JOIN scoped_journals j ON j.id = je.journal_id
-        WHERE (@fromDate IS NULL OR j.date >= @fromDate)
-          AND (@toDate IS NULL OR j.date <= @toDate)
-      ) je ON je.account_id = a.id
-      WHERE a.account_type IN ('Revenue', 'Expense')
-      GROUP BY a.account_type, a.id, a.name
-      HAVING CASE WHEN a.account_type = 'Revenue'
-                  THEN COALESCE(SUM(je.credit), 0) - COALESCE(SUM(je.debit), 0)
-                  ELSE COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0)
-             END != 0
-      ORDER BY a.account_type, a.name`,
-    query,
-  );
+  const { fromDate, toDate, ...scope } = query;
+  const rows = loadAccountAmounts(sqlite, scope, {
+    types: ["Revenue", "Expense"],
+    fromDate,
+    toDate,
+  })
+    .filter((account) => account.amount !== 0)
+    .map((account): SectionAccountRow => ({
+      section: account.account_type,
+      account_id: account.account_id,
+      name: account.name,
+      balance: account.amount,
+    }));
   return toIncomeStatementResult(rows);
 }
 

@@ -6,6 +6,7 @@ import { BalanceSheetReport } from "./BalanceSheetReport";
 import { DraftBalanceAssertionsReport } from "./DraftBalanceAssertionsReport";
 import { DuplicateDraftsReport } from "./DuplicateDraftsReport";
 import { ExpenseBreakdownReport } from "./ExpenseBreakdownReport";
+import { IncomeExpensesPage } from "./income-expenses/IncomeExpensesPage";
 import { IncomeStatementReport } from "./IncomeStatementReport";
 import { LastReconciledReport } from "./LastReconciledReport";
 import { MonthlySummaryReport } from "./MonthlySummaryReport";
@@ -27,21 +28,29 @@ export interface ReportDefinition {
   everyday?: ReportCard;
   /** Its card in the accounting view, when it has one. */
   accounting?: ReportCard;
+  /** What All tools says about a report with neither card. */
+  description?: string;
 }
 
 /*
- * Until Step 6 builds the plain-language reports (P4, P7), an everyday card
- * and its accounting twin open the same screen. That is expected.
+ * Until Step 6 builds the plain-language reports (P7), an everyday card and
+ * its accounting twin may open the same screen (What you own and owe and the
+ * balance sheet). That is expected.
  */
 export const reportDefinitions = [
   {
-    id: "income-statement",
-    label: "Income Statement",
-    Component: IncomeStatementReport,
+    id: "income-expenses",
+    label: "Where your money went",
+    Component: IncomeExpensesPage,
     everyday: {
       label: "Where your money went",
       description: "Income and spending for a period",
     },
+  },
+  {
+    id: "income-statement",
+    label: "Income Statement",
+    Component: IncomeStatementReport,
     accounting: {
       label: "Income statement",
       description: "Revenue, expenses and net income",
@@ -91,10 +100,8 @@ export const reportDefinitions = [
     id: "expense-breakdown",
     label: "Expense Breakdown",
     Component: ExpenseBreakdownReport,
-    everyday: {
-      label: "Spending breakdown",
-      description: "Expenses grouped and ranked",
-    },
+    // Folded into Where your money went (P4); still on All tools.
+    description: "Expenses grouped and ranked",
   },
   {
     id: "trial-balance",
@@ -169,5 +176,9 @@ export function reportCards(
 
 /** One line on what a report shows, from whichever card it has. */
 export function reportDescription(report: ReportDefinition): string {
-  return (report.accounting ?? report.everyday)?.description ?? report.label;
+  return (
+    (report.accounting ?? report.everyday)?.description ??
+    report.description ??
+    report.label
+  );
 }

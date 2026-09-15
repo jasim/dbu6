@@ -10,9 +10,10 @@
 - **Done:** Step 3, the app shell (§8), Step 4, Sapporta's surfaces (§9), and Step 5,
   dbu6's components and cleanup (§10), all 2026-09-15.
 - **Done:** Step 6, P0, P1 and P2 (§11), each spec agreed and built 2026-09-15. P3
-  (Review), spec agreed 2026-09-15 and built 2026-09-16.
-- **In discussion:** Step 6, P4 (Income & expenses), since 2026-09-16. Questions 1–9
-  are decided; the report tree bugs they surfaced are fixed (§13).
+  (Review), spec agreed 2026-09-15 and built 2026-09-16. P4 (Income & expenses), spec
+  agreed and built 2026-09-16; its browser walk-through and screenshots wait on a signed-in
+  session (§13).
+- **Next:** P4's walk-through in the browser, then P5's discussion.
 
 This file stands on its own. A coding agent should be able to pick up any step using only
 this file, the two repositories, and (when it is on disk) the design handoff folder. You do
@@ -167,7 +168,8 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
     serves `GET /home` (the `homeContract` in `dbu6-shared`); `app/review.ts` serves
     `GET /review/accounts` and `/review/accounts/:accountId` (`reviewContract`, since P3).
   - `app/account-tree.ts` (since 2026-09-16): `branchTops`, the top of each account's
-    branch through `parent_id`. Spending breakdown groups by it; P4's groups will too.
+    branch through `parent_id`, which Spending breakdown groups by; and `accountTree`
+    (since P4), the whole tree with `own` and `total` on every node, ranked and loop-safe.
   - `app/draft-status.ts` (since P3) is the one source for what blocks posting drafts:
     counts, dates, closing balance, failing balance checks and possible duplicates per
     account. Home, Review, the posting gate (`app/post-drafts-to-journal.ts`) and the two
@@ -177,7 +179,10 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
     Whether each check passes or blocks is `postingChecks` in dbu6-shared
     (`contracts/posting-checks.ts`).
   - Reports in `packages/api/app/reports/`. They return a `GridDataset` (grid-shaped rows,
-    not domain JSON).
+    not domain JSON), except `income-expenses.ts` (P4), which returns the
+    `reportsContract.incomeExpenses` JSON. `reports/account-amounts.ts` (since P4) is the
+    one source for income and spending per account and per month; the income statement,
+    Spending breakdown, Monthly summary and Where your money went read it.
 - **`packages/shared`**: ts-rest contracts, imported as `dbu6-shared`.
 - **`packages/frontend`**: Vite 8, React 19, React Router 7, Tailwind 4.3, `lucide-react`. No shadcn.
 - **`custom-built-parsers/`**: Python statement parsers.
@@ -200,14 +205,15 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
   is Sapporta's raw table again since P3.
 - **`src/shell/`** is dbu6's app shell (D4): `AppShell`, `Sidebar` (sidebar and bottom
   bar), `navigation.ts` (the `{ everyday, more }` shape and the badge), `navigation-counts.ts`.
-- **`src/reports/registry.tsx`** lists the twelve reports with their everyday and accounting
+- **`src/reports/registry.tsx`** lists the thirteen reports with their everyday and accounting
   cards; `ReportsIndex.tsx` (the `/reports` page) and `Advanced.tsx` (`/tools`) read it.
 - **`src/SapportaRoutes.tsx`** holds the framework routes: sign-in and sign-up screens,
   `/account/profile`, `/workspace/settings`, `/tables/:tableName`, `/tables/:tableName/new`,
   `/setup/:tableName/new`, and not found.
 - **Page frames.** dbu6 pages use one of five:
   - `Screen` and `ScreenTitle` (`src/components/screen.tsx`, since P2): no header bar, the
-    title at the top of a scrolling centred column (`wide` 1040px for Home, `narrow` for
+    title at the top of a scrolling centred column (`wide` 1040px for Home and Where your
+    money went, `narrow` for
     Import, freeform import and the Review picker), clear of `--sap-page-header-inset`;
   - Review's account frame (`src/review/ReviewAccount.tsx`, since P3): the account's title
     and a tab bar at the top, full width; Overview and the report tabs scroll with it, the
@@ -223,6 +229,8 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
     `DraftsTab.tsx`, `DuplicatesTab.tsx`, `BalanceChecksTab.tsx`, `agentPrompts.ts`, `routes.ts`
   - `src/views/*`: import statements, freeform import, reclassify, render hledger, journals
   - `src/reports/*`: 12 report screens plus `registry.tsx`
+  - `src/reports/income-expenses/*` (Where your money went, P4): `IncomeExpensesPage.tsx`,
+    `MonthChart.tsx`, `AccountRows.tsx`, and the pure `period.ts`, `chart.ts`, `figures.ts`
 - **`src/app.css` is the only CSS entry point.** Order: `@import "tailwindcss"` →
   `@sapporta/ui/index.css` (tokens) → `@sapporta/grid/index.css` → `@sapporta/frontend/index.css`
   → `@source "./"` → dbu6's own rules (currently none).
@@ -2103,84 +2111,216 @@ app was doing, the facts, what to do, what not to do, what to report back):
   `tmp/redesign/p3/` (picker, Overview blocked, Overview ready, after posting, Drafts,
   Duplicates, Balance checks, empty).
 
-### P4 · Income & expenses (handoff: Report and Report-full): Status: In discussion
+### P4 · Income & expenses (handoff: Report and Report-full): Status: Built (2026-09-16)
 
-**Decided so far (2026-09-16)**
-1. **Route:** a new everyday page at `/reports/income-expenses` for "Where your money
-   went". `/reports/income-statement` stays as the accountant's grid (Monthly summary's
-   links point there). **Spending breakdown folds in:** its everyday card retires; the
-   `expense-breakdown` report keeps its route and its All tools entry.
-2. **One page.** Summary and full detail aren't split: the period, the figures, the
-   month-by-month chart, every spending group ranked (each opens to its categories), the
-   income groups, then the link to the accountant's view. No separate "Every category"
-   view or route.
-3. **The three figures are "Income", "Spending" and "Remaining"**, not the handoff's
-   "Money in / Money out / You saved": they are income-statement totals (gross salary,
-   employer PF and EPF interest count as income; income tax counts as spending; SIPs and
-   PPF deposits don't), not cash through a bank. *Proposed with it, not asked separately:*
-   the lines under them ("Mostly salary", "Across 17 groups", "21% of your income"), and
-   when spending is higher, Remaining in ink on a neutral panel instead of the green one,
-   since overspending isn't an error.
-4. **Periods:** presets This month · Last month · Last 12 months · This financial year
-   (1 April – 31 March) · Last financial year · Pick months. **The default is Last 12
-   months**, so the page isn't near-empty early in a financial year. *Filled in while
-   writing:* Last 12 months is this month so far and the eleven whole months before it
-   (1 October 2025 – 16 September 2026 on 16 September), so the chart has twelve bars
-   and nothing posted this month is left out. The resolved dates show under the title.
-   A preset goes into the URL by name (`?period=last-12-months`), so a bookmark stays
-   relative; picked months and links from other reports use `from_date`/`to_date`, and a
-   range that matches a preset exactly lights it up. "Today" is the workspace's
-   (`today()` in `reports/shared.tsx`, on `appTimeZone()`).
-5. **Pick months, no calendar.** "Pick months" opens a popover with From and To month
-   menus (the Select primitive from P2), listing the months from the first posted entry
-   to this month; each change refetches. No calendar and no new dependency (closes D5's
-   calendar question). A link arriving with exact days still works, and the header shows
-   those dates as text ("5–20 Mar 2026").
-6. **The lists follow the account tree, level by level, never the name** (a rule for the
-   whole app, §2.1). Spending and Income each start with their top accounts (no parent
-   of that type), ranked by total, largest first, with a share and a bar. Each row opens
-   to its children, ranked the same way, and so on down. A row's total is every entry on
-   the account or below it, so it always matches its Account history. Chosen over
-   "groups start where the tree first branches" and "the top of the branch is the group
-   (flat)": someone may keep one account above every group, and then the list is one row
-   that opens to the groups. An account whose parent was left empty is a top account
-   until its parent is set. *Not done:* setting the parent from the name when an account
-   is created (that would derive hierarchy from the name); P6 decides how the parent gets
-   set.
-   *Filled in while writing, to confirm at spec review:* entries made directly on an
-   account that has children show, when it's opened, as a row of their own among the
-   children ("Food, not in a sub-account"), so the children add up to the row; shares
-   are of the whole section (Groceries is 7% of all spending), at every level; rows whose
-   subtree has no entries in the period are left out; an account's colour is its own hue
-   when its name matches a hue key, else its parent's through the tree, else grey (the
-   name only labels the account, the tree decides inheritance).
-7. **Month-by-month chart:** a pair of bars per month in the period, income green and
-   spending ink, with a legend; the current month is labelled "so far"; each bar's figures
-   show on hover and to screen readers. Hidden when the period is a single month. Past 24
-   months, one pair per financial year. **Clicking a month narrows the whole page to that
-   month** (it becomes a picked range, so the URL carries its dates).
-8. **Drafts don't exist for this page.** Drafts are a short-lived holding space while
-   statements are imported; everything outside the draft workflow (Import, Review,
-   posting) ignores them completely: no "not counted yet" line, no draft counts, no
-   assumption that a period sits in drafts. A period with no entries shows an
-   `EmptyState` ("No income or spending in these months") instead of three zeros.
-9. **Rows and the accountant's view.** Clicking a row with children opens or closes it
-   (a chevron shows which); every account row also has a "›" to Account history for that
-   account and the page's dates (the ledger includes sub-accounts, so the figures agree).
-   A leaf has only the "›". The "not in a sub-account" row has no link, since the
-   parent's history would include its sub-accounts. "Collapse all" shows in a section's
-   header once a row is open; open rows aren't kept in the URL. At the bottom, one ghost
-   link, "See these figures as an income statement", opens `/reports/income-statement`
-   with the resolved dates, in place of the handoff's Revenue / Expenses / Net card.
+Agreed with the project owner on 2026-09-16, one question at a time. **The page is new**:
+today's `/reports/income-statement` grid stays as the accountant's view, and Spending
+breakdown's everyday card folds into this page. **Account hierarchy comes only from
+`parent_id`, never the name** (§2.1), and **drafts don't exist for this page**: they are a
+short-lived holding space inside the import workflow, and nothing outside Import, Review
+and posting reads them.
 
-**Fixed before the spec (2026-09-16), since the new page stands on the same totals:**
-the income statement and balance sheet dropped entries on parent accounts, Spending
-breakdown double-counted deeper branches and dropped childless top-level accounts, and
-the account ledger never finished on a loop in `parent_id` (§13).
+**Fixed before the spec (2026-09-16)**, since the page stands on the same totals: the
+income statement and balance sheet dropped entries on parent accounts, Spending breakdown
+double-counted deeper branches and dropped childless top-level accounts, the account
+ledger never finished on a loop in `parent_id`, and report screens took "today" in UTC
+(§13).
 
-**Still open**
-- Reading the `GridDataset` vs. new JSON endpoints.
-- Download format.
+Build order: the shared amounts module and `accountTree`, with tests; the contract and
+handler, with tests; the income statement, Spending breakdown and Monthly summary on the
+shared module; `period.ts`, `chart.ts` and `figures.ts`, with tests; the page (header and
+presets, figures, chart, lists, the link); the registry; tests and screenshots.
+
+**Purpose and single primary action:** show where the money came from and where it went
+over a period, and let the user dig into any account. **No primary button**: the presets
+and rows are the controls, as on the reports index.
+
+**Route(s) and redirects**
+- `/reports/income-expenses`, a new entry in `reports/registry.tsx` (the report routes
+  are generated from it). `usePageTitle("Where your money went")`. No redirects.
+- **Query string:** `from_date` and `to_date` (both valid `YYYY-MM-DD`, from ≤ to) make a
+  picked range and win; otherwise a known `period` (`this-month`, `last-month`,
+  `last-12-months`, `this-financial-year`, `last-financial-year`) picks a preset;
+  otherwise Last 12 months, with the URL left bare. Choosing a preset writes `period`
+  and drops the dates; picking months or clicking a bar writes the dates and drops
+  `period`. A bookmarked preset stays relative ("this month" next month).
+- `/reports/income-statement` and `/reports/expense-breakdown` keep their routes and
+  screens.
+
+**Section order (with layout notes)**
+
+The frame is Home's: `Screen` `wide` (1040px), no `AppPage` bar, `px-14 py-10` at
+desktop, everything stacked at 390px.
+
+1. **Header.** Title (`text-title`), and under it the resolved dates (`text-body
+   ink-meta`, "1 October 2025 – 16 September 2026"). On the right at desktop, below the
+   title at 390px (one row that scrolls sideways): the presets as pill toggles, This month
+   · Last month · Last 12 months · This financial year · Last financial year · Pick months.
+   The active preset is filled; a picked range lights up the preset it matches exactly,
+   else "Pick months", which then reads the range ("Mar – Jun 2026").
+2. **Pick months popover** (Sapporta `Popover`): From and To month menus (`Select`, P2),
+   listing the months from `first_month` to this month, newest first ("Sep 2026"). Each
+   change applies at once. From is the 1st of its month; To is the last day of its
+   month, or today when it is this month. Choosing a From after To moves To to it, and
+   the other way round. No calendar (D5).
+3. **Three figures**, `grid-cols-3 gap-4`, one column at 390px:
+   - **Income:** label, the total as `+₹` in green mono (display size), "From 9
+     accounts" (accounts with entries of their own in Income).
+   - **Spending:** label, `−₹` in ink, "Across 58 accounts".
+   - **Remaining** (income − spending): on the `money-in-bg` panel with its border, the
+     figure in mono without a sign, "21% of income" (whole percent; left out when income
+     is zero). When spending is higher: a neutral panel, "−₹X" in ink, and "₹X more spent
+     than came in". Never destructive: overspending isn't an error.
+4. **Month by month** card (hidden when the period falls within one calendar month):
+   `text-subheading` heading, a legend (Income green, Spending ink), and a pair of bars
+   per month, 132px tall, sharing one scale, zero drawn as a 1px baseline. Labels are
+   the short month, with the year on the first bar and on each January ("Oct 2025",
+   "Nov", … "Jan 2026"); the month holding today reads "so far" under its label when the
+   period ends today. **Past 24 months**, one pair per financial year ("FY 2024–25",
+   April–March, summed from the months). Each pair is a button: hover or focus shows a
+   tooltip ("March 2026 · Income +₹1,20,000 · Spending −₹84,500", also its accessible
+   name), and **clicking narrows the page** to that month (or that financial year), to
+   today at the latest. At 390px the bars shrink to fit, and scroll sideways beyond that.
+5. **Spending** card, then **Income** card, full width, stacked. Header: the section's
+   name (`text-heading`) and its total in mono; a ghost "Collapse all" once any of its
+   rows is open.
+   - **Rows follow the account tree.** The first level is the section's top accounts
+     (no parent among that type's accounts). Opening a row shows its children, one level
+     at a time, all the way down. At every level rows are ranked by total, largest first
+     (ties by name). A row's **total** is every entry on the account and below it, so it
+     matches its Account history. Subtrees with no entries in the period are left out.
+     An account caught in a parent loop still appears once, as a top account.
+   - **Entries made directly on an account that has children** show, when it is
+     opened, as the last child row: "Food, not in a sub-account", with that amount, so
+     the children add up to the row.
+   - **Row anatomy** (min 52px, padding as §4.5): a chevron when it has children (18px
+     Lucide, turned when open; clicking anywhere on the row but the link toggles it); a
+     9px colour dot; the friendly name (16px, 600 at the first level, 400 below; path in
+     `title`); the share of the whole section in mono `ink-meta` ("7%", "<1%"; hidden at
+     390px); the amount (`Amount`, row size, no IN/OUT label: spending `−₹` ink, income
+     `+₹` green); a 44px "›" link to Account history for that account and the page's dates
+     (`accountLedgerHref`). A 4px bar under the name at the row's share, in its colour
+     (spending) or green (income). Children indent 24px per level on `--muted`. The "not
+     in a sub-account" row has no chevron and no link (the parent's history includes its
+     sub-accounts).
+   - **A row whose total runs the other way** (refunds larger than the spending, say)
+     shows the opposite sign and colour, sorts after the others, and has no share or bar.
+   - **Colour** (`category.ts`): an account's own hue when the last segment of its own
+     name matches a hue key (with §4.3's aliases), else its parent's colour through the
+     tree, else grey. The name only labels the account; the tree decides who inherits.
+   - Which rows are open isn't kept in the URL; changing the period keeps rows that still
+     exist open.
+6. **The accountant's view:** one ghost link, "See these figures as an income statement",
+   to `/reports/income-statement?from_date=…&to_date=…` with the resolved dates.
+
+**Copy**
+- Title "Where your money went"; presets as above; popover labels "From", "To".
+- Figures: "Income", "Spending", "Remaining"; "From N accounts", "Across N accounts"
+  (`plural`); "21% of income"; "₹X more spent than came in".
+- Chart: "Month by month", legend "Income", "Spending", "so far".
+- Lists: "Spending", "Income", "Collapse all", "<Name>, not in a sub-account".
+- Link: "See these figures as an income statement".
+- Empty: `EmptyState` "No income or spending in these months" / "Nothing in your books
+  falls between 1 Apr and 30 Apr 2026." (no button; the presets are above it).
+- Dates read "1 October 2025 – 16 September 2026" under the title, "Mar – Jun 2026" on
+  the pill, "1 Apr and 30 Apr 2026" in the empty state.
+
+**States**
+- *Loading:* the header and presets render at once; the figures keep their shape with
+  skeleton figures; the chart card is a 132px skeleton; each list shows three 52px
+  skeleton rows. After a period change the previous figures stay until the new ones
+  arrive (no spinner, no layout shift).
+- *Error:* `LoadError` below the header, the server's words, "Try again".
+- *Empty:* no entries in the period: the `EmptyState` replaces the figures, chart, lists
+  and link.
+- *Large volume:* every account is listed (rows open on demand); the chart switches to
+  financial years past 24 months; months with nothing are zero-height bars.
+
+**Data and API changes**
+- **Amounts module, `packages/api/app/reports/account-amounts.ts`**, the one source for
+  per-account and per-month income and spending:
+  - `loadAccountAmounts(sqlite, scope, { types, fromDate, toDate })`: every account of
+    those types with `account_id`, `name`, `parent_id`, `account_type` and `amount`, its
+    own entries in the period, signed so income and spending are positive (Revenue
+    credit − debit, Expense debit − credit), zeros included for the tree.
+  - `loadMonthlyAmounts(sqlite, scope, { fromDate, toDate })`: `month`, `income`,
+    `spending` per month with entries.
+  - The income statement, Spending breakdown and Monthly summary read them instead of
+    their own queries, so the page and the grids can't disagree.
+- **`app/account-tree.ts` gains `accountTree(accounts)`**: top-level nodes of
+  `{ account, own, total, children }`, children and roots ranked by total then name,
+  subtrees without entries dropped, loop-safe (an account in a loop becomes a top node).
+  `branchTops` stays for Spending breakdown.
+- **Contract:** `reportsContract.incomeExpenses` in `dbu6-shared` `contracts/reports.ts`:
+  ```
+  GET /reports/income-expenses?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD   (both required)
+  → {
+      income:   { total, accounts: [node] },
+      spending: { total, accounts: [node] },
+      months:   [{ month: "YYYY-MM", income, spending }],   // every month from from_date's
+                                                            // to to_date's, zero-filled
+      first_month: "YYYY-MM" | null                         // first month with any income
+                                                            // or spending entry, any date
+    }
+  node = { account_id, path, name, own, total, children: [node] }
+  400 when a date is missing or invalid, or from_date > to_date
+  ```
+  `name` is `accountPathName(path)` (dbu6-shared). "Not in a sub-account" rows are the
+  client's, from `own` on a node with children.
+- **Handler `packages/api/app/reports/income-expenses.ts`**, `incomeExpensesReport(sqlite,
+  query)`, mounted in `app/reports.ts`, authorised as the other reports
+  (`authorizeReport(c, "income-expenses")`; check the ability grants it). Tests on an
+  in-memory ledger: the tree (parent entries, a three-level branch, one account above
+  every group, a parent loop), the section totals equal to the income statement's on the
+  same ledger, zero-filled months, `first_month`, the 400s.
+- **Frontend:** `reportsApi.incomeExpenses` (React Query, as `queries.ts` does);
+  `src/reports/income-expenses/`: `IncomeExpensesPage.tsx`, `period.ts` (reading and
+  writing the query string, resolving presets and picked months against `today()`,
+  matching a range to a preset, the single-month test), `chart.ts` (bars from months:
+  monthly up to 24, financial years beyond, the "so far" bar, the range a click selects),
+  `figures.ts` (the figures' lines and the Remaining panel's tone), `MonthChart.tsx`,
+  `AccountRows.tsx`. `period.ts`, `chart.ts` and `figures.ts` have tests.
+- **Colours:** `components/category.ts` loses `categoryGroup` and `categoryHue` (they
+  found the group from the name) and gains the tree rule above; `CategoryLabel` takes a
+  hue key instead of a path.
+- **Registry:** a new `income-expenses` definition with the everyday card "Where your
+  money went" / "Income and spending for a period". `income-statement` and
+  `expense-breakdown` lose their everyday cards (their accounting card and All tools
+  entry stay). The everyday group has five cards.
+
+**Components used:** `Screen`, `Amount`, `EmptyState`, `LoadError`, dbu6 `Button`
+(ghost), `Select` (P2), a new `components/ui/toggle-group.tsx` on Base UI's ToggleGroup
+(D5), Sapporta's `Popover` and `Tooltip`, `accountLedgerHref`, `today()`
+(`reports/shared.tsx`), the format module (`plural`, `formatDate`, `formatDaySpan`,
+`formatMoney`).
+
+**Old screens retired or folded in**
+- Nothing is deleted. The Spending breakdown and Income statement everyday cards retire;
+  both reports stay on All tools, and the income statement is the accountant's view
+  linked from the page.
+- Not built (from the handoff): the separate "Every category" view, "Download", the
+  Revenue / Expenses / Net income card, a "Money in / Money out / You saved" wording.
+- **Follow-ups:** a CSV download of the rows; P6 decides how an account's parent gets set
+  (never from its name); a colour stored on the account (P6).
+
+**Done criteria (page-specific, plus §4.9)**
+- Tests as listed: `accountTree`, the amounts module through the three grids, the handler
+  and contract, `period.ts` (every preset on days either side of a month end and of 1
+  April, in the workspace's zone; query string precedence; preset matching; picked months
+  capped at today), `chart.ts` (24 and 25 months, the "so far" bar, click ranges),
+  `figures.ts` (a negative Remaining, zero income).
+- In the browser with the seed: the default shows Last 12 months, and its figures equal
+  the income statement's section totals for the same dates (through the page's link);
+  each preset and Pick months change the page and the URL; clicking a bar narrows to that
+  month; a row opens level by level; "›" opens Account history with the dates and the same
+  total; with an entry on a parent account (SQL, restored after), its "not in a
+  sub-account" row appears; with one account made the parent of every spending group
+  (SQL, restored after), Spending shows one row that opens to the groups; an empty period
+  shows the empty state.
+- No colon paths outside `title` attributes; every figure mono; every amount signed.
+- `pnpm typecheck`, `pnpm test`, `pnpm format:check`; screenshots at 1920 and 390 in
+  `tmp/redesign/p4/` (default, a financial year, a picked month, rows opened, one account
+  above every group, empty, remaining negative).
 
 ### P5 · All tools (handoff: Advanced): Status: Not started
 - Renamed labels, with their technical names still visible.
@@ -2233,6 +2373,82 @@ the account ledger never finished on a loop in `parent_id` (§13).
 ## 13. Progress log
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
+
+- 2026-09-16 · Step 6, P4 · Where your money went built as specified (§11 P4). Uncommitted at the time of writing.
+  - **shared:** `reportsContract.incomeExpenses` with `incomeExpensesSchema` and the
+    recursive `incomeExpensesAccountSchema` (a zod getter; the OpenAPI document emits it).
+    The query refuses a missing date, one not on the calendar or not `YYYY-MM-DD`, and
+    dates out of order, so Sapporta's router answers 400 before the handler runs.
+  - **api:** `app/reports/account-amounts.ts` (`loadAccountAmounts`, `loadMonthlyAmounts`).
+    The income statement, Spending breakdown and Monthly summary read it instead of their
+    own queries; `monthlySummaryReport` is exported like the other two. `accountTree` in
+    `app/account-tree.ts`. `app/reports/income-expenses.ts` (`incomeExpensesReport`,
+    `monthsBetween`), mounted in `app/reports.ts` under `reports:income-expenses`, which
+    owners have through `manage all`; `first_month` is the first row of the monthly
+    amounts over all time. Tests: `account-tree.test.ts` (the tree, empty subtrees, ties,
+    a loop), `account-amounts.test.ts` (signs, zeros, types, dates, scope, and the three
+    grids reading it), `income-expenses.test.ts` (the tree with parent entries and a
+    three-level branch, the income statement's totals, one account above every group, a
+    loop, zero-filled months, `first_month`, an empty period, the query's refusals), and
+    the route in `app.test.ts`.
+  - **frontend:** `src/reports/income-expenses/` as §2.1 lists it; `incomeExpensesQuery` in
+    `queries.ts` (`keepPreviousData`, so a new period keeps the last figures until its own
+    arrive); `components/ui/toggle-group.tsx` (Base UI ToggleGroup, pills styled as Review's
+    tabs, with `togglePillClassName` for the Pick months trigger beside it). `format.ts`
+    gained `formatMonth`, `formatMonthSpan`, `monthName`, `formatDaySpan`'s
+    `months: "long"` and `formatDateRange`'s joiner. `category.ts` lost `categoryGroup` and
+    `categoryHue` for `ownHue` and `accountHue`; `CategoryLabel` takes `path` and `hue`, and
+    `TransactionRow`'s `categoryPath` became `category: { path, hue }` (no screen renders
+    it). Registry: `income-expenses` with the everyday card; `income-statement` and
+    `expense-breakdown` lost theirs. Tests: `period.test.ts` (every preset on 30 September,
+    1 October, 31 March and 1 April, and at 01:30 on 1 April in Kolkata through `today()`;
+    query string precedence; the lit preset; picked months capped at today; the labels),
+    `chart.test.ts` (labels, "so far", click dates, 24 and 25 months, the scale),
+    `figures.test.ts` (the lines, a negative Remaining, zero income, a section running the
+    other way, shares), `category.test.ts`, `format.test.ts`, and a render test,
+    `IncomeExpensesPage.test.tsx` (not asked for: the default request and a preset in the
+    URL, picked dates lighting their preset, a bar narrowing to its month, rows opening level
+    by level with "Food, not in a sub-account" last, the ledger link, Collapse all, the
+    income statement link, the empty state, spending higher than income).
+  - **Verified:** `pnpm typecheck`, `pnpm format:check`, frontend tests (138), API tests (286
+    pass; the four XLS parser tests fail on the pip `xlwt` permission issue, as before). On
+    a copy of the seed database through the compiled handlers: for Last 12 months, this and
+    last financial year, September so far and April 2026, the page's income and spending
+    totals equal the income statement's sections, Spending breakdown's footer and Monthly
+    summary's totals, and the account counts equal the statement's rows (9 and 49 over the
+    last 12 months). September so far has spending and no income, so Remaining is negative.
+  - **Not verified in the browser yet:** the dev app needs a sign-in, which the agent
+    doesn't do. Still to walk through with the seed, per the done criteria: the default and
+    the income statement link's totals, each preset and Pick months, a bar click, rows and
+    "›", a parent entry and one account above every group (SQL, restored after), the empty
+    state; screenshots in `tmp/redesign/p4/`.
+  - **Filled in while building:**
+    - "With entries" reads as a nonzero amount in the period, as the income statement's
+      grid does: an account whose entries cancel out is left out of the tree and the counts.
+    - An account named "other" asks for no hue (it's the fallback key), so
+      `expenses:food:other` inherits food's colour.
+    - Every account in a parent loop becomes a top account; one hanging below a loop member
+      stays its child.
+    - The Pick months menus run from `first_month`, or the period's first month if earlier,
+      to this month, or the period's last if later, so a link's dates always show. A picked
+      To in a future month ends today.
+    - Pressing the lit preset again keeps it (the toggle group would otherwise unpress it).
+    - A financial-year bar holding today reads "so far" while the period ends today;
+      clicking one selects the whole year up to today, even when the period started
+      inside it.
+    - `ReportDefinition` gained an optional `description`, so Spending breakdown keeps its
+      line on All tools without a card.
+  - **Deviations:**
+    - The six pills don't fit beside the title in the 1040px column, so the header wraps
+      them under it at desktop too.
+    - The three figures are their own mono spans, not `Amount`, so their size can shrink
+      below 33px in a narrow tile (`min(33px, 100cqw/9)`) and a crore still fits.
+    - Figures in the tooltip and the "more spent" line carry paise, as `Amount` does; the
+      spec's examples showed whole rupees.
+  - **Follow-ups:** a CSV download of the rows; P6 decides how an account's parent gets set;
+    a colour stored on the account (P6). On touch screens a tap on a bar narrows the page
+    before its tooltip can show. Check in the screenshots whether deep rows at 390px leave
+    the name enough room beside an 18px amount.
 
 - 2026-09-16 · Second legibility review of P1–P3 · Four findings fixed at the owner's request;
   screen copy unchanged.
@@ -2311,15 +2527,24 @@ Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and foll
   - **Follow-ups:** the sidebar badge still counts through the table API (owner: keep it
     for now). `ReclassifyDrafts.tsx` and `RenderDraftHledger.tsx` still load with their own
     effects; P8 rebuilds them.
-- 2026-09-16 · Step 6, P4 · Discussion started; report tree bugs fixed. Uncommitted at the time of writing.
-  - **Decided:** P4 questions 1–9 (§11 P4): a new `/reports/income-expenses` page, the
+- 2026-09-16 · Step 6, P4 · Spec agreed with the owner (§11 P4); report bugs fixed. Uncommitted at the time of writing.
+  - **Decided:** P4 (§11 P4): a new `/reports/income-expenses` page, the
     income statement grid kept, Spending breakdown folded in; one page, no separate full
     detail view; the figures are Income, Spending and Remaining; financial-year presets,
     defaulting to Last 12 months; Pick months with two month menus, no calendar (D5);
     the lists follow `parent_id` level by level, never the account name (made an app-wide
     rule, §2.1), so one account above every group still works; the month chart, where
-    clicking a month narrows the page; drafts are ignored outside the draft workflow; rows open level by level with a link to
-    Account history, and one link to the income statement at the bottom.
+    clicking a month narrows the page; drafts are ignored outside the draft workflow;
+    rows open level by level with a link to Account history, and one link to the income
+    statement at the bottom; a JSON endpoint on a shared amounts module; no Download.
+  - **Filled in while writing, not asked separately:** the figures' lines count accounts
+    ("From 9 accounts", "Across 58 accounts") instead of "Mostly salary" and "17 groups",
+    which assumed a fixed group level; Remaining has no sign when positive; the lists
+    are two stacked full-width cards (the tree needs the indent width); "not in a
+    sub-account" rows; shares of the whole section; rows running the other way; colours
+    through the tree; Last 12 months ends today; picked months end today at the latest;
+    a bar click narrows to that month or financial year; Monthly summary joins the
+    shared amounts module; `CategoryLabel` takes a hue key.
   - **Report screens count today in the workspace's time zone** (owner's request).
     `reports/shared.tsx` exported `today` as a constant, the UTC date when the module
     loaded: in India it was yesterday until 05:30, it didn't follow midnight, and it was
