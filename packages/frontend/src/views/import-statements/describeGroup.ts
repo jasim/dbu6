@@ -3,45 +3,45 @@ import {
   formatBalance,
   formatDate,
   formatDateRange,
-  formatSigned,
   joinNames,
   maskIdentifier,
   parserLabel,
   plural,
 } from "./format";
 
-// A labelled number or fact, for tiles and tables. Never a sentence.
+// A labelled fact, for the facts tables. Values are figures (money, dates,
+// counts, codes) set in mono unless marked as words.
 export interface Stat {
   label: string;
   value: string;
+  face?: "figure" | "words";
 }
 
-// What one account's import means to the user, laid out to be scanned:
-// whose statement, the one-line verdict, the numbers, then the breakdown.
+// One account's row in the results card, laid out to be scanned: whose
+// statement, the status, the counts, the balances, then the details.
 export interface GroupSummary {
   tone: "new" | "nothing-new";
   // The account the statement went into: the preset's name.
   title: string;
   // Institution, account number, statement span and files, as one caption.
   caption: string;
-  // The one sentence that matters. No numbers beyond the count that is the
-  // point of the sentence.
-  verdict: string;
-  // The headline counts and balances, as tiles.
-  stats: Stat[];
-  // Where the rows that were not new went. Empty when everything was new.
+  // The status chip's words: "21 new" or "Nothing new".
+  chip: string;
+  // The counts as a sentence: "8 in the statement: 5 new, 3 already in your
+  // books".
+  counts: string;
+  balances:
+    | { tone: "verified"; text: string; figures: string }
+    | { tone: "unverified"; text: string; figures: null };
+  // "Named 6 UPI payments from Google Pay", or null when none were named.
+  gpay: string | null;
+  // Collapsed under "Details": where the rows that were not new went (empty
+  // when everything was new), then the facts behind the import.
   breakdown: Stat[];
-  balances: {
-    tone: "verified" | "unverified";
-    // Two or three words for the status pill.
-    text: string;
-    // Why, or where the balances came from. Null when nothing needs saying.
-    caption: string | null;
-  };
   details: Stat[];
 }
 
-export const REVIEW_DRAFTS_ROUTE = "/views/reclassify-drafts";
+export const REVIEW_DRAFTS_ROUTE = "/review";
 
 type Balance = AutoImportGroupResult["result"]["balance_metadata"]["opening"];
 
@@ -58,28 +58,16 @@ function sourceLabel(source: Balance["source"]): string {
   }
 }
 
-function verdict(group: AutoImportGroupResult): {
-  tone: GroupSummary["tone"];
-  text: string;
-} {
+function counts(group: AutoImportGroupResult): string {
   const { draft_transaction_count: fresh, transaction_count: total } =
     group.result;
-  if (total === 0) {
-    return {
-      tone: "nothing-new",
-      text: "The statement has no transactions.",
-    };
-  }
-  if (fresh === 0) {
-    return {
-      tone: "nothing-new",
-      text: `Nothing new. All ${plural(total, "transaction")} ${total === 1 ? "was" : "were"} already in your books.`,
-    };
-  }
-  return {
-    tone: "new",
-    text: `${plural(fresh, "new transaction")} ready to review.`,
-  };
+  if (total === 0) return "The statement has no transactions.";
+  const known = total - fresh;
+  const parts = [
+    fresh > 0 ? `${fresh} new` : null,
+    known > 0 ? `${known} already in your books` : null,
+  ].filter((part): part is string => part !== null);
+  return `${total} in the statement: ${parts.join(", ")}`;
 }
 
 function caption(
@@ -121,39 +109,6 @@ function caption(
     .join(" · ");
 }
 
-function stats(group: AutoImportGroupResult): Stat[] {
-  const r = group.result;
-  const cc = group.is_credit_card;
-  const { opening, closing } = r.balance_metadata;
-  const rows: Stat[] = [
-    { label: "New", value: String(r.draft_transaction_count) },
-    { label: "In statement", value: String(r.transaction_count) },
-  ];
-  const known = r.transaction_count - r.draft_transaction_count;
-  if (known > 0) {
-    rows.push({ label: "Already in books", value: String(known) });
-  }
-  if (opening.effective !== null) {
-    rows.push({
-      label: "Opening",
-      value: formatBalance(opening.effective, cc),
-    });
-  }
-  if (closing.effective !== null) {
-    rows.push({
-      label: "Closing",
-      value: formatBalance(closing.effective, cc),
-    });
-  }
-  if (!cc && opening.effective !== null && closing.effective !== null) {
-    rows.push({
-      label: "Net change",
-      value: formatSigned(closing.effective - opening.effective),
-    });
-  }
-  return rows;
-}
-
 function breakdown(group: AutoImportGroupResult): Stat[] {
   const r = group.result;
   const rows: Stat[] = [];
@@ -167,7 +122,7 @@ function breakdown(group: AutoImportGroupResult): Stat[] {
   }
   if (r.draft_duplicate_count > 0) {
     rows.push({
-      label: "Already waiting in Drafts from an earlier import",
+      label: "Already waiting in Review from an earlier import",
       value: String(r.draft_duplicate_count),
     });
   }
@@ -181,53 +136,29 @@ function breakdown(group: AutoImportGroupResult): Stat[] {
 }
 
 function balances(group: AutoImportGroupResult): GroupSummary["balances"] {
+  const cc = group.is_credit_card;
   const { opening, closing } = group.result.balance_metadata;
   if (closing.effective === null) {
     return {
       tone: "unverified",
-      text: "Not verified",
-      caption: "The statement prints no closing balance to check against.",
+      text: "Balances not checked: the statement prints no closing balance",
+      figures: null,
     };
   }
-  if (opening.effective === null) {
-    return {
-      tone: "verified",
-      text: "Verified",
-      caption: "Closing balance matches the statement's own running balances.",
-    };
-  }
-  if (opening.source === "statement" && closing.source === "statement") {
-    return {
-      tone: "verified",
-      text: "Verified",
-      caption: "Opening and closing balances exactly as the statement prints.",
-    };
-  }
-  const provenance: string[] = [];
-  if (opening.source === "checkpoint") {
-    provenance.push(
-      "opening taken from your books' last confirmed balance, as the statement prints none",
-    );
-  }
-  if (closing.source === "per-row") {
-    provenance.push("closing taken from the last row's printed balance");
-  }
-  const caption =
-    provenance.length === 0
-      ? null
-      : `${provenance.join("; ").replace(/^./, (c) => c.toUpperCase())}.`;
-  return { tone: "verified", text: "Verified", caption };
+  const closingText = formatBalance(closing.effective, cc);
+  return {
+    tone: "verified",
+    text: "Balances match the statement",
+    figures:
+      opening.effective === null
+        ? closingText
+        : `${formatBalance(opening.effective, cc)} → ${closingText}`,
+  };
 }
 
 function details(group: AutoImportGroupResult): Stat[] {
   const r = group.result;
   const rows: Stat[] = [{ label: "Ledger account", value: group.base_account }];
-  if (r.gpay_enriched_count > 0) {
-    rows.push({
-      label: "Descriptions enriched from Google Pay",
-      value: String(r.gpay_enriched_count),
-    });
-  }
   const parsers = Array.from(new Set(r.custom_statement_parser_paths ?? []));
   if (parsers.length > 0) {
     rows.push({
@@ -239,7 +170,8 @@ function details(group: AutoImportGroupResult): Stat[] {
   }
   rows.push({
     label: "Balance sources",
-    value: `opening ${sourceLabel(r.balance_metadata.opening.source)}, closing ${sourceLabel(r.balance_metadata.closing.source)}`,
+    value: `Opening ${sourceLabel(r.balance_metadata.opening.source)}, closing ${sourceLabel(r.balance_metadata.closing.source)}`,
+    face: "words",
   });
   if (r.reconciliation_checkpoint) {
     rows.push({
@@ -256,15 +188,20 @@ export function describeGroup(
   group: AutoImportGroupResult,
   sources: readonly AutoImportPlanFile[] = [],
 ): GroupSummary {
-  const head = verdict(group);
+  const fresh = group.result.draft_transaction_count;
+  const enriched = group.result.gpay_enriched_count;
   return {
-    tone: head.tone,
+    tone: fresh > 0 ? "new" : "nothing-new",
     title: group.preset_name,
     caption: caption(group, sources),
-    verdict: head.text,
-    stats: stats(group),
-    breakdown: breakdown(group),
+    chip: fresh > 0 ? `${fresh} new` : "Nothing new",
+    counts: counts(group),
     balances: balances(group),
+    gpay:
+      enriched > 0
+        ? `Named ${plural(enriched, "UPI payment")} from Google Pay`
+        : null,
+    breakdown: breakdown(group),
     details: details(group),
   };
 }

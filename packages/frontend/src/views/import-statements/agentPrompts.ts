@@ -40,7 +40,7 @@ export function unrecognizedPrompt(facts: {
       ? "There is no saved parser at all for this file extension yet."
       : `The parsers it tried and that rejected the file were: ${list(facts.candidateParserPaths)}.`;
   return `I tried to import a bank statement into my books app (this repository) through
-the automatic importer at /views/import-statements. It said no saved parser
+the automatic importer at /import. It said no saved parser
 recognised the file, so nothing was imported. Please build a deterministic
 parser for this statement format so the import works.
 
@@ -80,7 +80,7 @@ export function ambiguousPrompt(facts: {
   matchingParserPaths: readonly string[];
 }): string {
   return `The automatic statement importer in this repository
-(POST /api/import-draft/statements/auto, screen /views/import-statements)
+(POST /api/import-draft/statements/auto, screen /import)
 reported that ${facts.fileName} matched more than one saved parser:
 ${list(facts.matchingParserPaths)}. Auto-detection requires exactly one match,
 so nothing was imported.

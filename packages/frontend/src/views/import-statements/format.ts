@@ -24,13 +24,6 @@ export function formatBalance(
   return `${formatMoney(value)} in credit`;
 }
 
-// A signed difference with an explicit sign, for net changes.
-export function formatSigned(value: number): string {
-  const rounded = Math.round(value * 100) / 100;
-  if (rounded === 0) return formatMoney(0);
-  return `${rounded > 0 ? "+" : "−"}${formatMoney(Math.abs(rounded))}`;
-}
-
 const MONTHS = [
   "Jan",
   "Feb",
@@ -76,6 +69,22 @@ export function formatDateRange(from: string, to: string): string {
 // An account or card number is shown by its last four characters only.
 export function maskIdentifier(identifier: string): string {
   return `ending ${identifier.slice(-4)}`;
+}
+
+// A file's size as a file manager shows it: "840 B", "24 KB", "1.2 MB".
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// The file type a tile shows: the extension, uppercased. "statement.xls" ->
+// "XLS"; a name with no extension, or an unreadably long one, -> "FILE".
+export function fileTypeLabel(fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  const extension = dot <= 0 ? "" : fileName.slice(dot + 1);
+  if (extension === "" || extension.length > 4) return "FILE";
+  return extension.toUpperCase();
 }
 
 export function plural(count: number, one: string, many = `${one}s`): string {

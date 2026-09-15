@@ -17,6 +17,11 @@ const DOT: Record<StatusTone, string> = {
   problem: "bg-destructive",
 };
 
+/** The text colour of a tone, for a status line set in words. */
+export function statusTextClass(tone: StatusTone): string {
+  return TEXT[tone];
+}
+
 /**
  * An account's or a file's status: a dot and a word. The word carries the
  * meaning, so the state survives greyscale and colour blindness.

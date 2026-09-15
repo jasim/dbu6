@@ -6,6 +6,7 @@ import { usePageTitle } from "@sapporta/frontend/shell";
 import { homeApi } from "../api";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/empty-state";
+import { Screen } from "../components/screen";
 import { NextStepCard } from "../components/next-step-card";
 import { StatusChip, type StatusTone } from "../components/status-chip";
 import { accountLedgerHref } from "../reports/links";
@@ -50,11 +51,10 @@ export function Home() {
   const view = summary ? homeState(summary) : null;
 
   return (
-    <div className="flex-1 overflow-y-auto bg-sap-surface">
-      <div className="mx-auto max-w-[1040px] px-5 py-8 sm:px-8 sm:py-10 lg:px-14">
-        {/* Clear of the shell's content-side sidebar toggle, as Sapporta's
-            PageHeader does through the same variable. */}
-        <header className="[padding-left:var(--sap-page-header-inset,0px)]">
+    <Screen
+      width="wide"
+      header={
+        <>
           <p className="text-label uppercase text-ink-meta">{todayLabel()}</p>
           {view ? (
             <h1 className="mt-2 text-title text-foreground sm:text-display">
@@ -69,48 +69,48 @@ export function Home() {
           {workspaceName && (
             <p className="mt-2 text-body text-ink-meta">{workspaceName}</p>
           )}
-        </header>
-
-        <div className="mt-8">
-          {error ? (
-            <LoadError message={error} retry={() => setAttempt((n) => n + 1)} />
-          ) : view ? (
-            <StepCard card={view.card} />
-          ) : (
-            <div
-              aria-hidden="true"
-              className="h-[132px] rounded-card border border-sap-border bg-card"
-            />
-          )}
-        </div>
-
-        <section className="mt-6 rounded-card border border-sap-border bg-card shadow-card">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-3 pt-5">
-            <h2 className="text-heading text-foreground">Your accounts</h2>
-            <Button
-              render={<Link to="/accounts" />}
-              nativeButton={false}
-              variant="ghost"
-              size="sm"
-            >
-              Add an account
-            </Button>
-          </div>
-          {summary ? (
-            <AccountList accounts={summary.accounts} />
-          ) : error ? null : (
-            <ul aria-hidden="true" className="px-6 pb-5">
-              {[0, 1, 2].map((i) => (
-                <li
-                  key={i}
-                  className="my-2 h-[52px] rounded-control bg-sap-nested"
-                />
-              ))}
-            </ul>
-          )}
-        </section>
+        </>
+      }
+    >
+      <div className="mt-8">
+        {error ? (
+          <LoadError message={error} retry={() => setAttempt((n) => n + 1)} />
+        ) : view ? (
+          <StepCard card={view.card} />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="h-[132px] rounded-card border border-sap-border bg-card"
+          />
+        )}
       </div>
-    </div>
+
+      <section className="mt-6 rounded-card border border-sap-border bg-card shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-3 pt-5">
+          <h2 className="text-heading text-foreground">Your accounts</h2>
+          <Button
+            render={<Link to="/accounts" />}
+            nativeButton={false}
+            variant="ghost"
+            size="sm"
+          >
+            Add an account
+          </Button>
+        </div>
+        {summary ? (
+          <AccountList accounts={summary.accounts} />
+        ) : error ? null : (
+          <ul aria-hidden="true" className="px-6 pb-5">
+            {[0, 1, 2].map((i) => (
+              <li
+                key={i}
+                className="my-2 h-[52px] rounded-control bg-sap-nested"
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+    </Screen>
   );
 }
 

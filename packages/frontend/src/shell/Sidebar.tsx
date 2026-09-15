@@ -237,11 +237,18 @@ function BottomBarItem({
   count: number | null;
 }) {
   const Icon = item.icon;
+  const shown = item.shortLabel ?? item.label;
   return (
     <Link
       to={item.to}
       aria-current={active ? "page" : undefined}
-      aria-label={count === null ? undefined : `${item.label}, ${count}`}
+      aria-label={
+        count !== null
+          ? `${item.label}, ${count}`
+          : shown === item.label
+            ? undefined
+            : item.label
+      }
       className={cn(
         ITEM_BASE,
         "relative h-12 min-w-[64px] flex-col justify-center gap-1 rounded-control px-2 text-[13px]",
@@ -253,7 +260,7 @@ function BottomBarItem({
       ) : (
         <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
       )}
-      <span className="max-w-[80px] truncate">{item.label}</span>
+      <span className="max-w-[80px] truncate">{shown}</span>
       {count !== null && <CountBadge count={count} compact />}
     </Link>
   );

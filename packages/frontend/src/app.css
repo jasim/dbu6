@@ -140,6 +140,11 @@
   /* The category pill's fill */
   --category-bg: #f5f6f6;
 
+  /* Import: the dropzone's fill, and the tiles that carry a glyph or a file
+     type (the dropzone's arrow, XLS, PDF) */
+  --dropzone-bg: #fcfcfc;
+  --tile-bg: #eff1f1;
+
   /* Category hues: one per top-level group; children inherit. The first
      name is the design's key, the alias is the seeded dbu6 group name. */
   --cat-taxes: #475569;
@@ -252,6 +257,8 @@
   --color-waiting-button-fg: var(--waiting-button-fg);
   --color-sidebar-avatar: var(--sidebar-avatar);
   --color-category-bg: var(--category-bg);
+  --color-dropzone-bg: var(--dropzone-bg);
+  --color-tile-bg: var(--tile-bg);
 }
 
 /* ── 4. Base rules ───────────────────────────────────────────────────────

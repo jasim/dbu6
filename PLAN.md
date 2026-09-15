@@ -9,9 +9,9 @@
   (seen 2026-09-15); the Sapporta checkout is on `main`.
 - **Done:** Step 3, the app shell (§8), Step 4, Sapporta's surfaces (§9), and Step 5,
   dbu6's components and cleanup (§10), all 2026-09-15.
-- **Done:** Step 6, P0 and P1 (§11), each spec agreed and built 2026-09-15.
-- **Spec agreed:** Step 6, P2 (§11, Import statements) and P3 (§11, Review), both 2026-09-15.
-- **Next:** build P2 as specified, then P3.
+- **Done:** Step 6, P0, P1 and P2 (§11), each spec agreed and built 2026-09-15.
+- **Spec agreed:** Step 6, P3 (§11, Review), 2026-09-15.
+- **Next:** build P3 as specified.
 
 This file stands on its own. A coding agent should be able to pick up any step using only
 this file, the two repositories, and (when it is on disk) the design handoff folder. You do
@@ -193,7 +193,10 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
 - **`src/SapportaRoutes.tsx`** holds the framework routes: sign-in and sign-up screens,
   `/account/profile`, `/workspace/settings`, `/tables/:tableName`, `/tables/:tableName/new`,
   `/setup/:tableName/new`, and not found.
-- **Page frames.** dbu6 pages use one of three:
+- **Page frames.** dbu6 pages use one of four:
+  - `Screen` and `ScreenTitle` (`src/components/screen.tsx`, since P2): no header bar, the
+    title at the top of a scrolling centred column (`wide` 1040px for Home, `narrow` for
+    Import and freeform import), clear of `--sap-page-header-inset`;
   - `AppPage` (`@sapporta/frontend/shell`): page frame, 52px header bar, scrolling body;
   - `ReportScreenFrame` + `ReportToolbar` + `ReportGridDataset` (`@sapporta/frontend/report`);
   - `SchemaTableGridView` (`@sapporta/frontend`): the Sapporta data grid bound to a table.
@@ -1610,7 +1613,7 @@ report stays on All tools.
 - The page makes one request. No colon paths outside `title` attributes.
 - `pnpm typecheck`, `pnpm test`, `pnpm format:check`.
 
-### P2 · Import statements (handoff: Import): Status: Spec agreed (2026-09-15)
+### P2 · Import statements (handoff: Import): Status: Built (2026-09-15)
 
 Agreed with the project owner on 2026-09-15, one question at a time. **The page keeps
 today's flow**: drop the files, press one button, and the server imports in one request
@@ -2140,6 +2143,72 @@ app was doing, the facts, what to do, what not to do, what to report back):
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
 
+- 2026-09-15 · Step 6, P2 · Import statements built as specified (§11 P2). Uncommitted at the time of writing.
+  - **Shell:** dbu6's `NavigationItem` has `shortLabel`; the bottom bar prints it and keeps
+    the full label as the accessible name; Import statements sets "Import". Two
+    `AppShell.test.tsx` cases.
+  - **Import page** (`views/AutoImportStatements.tsx`): the shared `Screen` frame; the
+    dropzone, file rows, type tiles and Google Pay row in `import-statements/files.tsx`; no
+    extension filter; the import button with its waiting reason and importing note; the done
+    state ("Review N transactions" → `/review`, "Import more statements"); the failure state
+    keeps the dropzone, the list and the import button. `cards.tsx` has one `ResultsCard`
+    (a row per account) and the new `ProblemCard`; `AccountCard`, the tiles and the hledger
+    disclosure are gone.
+  - **Describe modules:** `describeProblems` gives every problem a tone through one table
+    (`problemTone`: attention for `auto_import_files_unresolved`,
+    `opening_balance_unavailable`, `closing_balance_unavailable`,
+    `statement_part_unjoinable` and 403; destructive for everything else), adds "Import them
+    freeform instead" to the unrecognised card, and shows the difference for
+    `segment_balance_mismatch`. `describeBatch` returns a tone and the "what next" sentence;
+    `describeFileStatus` takes the failed account's tone. `describeGroup` returns the row's
+    chip, counts sentence, balances line and Google Pay line. Every "Process" is "Import".
+    `REVIEW_DRAFTS_ROUTE` is `/review`; `agentPrompts.ts` names `/import`. `format.ts` gained
+    `formatFileSize` and `fileTypeLabel` (tested) and lost the unused `formatSigned`.
+  - **Freeform import:** on `Screen`; `components/ui/radio-group.tsx` (segmented) and
+    `components/ui/select.tsx` on Base UI replace the native radios and select.
+  - **Verified:** `pnpm typecheck`, `pnpm format:check`, frontend tests (66, including a
+    test per tone group). In the browser (a Playwright walk-through in the session
+    scratchpad, at 1920 and 390), with a temporary presets file and two temporary accounts
+    fed by copies of the stanc-bank-csv and hdfc-cc-csv fixtures, all restored or deleted
+    afterwards: a successful import with a Takeout added through its row ("Named 1 UPI
+    payment from Google Pay"; "Review 8 transactions" opens `/review`); the same files again
+    (nothing new, one primary); an `.html` dropped on the zone (attention, the freeform
+    button, "Remove this file and import the rest" then a retry); a gap between two
+    statements of one account (destructive, figures shown); a partial import (1920); the
+    bottom bar reads "Import" untruncated; no visible native file input, radio or select on
+    either screen; freeform still builds the prompt for the chosen account, by mouse and
+    keyboard. Screenshots in `tmp/redesign/p2/`: `import-empty`, `import-files-added`,
+    `import-importing`, `import-done`, `import-done-details`, `import-nothing-new`,
+    `import-problem-attention`, `import-problem-destructive`, `import-problem-partial`,
+    `freeform`, `freeform-select-open`, `freeform-prompt`, each also `-390` (except
+    importing and partial).
+  - **Deviations:** the frame is a shared `components/screen.tsx`, and Home moved onto it
+    unchanged. The "N statements" heading sits above the file card, as in the handoff; the
+    dropzone keeps the handoff's ↑ tile. A chosen Takeout row adds a quiet "Names from Google
+    Pay" line so it doesn't read as a statement. "Clear all" clears the statements, not the
+    Takeout. Two tokens in `app.css` section 2, `--dropzone-bg` (#FCFCFC) and `--tile-bg`
+    (#EFF1F1), since hex stays out of components. The nothing-new sentence reads "imported
+    for" (was "processed for"). The Details breakdown says "Already waiting in Review" (was
+    "in Drafts"). Fact values gained a `face` so sentences aren't set in mono. The problem
+    tones use `StatusChip`'s names (`problem` is destructive). The balances line shows only
+    the closing figure when the statement prints no opening (the stanc CSV). The Select's
+    list starts at the trigger's left edge and is capped at the available width, so long
+    account paths wrap at 390px.
+  - **Findings:** the saved parsers check their own totals and running balances, so editing
+    one amount in a fixture gets the file rejected as unrecognised rather than reaching the
+    importer's `balance_mismatch`; the destructive tone was verified with
+    `statement_boundary_mismatch`. An import categorises new rows through the configured
+    Nuabase LLM, which is most of its time. The shell scrolls an inner region, so
+    Playwright's `fullPage` screenshots stop at the viewport (the script sizes the viewport
+    to the content first). Playwright's `:visible` counts Base UI's clipped 1px form inputs.
+    In a full `pnpm test`, the stanc-bank-csv and stanc-cc parser tests can hit vitest's 10s
+    timeout under load; both pass on their own. The two XLS parser tests still fail here
+    (pip, see P0).
+  - **Follow-ups:** a file's status line repeats the account when the statement prints no
+    institution ("Sample Savings statement … → Sample Savings"); the ▸ ▾ glyphs render small
+    in Schibsted Grotesk; a file dropped outside the zone still opens in the browser
+    (as before); `Stat` lives in `describeGroup.ts` but serves both describe modules; the
+    Import page has no component test for its state changes (the walk-through covers them).
 - 2026-09-15 · Step 6, P3 · Spec agreed with the owner (§11 P3); nothing built.
   - **Decided:** import stays as P2 specifies. The owner first heard, and rejected, an idea
     to limit each import to one account. Review starts by picking one account that has

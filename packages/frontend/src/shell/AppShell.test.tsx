@@ -61,6 +61,7 @@ const AUTH_CONTEXT = {
 const NAVIGATION: Navigation = {
   everyday: [
     { label: "Home", to: "/" },
+    { label: "Import statements", shortLabel: "Import", to: "/import" },
     { label: "Review", to: "/review", badge: "needsCategory" },
     { label: "Reports", to: "/reports" },
   ],
@@ -205,7 +206,7 @@ describe("dbu6 app shell", () => {
     const hrefs = Array.from(nav?.querySelectorAll("a") ?? []).map((a) =>
       a.getAttribute("href"),
     );
-    expect(hrefs).toEqual(["/", "/review", "/reports", "/tools"]);
+    expect(hrefs).toEqual(["/", "/import", "/review", "/reports", "/tools"]);
     expect(nav?.querySelector("hr")).toBeInstanceOf(HTMLElement);
     expect(nav?.textContent).not.toContain("Everyday");
   });
@@ -221,8 +222,27 @@ describe("dbu6 app shell", () => {
     const hrefs = Array.from(bars[0].querySelectorAll("a")).map((a) =>
       a.getAttribute("href"),
     );
-    expect(hrefs).toEqual(["/", "/review", "/reports"]);
+    expect(hrefs).toEqual(["/", "/import", "/review", "/reports"]);
     expect(host.querySelector('a[href="/tools"]')).toBeNull();
+  });
+
+  it("prints the short label on the bottom bar and keeps the full name", async () => {
+    installMedia({ desktop: false });
+    await renderShell(page("Application content"));
+
+    const item = host.querySelector<HTMLAnchorElement>(
+      'nav[aria-label="Primary"].fixed a[href="/import"]',
+    );
+    expect(item?.textContent).toBe("Import");
+    expect(item?.getAttribute("aria-label")).toBe("Import statements");
+  });
+
+  it("keeps the full label in the sidebar", async () => {
+    installMedia({ desktop: true });
+    await renderShell(page("Application content"));
+
+    expect(navLink("/import").textContent).toBe("Import statements");
+    expect(navLink("/import").getAttribute("aria-label")).toBeNull();
   });
 });
 

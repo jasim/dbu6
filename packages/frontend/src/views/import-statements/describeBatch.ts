@@ -1,14 +1,32 @@
 import type { AutoImportPlanFile, AutoImportResult } from "dbu6-shared";
-import type { AutoImportError } from "./describeProblems";
+import type { StatusTone } from "../../components/status-chip";
+import {
+  problemTone,
+  type AutoImportError,
+  type ProblemTone,
+} from "./describeProblems";
 import { joinNames, maskIdentifier, plural } from "./format";
 
-// The one sentence at the top of the result view.
+// The sentence at the top of the outcome, in the tone of what happened: ok
+// when something new came in, waiting when nothing did, and the problem's
+// tone when the import stopped.
 export interface BatchSummary {
-  tone: "success" | "nothing-new" | "failure" | "partial";
+  tone: StatusTone;
   text: string;
-  // Present after a partial import: the files already taken out of the list.
-  removedFiles: string[];
+  // What to do about it, under the sentence. Null when nothing needs doing.
+  next: string | null;
 }
+
+// The transactions an import brought in, across every account.
+export function newTransactionCount(result: AutoImportResult): number {
+  return result.groups.reduce(
+    (sum, group) => sum + group.result.draft_transaction_count,
+    0,
+  );
+}
+
+const FILES_KEPT =
+  "Your files are still in the list above. Once this is sorted out, import them again.";
 
 export function describeBatch(input: {
   result: AutoImportResult | null;
@@ -16,55 +34,54 @@ export function describeBatch(input: {
 }): BatchSummary | null {
   const { result, error } = input;
   if (result) {
-    const fresh = result.groups.reduce(
-      (sum, group) => sum + group.result.draft_transaction_count,
-      0,
-    );
+    const fresh = newTransactionCount(result);
     const statements = plural(result.files.length, "statement");
     const accounts = plural(result.groups.length, "account");
     if (fresh === 0) {
       return {
-        tone: "nothing-new",
-        text: `${statements} processed for ${accounts}. Everything in them was already in your books.`,
-        removedFiles: [],
+        tone: "waiting",
+        text: `${statements} imported for ${accounts}. Everything in them was already in your books.`,
+        next: null,
       };
     }
     return {
-      tone: "success",
+      tone: "ok",
       text: `${statements} imported into ${accounts}. ${plural(fresh, "new transaction")} to review.`,
-      removedFiles: [],
+      next: null,
     };
   }
   if (!error) return null;
+  const tone = problemTone(error);
   if (error.error === "auto_import_files_unresolved") {
     const stuck = error.files.filter((row) => row.status !== "resolved").length;
     return {
-      tone: "failure",
+      tone,
       text: `Nothing was imported. ${stuck} of ${plural(error.files.length, "file")} need${stuck === 1 ? "s" : ""} attention below.`,
-      removedFiles: [],
+      next: FILES_KEPT,
     };
   }
   if (error.importedGroups.length > 0) {
     const done = joinNames(error.importedGroups.map((one) => one.preset_name));
     const failed = error.failedGroup?.preset_name ?? "another account";
+    const removed = error.importedGroups.flatMap((one) => one.file_names);
     return {
-      tone: "partial",
+      tone,
       text: `${done} ${error.importedGroups.length === 1 ? "was" : "were"} imported. ${failed} failed, see below.`,
-      removedFiles: error.importedGroups.flatMap((one) => one.file_names),
+      next: `${joinNames(removed)} ${removed.length === 1 ? "has" : "have"} been taken out of the list above. Fix the problem below and import the rest.`,
     };
   }
   if (error.failedGroup) {
     return {
-      tone: "failure",
+      tone,
       text: `Nothing was imported. ${error.failedGroup.preset_name} failed, see below.`,
-      removedFiles: [],
+      next: FILES_KEPT,
     };
   }
-  return { tone: "failure", text: "Nothing was imported.", removedFiles: [] };
+  return { tone, text: "Nothing was imported.", next: FILES_KEPT };
 }
 
 export interface FileStatus {
-  tone: "ok" | "problem" | "pending";
+  tone: StatusTone;
   text: string;
 }
 
@@ -73,7 +90,8 @@ export function describeFileStatus(
   row: AutoImportPlanFile,
   outcome: {
     importedFiles: ReadonlySet<string>;
-    failedFiles: ReadonlySet<string>;
+    // The files of the account whose import failed, and that problem's tone.
+    failed: { files: ReadonlySet<string>; tone: ProblemTone } | null;
   },
 ): FileStatus {
   switch (row.status) {
@@ -86,21 +104,24 @@ export function describeFileStatus(
       if (outcome.importedFiles.has(row.file_name)) {
         return { tone: "ok", text: `${what} · Imported` };
       }
-      if (outcome.failedFiles.has(row.file_name)) {
-        return { tone: "problem", text: `${what} · Not imported, see below` };
+      if (outcome.failed?.files.has(row.file_name)) {
+        return {
+          tone: outcome.failed.tone,
+          text: `${what} · Not imported, see below`,
+        };
       }
-      return { tone: "pending", text: `${what} · Ready` };
+      return { tone: "waiting", text: `${what} · Ready` };
     }
     case "unrecognized":
-      return { tone: "problem", text: "Not recognised, see below" };
+      return { tone: "attention", text: "Not recognised, see below" };
     case "ambiguous":
       return {
-        tone: "problem",
+        tone: "attention",
         text: "Recognised by more than one reader, see below",
       };
     case "unresolved":
       return {
-        tone: "problem",
+        tone: "attention",
         text: "Recognised, but no account is set up for it, see below",
       };
   }

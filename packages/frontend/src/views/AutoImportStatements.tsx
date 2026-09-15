@@ -1,51 +1,52 @@
-import { useRef, useState, type DragEvent } from "react";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Info,
-  Loader2,
-  Upload,
-  X,
-} from "lucide-react";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { getApiBase } from "@sapporta/frontend/platform";
-import { AppPage } from "@sapporta/frontend/shell";
+import { usePageTitle } from "@sapporta/frontend/shell";
 import type { AutoImportResult } from "dbu6-shared";
+import { cn } from "@sapporta/ui/cn";
+import { Screen, ScreenTitle } from "../components/screen";
 import { Button } from "../components/ui/button";
-import { AccountCard, ProblemCard } from "./import-statements/cards";
+import {
+  OutcomeLine,
+  ProblemCard,
+  ResultsCard,
+} from "./import-statements/cards";
 import {
   describeBatch,
   describeFileStatus,
+  newTransactionCount,
+  type BatchSummary,
 } from "./import-statements/describeBatch";
+import { REVIEW_DRAFTS_ROUTE } from "./import-statements/describeGroup";
 import {
   describeProblems,
+  FREEFORM_IMPORT_ROUTE,
   networkError,
   parseErrorBody,
+  problemTone,
   type AutoImportError,
   type ProblemAction,
 } from "./import-statements/describeProblems";
-import { joinNames } from "./import-statements/format";
-
-const ACCEPTED_EXTENSIONS = [".pdf", ".xls", ".csv", ".txt"];
-
-function isAcceptedStatement(file: File): boolean {
-  const name = file.name.toLowerCase();
-  return ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext));
-}
+import { Dropzone, FileRow, GooglePayRow } from "./import-statements/files";
+import { plural } from "./import-statements/format";
 
 function fileKey(file: File): string {
   return `${file.name}:${file.size}`;
 }
 
+/**
+ * Import statements (PLAN.md §11 P2): drop the files, press one button, and
+ * the server imports them in one request. Afterwards the page says what came
+ * in, or what stopped it and how to fix that.
+ */
 export function AutoImportStatements() {
+  usePageTitle("Import statements");
   const [files, setFiles] = useState<File[]>([]);
   const [gpayFile, setGpayFile] = useState<File | null>(null);
-  const [rejectedNames, setRejectedNames] = useState<string[]>([]);
-  const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AutoImportResult | null>(null);
   const [error, setError] = useState<AutoImportError | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const gpayInputRef = useRef<HTMLInputElement>(null);
 
   function clearOutcome() {
     setResult(null);
@@ -53,26 +54,32 @@ export function AutoImportStatements() {
   }
 
   function addFiles(incoming: File[]) {
-    const accepted = incoming.filter(isAcceptedStatement);
-    setRejectedNames(
-      incoming.filter((f) => !isAcceptedStatement(f)).map((f) => f.name),
-    );
     setFiles((prev) => {
       const seen = new Set(prev.map(fileKey));
-      const fresh = accepted.filter((f) => !seen.has(fileKey(f)));
+      const fresh = incoming.filter((f) => !seen.has(fileKey(f)));
       return fresh.length === 0 ? prev : [...prev, ...fresh];
     });
     clearOutcome();
   }
 
-  function removeFile(index: number) {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+  function removeFile(file: File) {
+    setFiles((prev) => prev.filter((f) => fileKey(f) !== fileKey(file)));
     clearOutcome();
   }
 
-  function removeGpayFile() {
+  function clearFiles() {
+    setFiles([]);
+    clearOutcome();
+  }
+
+  function chooseGpayFile(file: File | null) {
+    setGpayFile(file);
+    clearOutcome();
+  }
+
+  function startOver() {
+    setFiles([]);
     setGpayFile(null);
-    if (gpayInputRef.current) gpayInputRef.current.value = "";
     clearOutcome();
   }
 
@@ -85,13 +92,6 @@ export function AutoImportStatements() {
       setFiles((prev) => prev.filter((f) => keep.has(f.name)));
     }
     clearOutcome();
-  }
-
-  function handleDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setDragging(false);
-    if (loading) return;
-    addFiles(Array.from(event.dataTransfer.files));
   }
 
   async function handleSubmit() {
@@ -132,6 +132,9 @@ export function AutoImportStatements() {
     }
   }
 
+  // After a request that imported without failure, the page is a record of
+  // what happened: nothing to add or remove, only what to do next.
+  const done = result !== null;
   // Every file the server decided on, whether or not anything was imported.
   const plannedFiles = result?.files ?? error?.files ?? [];
   const annotations = new Map(
@@ -141,246 +144,203 @@ export function AutoImportStatements() {
   const importedFiles = new Set(
     importedGroups.flatMap((group) => group.file_names),
   );
-  const failedFiles = new Set(error?.failedGroup?.file_names ?? []);
+  const failed = error
+    ? {
+        files: new Set(error.failedGroup?.file_names ?? []),
+        tone: problemTone(error),
+      }
+    : null;
   const batch = describeBatch({ result, error });
   const problems = error ? describeProblems(error) : [];
 
   return (
-    <AppPage section="Import" title="Import statements">
-      <div className="p-8 max-w-2xl space-y-6">
-        <div className="space-y-1 text-body text-ink-soft">
+    <Screen
+      width="narrow"
+      header={
+        <ScreenTitle title="Import statements">
           <p>
-            Drop the statement files you downloaded from your bank. Each file is
-            matched to the right account automatically, so you can drop
-            statements from several banks at once.
+            Drop the statement files you downloaded from your bank. Each one is
+            matched to its account, so you can drop statements from several
+            banks at once. New transactions wait in Review, and your books don't
+            change until you add them.
           </p>
-          <p>
-            New transactions go into Drafts for you to review. Nothing here
-            changes your books until you post them.
+        </ScreenTitle>
+      }
+    >
+      {!done && (
+        <div className="mt-8">
+          <Dropzone disabled={loading} onFiles={addFiles} />
+          <p className="mt-3 text-meta text-ink-meta">
+            Transactions that aren't in a statement file?{" "}
+            <Link
+              to={FREEFORM_IMPORT_ROUTE}
+              className="font-semibold text-primary no-underline hover:underline"
+            >
+              Import them freeform
+            </Link>
           </p>
         </div>
+      )}
 
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label="Drop statement files here or press to browse"
-          onClick={() => !loading && fileInputRef.current?.click()}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              if (!loading) fileInputRef.current?.click();
-            }
-          }}
-          onDragOver={(event) => {
-            event.preventDefault();
-            if (!dragging) setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={handleDrop}
-          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed px-6 py-10 text-center transition-colors ${
-            dragging
-              ? "border-primary bg-primary/5"
-              : "border-sap-border-strong hover:border-primary/60"
-          } ${loading ? "cursor-not-allowed bg-waiting-bg text-waiting-fg" : ""}`}
-        >
-          <Upload className="h-6 w-6 text-muted-foreground" />
-          <div className="text-row font-medium text-foreground">
-            Drop statements here, or click to browse
-          </div>
-          <div className="text-meta text-ink-meta">
-            PDF, XLS, CSV, or TXT. Add as many as you like before processing.
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ACCEPTED_EXTENSIONS.join(",")}
-            multiple
-            disabled={loading}
-            className="hidden"
-            onChange={(event) => {
-              addFiles(Array.from(event.target.files ?? []));
-              event.target.value = "";
-            }}
-          />
-        </div>
-
-        {rejectedNames.length > 0 && (
-          <p className="text-meta text-attention-ink">
-            Skipped {rejectedNames.join(", ")}: only PDF, XLS, CSV, and TXT
-            statements are accepted here.
-          </p>
-        )}
-
+      <section className="mt-8">
         {files.length > 0 && (
-          <ul className="divide-y rounded-card border text-row">
-            {files.map((file, index) => {
-              const row = annotations.get(file.name);
-              const status = row
-                ? describeFileStatus(row, { importedFiles, failedFiles })
-                : null;
-              return (
-                <li
-                  key={fileKey(file)}
-                  className="flex items-center gap-3 px-3 py-2"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-mono">{file.name}</span>
-                      <span className="tnum shrink-0 font-mono text-meta text-ink-meta">
-                        {Math.round(file.size / 1024)} KB
-                      </span>
-                    </div>
-                    {status && (
-                      <div
-                        className={`mt-0.5 text-meta ${
-                          status.tone === "problem"
-                            ? "text-destructive"
-                            : "text-ink-meta"
-                        }`}
-                      >
-                        {status.text}
-                      </div>
-                    )}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Remove ${file.name}`}
-                    disabled={loading}
-                    onClick={() => removeFile(index)}
-                    className="shrink-0"
-                  >
-                    <X />
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <div className="space-y-1">
-          <label
-            htmlFor="gpay-takeout-file"
-            className="text-row font-medium text-foreground"
-          >
-            Google Pay Takeout (optional)
-          </label>
-          <input
-            id="gpay-takeout-file"
-            ref={gpayInputRef}
-            type="file"
-            accept=".html,.htm"
-            disabled={loading}
-            aria-describedby="gpay-takeout-help"
-            onChange={(event) => {
-              setGpayFile(event.target.files?.[0] ?? null);
-              clearOutcome();
-            }}
-            className="block w-full text-row file:mr-3 file:py-1.5 file:px-3 file:rounded-control file:border file:border-sap-border-strong file:bg-card file:text-row file:font-semibold file:text-foreground hover:file:bg-muted file:cursor-pointer"
-          />
-          <p id="gpay-takeout-help" className="text-meta text-ink-meta">
-            The activity page from your Google Pay Takeout. UPI payments in the
-            statements above that match it get the recipient's name before they
-            are categorised. It never changes which transactions count as
-            already imported.
-          </p>
-          {gpayFile && (
-            <div className="flex items-center gap-2 text-meta text-ink-meta">
-              <span className="truncate font-mono">{gpayFile.name}</span>
-              <span className="tnum shrink-0 font-mono">
-                {Math.round(gpayFile.size / 1024)} KB
-              </span>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-subheading text-foreground">
+              {plural(files.length, "statement")}
+            </h2>
+            {!done && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                aria-label={`Remove ${gpayFile.name}`}
                 disabled={loading}
-                onClick={removeGpayFile}
-                className="shrink-0"
+                onClick={clearFiles}
               >
-                <X />
+                Clear all
               </Button>
+            )}
+          </div>
+        )}
+        <ul className="divide-y divide-line-inner rounded-card border border-sap-border bg-card">
+          {files.map((file) => {
+            const row = annotations.get(file.name);
+            return (
+              <FileRow
+                key={fileKey(file)}
+                file={file}
+                status={
+                  row
+                    ? describeFileStatus(row, { importedFiles, failed })
+                    : null
+                }
+                disabled={loading}
+                onRemove={done ? undefined : () => removeFile(file)}
+              />
+            );
+          })}
+          {!done && (
+            <GooglePayRow
+              file={gpayFile}
+              disabled={loading}
+              onChoose={chooseGpayFile}
+              onRemove={() => chooseGpayFile(null)}
+            />
+          )}
+        </ul>
+      </section>
+
+      <div className="mt-6">
+        {done ? (
+          <DoneActions
+            newTransactions={newTransactionCount(result)}
+            onStartOver={startOver}
+          />
+        ) : (
+          <ImportButton
+            statements={files.length}
+            loading={loading}
+            onImport={() => void handleSubmit()}
+          />
+        )}
+      </div>
+
+      {batch && (
+        <div className="mt-10 space-y-5">
+          <Summary batch={batch} />
+          {problems.map((problem) => (
+            <ProblemCard
+              key={problem.key}
+              problem={problem}
+              onAction={handleProblemAction}
+            />
+          ))}
+          {importedGroups.length > 0 && (
+            <div className="space-y-3">
+              {error && (
+                <h2 className="text-subheading text-foreground">
+                  Imported before the failure
+                </h2>
+              )}
+              <ResultsCard groups={importedGroups} sources={plannedFiles} />
             </div>
           )}
         </div>
+      )}
+    </Screen>
+  );
+}
 
-        <div>
-          <Button
-            onClick={handleSubmit}
-            waiting={files.length === 0 ? "Add at least one file" : undefined}
-            disabled={loading}
-          >
-            {loading && <Loader2 className="animate-spin" />}
-            {loading
-              ? "Processing..."
-              : files.length > 1
-                ? `Process ${files.length} statements`
-                : "Process"}
-          </Button>
-        </div>
-
-        {batch && (
-          <div
-            className={`flex items-start gap-3 rounded-card border p-4 ${
-              batch.tone === "failure" || batch.tone === "partial"
-                ? "border-destructive/30 bg-destructive/10"
-                : "bg-muted"
-            }`}
-          >
-            {batch.tone === "success" ? (
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-money-in" />
-            ) : batch.tone === "nothing-new" ? (
-              <Info className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-            ) : (
-              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-            )}
-            <div className="space-y-1 text-row">
-              <div className="font-medium text-foreground">{batch.text}</div>
-              {batch.removedFiles.length > 0 && (
-                <div className="text-muted-foreground">
-                  {joinNames(batch.removedFiles)}{" "}
-                  {batch.removedFiles.length === 1 ? "has" : "have"} been taken
-                  out of the list above. Fix the problem below and press Process
-                  to import the rest.
-                </div>
-              )}
-              {batch.tone === "failure" && (
-                <div className="text-muted-foreground">
-                  Your files are still in the list above. Once this is sorted
-                  out, press Process again.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {problems.map((problem) => (
-          <ProblemCard
-            key={problem.key}
-            problem={problem}
-            onAction={handleProblemAction}
-          />
-        ))}
-
-        {importedGroups.length > 0 && (
-          <div className="space-y-4">
-            {error && (
-              <div className="text-row font-medium text-foreground">
-                Imported before the failure
-              </div>
-            )}
-            {importedGroups.map((group) => (
-              <AccountCard
-                key={group.preset_name + group.base_account}
-                group={group}
-                sources={plannedFiles}
-              />
-            ))}
-          </div>
-        )}
+function ImportButton({
+  statements,
+  loading,
+  onImport,
+}: {
+  statements: number;
+  loading: boolean;
+  onImport: () => void;
+}) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-start gap-1.5">
+        <Button disabled>
+          <Loader2 className="animate-spin" />
+          Importing…
+        </Button>
+        <p role="status" className="text-meta text-ink-meta">
+          Reading, checking and categorising. This can take a minute.
+        </p>
       </div>
-    </AppPage>
+    );
+  }
+  return (
+    <Button
+      onClick={onImport}
+      waiting={statements === 0 ? "Add at least one statement" : undefined}
+    >
+      {statements === 0
+        ? "Import statements"
+        : statements === 1
+          ? "Import statement"
+          : `Import ${statements} statements`}
+    </Button>
+  );
+}
+
+function DoneActions({
+  newTransactions,
+  onStartOver,
+}: {
+  newTransactions: number;
+  onStartOver: () => void;
+}) {
+  if (newTransactions === 0) {
+    return <Button onClick={onStartOver}>Import more statements</Button>;
+  }
+  return (
+    <div className="flex flex-wrap gap-3">
+      <Button render={<Link to={REVIEW_DRAFTS_ROUTE} />} nativeButton={false}>
+        Review {plural(newTransactions, "transaction")}
+      </Button>
+      <Button variant="outline" onClick={onStartOver}>
+        Import more statements
+      </Button>
+    </div>
+  );
+}
+
+// The sentence that says what happened. A problem colours it in its tone;
+// a success or an import with nothing new stays in ink.
+function Summary({ batch }: { batch: BatchSummary }) {
+  const quiet = batch.tone === "ok" || batch.tone === "waiting";
+  return (
+    <div role="status" className="space-y-1">
+      <OutcomeLine
+        tone={batch.tone}
+        className={cn("text-subheading", quiet && "text-foreground")}
+      >
+        {batch.text}
+      </OutcomeLine>
+      {batch.next && <p className="text-body text-ink-soft">{batch.next}</p>}
+    </div>
   );
 }

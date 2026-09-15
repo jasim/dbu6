@@ -5,6 +5,11 @@ export type NavigationBadge = "needsCategory";
 
 export interface NavigationItem extends SapportaNavigationItem {
   badge?: NavigationBadge;
+  /**
+   * What the bottom bar prints when the label doesn't fit five across a
+   * phone. The item's accessible name stays the full label.
+   */
+  shortLabel?: string;
 }
 
 /**

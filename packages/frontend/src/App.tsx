@@ -31,7 +31,12 @@ export const appNavigation: Navigation = {
   everyday: [
     { label: "Home", icon: Home, to: "/" },
     { label: "Accounts", icon: Landmark, to: "/accounts" },
-    { label: "Import statements", icon: FileUp, to: "/import" },
+    {
+      label: "Import statements",
+      shortLabel: "Import",
+      icon: FileUp,
+      to: "/import",
+    },
     {
       label: "Review",
       icon: ListChecks,

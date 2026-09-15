@@ -19,6 +19,7 @@ import {
   unrecognizedPrompt,
   type FailedGroupFacts,
 } from "./agentPrompts";
+import type { StatusTone } from "../../components/status-chip";
 import type { Stat } from "./describeGroup";
 import {
   formatDate,
@@ -97,8 +98,13 @@ export interface AgentHandoff {
   afterwards: string;
 }
 
+// How serious a problem is. Destructive ("problem") when the numbers don't
+// add up; attention when something needs setting up.
+export type ProblemTone = Extract<StatusTone, "problem" | "attention">;
+
 export interface Problem {
   key: string;
+  tone: ProblemTone;
   fileNames: string[];
   // Whose statement: the account, the institution, or failing both, the
   // file. The card's title.
@@ -120,10 +126,35 @@ export interface Problem {
   technical: string | null;
 }
 
+// The error codes that mean something needs setting up. Every other code
+// takes the destructive tone: the ones where the numbers don't add up
+// (balance_mismatch, segment_balance_mismatch, statement_boundary_mismatch,
+// statement_disagreement, statement_part_invalid,
+// reconciliation_match_failed, assertion_conflict), and anything without a
+// card of its own, which the unexpected-error card covers.
+const ATTENTION_CODES: ReadonlySet<string> = new Set([
+  // A file that is unrecognised, ambiguous, or has no account set up.
+  "auto_import_files_unresolved",
+  "opening_balance_unavailable",
+  "closing_balance_unavailable",
+  "statement_part_unjoinable",
+]);
+
+export function problemTone(error: AutoImportError): ProblemTone {
+  if (error.status === 403) return "attention";
+  if (error.error === "upload_failed" || error.status === 0) return "problem";
+  return ATTENTION_CODES.has(error.error) ? "attention" : "problem";
+}
+
+export const FREEFORM_IMPORT_ROUTE = "/views/import-freeform-transactions";
+
 const RETRY_FROM_SCREEN =
-  "When the agent says it is done, press Process again with the same files.";
+  "When the agent says it is done, import the same files again.";
 const REDROP_FILE =
-  "When the agent says the reader is done, come back here, drop this file again, and press Process.";
+  "When the agent says the reader is done, come back here, drop this file again, and import it.";
+
+// A problem before the tone its error gives every card.
+type ProblemBody = Omit<Problem, "tone">;
 
 function num(fields: Record<string, unknown>, key: string): number | null {
   return typeof fields[key] === "number" ? (fields[key] as number) : null;
@@ -140,8 +171,8 @@ function technical(error: AutoImportError): string {
 }
 
 // One card per file the plan could not place. Nothing was imported.
-function planProblems(error: AutoImportError): Problem[] {
-  const problems: Problem[] = [];
+function planProblems(error: AutoImportError): ProblemBody[] {
+  const problems: ProblemBody[] = [];
   for (const row of error.files) {
     switch (row.status) {
       case "resolved":
@@ -155,21 +186,29 @@ function planProblems(error: AutoImportError): Problem[] {
           caption: null,
           verdict: "The app can't read this file yet.",
           facts: [
-            {
-              label: "Readers tried",
-              value:
-                tried.length === 0
-                  ? "none fit this file type"
-                  : tried.map(parserLabel).join(", "),
-            },
+            tried.length === 0
+              ? {
+                  label: "Readers tried",
+                  value: "none fit this file type",
+                  face: "words",
+                }
+              : {
+                  label: "Readers tried",
+                  value: tried.map(parserLabel).join(", "),
+                },
           ],
-          why: `Each bank's statements are read by a reader written for that bank's exact file layout, and none matches this file. Nothing was imported, including the other files, so you can fix this and process everything together.`,
+          why: `Each bank's statements are read by a reader written for that bank's exact file layout, and none matches this file. Nothing was imported, including the other files, so you can fix this and import everything together.`,
           steps: [],
           actions: [
             {
               kind: "remove-files",
-              label: "Remove this file and process the rest",
+              label: "Remove this file and import the rest",
               fileNames: [row.file_name],
+            },
+            {
+              kind: "link",
+              label: "Import them freeform instead",
+              to: FREEFORM_IMPORT_ROUTE,
             },
           ],
           agent: {
@@ -201,7 +240,7 @@ function planProblems(error: AutoImportError): Problem[] {
           actions: [
             {
               kind: "remove-files",
-              label: "Remove this file and process the rest",
+              label: "Remove this file and import the rest",
               fileNames: [row.file_name],
             },
           ],
@@ -226,7 +265,7 @@ function planProblems(error: AutoImportError): Problem[] {
 function unresolvedProblem(
   row: Extract<AutoImportPlanFile, { status: "unresolved" }>,
   error: AutoImportError,
-): Problem {
+): ProblemBody {
   const account = row.account
     ? `${row.account.kind === "card" ? "card" : "account"} ${maskIdentifier(row.account.identifier)}`
     : null;
@@ -249,7 +288,7 @@ function unresolvedProblem(
     actions: [
       {
         kind: "remove-files" as const,
-        label: "Remove this file and process the rest",
+        label: "Remove this file and import the rest",
         fileNames: [row.file_name],
       },
     ],
@@ -280,7 +319,11 @@ function unresolvedProblem(
         key: `identifier-required:${row.file_name}`,
         verdict: "The app can't tell which of your accounts this belongs to.",
         facts: [
-          { label: "Set up for these statements", value: candidates },
+          {
+            label: "Set up for these statements",
+            value: candidates,
+            face: "words",
+          },
           readerFact,
         ],
         why: `${candidates} ${row.candidate_preset_names.length === 1 ? "is" : "are"} set up to check the account number printed on the statement, but the reader didn't report one. This needs a small fix to the reader or to the account's setup.`,
@@ -303,7 +346,11 @@ function unresolvedProblem(
           "This statement is for a different account than the one set up.",
         facts: [
           ...accountFact,
-          { label: "Set up for these statements", value: candidates },
+          {
+            label: "Set up for these statements",
+            value: candidates,
+            face: "words",
+          },
         ],
         why: `${candidates} ${row.candidate_preset_names.length === 1 ? "has" : "have"} a different account number. Either this is a statement for an account you haven't set up yet, or it was dropped here by mistake.`,
         steps: [],
@@ -351,7 +398,7 @@ function groupFacts(error: AutoImportError): FailedGroupFacts {
 }
 
 // One card for the account whose import failed.
-function groupProblem(error: AutoImportError): Problem {
+function groupProblem(error: AutoImportError): ProblemBody {
   const facts = groupFacts(error);
   const f = error.fields;
   const files = joinNames(facts.fileNames);
@@ -395,7 +442,7 @@ function groupProblem(error: AutoImportError): Problem {
           : "This usually means one row was read wrongly.",
         steps: gap
           ? [
-              "Check that the statements you dropped cover the whole period with no days missing, add the missing one, and press Process again.",
+              "Check that the statements you dropped cover the whole period with no days missing, add the missing one, and import again.",
             ]
           : [],
         agent: {
@@ -416,6 +463,11 @@ function groupProblem(error: AutoImportError): Problem {
       const fromBalance = num(f, "from_balance");
       const walked = num(f, "walked");
       const printed = num(f, "printed");
+      const difference =
+        num(f, "difference") ??
+        (walked !== null && printed !== null
+          ? Math.abs(walked - printed)
+          : null);
       return {
         ...base,
         verdict: `The running balance doesn't match the transactions between ${formatDate(fromDate)} and ${formatDate(toDate)}.`,
@@ -434,6 +486,9 @@ function groupProblem(error: AutoImportError): Problem {
                   label: `Printed on ${formatDate(toDate)}`,
                   value: formatMoney(printed),
                 },
+                ...(difference !== null
+                  ? [{ label: "Difference", value: formatMoney(difference) }]
+                  : []),
               ]
             : [],
         why: "Almost always a row in between was read wrongly by the reader.",
@@ -442,7 +497,7 @@ function groupProblem(error: AutoImportError): Problem {
             ...facts,
             computedFinal: walked,
             statementClosing: printed,
-            difference: num(f, "difference"),
+            difference,
             suspectRange: { fromDate, toDate },
           }),
           afterwards: RETRY_FROM_SCREEN,
@@ -463,7 +518,7 @@ function groupProblem(error: AutoImportError): Problem {
           actions: [
             {
               kind: "remove-files",
-              label: `Remove ${later} and process again`,
+              label: `Remove ${later} and import again`,
               fileNames: [later],
             },
           ],
@@ -494,13 +549,13 @@ function groupProblem(error: AutoImportError): Problem {
             : [],
         why: "The earlier file ends at a different balance than the later one begins with, so activity between them is missing from both. Usually a statement for the period in between is missing.",
         steps: [
-          "Download the statement for the missing period, add it here, and press Process again.",
-          `Or process ${earlier} on its own now and the rest later, in date order.`,
+          "Download the statement for the missing period, add it here, and import again.",
+          `Or import ${earlier} on its own now and the rest later, in date order.`,
         ],
         actions: [
           {
             kind: "keep-only-files",
-            label: `Process ${earlier} on its own`,
+            label: `Import ${earlier} on its own`,
             fileNames: [earlier],
           },
         ],
@@ -547,7 +602,7 @@ function groupProblem(error: AutoImportError): Problem {
         ],
         why: "This happens when two downloads overlap and one of them was taken before the bank finalised that day.",
         steps: [
-          "Download the statements again so their dates don't overlap, or keep only the one you trust for that day, then press Process again.",
+          "Download the statements again so their dates don't overlap, or keep only the one you trust for that day, then import again.",
         ],
         actions: parts.map((part) => ({
           kind: "remove-files" as const,
@@ -571,11 +626,11 @@ function groupProblem(error: AutoImportError): Problem {
         ...base,
         verdict: `${part} prints no balances, so it can't be placed next to the other files.`,
         why: "Without an opening, closing, or running balance the app can't tell where this file fits in the sequence. It can still be imported on its own.",
-        steps: [`Process ${part} by itself, then the other files afterwards.`],
+        steps: [`Import ${part} by itself, then the other files afterwards.`],
         actions: [
           {
             kind: "keep-only-files",
-            label: `Process ${part} on its own`,
+            label: `Import ${part} on its own`,
             fileNames: [part],
           },
         ],
@@ -587,7 +642,9 @@ function groupProblem(error: AutoImportError): Problem {
       return {
         ...base,
         verdict: `${part} contradicts itself.`,
-        facts: error.detail ? [{ label: "Detail", value: error.detail }] : [],
+        facts: error.detail
+          ? [{ label: "Detail", value: error.detail, face: "words" }]
+          : [],
         why: "Its own opening or closing balance doesn't match its rows. Either the bank's export is broken or the reader misread it.",
         agent: {
           prompt: partInvalidPrompt({ ...facts, part, detail: error.detail }),
@@ -676,6 +733,11 @@ function groupProblem(error: AutoImportError): Problem {
 }
 
 export function describeProblems(error: AutoImportError): Problem[] {
+  const tone = problemTone(error);
+  return problemBodies(error).map((body) => ({ ...body, tone }));
+}
+
+function problemBodies(error: AutoImportError): ProblemBody[] {
   if (error.error === "auto_import_files_unresolved") {
     return planProblems(error);
   }
@@ -705,7 +767,7 @@ export function describeProblems(error: AutoImportError): Problem[] {
         caption: null,
         verdict: "The files could not be sent.",
         facts: [],
-        why: "The app's server didn't answer. Check that it is running and that you are online, then press Process again.",
+        why: "The app's server didn't answer. Check that it is running and that you are online, then import again.",
         steps: [],
         actions: [],
         agent: null,

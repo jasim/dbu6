@@ -1,9 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertCircle, CheckCircle2, Copy, Info } from "lucide-react";
+import { Copy } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { AutoImportGroupResult, AutoImportPlanFile } from "dbu6-shared";
+import { cn } from "@sapporta/ui/cn";
 import { Button } from "../../components/ui/button";
-import { describeGroup, REVIEW_DRAFTS_ROUTE, type Stat } from "./describeGroup";
+import {
+  StatusChip,
+  statusTextClass,
+  type StatusTone,
+} from "../../components/status-chip";
+import { describeGroup, type Stat } from "./describeGroup";
 import type { Problem, ProblemAction } from "./describeProblems";
 
 export function CopyPromptButton({ text }: { text: string }) {
@@ -28,119 +34,67 @@ export function CopyPromptButton({ text }: { text: string }) {
   );
 }
 
-// Every result card has the same skeleton so the eye lands in the same
-// places: whose statement (header), what happened (one sentence), the
-// numbers (tiles or a table), then everything else.
-
-type PillTone = "success" | "neutral" | "warning" | "danger";
-
-const PILL_CLASSES: Record<PillTone, string> = {
-  success: "bg-money-in-bg text-money-in-ink",
-  neutral: "bg-muted text-muted-foreground",
-  warning: "bg-attention-bg text-attention-ink",
-  danger: "bg-destructive/10 text-destructive",
+// The glyph that says a status line's tone in shape as well as colour.
+const GLYPH: Record<StatusTone, string | null> = {
+  ok: "✓",
+  attention: "!",
+  problem: "!",
+  waiting: null,
 };
 
-function Pill({ tone, children }: { tone: PillTone; children: ReactNode }) {
-  return (
-    <span
-      className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-meta font-medium ${PILL_CLASSES[tone]}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function CardHeader({
-  icon,
-  title,
-  caption,
-  pill,
-}: {
-  icon: ReactNode;
-  title: string;
-  caption: string | null;
-  pill: ReactNode;
-}) {
-  return (
-    <div className="flex items-start gap-3 border-b px-4 py-3">
-      <div className="mt-0.5 shrink-0">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <div
-          className="truncate text-row font-semibold text-foreground"
-          title={title}
-        >
-          {title}
-        </div>
-        {caption && (
-          <div className="break-words text-meta text-ink-meta">{caption}</div>
-        )}
-      </div>
-      {pill}
-    </div>
-  );
-}
-
-function Verdict({
+/**
+ * A status set in words, in its tone, with the tone's glyph first. A
+ * `className` colour recolours the words and leaves the glyph in its tone.
+ */
+export function OutcomeLine({
+  tone,
   children,
-  action,
+  className,
 }: {
+  tone: StatusTone;
   children: ReactNode;
-  action?: ReactNode;
+  className?: string;
 }) {
+  const glyph = GLYPH[tone];
   return (
-    <div className="flex items-start justify-between gap-4">
-      <p className="text-subheading text-foreground">{children}</p>
-      {action}
-    </div>
+    <p className={cn("flex gap-1.5", statusTextClass(tone), className)}>
+      {glyph && (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "min-w-[0.75em] shrink-0 text-center",
+            statusTextClass(tone),
+          )}
+        >
+          {glyph}
+        </span>
+      )}
+      <span className="min-w-0 [overflow-wrap:anywhere]">{children}</span>
+    </p>
   );
 }
 
-// Headline numbers, each one a label over a value.
-function StatTiles({ stats }: { stats: Stat[] }) {
-  if (stats.length === 0) return null;
-  return (
-    <dl className="grid grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] gap-x-4 gap-y-3">
-      {stats.map((stat) => (
-        <div key={stat.label}>
-          <dt className="text-label uppercase text-ink-meta">{stat.label}</dt>
-          <dd className="tnum mt-0.5 font-mono text-row font-semibold text-foreground">
-            {stat.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-// Secondary facts as a two-column table: label left, value right.
-function FactTable({
-  rows,
-  heading,
-  dense = false,
-}: {
-  rows: Stat[];
-  heading?: string;
-  dense?: boolean;
-}) {
+// Labels on the left, values on the right. Figures are mono; words wrap.
+function FactTable({ rows, heading }: { rows: Stat[]; heading?: string }) {
   if (rows.length === 0) return null;
   return (
     <div>
       {heading && (
-        <div className="mb-1.5 text-label uppercase text-ink-meta">
-          {heading}
-        </div>
+        <div className="mb-2 text-label uppercase text-ink-meta">{heading}</div>
       )}
-      <dl
-        className={`divide-y rounded-control border ${dense ? "text-meta" : "text-row"}`}
-      >
+      <dl className="divide-y divide-line-inner rounded-control border border-sap-border">
         {rows.map((row) => (
           <div
             key={row.label}
-            className="flex items-baseline justify-between gap-6 px-3 py-1.5"
+            className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 px-4 py-2.5 text-row"
           >
-            <dt className="min-w-0 text-muted-foreground">{row.label}</dt>
-            <dd className="tnum shrink-0 break-all text-right font-mono font-medium text-foreground">
+            <dt className="min-w-0 text-ink-soft">{row.label}</dt>
+            <dd
+              className={cn(
+                "ml-auto min-w-0 text-right text-foreground [overflow-wrap:anywhere]",
+                row.face !== "words" && "tnum font-mono font-medium",
+              )}
+            >
               {row.value}
             </dd>
           </div>
@@ -150,109 +104,129 @@ function FactTable({
   );
 }
 
-// A labelled row for anything that is a status rather than a number.
-function LabelledRow({
-  label,
+// Collapsed by default; the summary reads as a link.
+function Disclosure({
+  summary,
   children,
 }: {
-  label: string;
+  summary: string;
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-4 text-row">
-      <div className="w-24 shrink-0 pt-0.5 text-label uppercase text-ink-meta">
-        {label}
+    <details className="group/disclosure">
+      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control text-row font-semibold text-primary outline-none hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
+        <span
+          aria-hidden="true"
+          className="w-3 text-ink-meta group-open/disclosure:hidden"
+        >
+          ▸
+        </span>
+        <span
+          aria-hidden="true"
+          className="hidden w-3 text-ink-meta group-open/disclosure:inline"
+        >
+          ▾
+        </span>
+        {summary}
+      </summary>
+      <div className="mb-2 mt-1 space-y-4">{children}</div>
+    </details>
+  );
+}
+
+// Whose statement: the title and its caption, with the status on the right.
+function Subject({
+  title,
+  caption,
+  status,
+}: {
+  title: string;
+  caption: string | null;
+  status: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-1.5">
+      <div className="min-w-0 flex-1 basis-[240px]">
+        <h2 className="text-[16.5px] font-semibold text-foreground [overflow-wrap:anywhere]">
+          {title}
+        </h2>
+        {caption && (
+          <p className="mt-0.5 text-meta text-ink-meta [overflow-wrap:anywhere]">
+            {caption}
+          </p>
+        )}
       </div>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="pt-0.5">{status}</div>
     </div>
   );
 }
 
-export function AccountCard({
+/** One card, one row per account an import reached. */
+export function ResultsCard({
+  groups,
+  sources,
+}: {
+  groups: readonly AutoImportGroupResult[];
+  // The batch's file rows, for the institution and account number.
+  sources: readonly AutoImportPlanFile[];
+}) {
+  return (
+    <section className="rounded-card border border-sap-border bg-card shadow-card">
+      <ul className="divide-y divide-line-inner">
+        {groups.map((group) => (
+          <ResultRow
+            key={group.preset_name + group.base_account}
+            group={group}
+            sources={sources}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ResultRow({
   group,
-  sources = [],
+  sources,
 }: {
   group: AutoImportGroupResult;
-  // The batch's file rows, for the institution and account number.
-  sources?: readonly AutoImportPlanFile[];
+  sources: readonly AutoImportPlanFile[];
 }) {
   const summary = describeGroup(group, sources);
-  const journal = group.result.hledger_journal;
-  const fresh = summary.tone === "new";
   return (
-    <div className="rounded-card border bg-card shadow-card">
-      <CardHeader
-        icon={
-          fresh ? (
-            <CheckCircle2 className="h-5 w-5 text-money-in" />
-          ) : (
-            <Info className="h-5 w-5 text-muted-foreground" />
-          )
-        }
+    <li className="px-5 pb-3 pt-5 sm:px-6">
+      <Subject
         title={summary.title}
         caption={summary.caption}
-        pill={
-          <Pill tone={fresh ? "success" : "neutral"}>
-            {fresh ? "Imported" : "Nothing new"}
-          </Pill>
+        status={
+          <StatusChip tone={summary.tone === "new" ? "ok" : "waiting"}>
+            {summary.chip}
+          </StatusChip>
         }
       />
-      <div className="space-y-4 px-4 py-4">
-        <Verdict
-          action={
-            fresh && (
-              <Button
-                render={<Link to={REVIEW_DRAFTS_ROUTE} />}
-                nativeButton={false}
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-              >
-                Review drafts
-              </Button>
-            )
-          }
-        >
-          {summary.verdict}
-        </Verdict>
-        <StatTiles stats={summary.stats} />
-        <FactTable rows={summary.breakdown} heading="Not new because" />
-        <LabelledRow label="Balances">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Pill
-              tone={
-                summary.balances.tone === "verified" ? "success" : "warning"
-              }
-            >
+      <div className="mt-3 space-y-1 text-body">
+        <p className="text-foreground">{summary.counts}</p>
+        {summary.balances.tone === "verified" ? (
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <OutcomeLine tone="ok" className="text-foreground">
               {summary.balances.text}
-            </Pill>
-            {summary.balances.caption && (
-              <span className="text-meta text-ink-meta">
-                {summary.balances.caption}
-              </span>
-            )}
+            </OutcomeLine>
+            <span className="tnum font-mono text-row text-ink-soft">
+              {summary.balances.figures}
+            </span>
           </div>
-        </LabelledRow>
-      </div>
-      <details className="border-t px-4 py-3 text-meta">
-        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-          Details
-        </summary>
-        <div className="mt-3">
-          <FactTable rows={summary.details} dense />
-        </div>
-        {journal && (
-          <details className="mt-3">
-            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-              Journal entries (hledger format)
-            </summary>
-            <pre className="tnum mt-2 overflow-x-auto whitespace-pre rounded-control bg-muted p-3 font-mono">
-              {journal}
-            </pre>
-          </details>
+        ) : (
+          <OutcomeLine tone="waiting">{summary.balances.text}</OutcomeLine>
         )}
-      </details>
-    </div>
+        {summary.gpay && <p className="text-ink-soft">{summary.gpay}</p>}
+      </div>
+      <div className="mt-1">
+        <Disclosure summary="Details">
+          <FactTable heading="Not new because" rows={summary.breakdown} />
+          <FactTable rows={summary.details} />
+        </Disclosure>
+      </div>
+    </li>
   );
 }
 
@@ -267,87 +241,81 @@ export function ProblemCard({
   onAction: (action: ProblemAction) => void;
 }) {
   return (
-    <div className="rounded-card border border-destructive/30 bg-card shadow-card">
-      <CardHeader
-        icon={<AlertCircle className="h-5 w-5 text-destructive" />}
+    <section
+      className={cn(
+        "rounded-card border bg-card px-5 pb-3 pt-5 shadow-card sm:px-6",
+        problem.tone === "problem"
+          ? "border-destructive/40"
+          : "border-attention-border",
+      )}
+    >
+      <Subject
         title={problem.subject}
         caption={problem.caption}
-        pill={<Pill tone="danger">Not imported</Pill>}
+        status={<StatusChip tone={problem.tone}>Not imported</StatusChip>}
       />
-      <div className="space-y-4 px-4 py-4">
-        <Verdict>{problem.verdict}</Verdict>
-        <FactTable rows={problem.facts} />
-        <LabelledRow label="Why">
-          <p className="break-words text-row text-ink-soft">{problem.why}</p>
-        </LabelledRow>
-        {(problem.steps.length > 0 || problem.actions.length > 0) && (
-          <LabelledRow label="What to do">
-            <div className="space-y-2">
-              {problem.steps.length > 0 && (
-                <ul className="list-disc space-y-1 pl-4 text-row text-ink-soft">
-                  {problem.steps.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ul>
-              )}
-              {problem.actions.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {problem.actions.map((action) =>
-                    action.kind === "link" ? (
-                      <Button
-                        key={action.label}
-                        render={<Link to={action.to} />}
-                        nativeButton={false}
-                        variant="outline"
-                        size="sm"
-                      >
-                        {action.label}
-                      </Button>
-                    ) : (
-                      <Button
-                        key={action.label}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onAction(action)}
-                      >
-                        {action.label}
-                      </Button>
-                    ),
-                  )}
-                </div>
-              )}
-            </div>
-          </LabelledRow>
-        )}
+      <p className="mt-4 text-subheading text-foreground [overflow-wrap:anywhere]">
+        {problem.verdict}
+      </p>
+      {problem.facts.length > 0 && (
+        <div className="mt-4">
+          <FactTable rows={problem.facts} />
+        </div>
+      )}
+      <div className="mt-4 space-y-2 text-body text-ink-soft [overflow-wrap:anywhere]">
+        <p>{problem.why}</p>
+        {problem.steps.map((step) => (
+          <p key={step}>{step}</p>
+        ))}
+      </div>
+      {problem.actions.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2.5">
+          {problem.actions.map((action) =>
+            action.kind === "link" ? (
+              <Button
+                key={action.label}
+                render={<Link to={action.to} />}
+                nativeButton={false}
+                variant="outline"
+                size="sm"
+              >
+                {action.label}
+              </Button>
+            ) : (
+              <Button
+                key={action.label}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onAction(action)}
+              >
+                {action.label}
+              </Button>
+            ),
+          )}
+        </div>
+      )}
+      <div className="mt-3">
         {problem.agent && (
-          <details>
-            <summary className="cursor-pointer text-row font-medium text-primary hover:underline">
-              Ask your coding agent to sort this out
-            </summary>
-            <div className="mt-2 space-y-2">
-              <p className="text-row text-ink-soft">
-                Copy this prompt into your coding agent, running in the app's
-                repository. {problem.agent.afterwards}
-              </p>
-              <CopyPromptButton text={problem.agent.prompt} />
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control bg-muted p-3 font-mono text-meta">
-                {problem.agent.prompt}
-              </pre>
-            </div>
-          </details>
+          <Disclosure summary="Ask your coding agent to fix this">
+            <p className="text-body text-ink-soft">
+              Copy this prompt into your coding agent, running in the app's
+              repository. {problem.agent.afterwards}
+            </p>
+            <CopyPromptButton text={problem.agent.prompt} />
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control bg-muted p-3 font-mono text-meta">
+              {problem.agent.prompt}
+            </pre>
+          </Disclosure>
         )}
         {problem.technical && (
-          <details className="text-meta">
-            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-              Technical details
-            </summary>
-            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words rounded-control bg-muted p-2 font-mono">
+          <Disclosure summary="Technical details">
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-control bg-muted p-3 font-mono text-meta">
               {problem.technical}
             </pre>
-          </details>
+          </Disclosure>
         )}
       </div>
-    </div>
+    </section>
   );
 }

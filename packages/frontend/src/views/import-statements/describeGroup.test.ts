@@ -50,27 +50,35 @@ const source: AutoImportPlanFile = {
 };
 
 describe("describeGroup", () => {
-  it("titles the card with the account and puts the numbers in tiles", () => {
+  it("titles the row with the account and says what came in", () => {
     const summary = describeGroup(group(), [source]);
     expect(summary.tone).toBe("new");
     expect(summary.title).toBe("Sample Bank");
     expect(summary.caption).toBe(
       "HDFC BANK Ltd. · account ending 0505 · 1 Aug to 31 Aug 2026 · Acct_Statement_050505_09092026.xls",
     );
-    expect(summary.verdict).toBe("6 new transactions ready to review.");
-    expect(summary.stats).toEqual([
-      { label: "New", value: "6" },
-      { label: "In statement", value: "6" },
-      { label: "Opening", value: "₹1,000.00" },
-      { label: "Closing", value: "₹2,500.00" },
-      { label: "Net change", value: "+₹1,500.00" },
-    ]);
-    expect(summary.breakdown).toEqual([]);
+    expect(summary.chip).toBe("6 new");
+    expect(summary.counts).toBe("6 in the statement: 6 new");
     expect(summary.balances).toEqual({
       tone: "verified",
-      text: "Verified",
-      caption: "Opening and closing balances exactly as the statement prints.",
+      text: "Balances match the statement",
+      figures: "₹1,000.00 → ₹2,500.00",
     });
+    expect(summary.gpay).toBeNull();
+    expect(summary.breakdown).toEqual([]);
+    expect(summary.details).toEqual([
+      { label: "Ledger account", value: "assets:bank:sample" },
+      {
+        label: "Read with",
+        value:
+          "hdfc-bank-xls reader (custom-built-parsers/hdfc-bank-xls/parser.py)",
+      },
+      {
+        label: "Balance sources",
+        value: "Opening from the statement, closing from the statement",
+        face: "words",
+      },
+    ]);
   });
 
   it("captions with the period and files alone when the plan rows are missing", () => {
@@ -88,14 +96,8 @@ describe("describeGroup", () => {
       }),
     );
     expect(summary.tone).toBe("nothing-new");
-    expect(summary.verdict).toBe(
-      "Nothing new. All 6 transactions were already in your books.",
-    );
-    expect(summary.stats.slice(0, 3)).toEqual([
-      { label: "New", value: "0" },
-      { label: "In statement", value: "6" },
-      { label: "Already in books", value: "6" },
-    ]);
+    expect(summary.chip).toBe("Nothing new");
+    expect(summary.counts).toBe("6 in the statement: 6 already in your books");
     expect(summary.breakdown).toEqual([
       {
         label: "Posted on or before 31 Aug 2026, your last confirmed balance",
@@ -108,25 +110,34 @@ describe("describeGroup", () => {
     });
   });
 
-  it("splits a mixed result into new and already-imported", () => {
+  it("splits a mixed result into new and already imported", () => {
     const summary = describeGroup(
       group({
-        draft_transaction_count: 4,
-        duplicate_count: 2,
-        draft_duplicate_count: 2,
+        transaction_count: 8,
+        draft_transaction_count: 5,
+        duplicate_count: 3,
+        draft_duplicate_count: 3,
       }),
     );
-    expect(summary.verdict).toBe("4 new transactions ready to review.");
-    expect(summary.stats).toContainEqual({
-      label: "Already in books",
-      value: "2",
-    });
+    expect(summary.chip).toBe("5 new");
+    expect(summary.counts).toBe(
+      "8 in the statement: 5 new, 3 already in your books",
+    );
     expect(summary.breakdown).toEqual([
-      { label: "Already waiting in Drafts from an earlier import", value: "2" },
+      { label: "Already waiting in Review from an earlier import", value: "3" },
     ]);
   });
 
-  it("explains where a balance came from when not from the statement", () => {
+  it("says so when the statement has no transactions", () => {
+    const summary = describeGroup(
+      group({ transaction_count: 0, draft_transaction_count: 0 }),
+    );
+    expect(summary.tone).toBe("nothing-new");
+    expect(summary.chip).toBe("Nothing new");
+    expect(summary.counts).toBe("The statement has no transactions.");
+  });
+
+  it("keeps where a balance came from in the details", () => {
     const summary = describeGroup(
       group({
         balance_metadata: {
@@ -135,11 +146,28 @@ describe("describeGroup", () => {
         },
       }),
     );
+    expect(summary.balances.tone).toBe("verified");
+    expect(summary.details).toContainEqual({
+      label: "Balance sources",
+      value:
+        "Opening from your books' last confirmed balance, closing from the last row's printed balance",
+      face: "words",
+    });
+  });
+
+  it("shows only the closing figure when there is no opening balance", () => {
+    const summary = describeGroup(
+      group({
+        balance_metadata: {
+          opening: { extracted: null, effective: null, source: "none" },
+          closing: { extracted: 2500, effective: 2500, source: "per-row" },
+        },
+      }),
+    );
     expect(summary.balances).toEqual({
       tone: "verified",
-      text: "Verified",
-      caption:
-        "Opening taken from your books' last confirmed balance, as the statement prints none; closing taken from the last row's printed balance.",
+      text: "Balances match the statement",
+      figures: "₹2,500.00",
     });
   });
 
@@ -152,15 +180,14 @@ describe("describeGroup", () => {
         },
       }),
     );
-    expect(summary.balances.tone).toBe("unverified");
-    expect(summary.balances.text).toBe("Not verified");
-    expect(summary.stats.map((stat) => stat.label)).toEqual([
-      "New",
-      "In statement",
-    ]);
+    expect(summary.balances).toEqual({
+      tone: "unverified",
+      text: "Balances not checked: the statement prints no closing balance",
+      figures: null,
+    });
   });
 
-  it("reads credit-card balances as amounts owed, with no net change", () => {
+  it("reads credit-card balances as amounts owed", () => {
     const summary = describeGroup(
       group(
         {
@@ -181,9 +208,15 @@ describe("describeGroup", () => {
       ),
     );
     expect(summary.title).toBe("Sample Card");
-    expect(summary.stats.slice(2)).toEqual([
-      { label: "Opening", value: "₹1,000.00 owed" },
-      { label: "Closing", value: "₹2,500.00 owed" },
-    ]);
+    expect(summary.balances.figures).toBe("₹1,000.00 owed → ₹2,500.00 owed");
+  });
+
+  it("counts the UPI payments Google Pay named", () => {
+    expect(describeGroup(group({ gpay_enriched_count: 6 })).gpay).toBe(
+      "Named 6 UPI payments from Google Pay",
+    );
+    expect(describeGroup(group({ gpay_enriched_count: 1 })).gpay).toBe(
+      "Named 1 UPI payment from Google Pay",
+    );
   });
 });
