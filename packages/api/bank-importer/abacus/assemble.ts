@@ -379,7 +379,7 @@ function refuse(run: Run, part: Part, remainder: Remainder): never {
       part.edges.start,
       run.last.name,
       part.name,
-      `${part.name} covers the same dates as ${run.last.name} and starts and ends at the same balances: it is almost certainly the same statement uploaded twice.`,
+      "same-statement-twice",
     );
   }
 

@@ -99,6 +99,28 @@ function rejection(
   return response.body;
 }
 
+/** The batch refused before any account was imported. */
+function planRejection(
+  response: Awaited<ReturnType<typeof importStatementsAutomatically>>,
+) {
+  const body = rejection(response);
+  if (body.error !== "auto_import_files_unresolved") {
+    throw new Error(`expected a plan rejection, got ${body.error}`);
+  }
+  return body;
+}
+
+/** One account's import failed. */
+function groupFailure(
+  response: Awaited<ReturnType<typeof importStatementsAutomatically>>,
+) {
+  const body = rejection(response);
+  if (!("failed_group" in body)) {
+    throw new Error(`expected an account's import to fail, got ${body.error}`);
+  }
+  return body;
+}
+
 function openApiPaths(
   document: unknown,
 ): Record<string, Record<string, unknown>> {
@@ -233,7 +255,7 @@ describe("automatic statement import", () => {
       runStatementImport.mock.calls[1];
     expect(options).toEqual({
       baseAccount: "liabilities:card:sample",
-      accountKind: "credit-card",
+      accountKind: "card",
       customMappingsFilenames: [],
       gpayHtmlPath: null,
     });
@@ -264,8 +286,7 @@ describe("automatic statement import", () => {
 
     expect(runStatementImport).not.toHaveBeenCalled();
     expect(response.status).toBe(422);
-    const body = rejection(response);
-    expect(body.error).toBe("auto_import_files_unresolved");
+    const body = planRejection(response);
     expect(body.message).toContain("1 of 2");
     expect(body.files?.[0]).toMatchObject({
       status: "resolved",
@@ -300,7 +321,7 @@ describe("automatic statement import", () => {
 
     expect(runStatementImport).not.toHaveBeenCalled();
     expect(response.status).toBe(422);
-    const [file] = rejection(response).files ?? [];
+    const [file] = planRejection(response).files;
     expect(file).toMatchObject({
       status: "unrecognized",
       file_name: "sample-notes.csv",
@@ -330,7 +351,7 @@ describe("automatic statement import", () => {
 
     // The failing group keeps the import error's own payload and status.
     expect(response.status).toBe(400);
-    const body = rejection(response);
+    const body = groupFailure(response);
     expect(body.error).toBe("closing_balance_unavailable");
     expect(body.imported_groups?.map((one) => one.preset_name)).toEqual([
       "Sample Bank",

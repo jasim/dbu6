@@ -8,7 +8,7 @@ import { reportsApi } from "../api";
 import { ReportResultBody, useReportResult } from "./shared";
 
 export function BalanceAssertionsReport() {
-  const report = useReportResult(callReport, []);
+  const report = useReportResult(["balance-assertions"], callReport);
 
   return (
     <ReportScreenFrame title="Balance Assertions">

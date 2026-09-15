@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getApiBase } from "@sapporta/frontend/platform";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import type { AutoImportResult } from "dbu6-shared";
 import { cn } from "@sapporta/ui/cn";
 import { Screen, ScreenTitle } from "../components/screen";
 import { Button } from "../components/ui/button";
+import { plural } from "../format";
+import { REVIEW_ROUTE } from "../review/routes";
 import {
   OutcomeLine,
   ProblemCard,
@@ -18,22 +18,31 @@ import {
   newTransactionCount,
   type BatchSummary,
 } from "./import-statements/describeBatch";
-import { REVIEW_DRAFTS_ROUTE } from "./import-statements/describeGroup";
 import {
   describeProblems,
   FREEFORM_IMPORT_ROUTE,
-  networkError,
-  parseErrorBody,
   problemTone,
-  type AutoImportError,
   type ProblemAction,
 } from "./import-statements/describeProblems";
 import { Dropzone, FileRow, GooglePayRow } from "./import-statements/files";
-import { plural } from "./import-statements/format";
+import {
+  importedGroups,
+  plannedFiles,
+  sendStatements,
+  type ImportOutcome,
+} from "./import-statements/outcome";
 
 function fileKey(file: File): string {
   return `${file.name}:${file.size}`;
 }
+
+/** Where the screen is: choosing files, importing them, or showing how it went. */
+type ImportRun =
+  | { phase: "choosing" }
+  | { phase: "importing" }
+  | { phase: "finished"; outcome: ImportOutcome };
+
+const CHOOSING: ImportRun = { phase: "choosing" };
 
 /**
  * Import statements (PLAN.md §11 P2): drop the files, press one button, and
@@ -44,14 +53,9 @@ export function AutoImportStatements() {
   usePageTitle("Import statements");
   const [files, setFiles] = useState<File[]>([]);
   const [gpayFile, setGpayFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<AutoImportResult | null>(null);
-  const [error, setError] = useState<AutoImportError | null>(null);
-
-  function clearOutcome() {
-    setResult(null);
-    setError(null);
-  }
+  // Any change to the batch sets the run back to choosing, so a shown outcome
+  // always describes the files as they were sent.
+  const [run, setRun] = useState<ImportRun>(CHOOSING);
 
   function addFiles(incoming: File[]) {
     setFiles((prev) => {
@@ -59,28 +63,28 @@ export function AutoImportStatements() {
       const fresh = incoming.filter((f) => !seen.has(fileKey(f)));
       return fresh.length === 0 ? prev : [...prev, ...fresh];
     });
-    clearOutcome();
+    setRun(CHOOSING);
   }
 
   function removeFile(file: File) {
     setFiles((prev) => prev.filter((f) => fileKey(f) !== fileKey(file)));
-    clearOutcome();
+    setRun(CHOOSING);
   }
 
   function clearFiles() {
     setFiles([]);
-    clearOutcome();
+    setRun(CHOOSING);
   }
 
   function chooseGpayFile(file: File | null) {
     setGpayFile(file);
-    clearOutcome();
+    setRun(CHOOSING);
   }
 
   function startOver() {
     setFiles([]);
     setGpayFile(null);
-    clearOutcome();
+    setRun(CHOOSING);
   }
 
   function handleProblemAction(action: ProblemAction) {
@@ -91,67 +95,46 @@ export function AutoImportStatements() {
       const keep = new Set(action.fileNames);
       setFiles((prev) => prev.filter((f) => keep.has(f.name)));
     }
-    clearOutcome();
+    setRun(CHOOSING);
   }
 
   async function handleSubmit() {
-    if (files.length === 0 || loading) return;
-    setLoading(true);
-    clearOutcome();
-
-    const form = new FormData();
-    for (const f of files) form.append("files", f);
-    if (gpayFile) form.append("gpay", gpayFile);
-
-    try {
-      const res = await fetch(`${getApiBase()}/import-draft/statements/auto`, {
-        method: "POST",
-        body: form,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        const failure = parseErrorBody(body, res.status);
-        // Accounts that imported before the failure are done: their files
-        // leave the batch so a retry sends only what is left.
-        const done = new Set(
-          failure.importedGroups.flatMap((group) => group.file_names),
-        );
-        if (done.size > 0) {
-          setFiles((prev) => prev.filter((f) => !done.has(f.name)));
-        }
-        setError(failure);
-        return;
-      }
-      setResult((await res.json()) as AutoImportResult);
-    } catch (err) {
-      setError(
-        networkError(err instanceof Error ? err.message : "Upload failed"),
+    if (files.length === 0 || run.phase === "importing") return;
+    setRun({ phase: "importing" });
+    const outcome = await sendStatements(files, gpayFile);
+    if (outcome.kind === "failed") {
+      // Accounts that imported before the failure are done: their files
+      // leave the batch so a retry sends only what is left.
+      const done = new Set(
+        importedGroups(outcome).flatMap((group) => group.file_names),
       );
-    } finally {
-      setLoading(false);
+      if (done.size > 0) {
+        setFiles((prev) => prev.filter((f) => !done.has(f.name)));
+      }
     }
+    setRun({ phase: "finished", outcome });
   }
 
+  const loading = run.phase === "importing";
+  const outcome = run.phase === "finished" ? run.outcome : null;
   // After a request that imported without failure, the page is a record of
   // what happened: nothing to add or remove, only what to do next.
-  const done = result !== null;
-  // Every file the server decided on, whether or not anything was imported.
-  const plannedFiles = result?.files ?? error?.files ?? [];
+  const imported = outcome?.kind === "imported" ? outcome.result : null;
+  const failure = outcome?.kind === "failed" ? outcome.failure : null;
+  const planned = outcome ? plannedFiles(outcome) : [];
   const annotations = new Map(
-    plannedFiles.map((row) => [row.file_name, row] as const),
+    planned.map((row) => [row.file_name, row] as const),
   );
-  const importedGroups = result?.groups ?? error?.importedGroups ?? [];
-  const importedFiles = new Set(
-    importedGroups.flatMap((group) => group.file_names),
-  );
-  const failed = error
-    ? {
-        files: new Set(error.failedGroup?.file_names ?? []),
-        tone: problemTone(error),
-      }
-    : null;
-  const batch = describeBatch({ result, error });
-  const problems = error ? describeProblems(error) : [];
+  const groups = outcome ? importedGroups(outcome) : [];
+  const importedFiles = new Set(groups.flatMap((group) => group.file_names));
+  const failed =
+    failure?.kind === "account-refused"
+      ? {
+          files: new Set(failure.refusal.failed_group.file_names),
+          tone: problemTone(failure),
+        }
+      : null;
+  const problems = failure ? describeProblems(failure) : [];
 
   return (
     <Screen
@@ -167,7 +150,7 @@ export function AutoImportStatements() {
         </ScreenTitle>
       }
     >
-      {!done && (
+      {!imported && (
         <div className="mt-8">
           <Dropzone disabled={loading} onFiles={addFiles} />
           <p className="mt-3 text-meta text-ink-meta">
@@ -188,7 +171,7 @@ export function AutoImportStatements() {
             <h2 className="text-subheading text-foreground">
               {plural(files.length, "statement")}
             </h2>
-            {!done && (
+            {!imported && (
               <Button
                 type="button"
                 variant="ghost"
@@ -214,11 +197,11 @@ export function AutoImportStatements() {
                     : null
                 }
                 disabled={loading}
-                onRemove={done ? undefined : () => removeFile(file)}
+                onRemove={imported ? undefined : () => removeFile(file)}
               />
             );
           })}
-          {!done && (
+          {!imported && (
             <GooglePayRow
               file={gpayFile}
               disabled={loading}
@@ -230,9 +213,9 @@ export function AutoImportStatements() {
       </section>
 
       <div className="mt-6">
-        {done ? (
+        {imported ? (
           <DoneActions
-            newTransactions={newTransactionCount(result)}
+            newTransactions={newTransactionCount(imported)}
             onStartOver={startOver}
           />
         ) : (
@@ -244,9 +227,9 @@ export function AutoImportStatements() {
         )}
       </div>
 
-      {batch && (
+      {outcome && (
         <div className="mt-10 space-y-5">
-          <Summary batch={batch} />
+          <Summary batch={describeBatch(outcome)} />
           {problems.map((problem) => (
             <ProblemCard
               key={problem.key}
@@ -254,14 +237,14 @@ export function AutoImportStatements() {
               onAction={handleProblemAction}
             />
           ))}
-          {importedGroups.length > 0 && (
+          {groups.length > 0 && (
             <div className="space-y-3">
-              {error && (
+              {failure && (
                 <h2 className="text-subheading text-foreground">
                   Imported before the failure
                 </h2>
               )}
-              <ResultsCard groups={importedGroups} sources={plannedFiles} />
+              <ResultsCard groups={groups} sources={planned} />
             </div>
           )}
         </div>
@@ -318,7 +301,7 @@ function DoneActions({
   }
   return (
     <div className="flex flex-wrap gap-3">
-      <Button render={<Link to={REVIEW_DRAFTS_ROUTE} />} nativeButton={false}>
+      <Button render={<Link to={REVIEW_ROUTE} />} nativeButton={false}>
         Review {plural(newTransactions, "transaction")}
       </Button>
       <Button variant="outline" onClick={onStartOver}>

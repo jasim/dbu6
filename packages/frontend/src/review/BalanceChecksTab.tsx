@@ -1,10 +1,6 @@
 import { reportsApi } from "../api";
 import { EmptyState } from "../components/empty-state";
-import {
-  formatMoney,
-  formatShortDate,
-  plural,
-} from "../views/import-statements/format";
+import { formatMoney, formatShortDate, plural } from "../format";
 import { balanceChecksPrompt } from "./agentPrompts";
 import {
   AccountReport,
@@ -55,6 +51,7 @@ export function BalanceChecksTab() {
         away from the statement's.
       </ReportSummary>
       <AccountReport
+        report="draft-balance-assertions"
         accountId={account.account_id}
         call={() =>
           reportsApi.draftBalanceAssertions({

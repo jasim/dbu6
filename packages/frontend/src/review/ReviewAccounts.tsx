@@ -1,14 +1,20 @@
-import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import type { ReviewAccount } from "dbu6-shared";
+import { useQuery } from "@tanstack/react-query";
+import {
+  findBlock,
+  isProblem,
+  postingBlocks,
+  type ReviewAccount,
+} from "dbu6-shared";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import { apiErrorMessage, reviewApi } from "../api";
+import { apiErrorMessage } from "../api";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Screen, ScreenTitle } from "../components/screen";
 import { StatusChip, type StatusTone } from "../components/status-chip";
 import { Button } from "../components/ui/button";
-import { formatDaySpan, plural } from "../views/import-statements/format";
+import { formatDaySpan, plural } from "../format";
+import { reviewAccountsQuery } from "../queries";
 import { reviewHref } from "./routes";
 
 /**
@@ -18,25 +24,9 @@ import { reviewHref } from "./routes";
  */
 export function ReviewAccounts() {
   usePageTitle("Review");
-  const [accounts, setAccounts] = useState<ReviewAccount[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let live = true;
-    setError(null);
-    reviewApi
-      .accounts({ query: {} })
-      .then((body) => {
-        if (live) setAccounts(body.accounts);
-      })
-      .catch((e: unknown) => {
-        if (live) setError(apiErrorMessage(e));
-      });
-    return () => {
-      live = false;
-    };
-  }, [attempt]);
+  const query = useQuery(reviewAccountsQuery);
+  const accounts = query.data ?? null;
+  const error = query.isError ? apiErrorMessage(query.error) : null;
 
   const only = accounts?.length === 1 ? accounts[0] : undefined;
   if (only) return <Navigate to={reviewHref(only.account_id)} replace />;
@@ -58,7 +48,7 @@ export function ReviewAccounts() {
           <LoadError
             title="Couldn't load the accounts to review"
             message={error}
-            retry={() => setAttempt((n) => n + 1)}
+            retry={() => void query.refetch()}
           />
         ) : accounts === null ? (
           <ul
@@ -142,13 +132,15 @@ function accountStatus(account: ReviewAccount): {
   tone: StatusTone;
   label: string;
 } {
-  if (account.failing_checks > 0 || account.duplicates > 0) {
+  const blocks = postingBlocks(account);
+  if (blocks.some(isProblem)) {
     return { tone: "problem", label: "Problems to fix" };
   }
-  if (account.uncategorised > 0) {
+  const uncategorised = findBlock(blocks, "uncategorised");
+  if (uncategorised) {
     return {
-      tone: "attention",
-      label: `${account.uncategorised} ${account.uncategorised === 1 ? "needs" : "need"} a category`,
+      tone: uncategorised.severity,
+      label: `${uncategorised.count} ${uncategorised.count === 1 ? "needs" : "need"} a category`,
     };
   }
   return { tone: "ok", label: "Ready to add" };

@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
-import { importPresetSchema, type ImportPreset } from "dbu6-shared";
+import {
+  accountKindOf,
+  importPresetSchema,
+  type ImportPreset,
+} from "dbu6-shared";
 import { userConfigPath } from "../user-data.js";
 import { parseAccount } from "./domain/Account.js";
 import type { ImportOptions } from "./statement-import.js";
@@ -129,7 +133,7 @@ export function importOptionsFromPreset(
 ): ImportOptions {
   return {
     baseAccount: parseAccount(preset.base_account),
-    accountKind: preset.is_credit_card ? "credit-card" : "bank",
+    accountKind: accountKindOf(preset.is_credit_card),
     customMappingsFilenames: preset.custom_mappings_filenames,
     gpayHtmlPath,
   };

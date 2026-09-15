@@ -8,7 +8,7 @@ import { reportsApi } from "../api";
 import { ReportResultBody, useReportResult } from "./shared";
 
 export function DuplicateDraftsReport() {
-  const report = useReportResult(callReport, []);
+  const report = useReportResult(["duplicate-drafts"], callReport);
 
   return (
     <ReportScreenFrame title="Duplicate Drafts">

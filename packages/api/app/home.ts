@@ -2,13 +2,15 @@ import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   homeContract,
+  NO_DRAFTS,
+  type DraftCounts,
   type HomeAccount,
   type HomeSummary,
   type ImportPreset,
 } from "dbu6-shared";
 import { readImportPresets } from "../bank-importer/import-presets.js";
 import { importableAccounts } from "./account-names.js";
-import { loadDraftStatus } from "./draft-status.js";
+import { draftCounts, loadDraftStatus } from "./draft-status.js";
 import { loadLastReconciled } from "./reports/last-reconciled.js";
 import { allRows, ledgerCtes, type ScopeParams } from "./reports/shared.js";
 import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
@@ -50,7 +52,6 @@ export function loadHomeSummary(
     loadLastReconciled(sqlite, scope).map((row) => [row.account_id, row]),
   );
   const drafts = loadDraftStatus(sqlite, scope);
-  const pending = Array.from(drafts.values());
   const journalAccounts = new Set(
     allRows<{ account_id: number }>(
       sqlite,
@@ -63,7 +64,6 @@ export function loadHomeSummary(
     .map((account) => {
       const id = ledgerIds.get(account.path) ?? null;
       const checkpoint = id === null ? undefined : checkpoints.get(id);
-      const status = id === null ? undefined : drafts.get(id);
       return {
         account_id: id,
         path: account.path,
@@ -71,22 +71,16 @@ export function loadHomeSummary(
         kind: account.kind,
         checked_to: checkpoint?.last_reconciled_date ?? null,
         checked_balance: checkpoint?.last_balance ?? null,
-        drafts: status?.drafts ?? 0,
-        uncategorised: status?.uncategorised ?? 0,
-        duplicates: status?.duplicates.length ?? 0,
-        failing_checks: status?.failing.length ?? 0,
+        ...draftCounts(id === null ? undefined : drafts.get(id)),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return {
     accounts,
-    totals: {
-      drafts: sum(pending.map((row) => row.drafts)),
-      uncategorised: sum(pending.map((row) => row.uncategorised)),
-      duplicates: sum(pending.map((row) => row.duplicates.length)),
-      failing_checks: sum(pending.map((row) => row.failing.length)),
-    },
+    totals: Array.from(drafts.values())
+      .map(draftCounts)
+      .reduce(addCounts, NO_DRAFTS),
     has_journals: accounts.some(
       (account) =>
         account.account_id !== null && journalAccounts.has(account.account_id),
@@ -94,6 +88,11 @@ export function loadHomeSummary(
   };
 }
 
-function sum(values: readonly number[]): number {
-  return values.reduce((total, value) => total + value, 0);
+function addCounts(a: DraftCounts, b: DraftCounts): DraftCounts {
+  return {
+    drafts: a.drafts + b.drafts,
+    uncategorised: a.uncategorised + b.uncategorised,
+    duplicates: a.duplicates + b.duplicates,
+    failing_checks: a.failing_checks + b.failing_checks,
+  };
 }

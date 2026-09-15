@@ -8,7 +8,7 @@ import { reportsApi } from "../api";
 import { ReportResultBody, useReportResult } from "./shared";
 
 export function LastReconciledReport() {
-  const report = useReportResult(callReport, []);
+  const report = useReportResult(["last-reconciled"], callReport);
 
   return (
     <ReportScreenFrame title="Last Reconciled Entries">

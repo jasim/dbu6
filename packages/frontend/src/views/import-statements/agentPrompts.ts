@@ -4,6 +4,8 @@
 // do, which repository documents govern the work, and what to report back.
 // Prompts that let the agent retry the import end with `RERUN_BLOCK`.
 
+import { PII_RULE } from "../../agent-prompt-rules";
+
 export const RERUN_BLOCK = `Re-running the import yourself: with the dev server running, POST the statement
 file(s) to the same endpoint the screen uses. You need an agent access token,
 which I can create from my account page in the app, in SAPPORTA_API_TOKEN.
@@ -18,10 +20,6 @@ transaction_count, duplicate_count, skipped_reconciled_count,
 balance_metadata, statement_period, reconciliation_checkpoint). Errors are
 4xx/5xx JSON with an \`error\` code and a \`message\`. Imports only create Draft
 transactions; they never post to the books.`;
-
-export const PII_RULE = `Never put real names, account numbers, references, or amounts in the
-repository. Use the 050505 / NOPII / sample conventions in AGENTS.md for any
-fixture or test.`;
 
 function quoted(message: string | null): string {
   return message === null ? "" : `\nServer message: "${message}"\n`;
@@ -190,16 +188,13 @@ error ${code}. The files were read by ${parsers}.`;
 
 export function balanceMismatchPrompt(
   facts: FailedGroupFacts & {
-    computedFinal: number | null;
-    statementClosing: number | null;
-    difference: number | null;
+    computedFinal: number;
+    statementClosing: number;
+    difference: number;
     suspectRange: { fromDate: string; toDate: string } | null;
   },
 ): string {
-  const numbers =
-    facts.computedFinal === null
-      ? ""
-      : ` Computed final balance ${facts.computedFinal}, statement closing ${facts.statementClosing}, difference ${facts.difference}.`;
+  const numbers = ` Computed final balance ${facts.computedFinal}, statement closing ${facts.statementClosing}, difference ${facts.difference}.`;
   const range =
     facts.suspectRange === null
       ? ""
@@ -223,9 +218,9 @@ export function boundaryGapPrompt(
   facts: FailedGroupFacts & {
     earlierSource: string;
     laterSource: string;
-    earlierClosing: number | null;
-    laterOpening: number | null;
-    difference: number | null;
+    earlierClosing: number;
+    laterOpening: number;
+    difference: number;
   },
 ): string {
   return `${groupIntro(facts, "statement_boundary_mismatch")} ${facts.earlierSource} ends at
@@ -263,10 +258,10 @@ ${RERUN_BLOCK}`;
 }
 
 export function partInvalidPrompt(
-  facts: FailedGroupFacts & { part: string; detail: string | null },
+  facts: FailedGroupFacts & { part: string; detail: string },
 ): string {
   return `${groupIntro(facts, "statement_part_invalid")} The part ${facts.part} is not
-self-consistent: ${facts.detail ?? "(no detail)"}.${quoted(facts.message)}
+self-consistent: ${facts.detail}.${quoted(facts.message)}
 Run the saved parser on that file and compare its emitted opening, closing,
 and running balances with what the statement prints. Decide whether the bank's
 export is broken or the parser misreads it. If the parser is the cause, fix it
@@ -279,8 +274,8 @@ ${RERUN_BLOCK}`;
 
 export function reconciliationPrompt(
   facts: FailedGroupFacts & {
-    checkpointDate: string | null;
-    checkpointBalance: number | null;
+    checkpointDate: string;
+    checkpointBalance: number;
   },
 ): string {
   return `${groupIntro(facts, "reconciliation_match_failed")} The ledger's last reconciled

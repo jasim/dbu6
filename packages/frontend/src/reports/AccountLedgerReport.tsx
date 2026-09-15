@@ -27,13 +27,13 @@ export function AccountLedgerReport() {
   const selectedAccount = lookupValueFromParam(accountId);
   const hasAccount = accountId !== "";
   const report = useReportResult(
+    ["account-ledger", accountId, fromDate, toDate],
     () =>
       callReport({
         account_id: accountId,
         from_date: fromDate,
         to_date: toDate,
       }),
-    [accountId, fromDate, toDate],
     hasAccount,
   );
 

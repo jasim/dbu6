@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
+import { accountKindSchema } from "./account-kind.js";
+import { draftCountsSchema } from "./posting-blocks.js";
 
 const c = initContract();
 
@@ -13,11 +15,8 @@ export const reviewAccountSchema = z.object({
   path: z.string(),
   // The preset's name when one preset imports here, else a readable segment.
   name: z.string(),
-  kind: z.enum(["bank", "card"]),
-  drafts: z.number(),
-  uncategorised: z.number(),
-  duplicates: z.number(),
-  failing_checks: z.number(),
+  kind: accountKindSchema,
+  ...draftCountsSchema.shape,
   // The drafts' first and last dates; null when there are none.
   first_date: z.string().nullable(),
   last_date: z.string().nullable(),

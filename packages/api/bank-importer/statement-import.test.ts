@@ -100,13 +100,18 @@ describe("runStatementImport", () => {
 
   it("checks the statement's closing before filtering an all-duplicate batch", async () => {
     const part = stmt(["2026-05-01"], -100, -999);
-    await expect(
-      runStatementImport(
-        [part],
-        options(),
-        stubImportDb({ date: "2026-12-31", balance: -999 }),
-      ),
-    ).rejects.toBeInstanceOf(BalanceMismatchError);
+    const refusal = runStatementImport(
+      [part],
+      options(),
+      stubImportDb({ date: "2026-12-31", balance: -999 }),
+    );
+    await expect(refusal).rejects.toBeInstanceOf(BalanceMismatchError);
+    // The statement prints no running balances, so a gap is the likely cause.
+    const error = await refusal.catch((err: BalanceMismatchError) => err);
+    expect((error as BalanceMismatchError).toPayload()).toMatchObject({
+      error: "balance_mismatch",
+      suspected_gap: true,
+    });
   });
 
   it("reports balance provenance, the statement period, and the checkpoint", async () => {
@@ -135,7 +140,7 @@ describe("runStatementImport", () => {
 function options(): ImportOptions {
   return {
     baseAccount: parseAccount("cc:stanc"),
-    accountKind: "credit-card",
+    accountKind: "card",
     customMappingsFilenames: [],
     gpayHtmlPath: null,
   };

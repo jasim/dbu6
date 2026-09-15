@@ -1,12 +1,19 @@
-import type { HomeAccount, HomeSummary } from "dbu6-shared";
+import {
+  findBlock,
+  isProblem,
+  postingBlocks,
+  type HomeAccount,
+  type HomeSummary,
+  type ProblemBlock,
+} from "dbu6-shared";
 import { reviewHref, REVIEW_ROUTE } from "../review/routes";
-import { joinNames, plural } from "../views/import-statements/format";
+import { joinNames, plural } from "../format";
 
 /*
  * What Home says, as a pure function of the summary (PLAN.md §11 P1). In
- * precedence order: no accounts, then whatever is in the drafts (problems
- * before categories, since a wrong balance usually means a wrong or missing
- * statement), then nothing imported, then up to date.
+ * precedence order: no accounts, then whatever blocks the drafts (problems
+ * before categories, as `postingBlocks` marks them), then drafts ready to add,
+ * then nothing imported, then up to date.
  */
 
 export type HomeStateId =
@@ -39,6 +46,9 @@ export interface HomeView {
 export function homeState(summary: HomeSummary): HomeView {
   const { accounts, totals } = summary;
   const review = reviewTarget(summary);
+  const blocks = postingBlocks(totals);
+  const problems = blocks.filter(isProblem);
+  const uncategorised = findBlock(blocks, "uncategorised");
 
   if (accounts.length === 0) {
     return {
@@ -52,28 +62,28 @@ export function homeState(summary: HomeSummary): HomeView {
     };
   }
 
-  if (totals.failing_checks > 0 || totals.duplicates > 0) {
+  if (problems.length > 0) {
     return {
       state: "problems",
       greeting: "A few things to fix first",
       card: {
-        count: totals.failing_checks + totals.duplicates,
-        title: problemsTitle(totals.failing_checks, totals.duplicates),
+        count: problems.reduce((sum, block) => sum + block.count, 0),
+        title: problemsTitle(problems),
         body: "They have to be fixed before those drafts can be added to your books.",
         action: { label: "Review the drafts", to: review },
       },
     };
   }
 
-  if (totals.uncategorised > 0) {
+  if (uncategorised) {
     const where = named(accounts.filter((a) => a.uncategorised > 0));
     return {
       state: "uncategorised",
       greeting: "You're nearly up to date",
       card: {
-        count: totals.uncategorised,
-        title: `${plural(totals.uncategorised, "transaction")} ${
-          totals.uncategorised === 1 ? "needs" : "need"
+        count: uncategorised.count,
+        title: `${plural(uncategorised.count, "transaction")} ${
+          uncategorised.count === 1 ? "needs" : "need"
         } a category`,
         body: `${
           where
@@ -86,16 +96,13 @@ export function homeState(summary: HomeSummary): HomeView {
   }
 
   if (totals.drafts > 0) {
-    const where = named(accounts.filter((a) => a.drafts > 0));
     return {
       state: "ready",
       greeting: "Ready to add to your books",
       card: {
         count: totals.drafts,
         title: `${plural(totals.drafts, "transaction")} ready to add`,
-        body: where
-          ? `The drafts for ${where} are categorised and the balances match.`
-          : "The drafts are categorised and the balances match.",
+        body: "The entries are ready for posting.",
         action: { label: "Add them to my books", to: review },
       },
     };
@@ -139,12 +146,15 @@ function reviewTarget({ accounts, totals }: HomeSummary): string {
     : REVIEW_ROUTE;
 }
 
-function problemsTitle(failing: number, duplicates: number): string {
-  if (failing > 0 && duplicates > 0) return "A few things to fix in the drafts";
-  if (failing > 0) {
-    return `${plural(failing, "balance check")} ${failing === 1 ? "fails" : "fail"} in the drafts`;
+function problemsTitle(problems: readonly ProblemBlock[]): string {
+  const [only] = problems;
+  if (problems.length > 1 || !only) return "A few things to fix in the drafts";
+  switch (only.kind) {
+    case "failing-checks":
+      return `${plural(only.count, "balance check")} ${only.count === 1 ? "fails" : "fail"} in the drafts`;
+    case "duplicates":
+      return `${plural(only.count, "possible duplicate entry", "possible duplicate entries")} in the drafts`;
   }
-  return `${plural(duplicates, "possible duplicate entry", "possible duplicate entries")} in the drafts`;
 }
 
 /** "HDFC Savings and ICICI Amazon Pay", or "" when no listed account applies. */

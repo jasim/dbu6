@@ -1,6 +1,6 @@
 /*
- * The one place that turns an account path into what the everyday screens
- * show: a friendly name and the hue of its top-level group. The colon path
+ * The hue of a category's top-level group, as the everyday screens show it
+ * beside its friendly name (`accountPathName` in dbu6-shared). The colon path
  * itself belongs only in tooltips, aria labels and the All tools screens.
  */
 
@@ -80,16 +80,4 @@ export function categoryHue(path: string): CategoryHueKey {
 /** The CSS colour for a hue key, as app.css defines it. */
 export function categoryHueColor(key: CategoryHueKey): string {
   return `var(--cat-${key})`;
-}
-
-/**
- * The friendly name of an account: its last segment, with hyphens as spaces
- * and a capital first letter. `expenses:food:food-delivery` is "Food
- * delivery"; `expenses:food` is "Food".
- */
-export function categoryName(path: string): string {
-  const last = segments(path).at(-1);
-  if (last === undefined) return "";
-  const words = last.replace(/[-_]+/g, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
 }

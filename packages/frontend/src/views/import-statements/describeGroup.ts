@@ -1,13 +1,17 @@
-import type { AutoImportGroupResult, AutoImportPlanFile } from "dbu6-shared";
 import {
+  accountKindOf,
+  type AutoImportGroupResult,
+  type AutoImportPlanFile,
+} from "dbu6-shared";
+import {
+  describeStatementAccount,
   formatBalance,
   formatDate,
   formatDateRange,
   joinNames,
-  maskIdentifier,
   parserLabel,
   plural,
-} from "./format";
+} from "../../format";
 
 // A labelled fact, for the facts tables. Values are figures (money, dates,
 // counts, codes) set in mono unless marked as words.
@@ -40,8 +44,6 @@ export interface GroupSummary {
   breakdown: Stat[];
   details: Stat[];
 }
-
-export const REVIEW_DRAFTS_ROUTE = "/review";
 
 type Balance = AutoImportGroupResult["result"]["balance_metadata"]["opening"];
 
@@ -92,10 +94,7 @@ function caption(
         .filter(
           (account): account is NonNullable<typeof account> => account !== null,
         )
-        .map(
-          (account) =>
-            `${account.kind === "card" ? "card" : "account"} ${maskIdentifier(account.identifier)}`,
-        ),
+        .map(describeStatementAccount),
     ),
   );
   const period = group.result.statement_period;
@@ -136,7 +135,7 @@ function breakdown(group: AutoImportGroupResult): Stat[] {
 }
 
 function balances(group: AutoImportGroupResult): GroupSummary["balances"] {
-  const cc = group.is_credit_card;
+  const kind = accountKindOf(group.is_credit_card);
   const { opening, closing } = group.result.balance_metadata;
   if (closing.effective === null) {
     return {
@@ -145,14 +144,14 @@ function balances(group: AutoImportGroupResult): GroupSummary["balances"] {
       figures: null,
     };
   }
-  const closingText = formatBalance(closing.effective, cc);
+  const closingText = formatBalance(closing.effective, kind);
   return {
     tone: "verified",
     text: "Balances match the statement",
     figures:
       opening.effective === null
         ? closingText
-        : `${formatBalance(opening.effective, cc)} → ${closingText}`,
+        : `${formatBalance(opening.effective, kind)} → ${closingText}`,
   };
 }
 
@@ -176,7 +175,7 @@ function details(group: AutoImportGroupResult): Stat[] {
   if (r.reconciliation_checkpoint) {
     rows.push({
       label: "Last confirmed balance",
-      value: `${formatBalance(r.reconciliation_checkpoint.balance, group.is_credit_card)} on ${formatDate(r.reconciliation_checkpoint.date)}`,
+      value: `${formatBalance(r.reconciliation_checkpoint.balance, accountKindOf(group.is_credit_card))} on ${formatDate(r.reconciliation_checkpoint.date)}`,
     });
   }
   return rows;

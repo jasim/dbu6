@@ -7,7 +7,11 @@ import {
   type ServerInferResponses,
 } from "@sapporta/server";
 import { parsePlainDate } from "@sapporta/shared/temporal";
-import { draftTransactionsContract } from "dbu6-shared";
+import {
+  draftTransactionsContract,
+  postingBlocks,
+  type PostingBlock,
+} from "dbu6-shared";
 import { unsafeAsChrono } from "../bank-importer/domain/Chrono.js";
 import { partitionByCategorization } from "../bank-importer/domain/DraftCategorizedTransaction.js";
 import { groupByDateAndType } from "../bank-importer/domain/TransactionGroup.js";
@@ -23,7 +27,7 @@ import {
   journalsTable,
 } from "../schema/journals.js";
 import { loadCategorizedDrafts } from "./draft-categorization.js";
-import { loadDraftStatus } from "./draft-status.js";
+import { draftCounts, loadDraftStatus } from "./draft-status.js";
 import type { RowScopeAuth } from "../bank-importer/draft-persistence.js";
 import type { ScopeParams } from "./reports/shared.js";
 import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
@@ -70,40 +74,12 @@ export function postDraftsToJournal(
     return { status: 404, body: { error: "Base account not found" } };
   }
 
-  // The same status Review shows, so its ticks and this gate agree.
+  // The same blocks Review shows, so its ticks and this gate agree.
   const status = loadDraftStatus(sqlite, scope, {
     accountId: base_account_id,
   }).get(base_account_id);
-  if (status && status.uncategorised > 0) {
-    return {
-      status: 422,
-      body: {
-        error: `${status.uncategorised} draft transaction(s) under ${loaded.baseAccountName} have no account_id`,
-        code: "UNCATEGORIZED_DRAFTS",
-        uncategorized_count: status.uncategorised,
-      },
-    };
-  }
-  if (status && status.duplicates.length > 0) {
-    return {
-      status: 422,
-      body: {
-        error: `${status.duplicates.length} duplicate draft overlap(s) found under ${loaded.baseAccountName}`,
-        code: "DUPLICATE_DRAFTS",
-        duplicate_count: status.duplicates.length,
-      },
-    };
-  }
-  if (status && status.failing.length > 0) {
-    return {
-      status: 422,
-      body: {
-        error: `${status.failing.length} draft balance assertion(s) failing under ${loaded.baseAccountName}`,
-        code: "FAILING_ASSERTIONS",
-        failing_count: status.failing.length,
-      },
-    };
-  }
+  const [block] = postingBlocks(draftCounts(status));
+  if (block) return refusal(block, loaded.baseAccountName);
 
   // The drafts and the status were read in one synchronous pass, so every
   // draft loaded here has a category.
@@ -176,4 +152,37 @@ export function postDraftsToJournal(
       drafts_posted: loaded.drafts.length,
     },
   };
+}
+
+/** The 422 for the first block, in the codes and counts callers read. */
+function refusal(block: PostingBlock, account: string): PostingResponse {
+  switch (block.kind) {
+    case "uncategorised":
+      return {
+        status: 422,
+        body: {
+          error: `${block.count} draft transaction(s) under ${account} have no account_id`,
+          code: "UNCATEGORIZED_DRAFTS",
+          uncategorized_count: block.count,
+        },
+      };
+    case "duplicates":
+      return {
+        status: 422,
+        body: {
+          error: `${block.count} duplicate draft overlap(s) found under ${account}`,
+          code: "DUPLICATE_DRAFTS",
+          duplicate_count: block.count,
+        },
+      };
+    case "failing-checks":
+      return {
+        status: 422,
+        body: {
+          error: `${block.count} draft balance assertion(s) failing under ${account}`,
+          code: "FAILING_ASSERTIONS",
+          failing_count: block.count,
+        },
+      };
+  }
 }

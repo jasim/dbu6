@@ -7,7 +7,7 @@ import {
 describe("freeformTransactionsPrompt", () => {
   it("names the kind, the account, and the guide", () => {
     const prompt = freeformTransactionsPrompt({
-      kind: "credit-card",
+      kind: "card",
       name: "cc:sample",
     });
     expect(prompt).toContain(

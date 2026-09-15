@@ -8,8 +8,8 @@ import type {
   ReviewDuplicate,
   ReviewFailingCheck,
 } from "dbu6-shared";
-import { PII_RULE } from "../views/import-statements/agentPrompts";
-import { plural } from "../views/import-statements/format";
+import { PII_RULE } from "../agent-prompt-rules";
+import { plural } from "../format";
 
 /** Rows listed in a prompt before the rest are left to the API. */
 export const PROMPT_ROW_LIMIT = 50;

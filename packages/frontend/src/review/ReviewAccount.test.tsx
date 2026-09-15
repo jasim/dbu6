@@ -2,6 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   afterEach,
   beforeAll,
@@ -96,31 +97,35 @@ async function renderAt(url: string) {
   await act(async () => {
     root.render(
       createElement(
-        MemoryRouter,
-        { initialEntries: [url] },
-        createElement(Where),
+        QueryClientProvider,
+        { client: new QueryClient() },
         createElement(
-          Routes,
-          null,
-          createElement(Route, {
-            path: "/review",
-            element: createElement("p", null, "picker"),
-          }),
+          MemoryRouter,
+          { initialEntries: [url] },
+          createElement(Where),
           createElement(
-            Route,
-            {
-              path: "/review/:accountId",
-              element: createElement(ReviewAccount),
-            },
+            Routes,
+            null,
             createElement(Route, {
-              index: true,
-              element: createElement(Tab, { name: "overview" }),
+              path: "/review",
+              element: createElement("p", null, "picker"),
             }),
-            createElement(Route, {
-              path: "drafts",
-              element: createElement(Tab, { name: "drafts" }),
-            }),
-            createElement(Route, { path: "*", element: null }),
+            createElement(
+              Route,
+              {
+                path: "/review/:accountId",
+                element: createElement(ReviewAccount),
+              },
+              createElement(Route, {
+                index: true,
+                element: createElement(Tab, { name: "overview" }),
+              }),
+              createElement(Route, {
+                path: "drafts",
+                element: createElement(Tab, { name: "drafts" }),
+              }),
+              createElement(Route, { path: "*", element: null }),
+            ),
           ),
         ),
       ),

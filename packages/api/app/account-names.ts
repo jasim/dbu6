@@ -1,4 +1,10 @@
-import type { ImportPreset } from "dbu6-shared";
+import {
+  accountKindOf,
+  accountKindOfType,
+  accountPathName,
+  type AccountKind,
+  type ImportPreset,
+} from "dbu6-shared";
 
 /*
  * What the everyday screens call a ledger account (PLAN.md §11 P1, P3). A
@@ -6,8 +12,6 @@ import type { ImportPreset } from "dbu6-shared";
  * account by the last segment of its path, made readable. The path itself
  * stays in `title` attributes.
  */
-
-export type AccountKind = "bank" | "card";
 
 export interface AccountLabel {
   name: string;
@@ -37,18 +41,14 @@ export function importableAccounts(
 
 /**
  * The name and kind of any ledger account. Without a preset saying
- * otherwise, a Liability is read as a card: money owed, not money held.
+ * otherwise, the kind is read from the account's type.
  */
 export function accountLabel(
   path: string,
   accountType: string | null,
   presets: readonly ImportPreset[],
 ): AccountLabel {
-  return presetLabel(
-    path,
-    presets,
-    accountType === "Liability" ? "card" : "bank",
-  );
+  return presetLabel(path, presets, accountKindOfType(accountType));
 }
 
 function presetLabel(
@@ -59,15 +59,9 @@ function presetLabel(
   const own = presets.filter((preset) => preset.base_account === path);
   const names = new Set(own.map((preset) => preset.name));
   return {
-    name: names.size === 1 ? Array.from(names)[0] : readableSegment(path),
-    kind: own.some((preset) => preset.is_credit_card === true)
+    name: names.size === 1 ? Array.from(names)[0] : accountPathName(path),
+    kind: own.some((preset) => accountKindOf(preset.is_credit_card) === "card")
       ? "card"
       : fallbackKind,
   };
-}
-
-function readableSegment(path: string): string {
-  const last = path.split(":").filter(Boolean).at(-1) ?? path;
-  const words = last.replace(/[-_]+/g, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
 }

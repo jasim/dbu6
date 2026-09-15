@@ -22,13 +22,16 @@ export function ReportSummary({ children }: { children: ReactNode }) {
 
 /** The report's grid, fetched when the tab opens. */
 export function AccountReport({
+  report: reportName,
   call,
   accountId,
 }: {
+  /** The report's id, which with the account keys the fetch. */
+  report: string;
   call: () => Promise<GridDataset>;
   accountId: number;
 }) {
-  const report = useReportResult(call, [accountId]);
+  const report = useReportResult([reportName, accountId], call);
   if (report.error) {
     return (
       <div className="mt-5 max-w-[760px]">

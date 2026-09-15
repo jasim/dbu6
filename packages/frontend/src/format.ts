@@ -1,5 +1,7 @@
-// Formatting for the import screens: money, dates, and identifiers in the
+// Formatting for the everyday screens: money, dates, and identifiers in the
 // words a statement reader would use, never in ledger notation.
+
+import type { AccountKind, StatementAccount } from "dbu6-shared";
 
 const inr = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -11,14 +13,11 @@ export function formatMoney(value: number): string {
   return inr.format(value);
 }
 
-// A ledger balance as the user thinks of it. A credit card's ledger balance
-// is negative when money is owed, so it is read out as an amount owed.
-export function formatBalance(
-  value: number | null,
-  isCreditCard: boolean,
-): string {
+// A ledger balance as the user thinks of it. A card's ledger balance is
+// negative when money is owed, so it is read out as an amount owed.
+export function formatBalance(value: number | null, kind: AccountKind): string {
   if (value === null) return "not printed";
-  if (!isCreditCard) return formatMoney(value);
+  if (kind === "bank") return formatMoney(value);
   if (value === 0) return "nothing owed";
   if (value < 0) return `${formatMoney(Math.abs(value))} owed`;
   return `${formatMoney(value)} in credit`;
@@ -95,6 +94,11 @@ export function formatDateRange(from: string, to: string): string {
 // An account or card number is shown by its last four characters only.
 export function maskIdentifier(identifier: string): string {
   return `ending ${identifier.slice(-4)}`;
+}
+
+// What a statement says it is for: "card ending 0505", "account ending 0505".
+export function describeStatementAccount(account: StatementAccount): string {
+  return `${account.kind === "card" ? "card" : "account"} ${maskIdentifier(account.identifier)}`;
 }
 
 // A file's size as a file manager shows it: "840 B", "24 KB", "1.2 MB".

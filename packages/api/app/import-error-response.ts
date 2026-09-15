@@ -1,17 +1,12 @@
+import type { StatementImportError } from "dbu6-shared";
 import { ApiImportError } from "../bank-importer/import-errors.js";
 
 type ImportErrorStatus = 400 | 422;
-type ImportErrorPayload = {
-  error: string;
-  message?: string;
-  detail?: string;
-  hint?: string;
-} & Record<string, unknown>;
 
 type ImportRouteResponse<T> =
   | { status: 200; body: T }
-  | { status: 400; body: ImportErrorPayload }
-  | { status: 422; body: ImportErrorPayload };
+  | { status: 400; body: StatementImportError }
+  | { status: 422; body: StatementImportError };
 
 function importErrorStatus(status: number): ImportErrorStatus {
   if (status === 400 || status === 422) return status;
@@ -28,11 +23,7 @@ export async function respondWithImportErrors<T>(
     return { status: 200, body: await run() };
   } catch (err) {
     if (!(err instanceof ApiImportError)) throw err;
-    const payload = err.toPayload();
-    const body: ImportErrorPayload = {
-      ...payload,
-      error: typeof payload.error === "string" ? payload.error : "import_error",
-    };
+    const body = err.toPayload();
     const status = importErrorStatus(err.status);
     switch (status) {
       case 400:

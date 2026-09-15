@@ -536,7 +536,11 @@ describe("refusals", () => {
       /same statement uploaded twice/,
     );
     expect((error as StatementBoundaryMismatchError).toPayload()).toMatchObject(
-      { error: "statement_boundary_mismatch", hint: expect.any(String) },
+      {
+        error: "statement_boundary_mismatch",
+        reason: "same-statement-twice",
+        hint: expect.any(String),
+      },
     );
   });
 
@@ -552,6 +556,7 @@ describe("refusals", () => {
     }
     expect(error).toBeInstanceOf(StatementBoundaryMismatchError);
     const gap = error as StatementBoundaryMismatchError;
+    expect(gap.reason).toBe("gap");
     expect(gap.earlierSource).toBe("feb");
     expect(gap.laterSource).toBe("stray");
     expect(gap.difference).toBe(3800);

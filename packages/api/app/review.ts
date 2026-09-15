@@ -8,7 +8,11 @@ import {
 } from "dbu6-shared";
 import { readImportPresets } from "../bank-importer/import-presets.js";
 import { accountLabel } from "./account-names.js";
-import { loadDraftStatus, type DraftAccountStatus } from "./draft-status.js";
+import {
+  draftCounts,
+  loadDraftStatus,
+  type DraftAccountStatus,
+} from "./draft-status.js";
 import { loadLastReconciled } from "./reports/last-reconciled.js";
 import { allRows, ledgerCtes, type ScopeParams } from "./reports/shared.js";
 import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
@@ -153,10 +157,7 @@ function reviewAccount(
     account_id: account.id,
     path: account.name,
     ...accountLabel(account.name, account.account_type, presets),
-    drafts: status?.drafts ?? 0,
-    uncategorised: status?.uncategorised ?? 0,
-    duplicates: status?.duplicates.length ?? 0,
-    failing_checks: status?.failing.length ?? 0,
+    ...draftCounts(status),
     first_date: status?.first_date ?? null,
     last_date: status?.last_date ?? null,
   };

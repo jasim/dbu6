@@ -2,7 +2,6 @@
 // transformation over it. Import from here rather than from the files.
 export {
   abacusStatementFromJson,
-  applyCreditCardSignFlip,
   describeStatement,
   parseAbacusJson,
   validateTransactions,

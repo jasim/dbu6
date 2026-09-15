@@ -2,6 +2,7 @@
 import { act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   afterEach,
   beforeAll,
@@ -261,25 +262,32 @@ async function renderShell(
   }
   await act(async () => {
     root.render(
+      // A client per render, so no count is cached from an earlier one.
       createElement(
-        MemoryRouter,
-        null,
+        QueryClientProvider,
+        { client: new QueryClient() },
         createElement(
-          Routes,
+          MemoryRouter,
           null,
           createElement(
-            Route,
-            { element: createElement(AppShell, { navigation: NAVIGATION }) },
-            createElement(Route, { index: true, element: content }),
+            Routes,
+            null,
+            createElement(
+              Route,
+              { element: createElement(AppShell, { navigation: NAVIGATION }) },
+              createElement(Route, { index: true, element: content }),
+            ),
           ),
         ),
       ),
     );
   });
   // The drawer loads on demand and the badge count arrives after a fetch.
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
+  for (let i = 0; i < 3; i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
 }
 
 function installMedia({ desktop }: { desktop: boolean }) {

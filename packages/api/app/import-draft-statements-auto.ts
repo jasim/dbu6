@@ -1,7 +1,9 @@
 import path from "node:path";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
+  accountKindOf,
   importDraftsContract,
+  type AutoImportErrorBody,
   type AutoImportFailedGroup,
   type AutoImportGroupResult,
   type AutoImportPlanFile,
@@ -48,17 +50,6 @@ import { requireWorkflowAuth } from "./workflow-auth.js";
 //
 // Everything the account resolution decided is reported back, whether or not
 // anything was imported, so the user can fix a preset and retry.
-
-type AutoImportErrorBody = {
-  error: string;
-  message?: string;
-  detail?: string;
-  hint?: string;
-  files?: AutoImportPlanFile[];
-  failed_group?: AutoImportFailedGroup;
-  imported_groups?: AutoImportGroupResult[];
-  partial_import?: string;
-} & Record<string, unknown>;
 
 type AutoImportRouteResponse =
   | {
@@ -109,7 +100,7 @@ function failedGroup(group: AutoImportGroup): AutoImportFailedGroup {
   return {
     preset_name: group.preset.name,
     base_account: group.preset.base_account,
-    is_credit_card: group.preset.is_credit_card ?? false,
+    is_credit_card: accountKindOf(group.preset.is_credit_card) === "card",
     file_names: group.statements.map((one) => one.file),
   };
 }
@@ -121,7 +112,7 @@ function groupResult(
   return {
     preset_name: group.preset.name,
     base_account: group.preset.base_account,
-    is_credit_card: group.preset.is_credit_card ?? false,
+    is_credit_card: accountKindOf(group.preset.is_credit_card) === "card",
     file_names: group.statements.map((one) => one.file),
     result: {
       ...result,
@@ -289,7 +280,7 @@ api.register(
       return {
         status: 400 as const,
         body: {
-          error: "missing_multipart_field",
+          error: "missing_multipart_field" as const,
           message: "Missing 'files' field in multipart upload",
         },
       };

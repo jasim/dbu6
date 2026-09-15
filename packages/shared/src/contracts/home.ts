@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
+import { accountKindSchema } from "./account-kind.js";
+import { draftCountsSchema } from "./posting-blocks.js";
 
 const c = initContract();
 
@@ -15,28 +17,18 @@ export const homeAccountSchema = z.object({
   path: z.string(),
   // The preset's name when one preset points here, else a readable segment.
   name: z.string(),
-  kind: z.enum(["bank", "card"]),
+  kind: accountKindSchema,
   // The last posted balance assertion: its date and figure.
   checked_to: z.string().nullable(),
   checked_balance: z.number().nullable(),
-  drafts: z.number(),
-  uncategorised: z.number(),
-  duplicates: z.number(),
-  failing_checks: z.number(),
+  ...draftCountsSchema.shape,
 });
 export type HomeAccount = z.infer<typeof homeAccountSchema>;
-
-export const homeTotalsSchema = z.object({
-  drafts: z.number(),
-  uncategorised: z.number(),
-  duplicates: z.number(),
-  failing_checks: z.number(),
-});
 
 export const homeSummarySchema = z.object({
   accounts: z.array(homeAccountSchema),
   // Over every draft, including ones on accounts no preset names.
-  totals: homeTotalsSchema,
+  totals: draftCountsSchema,
   // Whether any listed account has posted entries.
   has_journals: z.boolean(),
 });

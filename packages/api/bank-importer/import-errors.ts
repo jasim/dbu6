@@ -1,10 +1,12 @@
+import type { StatementImportError } from "dbu6-shared";
+
 // Errors that the import pipeline wants to surface to API callers as a
-// structured JSON body with a specific HTTP status. Each subclass owns its
-// own wire shape via `toPayload()` — the HTTP handler just dispatches, it
-// does not re-derive the payload.
+// structured JSON body with a specific HTTP status. Each subclass builds its
+// variant of `statementImportErrorSchema` (dbu6-shared) in `toPayload()` — the
+// HTTP handler just dispatches, it does not re-derive the payload.
 export abstract class ApiImportError extends Error {
   abstract readonly status: number;
-  abstract toPayload(): Record<string, unknown>;
+  abstract toPayload(): StatementImportError;
 }
 
 export class ReconciliationMatchError extends ApiImportError {
@@ -18,7 +20,7 @@ export class ReconciliationMatchError extends ApiImportError {
     this.name = "ReconciliationMatchError";
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "reconciliation_match_failed",
       message: this.message,
@@ -30,7 +32,9 @@ export class ReconciliationMatchError extends ApiImportError {
 
 // Thrown when a statement's computed closing balance drifts further than the
 // per-row rounding tolerance from the closing it reports. Surfaced as 422 —
-// this is a data-consistency signal, not a server fault.
+// this is a data-consistency signal, not a server fault. `hint` is given when
+// a missing period is the likely cause (the statement prints no running
+// balances), and says so in words; the payload's `suspected_gap` records it.
 export class BalanceMismatchError extends ApiImportError {
   readonly status = 422;
   readonly computedFinal: number;
@@ -57,7 +61,7 @@ export class BalanceMismatchError extends ApiImportError {
     this.hint = hint;
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "balance_mismatch",
       message: this.message,
@@ -65,6 +69,7 @@ export class BalanceMismatchError extends ApiImportError {
       statement_closing: this.statementClosing,
       difference: this.difference,
       tolerance: this.tolerance,
+      suspected_gap: this.hint !== null,
       ...(this.hint !== null ? { hint: this.hint } : {}),
     };
   }
@@ -86,7 +91,7 @@ export class OpeningBalanceUnavailable extends ApiImportError {
     this.name = "OpeningBalanceUnavailable";
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "opening_balance_unavailable",
       message: this.message,
@@ -104,7 +109,7 @@ export class ClosingBalanceUnavailable extends ApiImportError {
     this.name = "ClosingBalanceUnavailable";
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "closing_balance_unavailable",
       message: this.message,
@@ -115,9 +120,9 @@ export class ClosingBalanceUnavailable extends ApiImportError {
 // Thrown when two uploaded statement parts should meet but their balances do
 // not: the earlier part ends at one balance and the later part starts at
 // another. `difference` is signed (later start minus earlier end), which is
-// the net of whatever activity is missing between them. `hint` carries a
-// more specific reading when the assembly has one (for example, the same
-// statement uploaded twice).
+// the net of whatever activity is missing between them. `reason` is
+// `same-statement-twice` when the later part covers the same dates and
+// balances as the earlier one, and `hint` then says so in words.
 export class StatementBoundaryMismatchError extends ApiImportError {
   readonly status = 422;
   readonly earlierClosing: number;
@@ -125,6 +130,7 @@ export class StatementBoundaryMismatchError extends ApiImportError {
   readonly earlierSource: string;
   readonly laterSource: string;
   readonly difference: number;
+  readonly reason: "gap" | "same-statement-twice";
   readonly hint: string | null;
 
   constructor(
@@ -132,9 +138,13 @@ export class StatementBoundaryMismatchError extends ApiImportError {
     laterOpening: number,
     earlierSource: string,
     laterSource: string,
-    hint: string | null = null,
+    reason: "gap" | "same-statement-twice" = "gap",
   ) {
     const difference = round2(laterOpening - earlierClosing);
+    const hint =
+      reason === "same-statement-twice"
+        ? `${laterSource} covers the same dates as ${earlierSource} and starts and ends at the same balances: it is almost certainly the same statement uploaded twice.`
+        : null;
     super(
       `Statement boundary mismatch: ${earlierSource} ends at ${earlierClosing}, but ${laterSource} starts at ${laterOpening}. The activity between them nets to ${difference}.` +
         (hint === null ? "" : ` ${hint}`),
@@ -145,13 +155,15 @@ export class StatementBoundaryMismatchError extends ApiImportError {
     this.earlierSource = earlierSource;
     this.laterSource = laterSource;
     this.difference = difference;
+    this.reason = reason;
     this.hint = hint;
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "statement_boundary_mismatch",
       message: this.message,
+      reason: this.reason,
       earlier_source: this.earlierSource,
       later_source: this.laterSource,
       earlier_closing: this.earlierClosing,
@@ -185,7 +197,7 @@ export class StatementDisagreementError extends ApiImportError {
     this.row = row;
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "statement_disagreement",
       message: this.message,
@@ -226,7 +238,7 @@ export class StatementPartUnjoinableError extends ApiImportError {
     this.part = part;
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "statement_part_unjoinable",
       message: this.message,
@@ -257,7 +269,7 @@ export class StatementPartInvalidError extends ApiImportError {
     this.cause = cause;
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "statement_part_invalid",
       message: this.message,
@@ -285,7 +297,7 @@ export class AmbiguousDuplicateError extends ApiImportError {
     this.name = "AmbiguousDuplicateError";
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "ambiguous_duplicate",
       message: this.message,
@@ -309,7 +321,7 @@ export class AssertionConflictError extends ApiImportError {
     this.name = "AssertionConflictError";
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "assertion_conflict",
       message: this.message,
@@ -353,7 +365,7 @@ export class SegmentBalanceMismatchError extends ApiImportError {
     this.difference = difference;
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "segment_balance_mismatch",
       message: this.message,
@@ -379,7 +391,7 @@ export class AbacusJsonParseError extends ApiImportError {
     this.detail = detail;
   }
 
-  toPayload() {
+  toPayload(): StatementImportError {
     return {
       error: "abacus_json_parse_failed",
       message: "Could not parse the uploaded JSON as abacus rows.",

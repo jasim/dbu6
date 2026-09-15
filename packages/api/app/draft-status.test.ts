@@ -1,7 +1,8 @@
 import Database from "better-sqlite3";
 import { gridDatasetSchema } from "@sapporta/shared/grid-dataset";
 import { describe, expect, it } from "vitest";
-import { loadDraftStatus } from "./draft-status.js";
+import { NO_DRAFTS, postingBlocks } from "dbu6-shared";
+import { draftCounts, loadDraftStatus } from "./draft-status.js";
 import { draftBalanceAssertionsReport } from "./reports/draft-balance-assertions.js";
 import { duplicateDraftsReport } from "./reports/duplicate-drafts.js";
 
@@ -116,6 +117,31 @@ describe("loadDraftStatus", () => {
     expect(Array.from(one.keys())).toEqual([2]);
     expect(one.get(2)).toEqual(all.get(2));
     expect(loadDraftStatus(sqlite, scope, { accountId: 3 }).size).toBe(0);
+  });
+
+  it("counts an account with no drafts as nothing", () => {
+    expect(draftCounts(undefined)).toEqual(NO_DRAFTS);
+  });
+});
+
+describe("postingBlocks", () => {
+  it("blocks nothing when the drafts are categorised and clean, with or without balance checks", () => {
+    expect(postingBlocks({ ...NO_DRAFTS, drafts: 21 })).toEqual([]);
+  });
+
+  it("lists every block in tab order, problems marked apart from categories", () => {
+    expect(
+      postingBlocks({
+        drafts: 21,
+        uncategorised: 12,
+        duplicates: 2,
+        failing_checks: 3,
+      }),
+    ).toEqual([
+      { kind: "uncategorised", severity: "attention", count: 12 },
+      { kind: "duplicates", severity: "problem", count: 2 },
+      { kind: "failing-checks", severity: "problem", count: 3 },
+    ]);
   });
 });
 

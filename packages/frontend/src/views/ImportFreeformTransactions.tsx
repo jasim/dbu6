@@ -1,5 +1,6 @@
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { getApiBase } from "@sapporta/frontend/platform";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { Screen, ScreenTitle } from "../components/screen";
@@ -11,10 +12,10 @@ import {
   SelectLabel,
   SelectTrigger,
 } from "../components/ui/select";
-import {
-  freeformTransactionsPrompt,
-  type FreeformAccountKind,
-} from "./freeform-transactions/freeformTransactionsPrompt";
+import { LEDGER_ACCOUNT_TYPE, type AccountKind } from "dbu6-shared";
+import { apiErrorMessage } from "../api";
+import { FRESH_QUERY } from "../queries";
+import { freeformTransactionsPrompt } from "./freeform-transactions/freeformTransactionsPrompt";
 import { CopyPromptButton } from "../components/copy-prompt-button";
 
 interface LedgerAccount {
@@ -23,15 +24,10 @@ interface LedgerAccount {
   account_type: string;
 }
 
-// A bank account is an asset and a credit card a liability, so each kind
-// lists only the ledger accounts of its type.
-const KINDS: {
-  kind: FreeformAccountKind;
-  label: string;
-  accountType: "Asset" | "Liability";
-}[] = [
-  { kind: "bank", label: "Bank account", accountType: "Asset" },
-  { kind: "credit-card", label: "Credit card", accountType: "Liability" },
+// Each kind lists only the ledger accounts of its type.
+const KINDS: { kind: AccountKind; label: string }[] = [
+  { kind: "bank", label: "Bank account" },
+  { kind: "card", label: "Credit card" },
 ];
 
 // Freeform transactions are turned into a statement by the user's coding
@@ -40,29 +36,24 @@ const KINDS: {
 export function ImportFreeformTransactions() {
   usePageTitle("Import freeform transactions");
   const kindLabelId = useId();
-  const [ledgerAccounts, setLedgerAccounts] = useState<LedgerAccount[]>([]);
-  const [accountsError, setAccountsError] = useState<string | null>(null);
-  const [kind, setKind] = useState<FreeformAccountKind | null>(null);
+  const accountsQuery = useQuery({
+    queryKey: ["tables", "accounts"],
+    queryFn: fetchLedgerAccounts,
+    ...FRESH_QUERY,
+  });
+  const ledgerAccounts = accountsQuery.data ?? [];
+  const accountsError = accountsQuery.isError
+    ? apiErrorMessage(accountsQuery.error)
+    : null;
+  const [kind, setKind] = useState<AccountKind | null>(null);
   const [accountName, setAccountName] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch(`${getApiBase()}/tables/accounts?limit=1000&sort=name`)
-      .then((response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      })
-      .then((body: { data: LedgerAccount[] }) => setLedgerAccounts(body.data))
-      .catch((err) =>
-        setAccountsError(
-          err instanceof Error ? err.message : "Could not load accounts",
-        ),
-      );
-  }, []);
-
-  const accountType = KINDS.find((option) => option.kind === kind)?.accountType;
-  const accounts = ledgerAccounts.filter(
-    (account) => account.account_type === accountType,
-  );
+  const accounts =
+    kind === null
+      ? []
+      : ledgerAccounts.filter(
+          (account) => account.account_type === LEDGER_ACCOUNT_TYPE[kind],
+        );
   const prompt =
     kind === null || accountName === null
       ? null
@@ -97,7 +88,7 @@ export function ImportFreeformTransactions() {
               >
                 Kind
               </div>
-              <RadioGroup<FreeformAccountKind | null>
+              <RadioGroup<AccountKind | null>
                 aria-labelledby={kindLabelId}
                 value={kind}
                 onValueChange={(value) => {
@@ -176,6 +167,15 @@ export function ImportFreeformTransactions() {
       </ol>
     </Screen>
   );
+}
+
+async function fetchLedgerAccounts(): Promise<LedgerAccount[]> {
+  const response = await fetch(
+    `${getApiBase()}/tables/accounts?limit=1000&sort=name`,
+  );
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const body = (await response.json()) as { data: LedgerAccount[] };
+  return body.data;
 }
 
 function Step({

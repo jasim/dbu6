@@ -4,7 +4,7 @@ import { cn } from "@sapporta/ui/cn";
 import { Button } from "../../components/ui/button";
 import type { FileStatus } from "./describeBatch";
 import { OutcomeLine } from "./cards";
-import { fileTypeLabel, formatFileSize } from "./format";
+import { fileTypeLabel, formatFileSize } from "../../format";
 
 /**
  * Where statements are dropped. Clicking anywhere in the zone opens the file

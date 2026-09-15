@@ -106,25 +106,3 @@ export function describeStatement(statement: AbacusStatement): string {
       : JSON.stringify(statement.institution);
   return `opening=${statement.opening}, closing=${statement.closing}, account=${account}, institution=${institution}`;
 }
-
-// Credit-card statements print magnitudes with an implied
-// debit-is-positive convention, but the ledger represents liabilities as
-// negative. Flip the signs on the balances (opening, closing, per-row)
-// but leave `withdrawal`/`deposit` alone — direction is already classified.
-// Non-CC passthrough.
-export function applyCreditCardSignFlip(
-  statement: AbacusStatement,
-  isCreditCard: boolean,
-): AbacusStatement {
-  if (!isCreditCard) return statement;
-  const flipped = statement.transactions.map((t) => ({
-    ...t,
-    balance: t.balance === null ? null : -t.balance,
-  }));
-  return {
-    ...statement,
-    transactions: flipped as unknown as Chrono<Abacus>,
-    opening: statement.opening === null ? null : -statement.opening,
-    closing: statement.closing === null ? null : -statement.closing,
-  };
-}

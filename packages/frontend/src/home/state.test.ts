@@ -151,9 +151,7 @@ describe("homeState", () => {
     const view = homeState(summary([account({ drafts: 21 })]));
     expect(view.state).toBe("ready");
     expect(view.card.count).toBe(21);
-    expect(view.card.body).toBe(
-      "The drafts for Sample Savings are categorised and the balances match.",
-    );
+    expect(view.card.body).toBe("The entries are ready for posting.");
     expect(view.card.action).toEqual({
       label: "Add them to my books",
       to: "/review/2",

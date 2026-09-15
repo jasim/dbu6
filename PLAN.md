@@ -1569,7 +1569,7 @@ statement):
 | 2 | accounts, but no drafts and no journals on any of them | "Nothing imported yet" | "Import your first statement" / "Drop in a statement from HDFC Savings or ICICI Amazon Pay. Nothing reaches your books until you've checked it." / "Import statements" → `/import` |
 | 3 | failing balance checks or possible duplicates in the drafts | "A few things to fix first" | count = failing + duplicates. Title: "3 balance checks fail in the drafts", or "2 possible duplicate entries in the drafts", or "A few things to fix in the drafts" when both. Body: "They have to be fixed before those drafts can be added to your books." followed by inline links "See the balance checks" (`/reports/draft-balance-assertions`) and "See the duplicates" (`/reports/duplicate-drafts`) until P3 folds them into Review. Button: "Review the drafts" → `/review` |
 | 4 | uncategorised drafts | "You're nearly up to date" | count = uncategorised. "12 transactions need a category" / "They're waiting in HDFC Savings's drafts. Nothing is added to your books until you've checked them." / "Review transactions" → `/review` |
-| 5 | drafts, all categorised, no problems | "Ready to add to your books" | count = drafts. "21 transactions ready to add" / "HDFC Savings's drafts are categorised and the balances match." / "Add them to my books" → `/views/post-drafts` until P3 |
+| 5 | drafts, all categorised, no problems | "Ready to add to your books" | count = drafts. "21 transactions ready to add" / "The entries are ready for posting." (owner, 2026-09-16: it doesn't say whether everything is categorised or the balances match) / "Add them to my books" → `/views/post-drafts` until P3 |
 | 6 | nothing pending | "You're up to date" | "Every account is checked to its last statement" / "Import the next statement when it arrives." / "Import statements" → `/import` |
 
 When drafts sit on several accounts, the body names them ("across HDFC Savings and ICICI
@@ -2154,6 +2154,51 @@ app was doing, the facts, what to do, what not to do, what to report back):
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
 
+- 2026-09-16 · Legibility review of P1–P3 · Five findings fixed at the owner's request, behaviour and copy
+  unchanged except where noted.
+  - **What blocks posting has one definition.** `postingBlocks(counts)` in dbu6-shared
+    (`contracts/posting-blocks.ts`) lists the blocks in tab order, each marked problem or
+    attention. The posting gate refuses on the first (same codes and order as before);
+    Home's card and chips, the Review picker's chips, Overview's checks and waiting reason
+    and the tab badges read it instead of comparing counts themselves. `draftCountsSchema`
+    is the counts' one shape in `homeAccountSchema`, Home's totals and `reviewAccountSchema`;
+    `draftCounts(status)` in `app/draft-status.ts` builds them (no more `?? 0`).
+  - **Import errors are typed end to end.** `statementImportErrorSchema` (dbu6-shared
+    `contracts/import-errors.ts`) has a variant per code; every `ApiImportError.toPayload()`
+    returns one, and the auto and freeform import contracts use it instead of
+    `.passthrough()`. The server now says what the screen used to guess from `hint`:
+    `balance_mismatch.suspected_gap` and `statement_boundary_mismatch.reason`
+    (`gap` | `same-statement-twice`, which also writes the hint). The Import screen parses
+    the reply once (`views/import-statements/outcome.ts`, `readImportResponse`) into an
+    `ImportFailure` union; the cards switch on typed fields, and each code's tone is a
+    `Record` over the codes, so a new code without a tone won't compile.
+  - **The Import screen's state is one union** (`choosing | importing | finished`) instead
+    of `loading`, `result` and `error`.
+  - **One account kind.** `AccountKind` (`bank` | `card`) in dbu6-shared
+    (`contracts/account-kind.ts`) with `accountKindOf(is_credit_card)`,
+    `accountKindOfType(account_type)` and `LEDGER_ACCOUNT_TYPE`. The importer's
+    `"credit-card"`, `FreeformAccountKind` and `formatBalance`'s boolean are gone. Preset
+    and wire fields keep `is_credit_card`.
+  - **Screens load through TanStack Query** (owner's choice), keyed in `src/queries.ts`:
+    Home, the Review picker, the account frame, the sidebar badge, every report
+    (`useReportResult` now takes a key) and the freeform screen's account list. Queries
+    refetch on mount (`staleTime: 0`) and don't retry a 4xx; the frame and the badge
+    refetch on route change (`useRefetchOnNavigate`), as before. Posting invalidates every
+    draft-status query.
+  - **Smaller:** `format.ts` moved to `src/format.ts`, `PII_RULE` to
+    `src/agent-prompt-rules.ts`; `accountPathName` in dbu6-shared replaces
+    `readableSegment` and `categoryName`; `REVIEW_DRAFTS_ROUTE` is gone (`REVIEW_ROUTE`);
+    the unused `applyCreditCardSignFlip` and its tests are deleted.
+  - **Copy changes:** Home's ready card body is "The entries are ready for posting." (§11
+    P1 updated). A reply the Import contract doesn't describe (an unknown code, a 500)
+    gets its own card ("The import", no agent prompt, the raw reply in Technical
+    details) instead of the generic card with the failed account's name.
+  - **Verified:** `pnpm typecheck`, `pnpm format:check`, frontend tests (86), API tests
+    (the four XLS parser tests still fail on the pip `xlwt` issue). Not verified in the
+    browser: the dev app needed a sign-in.
+  - **Follow-ups:** the sidebar badge still counts through the table API (owner: keep it
+    for now). `ReclassifyDrafts.tsx` and `RenderDraftHledger.tsx` still load with their own
+    effects; P8 rebuilds them.
 - 2026-09-16 · Step 6, P3 · Review built as specified (§11 P3). Uncommitted at the time of writing.
   - **shared:** `contracts/review.ts` (`reviewContract.accounts` and `.account`, with the
     account, failing check, duplicate and detail schemas). `reportsContract.duplicateDrafts`

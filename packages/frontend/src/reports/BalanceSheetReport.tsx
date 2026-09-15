@@ -17,9 +17,8 @@ const links = {
 export function BalanceSheetReport() {
   const [searchParams, setSearchParams] = useSearchParams();
   const asOfDate = searchParams.get("as_of_date") ?? today;
-  const report = useReportResult(
-    () => callReport({ as_of_date: asOfDate }),
-    [asOfDate],
+  const report = useReportResult(["balance-sheet", asOfDate], () =>
+    callReport({ as_of_date: asOfDate }),
   );
 
   const setParam = (key: string, value: string) => {

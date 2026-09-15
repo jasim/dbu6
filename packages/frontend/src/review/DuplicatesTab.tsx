@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { reportsApi } from "../api";
 import { EmptyState } from "../components/empty-state";
-import { plural } from "../views/import-statements/format";
+import { plural } from "../format";
 import { duplicatesPrompt } from "./agentPrompts";
 import {
   AccountReport,
@@ -48,6 +48,7 @@ export function DuplicatesTab() {
         find out why they match.
       </ReportSummary>
       <AccountReport
+        report="duplicate-drafts"
         accountId={account.account_id}
         call={() =>
           reportsApi.duplicateDrafts({

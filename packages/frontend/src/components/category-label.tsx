@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
+import { accountPathName } from "dbu6-shared";
 import { cn } from "@sapporta/ui/cn";
-import { categoryHue, categoryHueColor, categoryName } from "./category";
+import { categoryHue, categoryHueColor } from "./category";
 
 /**
  * A category as the everyday screens show it: a dot in its top-level
@@ -18,7 +19,7 @@ export function CategoryLabel({
   return (
     <span
       title={path}
-      aria-label={`${categoryName(path)} (${path})`}
+      aria-label={`${accountPathName(path)} (${path})`}
       className={cn(
         "inline-flex items-center gap-2 rounded-full border border-sap-border bg-category-bg py-[5px] pl-[10px] pr-[13px] text-[15px] text-foreground",
         className,
@@ -29,7 +30,7 @@ export function CategoryLabel({
         className="size-[9px] shrink-0 rounded-full"
         style={{ background: categoryHueColor(categoryHue(path)) }}
       />
-      {categoryName(path)}
+      {accountPathName(path)}
     </span>
   );
 }

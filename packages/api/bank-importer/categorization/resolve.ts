@@ -12,6 +12,7 @@ import {
   compileMappings,
   mappingRulesSchema,
 } from "./mapping-rules.js";
+import type { StatementImportError } from "dbu6-shared";
 import { ApiImportError } from "../import-errors.js";
 
 export interface CategorizationConfig {
@@ -28,7 +29,7 @@ export class CategorizationConfigError extends ApiImportError {
     this.name = "CategorizationConfigError";
   }
 
-  toPayload(): Record<string, unknown> {
+  toPayload(): StatementImportError {
     return {
       error: "categorization_config_error",
       message: this.message,

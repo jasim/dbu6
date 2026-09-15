@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
-import {
-  categoryGroup,
-  categoryHue,
-  categoryHueColor,
-  categoryName,
-} from "./category";
+import { accountPathName } from "dbu6-shared";
+import { categoryGroup, categoryHue, categoryHueColor } from "./category";
 
-describe("category names", () => {
+// accountPathName lives in dbu6-shared, which has no test runner of its own;
+// the API names accounts with it too.
+describe("account path names", () => {
   it("reads the last segment as a friendly name", () => {
-    expect(categoryName("expenses:food:food-delivery")).toBe("Food delivery");
-    expect(categoryName("expenses:child:school-fees")).toBe("School fees");
-    expect(categoryName("expenses:food")).toBe("Food");
-    expect(categoryName("income:salary:gross-pay")).toBe("Gross pay");
+    expect(accountPathName("expenses:food:food-delivery")).toBe(
+      "Food delivery",
+    );
+    expect(accountPathName("expenses:child:school-fees")).toBe("School fees");
+    expect(accountPathName("expenses:food")).toBe("Food");
+    expect(accountPathName("income:salary:gross-pay")).toBe("Gross pay");
   });
 
   it("copes with blanks and odd separators", () => {
-    expect(categoryName("")).toBe("");
-    expect(categoryName("expenses:")).toBe("Expenses");
-    expect(categoryName("assets:bank:hdfc_savings")).toBe("Hdfc savings");
+    expect(accountPathName("")).toBe("");
+    expect(accountPathName("expenses:")).toBe("Expenses");
+    expect(accountPathName("assets:bank:hdfc_savings")).toBe("Hdfc savings");
   });
 });
 

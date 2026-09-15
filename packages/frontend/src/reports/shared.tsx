@@ -1,4 +1,4 @@
-import { useEffect, useState, type DependencyList } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ReportError,
   ReportGridDataset,
@@ -7,54 +7,32 @@ import {
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { Input } from "@sapporta/ui";
 import { apiErrorMessage } from "../api";
+import { FRESH_QUERY } from "../queries";
 
 export const today = new Date().toISOString().slice(0, 10);
 
+/**
+ * A report's grid, fetched when the screen opens and again with Run.
+ * `queryKey` names the report and every input the call reads, so changing an
+ * input fetches that report.
+ */
 export function useReportResult(
+  queryKey: readonly unknown[],
   callReport: () => Promise<GridDataset>,
-  dependencies: DependencyList,
   enabled = true,
 ) {
-  const [result, setResult] = useState<GridDataset | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [runKey, setRunKey] = useState(0);
-
-  useEffect(() => {
-    if (!enabled) {
-      setResult(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    callReport()
-      .then((body) => {
-        if (cancelled) return;
-        setResult(body);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(apiErrorMessage(err));
-        setResult(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, runKey, ...dependencies]);
-
+  const query = useQuery({
+    queryKey: ["reports", ...queryKey],
+    queryFn: callReport,
+    enabled,
+    ...FRESH_QUERY,
+  });
+  const failed = enabled && query.isError;
   return {
-    result,
-    error,
-    loading,
-    run: () => setRunKey((value) => value + 1),
+    result: enabled && !failed ? (query.data ?? null) : null,
+    error: failed ? apiErrorMessage(query.error) : null,
+    loading: enabled && query.isFetching,
+    run: () => void query.refetch(),
   };
 }
 

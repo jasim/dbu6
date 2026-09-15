@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Link,
   Navigate,
@@ -8,19 +8,25 @@ import {
   useOutletContext,
   useParams,
 } from "react-router-dom";
-import type { ReviewAccountDetail } from "dbu6-shared";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  findBlock,
+  postingBlocks,
+  type ReviewAccountDetail,
+} from "dbu6-shared";
 import { ApiError } from "@sapporta/shared/client";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
-import { apiErrorMessage, reviewApi } from "../api";
+import { apiErrorMessage } from "../api";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
+import { formatDaySpan, formatShortDate, plural } from "../format";
 import {
-  formatDaySpan,
-  formatShortDate,
-  plural,
-} from "../views/import-statements/format";
+  refreshDraftStatus,
+  reviewAccountQuery,
+  useRefetchOnNavigate,
+} from "../queries";
 import { parseAccountId, REVIEW_ROUTE, reviewHref, reviewPage } from "./routes";
 
 /** A post made from this visit's Overview, and the summary it was made from. */
@@ -31,7 +37,7 @@ export interface ReviewPosted {
 
 export interface ReviewAccountContext {
   detail: ReviewAccountDetail;
-  /** Fetch the summary again: after posting, or a change in a tab. */
+  /** Fetch every draft count again (this summary, Home, the picker): after posting. */
   refresh: () => void;
   posted: ReviewPosted | null;
   setPosted: (posted: ReviewPosted) => void;
@@ -41,12 +47,6 @@ export interface ReviewAccountContext {
 export function useReviewAccount(): ReviewAccountContext {
   return useOutletContext<ReviewAccountContext>();
 }
-
-type Load =
-  | { status: "loading" }
-  | { status: "missing" }
-  | { status: "error"; message: string }
-  | { status: "ready"; detail: ReviewAccountDetail };
 
 /**
  * `/review/:accountId` and its tabs (PLAN.md §11 P3): the account's name and
@@ -67,38 +67,25 @@ export function ReviewAccount() {
 
 function ReviewAccountFrame({ accountId }: { accountId: number }) {
   const { pathname } = useLocation();
-  const [load, setLoad] = useState<Load>({ status: "loading" });
+  const queryClient = useQueryClient();
+  const query = useQuery(reviewAccountQuery(accountId));
+  useRefetchOnNavigate(query.refetch);
   const [posted, setPosted] = useState<ReviewPosted | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const request = useRef(0);
 
-  const refresh = useCallback(() => setAttempt((n) => n + 1), []);
+  const refresh = useCallback(
+    () => void refreshDraftStatus(queryClient),
+    [queryClient],
+  );
 
-  useEffect(() => {
-    const current = ++request.current;
-    reviewApi
-      .account({ params: { accountId }, query: {} })
-      .then((detail) => {
-        if (current === request.current) setLoad({ status: "ready", detail });
-      })
-      .catch((e: unknown) => {
-        if (current !== request.current) return;
-        setLoad(
-          e instanceof ApiError && e.status === 404
-            ? { status: "missing" }
-            : { status: "error", message: apiErrorMessage(e) },
-        );
-      });
-  }, [accountId, pathname, attempt]);
-
-  const detail = load.status === "ready" ? load.detail : null;
+  const missing = query.error instanceof ApiError && query.error.status === 404;
+  const detail = query.isError ? null : (query.data ?? null);
   usePageTitle(detail ? `${detail.account.name} · Review` : "Review");
 
   // The Drafts grid scrolls itself inside the frame; the other tabs scroll
   // with the header, like a page.
   const gridTab = reviewPage(pathname, accountId) === "drafts";
 
-  if (load.status === "missing") {
+  if (missing) {
     return (
       <FramePadding>
         <h1 className="text-heading text-foreground">
@@ -117,13 +104,13 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
     );
   }
 
-  if (load.status === "error") {
+  if (query.isError) {
     return (
       <FramePadding>
         <LoadError
           title="Couldn't load this account's review"
-          message={load.message}
-          retry={refresh}
+          message={apiErrorMessage(query.error)}
+          retry={() => void query.refetch()}
         />
       </FramePadding>
     );
@@ -237,6 +224,7 @@ function headerLine({ account, checked_to }: ReviewAccountDetail): string {
 
 function Tabs({ detail }: { detail: ReviewAccountDetail }) {
   const { account } = detail;
+  const blocks = postingBlocks(account);
   const tabs = [
     { label: "Overview", to: reviewHref(account.account_id), end: true },
     {
@@ -247,12 +235,12 @@ function Tabs({ detail }: { detail: ReviewAccountDetail }) {
     {
       label: "Duplicates",
       to: reviewHref(account.account_id, "duplicates"),
-      problems: account.duplicates,
+      problems: findBlock(blocks, "duplicates")?.count,
     },
     {
       label: "Balance checks",
       to: reviewHref(account.account_id, "balance-checks"),
-      problems: account.failing_checks,
+      problems: findBlock(blocks, "failing-checks")?.count,
     },
   ];
   return (
@@ -281,7 +269,7 @@ function Tabs({ detail }: { detail: ReviewAccountDetail }) {
                   {tab.count}
                 </span>
               )}
-              {tab.problems !== undefined && tab.problems > 0 && (
+              {tab.problems !== undefined && (
                 <span className="tnum rounded-full bg-destructive px-2 py-px font-mono text-[13px] font-medium text-destructive-foreground">
                   {tab.problems}
                   <span className="sr-only"> to fix</span>

@@ -1,3 +1,4 @@
+import type { AccountKind } from "dbu6-shared";
 import { userConfigDir } from "../user-data.js";
 import type { Account } from "./domain/Account.js";
 import { unsafeAsChrono } from "./domain/Chrono.js";
@@ -21,7 +22,6 @@ import {
 import { runDraftImport, type ImportSummary } from "./draft-import.js";
 import { assignSourceTransactionKeys } from "../modules/reconciliation/transaction-identity.js";
 
-export type AccountKind = "bank" | "credit-card";
 export type BalanceSource = "statement" | "checkpoint" | "per-row" | "none";
 
 export interface ResolvedBalance {
@@ -153,7 +153,7 @@ export async function runStatementImport(
     transactions[transactions.length - 1]?.balance ?? null;
   const resolvedClosing = pickClosingBalance(closing, finalPrintedBalance);
 
-  if (opts.accountKind === "credit-card" && resolvedClosing.value === null) {
+  if (opts.accountKind === "card" && resolvedClosing.value === null) {
     throw new ClosingBalanceUnavailable();
   }
 

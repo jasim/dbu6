@@ -27,7 +27,7 @@ api.register(
       return { status: 200, body: result.transactions };
     } catch (err) {
       if (err instanceof ApiImportError && err.status === 400) {
-        return { status: 400, body: apiImportErrorBody(err) };
+        return { status: 400, body: err.toPayload() };
       }
       throw err;
     }
@@ -71,7 +71,7 @@ api.register(
       };
     } catch (err) {
       if (err instanceof ApiImportError && err.status === 400) {
-        return { status: 400, body: apiImportErrorBody(err) };
+        return { status: 400, body: err.toPayload() };
       }
       throw err;
     }
@@ -79,16 +79,3 @@ api.register(
 );
 
 export default api;
-
-function apiImportErrorBody(err: ApiImportError): {
-  error: string;
-  message?: string;
-  detail?: string;
-  hint?: string;
-} & Record<string, unknown> {
-  const payload = err.toPayload();
-  return {
-    ...payload,
-    error: typeof payload.error === "string" ? payload.error : "import_error",
-  };
-}

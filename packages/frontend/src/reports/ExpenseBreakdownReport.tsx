@@ -18,9 +18,8 @@ export function ExpenseBreakdownReport() {
   const [searchParams, setSearchParams] = useSearchParams();
   const fromDate = searchParams.get("from_date") ?? "";
   const toDate = searchParams.get("to_date") ?? "";
-  const report = useReportResult(
-    () => callReport({ from_date: fromDate, to_date: toDate }),
-    [fromDate, toDate],
+  const report = useReportResult(["expense-breakdown", fromDate, toDate], () =>
+    callReport({ from_date: fromDate, to_date: toDate }),
   );
 
   const setParam = (key: string, value: string) => {

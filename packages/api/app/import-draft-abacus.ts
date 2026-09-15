@@ -1,6 +1,8 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
+  accountKindOf,
   importDraftsContract,
+  type AbacusImportErrorBody,
   type AbacusImportRequest,
   type AbacusImportResult,
 } from "dbu6-shared";
@@ -27,17 +29,10 @@ import { requireWorkflowAuth } from "./workflow-auth.js";
 // data for the agent to explain: the per-account result the automatic import
 // reports, or the import error's own payload.
 
-type ImportErrorBody = {
-  error: string;
-  message?: string;
-  detail?: string;
-  hint?: string;
-} & Record<string, unknown>;
-
 type AbacusImportRouteResponse =
   | { status: 200; body: AbacusImportResult }
-  | { status: 400; body: ImportErrorBody }
-  | { status: 422; body: ImportErrorBody };
+  | { status: 400; body: AbacusImportErrorBody }
+  | { status: 422; body: AbacusImportErrorBody };
 
 const DEFAULT_SOURCE_NAME = "freeform transactions";
 
@@ -69,7 +64,7 @@ export async function importAbacusStatement(
       [abacusStatementFromJson(statement)],
       {
         baseAccount: parseAccount(base_account),
-        accountKind: is_credit_card ? "credit-card" : "bank",
+        accountKind: accountKindOf(is_credit_card),
         customMappingsFilenames: [],
         gpayHtmlPath: null,
       },

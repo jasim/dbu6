@@ -1,7 +1,7 @@
 import type {
-  AutoImportFailedGroup,
-  AutoImportGroupResult,
   AutoImportPlanFile,
+  StatementImportError,
+  StatementImportErrorCode,
 } from "dbu6-shared";
 import {
   ambiguousPrompt,
@@ -21,70 +21,14 @@ import {
 } from "./agentPrompts";
 import type { StatusTone } from "../../components/status-chip";
 import type { Stat } from "./describeGroup";
+import type { AccountRefusal, ImportFailure } from "./outcome";
 import {
+  describeStatementAccount,
   formatDate,
   formatMoney,
   joinNames,
-  maskIdentifier,
   parserLabel,
-} from "./format";
-
-// A failed automatic import as the endpoint reports it. `files` and
-// `importedGroups` are present whenever the server got far enough to decide
-// them; `failedGroup` names the account whose import raised the error; every
-// other field of the body is kept in `fields` for the code-specific cards.
-export interface AutoImportError {
-  status: number;
-  error: string;
-  message: string | null;
-  hint: string | null;
-  detail: string | null;
-  partialImport: string | null;
-  files: AutoImportPlanFile[];
-  importedGroups: AutoImportGroupResult[];
-  failedGroup: AutoImportFailedGroup | null;
-  fields: Record<string, unknown>;
-}
-
-export function parseErrorBody(body: unknown, status: number): AutoImportError {
-  const record =
-    body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const str = (key: string) =>
-    typeof record[key] === "string" ? (record[key] as string) : null;
-  const list = <T>(key: string): T[] =>
-    Array.isArray(record[key]) ? (record[key] as T[]) : [];
-  const failed = record.failed_group;
-  return {
-    status,
-    error: str("error") ?? `HTTP ${status}`,
-    message: str("message"),
-    hint: str("hint"),
-    detail: str("detail"),
-    partialImport: str("partial_import"),
-    files: list<AutoImportPlanFile>("files"),
-    importedGroups: list<AutoImportGroupResult>("imported_groups"),
-    failedGroup:
-      failed && typeof failed === "object"
-        ? (failed as AutoImportFailedGroup)
-        : null,
-    fields: record,
-  };
-}
-
-export function networkError(message: string): AutoImportError {
-  return {
-    status: 0,
-    error: "upload_failed",
-    message,
-    hint: null,
-    detail: null,
-    partialImport: null,
-    files: [],
-    importedGroups: [],
-    failedGroup: null,
-    fields: {},
-  };
-}
+} from "../../format";
 
 // Something the screen can do by itself, offered as a button.
 export type ProblemAction =
@@ -126,24 +70,37 @@ export interface Problem {
   technical: string | null;
 }
 
-// The error codes that mean something needs setting up. Every other code
-// takes the destructive tone: the ones where the numbers don't add up
-// (balance_mismatch, segment_balance_mismatch, statement_boundary_mismatch,
-// statement_disagreement, statement_part_invalid,
-// reconciliation_match_failed, assertion_conflict), and anything without a
-// card of its own, which the unexpected-error card covers.
-const ATTENTION_CODES: ReadonlySet<string> = new Set([
-  // A file that is unrecognised, ambiguous, or has no account set up.
-  "auto_import_files_unresolved",
-  "opening_balance_unavailable",
-  "closing_balance_unavailable",
-  "statement_part_unjoinable",
-]);
+// How serious each statement import error is. Destructive when the numbers
+// don't add up; attention when something needs setting up. The codes without
+// a card of their own take the unexpected-error card, destructive too.
+const STATEMENT_ERROR_TONE: Record<StatementImportErrorCode, ProblemTone> = {
+  balance_mismatch: "problem",
+  segment_balance_mismatch: "problem",
+  statement_boundary_mismatch: "problem",
+  statement_disagreement: "problem",
+  statement_part_invalid: "problem",
+  reconciliation_match_failed: "problem",
+  assertion_conflict: "problem",
+  opening_balance_unavailable: "attention",
+  closing_balance_unavailable: "attention",
+  statement_part_unjoinable: "attention",
+  ambiguous_duplicate: "problem",
+  abacus_json_parse_failed: "problem",
+  categorization_config_error: "problem",
+};
 
-export function problemTone(error: AutoImportError): ProblemTone {
-  if (error.status === 403) return "attention";
-  if (error.error === "upload_failed" || error.status === 0) return "problem";
-  return ATTENTION_CODES.has(error.error) ? "attention" : "problem";
+export function problemTone(failure: ImportFailure): ProblemTone {
+  switch (failure.kind) {
+    case "network":
+    case "unexpected":
+      return "problem";
+    case "forbidden":
+    case "files-unresolved":
+      // A file that is unrecognised, ambiguous, or has no account set up.
+      return "attention";
+    case "account-refused":
+      return STATEMENT_ERROR_TONE[failure.refusal.error];
+  }
 }
 
 export const FREEFORM_IMPORT_ROUTE = "/views/import-freeform-transactions";
@@ -156,24 +113,26 @@ const REDROP_FILE =
 // A problem before the tone its error gives every card.
 type ProblemBody = Omit<Problem, "tone">;
 
-function num(fields: Record<string, unknown>, key: string): number | null {
-  return typeof fields[key] === "number" ? (fields[key] as number) : null;
-}
-
-function text(fields: Record<string, unknown>, key: string): string | null {
-  return typeof fields[key] === "string" ? (fields[key] as string) : null;
-}
-
-function technical(error: AutoImportError): string {
-  return [error.error, error.message, error.detail, error.hint]
-    .filter((part): part is string => part !== null && part !== "")
+// The server's own words: the code, its message, and any detail or hint.
+function technical(error: StatementImportError): string {
+  const detail = "detail" in error ? error.detail : undefined;
+  const hint = "hint" in error ? error.hint : undefined;
+  return [error.error, error.message, detail, hint]
+    .filter((part): part is string => part !== undefined && part !== "")
     .join("\n");
 }
 
 // One card per file the plan could not place. Nothing was imported.
-function planProblems(error: AutoImportError): ProblemBody[] {
+function planProblems(
+  failure: Extract<ImportFailure, { kind: "files-unresolved" }>,
+): ProblemBody[] {
+  const planTechnical = [
+    "auto_import_files_unresolved",
+    failure.message,
+    failure.hint,
+  ].join("\n");
   const problems: ProblemBody[] = [];
-  for (const row of error.files) {
+  for (const row of failure.files) {
     switch (row.status) {
       case "resolved":
         break;
@@ -218,7 +177,7 @@ function planProblems(error: AutoImportError): ProblemBody[] {
             }),
             afterwards: REDROP_FILE,
           },
-          technical: technical(error),
+          technical: planTechnical,
         });
         break;
       }
@@ -251,11 +210,11 @@ function planProblems(error: AutoImportError): ProblemBody[] {
             }),
             afterwards: RETRY_FROM_SCREEN,
           },
-          technical: technical(error),
+          technical: planTechnical,
         });
         break;
       case "unresolved":
-        problems.push(unresolvedProblem(row, error));
+        problems.push(unresolvedProblem(row, planTechnical));
         break;
     }
   }
@@ -264,11 +223,9 @@ function planProblems(error: AutoImportError): ProblemBody[] {
 
 function unresolvedProblem(
   row: Extract<AutoImportPlanFile, { status: "unresolved" }>,
-  error: AutoImportError,
+  planTechnical: string,
 ): ProblemBody {
-  const account = row.account
-    ? `${row.account.kind === "card" ? "card" : "account"} ${maskIdentifier(row.account.identifier)}`
-    : null;
+  const account = row.account ? describeStatementAccount(row.account) : null;
   const accountFact: Stat[] = account
     ? [{ label: "Statement is for", value: account }]
     : [];
@@ -284,7 +241,7 @@ function unresolvedProblem(
       [row.institution === null ? null : row.file_name, account]
         .filter((part): part is string => part !== null)
         .join(" · ") || null,
-    technical: `${row.message}\n${technical(error)}`,
+    technical: `${row.message}\n${planTechnical}`,
     actions: [
       {
         kind: "remove-files" as const,
@@ -375,68 +332,61 @@ function unresolvedProblem(
   }
 }
 
-function groupFacts(error: AutoImportError): FailedGroupFacts {
-  const group = error.failedGroup;
-  const fileNames = group?.file_names ?? [];
+function groupFacts(refusal: AccountRefusal): FailedGroupFacts {
+  const group = refusal.failed_group;
   const parserPaths = Array.from(
     new Set(
-      error.files
+      refusal.files
         .filter(
           (row): row is Extract<AutoImportPlanFile, { status: "resolved" }> =>
-            row.status === "resolved" && fileNames.includes(row.file_name),
+            row.status === "resolved" &&
+            group.file_names.includes(row.file_name),
         )
         .map((row) => row.parser_path),
     ),
   );
   return {
-    fileNames,
-    presetName: group?.preset_name ?? "this account",
-    baseAccount: group?.base_account ?? "(unknown)",
+    fileNames: group.file_names,
+    presetName: group.preset_name,
+    baseAccount: group.base_account,
     parserPaths,
-    message: error.message,
+    message: refusal.message,
   };
 }
 
 // One card for the account whose import failed.
-function groupProblem(error: AutoImportError): ProblemBody {
-  const facts = groupFacts(error);
-  const f = error.fields;
+function refusalProblem(refusal: AccountRefusal): ProblemBody {
+  const facts = groupFacts(refusal);
   const files = joinNames(facts.fileNames);
   const base = {
-    key: `${error.error}:${facts.presetName}`,
+    key: `${refusal.error}:${facts.presetName}`,
     fileNames: [...facts.fileNames],
     subject: facts.presetName,
     caption: facts.fileNames.length === 0 ? null : files,
     facts: [] as Stat[],
-    technical: technical(error),
+    technical: technical(refusal),
     steps: [] as string[],
     actions: [] as ProblemAction[],
   };
 
-  switch (error.error) {
+  switch (refusal.error) {
     case "balance_mismatch": {
-      const computed = num(f, "computed_final");
-      const closing = num(f, "statement_closing");
-      const difference = num(f, "difference");
-      const gap = error.hint !== null || facts.fileNames.length > 1;
+      const gap = refusal.suspected_gap || facts.fileNames.length > 1;
       return {
         ...base,
         verdict:
           "The transactions don't add up to the closing balance the statement prints.",
-        facts:
-          computed !== null && closing !== null && difference !== null
-            ? [
-                {
-                  label: "Opening plus every transaction",
-                  value: formatMoney(computed),
-                },
-                {
-                  label: "Closing the statement prints",
-                  value: formatMoney(closing),
-                },
-                { label: "Difference", value: formatMoney(difference) },
-              ]
-            : [],
+        facts: [
+          {
+            label: "Opening plus every transaction",
+            value: formatMoney(refusal.computed_final),
+          },
+          {
+            label: "Closing the statement prints",
+            value: formatMoney(refusal.statement_closing),
+          },
+          { label: "Difference", value: formatMoney(refusal.difference) },
+        ],
         why: gap
           ? "This usually means there is a gap: some days between the statements are missing, or a statement is incomplete."
           : "This usually means one row was read wrongly.",
@@ -448,9 +398,9 @@ function groupProblem(error: AutoImportError): ProblemBody {
         agent: {
           prompt: balanceMismatchPrompt({
             ...facts,
-            computedFinal: computed,
-            statementClosing: closing,
-            difference,
+            computedFinal: refusal.computed_final,
+            statementClosing: refusal.statement_closing,
+            difference: refusal.difference,
             suspectRange: null,
           }),
           afterwards: RETRY_FROM_SCREEN,
@@ -458,46 +408,32 @@ function groupProblem(error: AutoImportError): ProblemBody {
       };
     }
     case "segment_balance_mismatch": {
-      const fromDate = text(f, "from_date") ?? "?";
-      const toDate = text(f, "to_date") ?? "?";
-      const fromBalance = num(f, "from_balance");
-      const walked = num(f, "walked");
-      const printed = num(f, "printed");
-      const difference =
-        num(f, "difference") ??
-        (walked !== null && printed !== null
-          ? Math.abs(walked - printed)
-          : null);
+      const { from_date: fromDate, to_date: toDate } = refusal;
       return {
         ...base,
         verdict: `The running balance doesn't match the transactions between ${formatDate(fromDate)} and ${formatDate(toDate)}.`,
-        facts:
-          fromBalance !== null && walked !== null && printed !== null
-            ? [
-                {
-                  label: `Printed on ${formatDate(fromDate)}`,
-                  value: formatMoney(fromBalance),
-                },
-                {
-                  label: `Transactions lead to, on ${formatDate(toDate)}`,
-                  value: formatMoney(walked),
-                },
-                {
-                  label: `Printed on ${formatDate(toDate)}`,
-                  value: formatMoney(printed),
-                },
-                ...(difference !== null
-                  ? [{ label: "Difference", value: formatMoney(difference) }]
-                  : []),
-              ]
-            : [],
+        facts: [
+          {
+            label: `Printed on ${formatDate(fromDate)}`,
+            value: formatMoney(refusal.from_balance),
+          },
+          {
+            label: `Transactions lead to, on ${formatDate(toDate)}`,
+            value: formatMoney(refusal.walked),
+          },
+          {
+            label: `Printed on ${formatDate(toDate)}`,
+            value: formatMoney(refusal.printed),
+          },
+          { label: "Difference", value: formatMoney(refusal.difference) },
+        ],
         why: "Almost always a row in between was read wrongly by the reader.",
         agent: {
           prompt: balanceMismatchPrompt({
             ...facts,
-            computedFinal: walked,
-            statementClosing: printed,
-            difference,
+            computedFinal: refusal.walked,
+            statementClosing: refusal.printed,
+            difference: refusal.difference,
             suspectRange: { fromDate, toDate },
           }),
           afterwards: RETRY_FROM_SCREEN,
@@ -505,12 +441,9 @@ function groupProblem(error: AutoImportError): ProblemBody {
       };
     }
     case "statement_boundary_mismatch": {
-      const earlier = text(f, "earlier_source") ?? "the earlier file";
-      const later = text(f, "later_source") ?? "the later file";
-      const earlierClosing = num(f, "earlier_closing");
-      const laterOpening = num(f, "later_opening");
-      const difference = num(f, "difference");
-      if (error.hint !== null) {
+      const earlier = refusal.earlier_source;
+      const later = refusal.later_source;
+      if (refusal.reason === "same-statement-twice") {
         return {
           ...base,
           verdict: `${later} looks like the same statement as ${earlier}.`,
@@ -528,25 +461,20 @@ function groupProblem(error: AutoImportError): ProblemBody {
       return {
         ...base,
         verdict: `There is a gap between ${earlier} and ${later}.`,
-        facts:
-          earlierClosing !== null &&
-          laterOpening !== null &&
-          difference !== null
-            ? [
-                {
-                  label: `${earlier} ends at`,
-                  value: formatMoney(earlierClosing),
-                },
-                {
-                  label: `${later} begins at`,
-                  value: formatMoney(laterOpening),
-                },
-                {
-                  label: "Activity in neither file",
-                  value: formatMoney(Math.abs(difference)),
-                },
-              ]
-            : [],
+        facts: [
+          {
+            label: `${earlier} ends at`,
+            value: formatMoney(refusal.earlier_closing),
+          },
+          {
+            label: `${later} begins at`,
+            value: formatMoney(refusal.later_opening),
+          },
+          {
+            label: "Activity in neither file",
+            value: formatMoney(Math.abs(refusal.difference)),
+          },
+        ],
         why: "The earlier file ends at a different balance than the later one begins with, so activity between them is missing from both. Usually a statement for the period in between is missing.",
         steps: [
           "Download the statement for the missing period, add it here, and import again.",
@@ -564,38 +492,30 @@ function groupProblem(error: AutoImportError): ProblemBody {
             ...facts,
             earlierSource: earlier,
             laterSource: later,
-            earlierClosing,
-            laterOpening,
-            difference,
+            earlierClosing: refusal.earlier_closing,
+            laterOpening: refusal.later_opening,
+            difference: refusal.difference,
           }),
           afterwards: RETRY_FROM_SCREEN,
         },
       };
     }
     case "statement_disagreement": {
-      const parts = Array.isArray(f.parts) ? (f.parts as string[]) : [];
-      const date = text(f, "date") ?? "?";
-      const row =
-        f.row && typeof f.row === "object"
-          ? (f.row as Record<string, unknown>)
-          : {};
-      const narration = typeof row.narration === "string" ? row.narration : "";
+      const { parts, date, row } = refusal;
       const amount =
-        typeof row.deposit === "number" && row.deposit > 0
+        row.deposit > 0
           ? `deposit ${formatMoney(row.deposit)}`
-          : typeof row.withdrawal === "number"
-            ? `withdrawal ${formatMoney(row.withdrawal)}`
-            : "";
+          : `withdrawal ${formatMoney(row.withdrawal)}`;
       return {
         ...base,
         verdict: `${joinNames(parts)} both include ${formatDate(date)} but list it differently.`,
         facts: [
           { label: "Day in both files", value: formatDate(date) },
-          ...(narration
+          ...(row.narration
             ? [
                 {
                   label: "First row that differs",
-                  value: amount ? `${narration} (${amount})` : narration,
+                  value: `${row.narration} (${amount})`,
                 },
               ]
             : []),
@@ -621,7 +541,7 @@ function groupProblem(error: AutoImportError): ProblemBody {
       };
     }
     case "statement_part_unjoinable": {
-      const part = text(f, "part") ?? "one of the files";
+      const { part } = refusal;
       return {
         ...base,
         verdict: `${part} prints no balances, so it can't be placed next to the other files.`,
@@ -638,45 +558,42 @@ function groupProblem(error: AutoImportError): ProblemBody {
       };
     }
     case "statement_part_invalid": {
-      const part = text(f, "part") ?? "one of the files";
+      const { part, detail } = refusal;
       return {
         ...base,
         verdict: `${part} contradicts itself.`,
-        facts: error.detail
-          ? [{ label: "Detail", value: error.detail, face: "words" }]
-          : [],
+        facts: [{ label: "Detail", value: detail, face: "words" }],
         why: "Its own opening or closing balance doesn't match its rows. Either the bank's export is broken or the reader misread it.",
         agent: {
-          prompt: partInvalidPrompt({ ...facts, part, detail: error.detail }),
+          prompt: partInvalidPrompt({ ...facts, part, detail }),
           afterwards: RETRY_FROM_SCREEN,
         },
       };
     }
-    case "reconciliation_match_failed": {
-      const date = text(f, "checkpoint_date");
-      const balance = num(f, "checkpoint_balance");
+    case "reconciliation_match_failed":
       return {
         ...base,
         verdict: "The statement doesn't line up with your books.",
         facts: [
-          ...(date
-            ? [{ label: "Books last confirmed on", value: formatDate(date) }]
-            : []),
-          ...(balance !== null
-            ? [{ label: "Confirmed balance", value: formatMoney(balance) }]
-            : []),
+          {
+            label: "Books last confirmed on",
+            value: formatDate(refusal.checkpoint_date),
+          },
+          {
+            label: "Confirmed balance",
+            value: formatMoney(refusal.checkpoint_balance),
+          },
         ],
         why: "The statement has rows on that day, but none of them shows the confirmed balance, so the app can't tell which transactions are new. Either your books and the bank have drifted apart, or the statement is missing a row on that day.",
         agent: {
           prompt: reconciliationPrompt({
             ...facts,
-            checkpointDate: date,
-            checkpointBalance: balance,
+            checkpointDate: refusal.checkpoint_date,
+            checkpointBalance: refusal.checkpoint_balance,
           }),
           afterwards: RETRY_FROM_SCREEN,
         },
       };
-    }
     case "opening_balance_unavailable":
       return {
         ...base,
@@ -697,34 +614,34 @@ function groupProblem(error: AutoImportError): ProblemBody {
           afterwards: RETRY_FROM_SCREEN,
         },
       };
-    case "assertion_conflict": {
-      const date = text(f, "date");
+    case "assertion_conflict":
       return {
         ...base,
         verdict:
           "Your books already have a different confirmed balance for that day.",
-        facts: date ? [{ label: "Day", value: formatDate(date) }] : [],
+        facts: [{ label: "Day", value: formatDate(refusal.date) }],
         why: "The statement's closing balance for that day doesn't match the balance already recorded as confirmed in your books.",
         agent: {
           prompt: genericFailurePrompt({
             ...facts,
-            code: error.error,
-            payload: JSON.stringify(f, null, 2),
+            code: refusal.error,
+            payload: JSON.stringify(refusal, null, 2),
           }),
           afterwards: RETRY_FROM_SCREEN,
         },
       };
-    }
-    default:
+    case "ambiguous_duplicate":
+    case "abacus_json_parse_failed":
+    case "categorization_config_error":
       return {
         ...base,
         verdict: "The import stopped with an unexpected error.",
-        why: error.message ?? "The server gave no further explanation.",
+        why: refusal.message,
         agent: {
           prompt: genericFailurePrompt({
             ...facts,
-            code: error.error,
-            payload: JSON.stringify(f, null, 2),
+            code: refusal.error,
+            payload: JSON.stringify(refusal, null, 2),
           }),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -732,48 +649,64 @@ function groupProblem(error: AutoImportError): ProblemBody {
   }
 }
 
-export function describeProblems(error: AutoImportError): Problem[] {
-  const tone = problemTone(error);
-  return problemBodies(error).map((body) => ({ ...body, tone }));
+export function describeProblems(failure: ImportFailure): Problem[] {
+  const tone = problemTone(failure);
+  return problemBodies(failure).map((body) => ({ ...body, tone }));
 }
 
-function problemBodies(error: AutoImportError): ProblemBody[] {
-  if (error.error === "auto_import_files_unresolved") {
-    return planProblems(error);
+function problemBodies(failure: ImportFailure): ProblemBody[] {
+  switch (failure.kind) {
+    case "files-unresolved":
+      return planProblems(failure);
+    case "account-refused":
+      return [refusalProblem(failure.refusal)];
+    case "forbidden":
+      return [
+        {
+          key: "forbidden",
+          fileNames: [],
+          subject: "Your sign-in",
+          caption: null,
+          verdict: "You don't have permission to import.",
+          facts: [],
+          why: "Sign in with an account that manages these books, then try again.",
+          steps: [],
+          actions: [],
+          agent: null,
+          technical: null,
+        },
+      ];
+    case "network":
+      return [
+        {
+          key: "upload-failed",
+          fileNames: [],
+          subject: "Connection",
+          caption: null,
+          verdict: "The files could not be sent.",
+          facts: [],
+          why: "The app's server didn't answer. Check that it is running and that you are online, then import again.",
+          steps: [],
+          actions: [],
+          agent: null,
+          technical: ["upload_failed", failure.message].join("\n"),
+        },
+      ];
+    case "unexpected":
+      return [
+        {
+          key: "unexpected",
+          fileNames: [],
+          subject: "The import",
+          caption: null,
+          verdict: "The import stopped with an unexpected error.",
+          facts: [],
+          why: "The server's reply isn't one this screen knows how to explain. Its exact words are in the technical details.",
+          steps: [],
+          actions: [],
+          agent: null,
+          technical: `HTTP ${failure.status}\n${JSON.stringify(failure.body, null, 2)}`,
+        },
+      ];
   }
-  if (error.status === 403) {
-    return [
-      {
-        key: "forbidden",
-        fileNames: [],
-        subject: "Your sign-in",
-        caption: null,
-        verdict: "You don't have permission to import.",
-        facts: [],
-        why: "Sign in with an account that manages these books, then try again.",
-        steps: [],
-        actions: [],
-        agent: null,
-        technical: technical(error),
-      },
-    ];
-  }
-  if (error.error === "upload_failed" || error.status === 0) {
-    return [
-      {
-        key: "upload-failed",
-        fileNames: [],
-        subject: "Connection",
-        caption: null,
-        verdict: "The files could not be sent.",
-        facts: [],
-        why: "The app's server didn't answer. Check that it is running and that you are online, then import again.",
-        steps: [],
-        actions: [],
-        agent: null,
-        technical: technical(error),
-      },
-    ];
-  }
-  return [groupProblem(error)];
 }

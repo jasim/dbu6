@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { NO_DRAFTS, type DraftCounts } from "dbu6-shared";
 import {
   duplicateDraftRowsSql,
   duplicateJournalEntryRowsSql,
@@ -14,9 +15,11 @@ import {
 import { allRows, ledgerCtes, type ScopeParams } from "./reports/shared.js";
 
 /*
- * What stands between an account's drafts and the books (PLAN.md §11 P3).
- * Home, Review, the posting gate and the two draft reports all read these
- * queries, so a tick on Review and a refusal from the gate cannot disagree.
+ * What an account's drafts hold (PLAN.md §11 P3). Home, Review, the posting
+ * gate and the two draft reports all read these queries. What blocks posting
+ * is decided from the counts by `postingBlocks` in dbu6-shared, which the gate
+ * and the screens share, so a tick on Review and a refusal from the gate
+ * cannot disagree.
  *
  * Counts are the reports' rows: a draft that matches two others is two
  * possible duplicates.
@@ -131,6 +134,19 @@ export function loadDraftStatus(
       ];
     }),
   );
+}
+
+/** An account's counts, as the contracts carry them; none without drafts. */
+export function draftCounts(
+  status: DraftAccountStatus | undefined,
+): DraftCounts {
+  if (status === undefined) return NO_DRAFTS;
+  return {
+    drafts: status.drafts,
+    uncategorised: status.uncategorised,
+    duplicates: status.duplicates.length,
+    failing_checks: status.failing.length,
+  };
 }
 
 /** The failing draft balance checks, by account, date and draft. */

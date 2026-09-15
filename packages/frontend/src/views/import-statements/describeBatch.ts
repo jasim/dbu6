@@ -1,11 +1,8 @@
 import type { AutoImportPlanFile, AutoImportResult } from "dbu6-shared";
 import type { StatusTone } from "../../components/status-chip";
-import {
-  problemTone,
-  type AutoImportError,
-  type ProblemTone,
-} from "./describeProblems";
-import { joinNames, maskIdentifier, plural } from "./format";
+import { problemTone, type ProblemTone } from "./describeProblems";
+import type { ImportOutcome } from "./outcome";
+import { describeStatementAccount, joinNames, plural } from "../../format";
 
 // The sentence at the top of the outcome, in the tone of what happened: ok
 // when something new came in, waiting when nothing did, and the problem's
@@ -28,12 +25,9 @@ export function newTransactionCount(result: AutoImportResult): number {
 const FILES_KEPT =
   "Your files are still in the list above. Once this is sorted out, import them again.";
 
-export function describeBatch(input: {
-  result: AutoImportResult | null;
-  error: AutoImportError | null;
-}): BatchSummary | null {
-  const { result, error } = input;
-  if (result) {
+export function describeBatch(outcome: ImportOutcome): BatchSummary {
+  if (outcome.kind === "imported") {
+    const { result } = outcome;
     const fresh = newTransactionCount(result);
     const statements = plural(result.files.length, "statement");
     const accounts = plural(result.groups.length, "account");
@@ -50,34 +44,43 @@ export function describeBatch(input: {
       next: null,
     };
   }
-  if (!error) return null;
-  const tone = problemTone(error);
-  if (error.error === "auto_import_files_unresolved") {
-    const stuck = error.files.filter((row) => row.status !== "resolved").length;
-    return {
-      tone,
-      text: `Nothing was imported. ${stuck} of ${plural(error.files.length, "file")} need${stuck === 1 ? "s" : ""} attention below.`,
-      next: FILES_KEPT,
-    };
+  const { failure } = outcome;
+  const tone = problemTone(failure);
+  switch (failure.kind) {
+    case "files-unresolved": {
+      const stuck = failure.files.filter(
+        (row) => row.status !== "resolved",
+      ).length;
+      return {
+        tone,
+        text: `Nothing was imported. ${stuck} of ${plural(failure.files.length, "file")} need${stuck === 1 ? "s" : ""} attention below.`,
+        next: FILES_KEPT,
+      };
+    }
+    case "account-refused": {
+      const { refusal } = failure;
+      const imported = refusal.imported_groups ?? [];
+      const failed = refusal.failed_group.preset_name;
+      if (imported.length === 0) {
+        return {
+          tone,
+          text: `Nothing was imported. ${failed} failed, see below.`,
+          next: FILES_KEPT,
+        };
+      }
+      const done = joinNames(imported.map((one) => one.preset_name));
+      const removed = imported.flatMap((one) => one.file_names);
+      return {
+        tone,
+        text: `${done} ${imported.length === 1 ? "was" : "were"} imported. ${failed} failed, see below.`,
+        next: `${joinNames(removed)} ${removed.length === 1 ? "has" : "have"} been taken out of the list above. Fix the problem below and import the rest.`,
+      };
+    }
+    case "network":
+    case "forbidden":
+    case "unexpected":
+      return { tone, text: "Nothing was imported.", next: FILES_KEPT };
   }
-  if (error.importedGroups.length > 0) {
-    const done = joinNames(error.importedGroups.map((one) => one.preset_name));
-    const failed = error.failedGroup?.preset_name ?? "another account";
-    const removed = error.importedGroups.flatMap((one) => one.file_names);
-    return {
-      tone,
-      text: `${done} ${error.importedGroups.length === 1 ? "was" : "were"} imported. ${failed} failed, see below.`,
-      next: `${joinNames(removed)} ${removed.length === 1 ? "has" : "have"} been taken out of the list above. Fix the problem below and import the rest.`,
-    };
-  }
-  if (error.failedGroup) {
-    return {
-      tone,
-      text: `Nothing was imported. ${error.failedGroup.preset_name} failed, see below.`,
-      next: FILES_KEPT,
-    };
-  }
-  return { tone, text: "Nothing was imported.", next: FILES_KEPT };
 }
 
 export interface FileStatus {
@@ -98,7 +101,7 @@ export function describeFileStatus(
     case "resolved": {
       const bank = row.institution ?? row.preset_name;
       const account = row.account
-        ? `, ${row.account.kind === "card" ? "card" : "account"} ${maskIdentifier(row.account.identifier)}`
+        ? `, ${describeStatementAccount(row.account)}`
         : "";
       const what = `${bank} statement${account} → ${row.preset_name}`;
       if (outcome.importedFiles.has(row.file_name)) {

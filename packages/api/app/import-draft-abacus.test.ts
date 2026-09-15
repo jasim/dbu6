@@ -152,7 +152,7 @@ describe("importAbacusStatement", () => {
     const [parts, options, , , sourceNames] = runStatementImport.mock.calls[0];
     expect(options).toEqual({
       baseAccount: "liabilities:card:sample",
-      accountKind: "credit-card",
+      accountKind: "card",
       customMappingsFilenames: [],
       gpayHtmlPath: null,
     });
@@ -227,6 +227,7 @@ describe("importAbacusStatement", () => {
       error: "balance_mismatch",
       computed_final: -3500,
       statement_closing: -4000,
+      suspected_gap: false,
     });
   });
 

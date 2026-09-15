@@ -1,22 +1,19 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { HomeAccount, HomeSummary } from "dbu6-shared";
+import { useQuery } from "@tanstack/react-query";
+import { isProblem, postingBlocks, type HomeAccount } from "dbu6-shared";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import { apiErrorMessage, homeApi } from "../api";
+import { apiErrorMessage } from "../api";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
 import { NextStepCard } from "../components/next-step-card";
 import { StatusChip, type StatusTone } from "../components/status-chip";
+import { homeSummaryQuery } from "../queries";
 import { accountLedgerHref } from "../reports/links";
 import { reviewHref } from "../review/routes";
-import {
-  formatBalance,
-  formatDate,
-  plural,
-} from "../views/import-statements/format";
+import { formatBalance, formatDate, plural } from "../format";
 import { homeState, type HomeCard } from "./state";
 
 /**
@@ -30,26 +27,9 @@ export function Home() {
       ? s.session.context.workspace.name
       : null,
   );
-  const [summary, setSummary] = useState<HomeSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let live = true;
-    setError(null);
-    homeApi
-      .summary({ query: {} })
-      .then((body) => {
-        if (live) setSummary(body);
-      })
-      .catch((e: unknown) => {
-        if (live) setError(apiErrorMessage(e));
-      });
-    return () => {
-      live = false;
-    };
-  }, [attempt]);
-
+  const query = useQuery(homeSummaryQuery);
+  const summary = query.data ?? null;
+  const error = query.isError ? apiErrorMessage(query.error) : null;
   const view = summary ? homeState(summary) : null;
 
   return (
@@ -79,7 +59,7 @@ export function Home() {
           <LoadError
             title="Couldn't load where your books stand"
             message={error}
-            retry={() => setAttempt((n) => n + 1)}
+            retry={() => void query.refetch()}
           />
         ) : view ? (
           <StepCard card={view.card} />
@@ -213,7 +193,7 @@ function accountSubline(account: HomeAccount): string {
   if (account.checked_to === null) return "Nothing imported yet";
   return `Checked to ${formatDate(account.checked_to)} · ${formatBalance(
     account.checked_balance,
-    account.kind === "card",
+    account.kind,
   )}`;
 }
 
@@ -224,7 +204,7 @@ function accountStatus(account: HomeAccount): {
   if (account.account_id === null) {
     return { tone: "problem", label: "Account missing" };
   }
-  if (account.failing_checks > 0 || account.duplicates > 0) {
+  if (postingBlocks(account).some(isProblem)) {
     return { tone: "problem", label: "Problems in drafts" };
   }
   if (account.drafts > 0) {
