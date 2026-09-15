@@ -34,6 +34,14 @@ export default defineConfig({
         "node_modules/react-router-dom",
       ),
       zustand: path.resolve(__dirname, "node_modules/zustand"),
+      // Base UI keeps popup context in module state; a popover inside a
+      // Sapporta dialog must see the same copy.
+      "@base-ui/react": path.resolve(__dirname, "node_modules/@base-ui/react"),
+      // Sapporta's record form reads the QueryClient this app provides.
+      "@tanstack/react-query": path.resolve(
+        __dirname,
+        "node_modules/@tanstack/react-query",
+      ),
       // These two ship CommonJS, whose require("react") bypasses the aliases
       // above under vitest; one copy here keeps them on this project's React.
       "lucide-react": path.resolve(__dirname, "node_modules/lucide-react"),
@@ -47,6 +55,8 @@ export default defineConfig({
       "react-dom",
       "react-router-dom",
       "zustand",
+      "@base-ui/react",
+      "@tanstack/react-query",
       "lucide-react",
       "use-sync-external-store",
     ],

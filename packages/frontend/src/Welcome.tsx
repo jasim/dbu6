@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { usePageTitle } from "@sapporta/frontend/shell";
+import { Button } from "./components/ui/button";
 
 type WorkflowSection = {
   title: string;
@@ -18,6 +19,8 @@ type WorkflowSection = {
   action: string;
   to: string;
   icon: LucideIcon;
+  /** The screen's one primary button: the workflow's main action. */
+  primary?: boolean;
   secondaryAction?: {
     label: string;
     to: string;
@@ -52,6 +55,7 @@ const workflowSections: readonly WorkflowSection[] = [
     action: "Import statements",
     to: "/views/import-statements",
     icon: FileUp,
+    primary: true,
   },
   {
     title: "Review the draft",
@@ -95,10 +99,10 @@ export function Welcome() {
     <div className="flex-1 overflow-y-auto bg-sap-surface">
       <div className="mx-auto max-w-[900px] px-5 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-14">
         <header className="max-w-[720px]">
-          <h1 className="text-[34px] font-semibold leading-tight tracking-sap-display text-sap-fg sm:text-[40px]">
+          <h1 className="text-title text-foreground sm:text-display">
             Keep your books up to date
           </h1>
-          <p className="mt-4 text-sap-body leading-7 text-sap-soft">
+          <p className="mt-4 text-body text-ink-soft">
             Start with the statements from your bank and credit card accounts.
             dbu6 keeps each import in draft until you have checked it, then adds
             the finished entries to your books.
@@ -112,10 +116,10 @@ export function Welcome() {
         </main>
 
         <section className="mt-10">
-          <h2 className="text-[20px] font-semibold text-sap-fg">
+          <h2 className="text-heading text-foreground">
             Once the books are current
           </h2>
-          <p className="mt-2 max-w-[680px] text-sap-body leading-6 text-sap-soft">
+          <p className="mt-2 max-w-[680px] text-body text-ink-soft">
             The posted entries are now available throughout the reports. Open an
             account ledger for detail, or step back and look at your overall
             position and spending.
@@ -124,14 +128,15 @@ export function Welcome() {
             {bookViews.map((view) => {
               const Icon = view.icon;
               return (
-                <Link
+                <Button
                   key={view.to}
-                  to={view.to}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-sap-border bg-sap-panel px-4 text-sap-data font-semibold text-sap-fg no-underline transition-colors hover:bg-sap-row-hover"
+                  render={<Link to={view.to} />}
+                  nativeButton={false}
+                  variant="outline"
                 >
-                  <Icon className="size-4" strokeWidth={1.8} />
+                  <Icon strokeWidth={1.8} />
                   {view.label}
-                </Link>
+                </Button>
               );
             })}
           </div>
@@ -148,30 +153,30 @@ function WorkflowSectionView({ section }: { section: WorkflowSection }) {
     <section className="grid gap-5 border-b border-sap-border py-8 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center sm:gap-10">
       <div>
         <div className="flex items-center gap-3">
-          <Icon className="size-5 text-sap-muted" strokeWidth={1.8} />
-          <h2 className="text-[20px] font-semibold text-sap-fg">
-            {section.title}
-          </h2>
+          <Icon className="size-5 text-ink-meta" strokeWidth={1.8} />
+          <h2 className="text-heading text-foreground">{section.title}</h2>
         </div>
-        <p className="mt-3 max-w-[620px] text-sap-body leading-6 text-sap-soft">
+        <p className="mt-3 max-w-[620px] text-body text-ink-soft">
           {section.description}
         </p>
       </div>
       <div className="flex flex-col items-stretch gap-2">
-        <Link
-          to={section.to}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-sap-brand px-4 text-sap-data font-semibold text-sap-bg no-underline transition-opacity hover:opacity-90"
+        <Button
+          render={<Link to={section.to} />}
+          nativeButton={false}
+          variant={section.primary ? "default" : "outline"}
         >
           {section.action}
-          <ArrowRight className="size-4" strokeWidth={2} />
-        </Link>
+          <ArrowRight strokeWidth={2} />
+        </Button>
         {section.secondaryAction ? (
-          <Link
-            to={section.secondaryAction.to}
-            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-sap-border bg-sap-panel px-4 text-sap-data font-semibold text-sap-fg no-underline transition-colors hover:bg-sap-row-hover"
+          <Button
+            render={<Link to={section.secondaryAction.to} />}
+            nativeButton={false}
+            variant="ghost"
           >
             {section.secondaryAction.label}
-          </Link>
+          </Button>
         ) : null}
       </div>
     </section>

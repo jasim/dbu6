@@ -12,13 +12,16 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@base-ui/react": "^1.6.0",
     "@js-temporal/polyfill": "0.5.1",
     "@sapporta/frontend": "link:/Users/jasim/m/a/code/sapporta/packages/frontend",
     "@sapporta/grid": "link:/Users/jasim/m/a/code/sapporta/packages/grid",
     "@sapporta/rest-core": "3.52.2",
     "@sapporta/shared": "link:/Users/jasim/m/a/code/sapporta/packages/shared",
     "@sapporta/ui": "link:/Users/jasim/m/a/code/sapporta/packages/ui",
+    "@tanstack/react-query": "^5.101.4",
     "better-auth": "^1.6.13",
+    "class-variance-authority": "^0.7.1",
     "dbu6-shared": "workspace:*",
     "lucide-react": "1.21.0",
     "react": "19.2.7",

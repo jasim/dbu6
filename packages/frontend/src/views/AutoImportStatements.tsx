@@ -10,6 +10,7 @@ import {
 import { getApiBase } from "@sapporta/frontend/platform";
 import { AppPage } from "@sapporta/frontend/shell";
 import type { AutoImportResult } from "dbu6-shared";
+import { Button } from "../components/ui/button";
 import { AccountCard, ProblemCard } from "./import-statements/cards";
 import {
   describeBatch,
@@ -143,12 +144,17 @@ export function AutoImportStatements() {
   const failedFiles = new Set(error?.failedGroup?.file_names ?? []);
   const batch = describeBatch({ result, error });
   const problems = error ? describeProblems(error) : [];
-  const canSubmit = files.length > 0 && !loading;
+  // Either waiting (nothing to send yet) or disabled (a request in flight),
+  // never both: Button's own `disabled` yields to an explicit prop.
+  const submitState =
+    files.length === 0
+      ? { waiting: "Add at least one file" }
+      : { disabled: loading };
 
   return (
     <AppPage section="Import" title="Import statements">
       <div className="p-8 max-w-2xl space-y-6">
-        <div className="space-y-1 text-sm text-muted-foreground">
+        <div className="space-y-1 text-body text-ink-soft">
           <p>
             Drop the statement files you downloaded from your bank. Each file is
             matched to the right account automatically, so you can drop
@@ -177,17 +183,17 @@ export function AutoImportStatements() {
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
-          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-6 py-10 text-center transition-colors ${
+          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed px-6 py-10 text-center transition-colors ${
             dragging
               ? "border-primary bg-primary/5"
-              : "border-muted-foreground/30 hover:border-primary/60"
-          } ${loading ? "cursor-not-allowed opacity-60" : ""}`}
+              : "border-sap-border-strong hover:border-primary/60"
+          } ${loading ? "cursor-not-allowed bg-waiting-bg text-waiting-fg" : ""}`}
         >
           <Upload className="h-6 w-6 text-muted-foreground" />
-          <div className="text-sm font-medium">
+          <div className="text-row font-medium text-foreground">
             Drop statements here, or click to browse
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-meta text-ink-meta">
             PDF, XLS, CSV, or TXT. Add as many as you like before processing.
           </div>
           <input
@@ -205,14 +211,14 @@ export function AutoImportStatements() {
         </div>
 
         {rejectedNames.length > 0 && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
+          <p className="text-meta text-attention-ink">
             Skipped {rejectedNames.join(", ")}: only PDF, XLS, CSV, and TXT
             statements are accepted here.
           </p>
         )}
 
         {files.length > 0 && (
-          <ul className="divide-y rounded-md border text-sm">
+          <ul className="divide-y rounded-card border text-row">
             {files.map((file, index) => {
               const row = annotations.get(file.name);
               const status = row
@@ -226,31 +232,33 @@ export function AutoImportStatements() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate font-mono">{file.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
+                      <span className="tnum shrink-0 font-mono text-meta text-ink-meta">
                         {Math.round(file.size / 1024)} KB
                       </span>
                     </div>
                     {status && (
                       <div
-                        className={`mt-0.5 text-xs ${
+                        className={`mt-0.5 text-meta ${
                           status.tone === "problem"
                             ? "text-destructive"
-                            : "text-muted-foreground"
+                            : "text-ink-meta"
                         }`}
                       >
                         {status.text}
                       </div>
                     )}
                   </div>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     aria-label={`Remove ${file.name}`}
                     disabled={loading}
                     onClick={() => removeFile(index)}
-                    className="shrink-0 opacity-60 hover:opacity-100 disabled:cursor-not-allowed"
+                    className="shrink-0"
                   >
-                    <X className="h-4 w-4" />
-                  </button>
+                    <X />
+                  </Button>
                 </li>
               );
             })}
@@ -258,7 +266,10 @@ export function AutoImportStatements() {
         )}
 
         <div className="space-y-1">
-          <label htmlFor="gpay-takeout-file" className="text-sm font-medium">
+          <label
+            htmlFor="gpay-takeout-file"
+            className="text-row font-medium text-foreground"
+          >
             Google Pay Takeout (optional)
           </label>
           <input
@@ -272,65 +283,63 @@ export function AutoImportStatements() {
               setGpayFile(event.target.files?.[0] ?? null);
               clearOutcome();
             }}
-            className="block w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 file:cursor-pointer"
+            className="block w-full text-row file:mr-3 file:py-1.5 file:px-3 file:rounded-control file:border file:border-sap-border-strong file:bg-card file:text-row file:font-semibold file:text-foreground hover:file:bg-muted file:cursor-pointer"
           />
-          <p id="gpay-takeout-help" className="text-xs text-muted-foreground">
+          <p id="gpay-takeout-help" className="text-meta text-ink-meta">
             The activity page from your Google Pay Takeout. UPI payments in the
             statements above that match it get the recipient's name before they
             are categorised. It never changes which transactions count as
             already imported.
           </p>
           {gpayFile && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-meta text-ink-meta">
               <span className="truncate font-mono">{gpayFile.name}</span>
-              <span className="shrink-0">
+              <span className="tnum shrink-0 font-mono">
                 {Math.round(gpayFile.size / 1024)} KB
               </span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 aria-label={`Remove ${gpayFile.name}`}
                 disabled={loading}
                 onClick={removeGpayFile}
-                className="shrink-0 opacity-60 hover:opacity-100 disabled:cursor-not-allowed"
+                className="shrink-0"
               >
-                <X className="h-3 w-3" />
-              </button>
+                <X />
+              </Button>
             </div>
           )}
         </div>
 
         <div>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          <Button onClick={handleSubmit} {...submitState}>
+            {loading && <Loader2 className="animate-spin" />}
             {loading
               ? "Processing..."
               : files.length > 1
                 ? `Process ${files.length} statements`
                 : "Process"}
-          </button>
+          </Button>
         </div>
 
         {batch && (
           <div
-            className={`flex items-start gap-3 rounded-md border p-4 ${
+            className={`flex items-start gap-3 rounded-card border p-4 ${
               batch.tone === "failure" || batch.tone === "partial"
-                ? "border-destructive/50 bg-destructive/10"
-                : "bg-nested"
+                ? "border-destructive/30 bg-destructive/10"
+                : "bg-muted"
             }`}
           >
             {batch.tone === "success" ? (
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-money-in" />
             ) : batch.tone === "nothing-new" ? (
               <Info className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
             ) : (
               <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
             )}
-            <div className="space-y-1 text-sm">
-              <div className="font-medium">{batch.text}</div>
+            <div className="space-y-1 text-row">
+              <div className="font-medium text-foreground">{batch.text}</div>
               {batch.removedFiles.length > 0 && (
                 <div className="text-muted-foreground">
                   {joinNames(batch.removedFiles)}{" "}
@@ -360,7 +369,7 @@ export function AutoImportStatements() {
         {importedGroups.length > 0 && (
           <div className="space-y-4">
             {error && (
-              <div className="text-sm font-medium">
+              <div className="text-row font-medium text-foreground">
                 Imported before the failure
               </div>
             )}

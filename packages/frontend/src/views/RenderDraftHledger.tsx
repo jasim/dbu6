@@ -3,6 +3,7 @@ import { Loader2, FileText, AlertCircle } from "lucide-react";
 import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
 import { AppPage } from "@sapporta/frontend/shell";
 import { draftTransactionsApi } from "../api";
+import { Button } from "../components/ui/button";
 
 interface RenderResult {
   hledger_journal: string;
@@ -39,17 +40,17 @@ export function RenderDraftHledger() {
   return (
     <AppPage section="Advanced" title="Render Draft Hledger">
       <div className="p-8 max-w-4xl space-y-6">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-body text-ink-soft">
           Pick a base account to render its current{" "}
           <code>draft_transactions</code> as an hledger journal. Reflects the
           latest state after any manual edits or reclassification.
         </p>
 
-        <div className="space-y-3 rounded-md border p-4">
+        <div className="space-y-3 rounded-card border bg-card p-4">
           <div className="space-y-1">
             <label
               htmlFor="render-draft-base-account"
-              className="text-sm font-medium"
+              className="text-row font-medium text-foreground"
             >
               Base account
             </label>
@@ -67,49 +68,55 @@ export function RenderDraftHledger() {
         </div>
 
         {error && (
-          <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-4">
+          <div className="flex items-start gap-3 rounded-card border border-destructive/30 bg-destructive/10 p-4">
             <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
-            <div className="text-sm text-destructive/80 break-words">
-              {error}
-            </div>
+            <div className="text-row text-destructive break-words">{error}</div>
           </div>
         )}
 
         {loading && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-meta text-ink-meta">
             <Loader2 className="h-4 w-4 animate-spin" />
             Rendering…
           </div>
         )}
 
         {result && !loading && (
-          <div className="rounded-md border p-4 space-y-3">
+          <div className="rounded-card border bg-card p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-muted-foreground" />
-                <div className="text-sm font-medium">{result.base_account}</div>
-                <div className="text-xs text-muted-foreground">
-                  {result.transaction_count} draft
+                <div className="text-row font-medium text-foreground">
+                  {result.base_account}
+                </div>
+                <div className="text-meta text-ink-meta">
+                  <span className="tnum font-mono">
+                    {result.transaction_count}
+                  </span>{" "}
+                  draft
                   {result.transaction_count === 1 ? "" : "s"}
                 </div>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() =>
                   navigator.clipboard.writeText(result.hledger_journal)
                 }
-                disabled={!result.hledger_journal}
-                className="text-xs rounded-md border px-2 py-1 hover:bg-nested disabled:opacity-50"
+                {...(result.hledger_journal
+                  ? {}
+                  : { waiting: "Nothing to copy" })}
               >
                 Copy
-              </button>
+              </Button>
             </div>
             {result.hledger_journal ? (
-              <pre className="p-3 bg-nested rounded overflow-x-auto whitespace-pre font-mono text-xs">
+              <pre className="tnum p-3 bg-muted rounded-control overflow-x-auto whitespace-pre font-mono text-meta">
                 {result.hledger_journal}
               </pre>
             ) : (
-              <div className="text-sm text-muted-foreground">
+              <div className="text-row text-ink-meta">
                 No draft transactions for this base account.
               </div>
             )}

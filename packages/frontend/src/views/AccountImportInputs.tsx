@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
 import type { ImportPreset } from "dbu6-shared";
 import { importPresetsApi } from "../api";
+import { Button } from "../components/ui/button";
 
 interface Account {
   id: number;
@@ -44,18 +45,20 @@ export function AccountImportInputs({
   return (
     <div className="space-y-5">
       {presets.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="text-muted-foreground">Presets</span>
+        <div className="flex flex-wrap items-center gap-3 text-row">
+          <span className="text-ink-meta">Presets</span>
           {presets.map((p) => (
-            <button
+            <Button
               key={p.name}
               type="button"
+              variant="outline"
+              size="sm"
               disabled={disabled}
               onClick={() => applyPreset(p)}
-              className="rounded-full border px-4 py-1.5 text-sm font-medium hover:bg-primary hover:text-primary-foreground hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-full"
             >
               {p.name}
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -63,7 +66,7 @@ export function AccountImportInputs({
       <div className="space-y-1">
         <label
           htmlFor="account-import-base-account"
-          className="text-sm font-medium"
+          className="text-row font-medium text-foreground"
         >
           Account on this statement
         </label>
@@ -81,7 +84,10 @@ export function AccountImportInputs({
       </div>
 
       <div className="space-y-1">
-        <label htmlFor="mappings" className="text-sm font-medium">
+        <label
+          htmlFor="mappings"
+          className="text-row font-medium text-foreground"
+        >
           Custom mapping files
         </label>
         <input
@@ -91,9 +97,9 @@ export function AccountImportInputs({
           onChange={(e) => onMappingsInputChange(e.target.value)}
           disabled={disabled}
           placeholder="custom_mappings_default.prompt"
-          className="block w-full rounded-md border px-3 py-1.5 text-sm font-mono"
+          className="block w-full rounded-control border bg-card px-3 py-1.5 text-row font-mono"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-meta text-ink-meta">
           Comma-separated. Files are resolved relative to{" "}
           <code>data/user-config/</code>.
         </p>

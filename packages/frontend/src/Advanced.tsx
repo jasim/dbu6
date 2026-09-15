@@ -58,14 +58,14 @@ export function Advanced() {
     <div className="flex-1 overflow-y-auto bg-sap-surface">
       <div className="mx-auto max-w-[1080px] px-5 py-8 sm:px-8 lg:px-10">
         <header className="max-w-[720px] border-b border-sap-border pb-7">
-          <div className="flex items-center gap-2 text-sap-label font-bold uppercase tracking-sap-section text-sap-brand">
+          <div className="flex items-center gap-2 text-label uppercase text-primary">
             <Settings2 className="size-4" strokeWidth={1.8} />
             Advanced
           </div>
-          <h1 className="mt-3 text-[32px] font-semibold leading-tight tracking-sap-display text-sap-fg sm:text-[38px]">
+          <h1 className="mt-3 text-title text-foreground sm:text-display">
             Every table, report, and specialist tool
           </h1>
-          <p className="mt-4 text-sap-body leading-7 text-sap-soft">
+          <p className="mt-4 text-body text-ink-soft">
             The main sidebar follows the normal statement workflow. Use this
             page when you need direct access to the underlying accounting data
             or a less common report.
@@ -137,10 +137,8 @@ function AdvancedSection({
 }) {
   return (
     <section className={className}>
-      <h2 className="text-[20px] font-semibold text-sap-fg">{title}</h2>
-      <p className="mt-1 text-sap-data leading-5 text-sap-muted">
-        {description}
-      </p>
+      <h2 className="text-heading text-foreground">{title}</h2>
+      <p className="mt-1 text-meta text-ink-meta">{description}</p>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -150,16 +148,14 @@ function AdvancedLink({ label, description, to, icon: Icon }: ToolLink) {
   return (
     <Link
       to={to}
-      className="group flex items-center gap-3 rounded-lg border border-sap-border bg-sap-panel px-4 py-3 text-sap-fg no-underline transition-colors hover:bg-sap-row-hover"
+      className="group flex items-center gap-3 rounded-card border bg-card px-4 py-3 text-foreground no-underline transition-colors hover:bg-sap-row-hover"
     >
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sap-sidebar text-sap-muted">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-muted text-ink-meta">
         <Icon className="size-4" strokeWidth={1.8} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sap-data font-semibold">
-          {label}
-        </span>
-        <span className="mt-0.5 block truncate text-sap-micro text-sap-muted">
+        <span className="block truncate text-row font-semibold">{label}</span>
+        <span className="mt-0.5 block truncate text-meta text-ink-meta">
           {description}
         </span>
       </span>

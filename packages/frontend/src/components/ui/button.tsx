@@ -1,0 +1,84 @@
+import * as React from "react";
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@sapporta/ui/cn";
+
+/*
+ * dbu6's button (PLAN.md §4.6). Four styles, three sizes, and a waiting
+ * state. One primary button per screen.
+ */
+export const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control text-row font-semibold outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none [&_svg]:size-[18px] [&_svg]:shrink-0",
+  {
+    variants: {
+      variant: {
+        /** Primary: the single obvious next step. */
+        default:
+          "bg-primary text-primary-foreground shadow-pill hover:bg-primary-hover",
+        /** Secondary: "Choose files", "Collapse all", "Download". */
+        outline:
+          "border border-sap-border-strong bg-card text-foreground hover:bg-muted",
+        /** Tertiary, reads as a link: "See the report", "Add an account". */
+        ghost: "px-1 text-primary hover:underline hover:underline-offset-4",
+        /** Rare: deleting a draft, removing an account. */
+        destructive:
+          "bg-destructive text-destructive-foreground hover:brightness-95",
+      },
+      size: {
+        /** 48px: page-level actions. */
+        default: "h-12 px-[22px]",
+        /** 44px, the smallest click target: in-row actions. */
+        sm: "h-11 px-4 text-meta",
+        lg: "h-[52px] px-7",
+      },
+    },
+    defaultVariants: { variant: "default", size: "default" },
+  },
+);
+
+/**
+ * The waiting state: an action that can't run yet ("Add 21 to my books"
+ * before the review is finished). Not opacity, which fails contrast; a quiet
+ * fill, and always a reason underneath.
+ */
+const waitingClassName =
+  "cursor-not-allowed bg-waiting-button-bg text-waiting-button-fg shadow-none hover:bg-waiting-button-bg";
+
+export interface ButtonProps
+  extends
+    Omit<ButtonPrimitive.Props, "className">,
+    VariantProps<typeof buttonVariants> {
+  className?: string;
+  /**
+   * Why the action can't run yet, shown under the button. Setting it disables
+   * the button and switches it to the waiting style.
+   */
+  waiting?: string;
+}
+
+export const Button = React.forwardRef<HTMLElement, ButtonProps>(
+  function Button(
+    { className, variant, size, waiting, disabled, ...props },
+    ref,
+  ) {
+    const button = (
+      <ButtonPrimitive
+        ref={ref}
+        className={cn(
+          buttonVariants({ variant, size }),
+          waiting !== undefined && waitingClassName,
+          className,
+        )}
+        disabled={waiting !== undefined || disabled}
+        {...props}
+      />
+    );
+    if (waiting === undefined) return button;
+    return (
+      <span className="inline-flex flex-col items-start gap-1.5">
+        {button}
+        <span className="text-meta text-ink-meta">{waiting}</span>
+      </span>
+    );
+  },
+);

@@ -10,7 +10,7 @@ import {
   type TableGridActionsProps,
 } from "@sapporta/frontend";
 import { AppPage } from "@sapporta/frontend/shell";
-import { Button } from "@sapporta/ui/button";
+import { Button } from "../../components/ui/button";
 import {
   draftTransactionQuickFilters,
   findActiveDraftTransactionQuickFilter,
@@ -116,9 +116,7 @@ function QuickFilterButtons(
             variant={active ? "default" : "outline"}
             aria-pressed={active}
             className={
-              props.surface === "toolbar"
-                ? "h-sap-ctl rounded-[6px] px-[10px] text-sap-emph font-[650]"
-                : "w-full justify-start"
+              props.surface === "toolbar" ? undefined : "w-full justify-start"
             }
             onClick={() => {
               const next = toggleDraftTransactionQuickFilter(

@@ -9,6 +9,7 @@ import {
 import { getApiBase } from "@sapporta/frontend/platform";
 import { AppPage } from "@sapporta/frontend/shell";
 import { draftTransactionsApi } from "../api";
+import { Button } from "../components/ui/button";
 import { AccountImportInputs } from "./AccountImportInputs";
 
 interface Account {
@@ -161,20 +162,33 @@ export function ReclassifyDrafts() {
     }
   }
 
-  const canReclassify =
-    baseAccountId !== null && rows.length > 0 && !classifying && !loadingRows;
+  // Why classifying can't start yet; undefined once it can. Passed as either
+  // `waiting` or `disabled`, never both: Button's own `disabled` yields to an
+  // explicit prop.
+  const classifyWaiting =
+    baseAccountId === null
+      ? "Choose an account first"
+      : loadingRows
+        ? "Loading its drafts"
+        : rows.length === 0
+          ? "Every draft already has an account"
+          : undefined;
+  const classifyState =
+    classifyWaiting === undefined
+      ? { disabled: classifying }
+      : { waiting: classifyWaiting };
 
   return (
     <AppPage section="Review drafts" title="Classify draft entries">
       <div className="p-8 max-w-6xl space-y-6">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-body text-ink-soft">
           Choose the bank or card account you imported. dbu6 will try the
           configured categorization rules again for entries that do not have an
           account yet. Anything it cannot classify stays in Draft entries for
           you to edit.
         </p>
 
-        <div className="space-y-3 rounded-md border p-4">
+        <div className="space-y-3 rounded-card border bg-card p-4">
           <AccountImportInputs
             accounts={accounts}
             baseAccountId={baseAccountId}
@@ -185,11 +199,11 @@ export function ReclassifyDrafts() {
           />
 
           <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium">
+            <label className="flex items-center gap-2 text-row font-medium text-foreground">
               <Upload className="h-4 w-4" />
               Google Pay My Activities.html (optional)
             </label>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-meta text-ink-meta">
               Matching withdrawal narrations are enriched before the
               categorization rules run.
             </p>
@@ -202,40 +216,30 @@ export function ReclassifyDrafts() {
                 setGpayEnrichedCount(null);
                 setError(null);
               }}
-              className="block w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 file:cursor-pointer"
+              className="block w-full text-row file:mr-3 file:py-1.5 file:px-3 file:rounded-control file:border file:border-sap-border-strong file:bg-card file:text-row file:font-semibold file:text-foreground hover:file:bg-muted file:cursor-pointer"
             />
             {gpayFile && <FileSummary file={gpayFile} />}
           </div>
 
-          <button
-            onClick={handleReclassify}
-            disabled={!canReclassify}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {classifying ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Wand2 className="h-4 w-4" />
-            )}
+          <Button onClick={handleReclassify} {...classifyState}>
+            {classifying ? <Loader2 className="animate-spin" /> : <Wand2 />}
             {classifying
               ? "Classifying…"
               : `Classify ${rows.length || ""} row${rows.length === 1 ? "" : "s"}`.trim()}
-          </button>
+          </Button>
         </div>
 
         {error && (
-          <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-4">
+          <div className="flex items-start gap-3 rounded-card border border-destructive/30 bg-destructive/10 p-4">
             <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
-            <div className="text-sm text-destructive/80 break-words">
-              {error}
-            </div>
+            <div className="text-row text-destructive break-words">{error}</div>
           </div>
         )}
 
         {gpayEnrichedCount !== null && (
-          <div className="flex items-start gap-3 rounded-md border border-green-500/50 bg-green-500/10 p-4">
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600 mt-0.5" />
-            <div className="text-sm">
+          <div className="flex items-start gap-3 rounded-card border border-money-in-border bg-money-in-bg p-4">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-money-in mt-0.5" />
+            <div className="text-row text-money-in-ink">
               Enriched {gpayEnrichedCount} draft narration
               {gpayEnrichedCount === 1 ? "" : "s"} from Google Pay before
               classification.
@@ -244,9 +248,9 @@ export function ReclassifyDrafts() {
         )}
 
         {baseAccountId !== null && (
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full text-sm">
-              <thead className="bg-nested text-left text-muted-foreground">
+          <div className="overflow-x-auto rounded-card border bg-card">
+            <table className="w-full text-row">
+              <thead className="bg-muted text-left text-ink-meta">
                 <tr>
                   <th className="px-3 py-2 font-medium">Date</th>
                   <th className="px-3 py-2 font-medium">Narration</th>
@@ -279,14 +283,14 @@ export function ReclassifyDrafts() {
                 ) : (
                   rows.map((row) => (
                     <tr key={row.id} className="border-t">
-                      <td className="whitespace-nowrap px-3 py-2">
+                      <td className="tnum whitespace-nowrap px-3 py-2 font-mono">
                         {row.date}
                       </td>
                       <td className="px-3 py-2">{row.narration}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      <td className="tnum whitespace-nowrap px-3 py-2 text-right font-mono">
                         {row.withdrawal}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      <td className="tnum whitespace-nowrap px-3 py-2 text-right font-mono">
                         {row.deposit}
                       </td>
                       <td className="px-3 py-2">
@@ -309,9 +313,9 @@ export function ReclassifyDrafts() {
 
 function FileSummary({ file }: { file: File }) {
   return (
-    <p className="text-xs text-muted-foreground">
+    <p className="text-meta text-ink-meta">
       Selected: <span className="font-mono">{file.name}</span> (
-      {Math.round(file.size / 1024)} KB)
+      <span className="tnum font-mono">{Math.round(file.size / 1024)}</span> KB)
     </p>
   );
 }
