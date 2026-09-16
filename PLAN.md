@@ -168,8 +168,10 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
     serves `GET /home` (the `homeContract` in `dbu6-shared`); `app/review.ts` serves
     `GET /review/accounts` and `/review/accounts/:accountId` (`reviewContract`, since P3).
   - `app/account-tree.ts` (since 2026-09-16): `branchTops`, the top of each account's
-    branch through `parent_id`, which Spending breakdown groups by; and `accountTree`
-    (since P4), the whole tree with `own` and `total` on every node, ranked and loop-safe.
+    branch through `parent_id`, which Spending breakdown groups by; `accountTree`
+    (since P4), the whole tree with `own` and `total` on every node, ranked; and
+    `subtree`, an account and everything under it, which the Account ledger reads. All
+    three throw on a loop in `parent_id`.
   - `app/draft-status.ts` (since P3) is the one source for what blocks posting drafts:
     counts, dates, closing balance, failing balance checks and possible duplicates per
     account. Home, Review, the posting gate (`app/post-drafts-to-journal.ts`) and the two
@@ -2189,7 +2191,7 @@ desktop, everything stacked at 390px.
      at a time, all the way down. At every level rows are ranked by total, largest first
      (ties by name). A row's **total** is every entry on the account and below it, so it
      matches its Account history. Subtrees with no entries in the period are left out.
-     An account caught in a parent loop still appears once, as a top account.
+     A loop in `parent_id` fails the request (owner's decision, 2026-09-16).
    - **Entries made directly on an account that has children** show, when it is
      opened, as the last child row: "Food, not in a sub-account", with that amount, so
      the children add up to the row.
@@ -2249,7 +2251,7 @@ desktop, everything stacked at 390px.
     their own queries, so the page and the grids can't disagree.
 - **`app/account-tree.ts` gains `accountTree(accounts)`**: top-level nodes of
   `{ account, own, total, children }`, children and roots ranked by total then name,
-  subtrees without entries dropped, loop-safe (an account in a loop becomes a top node).
+  subtrees without entries dropped; it throws on a loop in `parent_id`.
   `branchTops` stays for Spending breakdown.
 - **Contract:** `reportsContract.incomeExpenses` in `dbu6-shared` `contracts/reports.ts`:
   ```
@@ -2373,6 +2375,25 @@ desktop, everything stacked at 390px.
 ## 13. Progress log
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
+
+- 2026-09-16 · Step 6, P4 follow-up · A loop in `parent_id` now fails loudly (owner's
+  request), instead of each tree walk choosing its own shape for it.
+  - **Why:** `branchTops` and `accountTree` handled a loop differently, so Spending
+    breakdown and Where your money went grouped the same corrupt accounts differently,
+    and the Account ledger's recursive query had a third rule.
+  - **api:** `app/account-tree.ts` builds one forest for all three functions. An account
+    no top reaches sits on a loop, so it throws
+    `parent_id loops through accounts 1 → 4 → 3 → 1` (from the lowest id), whichever
+    accounts it was given. The new `subtree` gives the Account ledger its account and
+    everything under it (`ledgerAccountIds`, over every account in scope), bound into the
+    three queries as JSON; the recursive `account_tree` query is gone. On a copy of the dev
+    database the ledger takes the same accounts as before for all 102 accounts.
+  - **Tests:** the loop tests in `account-tree.test.ts`, `income-expenses.test.ts` and
+    `tree-totals.test.ts` now expect the error; `subtree` has its own. API typecheck and
+    tests (296) pass.
+  - **Not covered:** a loop through accounts outside what a function is given (one
+    crossing account types, or another workspace) goes unseen by the reports that pass
+    one type. Preventing loops in the database is proposed, not built.
 
 - 2026-09-16 · Step 6, P4 · Where your money went built as specified (§11 P4). Uncommitted at the time of writing.
   - **shared:** `reportsContract.incomeExpenses` with `incomeExpensesSchema` and the

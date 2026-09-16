@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { gridDatasetSchema } from "@sapporta/shared/grid-dataset";
 import { describe, expect, it } from "vitest";
 import {
+  ledgerAccountIds,
   loadAccountLedgerJournalEntries,
   toAccountLedgerResult,
 } from "./account-ledger.js";
@@ -62,10 +63,11 @@ describe("Account Ledger journal entry query", () => {
         (106, 'workspace', 'other-user', 13, 4, 75, 0, NULL, 'Other user line');
     `);
 
+    const scope = { workspaceId: "workspace", userId: "user" };
     const rows = loadAccountLedgerJournalEntries(sqlite, {
-      workspaceId: "workspace",
-      userId: "user",
+      ...scope,
       accountId: 1,
+      accountIds: ledgerAccountIds(sqlite, scope, 1),
       fromDate: "2026-01-01",
       toDate: "2026-01-31",
     });

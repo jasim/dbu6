@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { accountTree, branchTops, type AccountNode } from "./account-tree.js";
+import {
+  accountTree,
+  branchTops,
+  subtree,
+  type AccountNode,
+} from "./account-tree.js";
 
 function tops(accounts: { account_id: number; parent_id: number | null }[]) {
   return Object.fromEntries(
@@ -29,15 +34,56 @@ describe("branchTops", () => {
     ).toEqual({ 2: 2, 3: 2 });
   });
 
-  it("gives every account in a parent loop one top and returns", () => {
-    const result = tops([
-      { account_id: 1, parent_id: 2 },
-      { account_id: 2, parent_id: 1 },
-      { account_id: 3, parent_id: 1 },
-    ]);
+  it("throws on a parent loop, naming it from its lowest id", () => {
+    expect(() =>
+      tops([
+        { account_id: 3, parent_id: 2 },
+        { account_id: 2, parent_id: 1 },
+        { account_id: 1, parent_id: 2 },
+      ]),
+    ).toThrow("parent_id loops through accounts 1 → 2 → 1");
+  });
 
-    expect(Object.keys(result)).toEqual(["1", "2", "3"]);
-    expect([1, 2]).toContain(result[3]);
+  it("throws on an account that is its own parent", () => {
+    expect(() => tops([{ account_id: 1, parent_id: 1 }])).toThrow(
+      "parent_id loops through accounts 1 → 1",
+    );
+  });
+});
+
+describe("subtree", () => {
+  const accounts = [
+    { account_id: 1, parent_id: null },
+    { account_id: 2, parent_id: 1 },
+    { account_id: 3, parent_id: 2 },
+    { account_id: 4, parent_id: 1 },
+    { account_id: 5, parent_id: null },
+  ];
+  const ids = (accountId: number) =>
+    subtree(accounts, accountId).map((account) => account.account_id);
+
+  it("takes the account and everything under it, parents first", () => {
+    expect(ids(1)).toEqual([1, 2, 3, 4]);
+    expect(ids(2)).toEqual([2, 3]);
+    expect(ids(5)).toEqual([5]);
+  });
+
+  it("is empty for an account that isn't in the list", () => {
+    expect(ids(9)).toEqual([]);
+  });
+
+  it("throws on a parent loop outside the account's own branch", () => {
+    expect(() =>
+      subtree(
+        [
+          ...accounts,
+          { account_id: 6, parent_id: 7 },
+          { account_id: 7, parent_id: 8 },
+          { account_id: 8, parent_id: 7 },
+        ],
+        5,
+      ),
+    ).toThrow("parent_id loops through accounts 7 → 8 → 7");
   });
 });
 
@@ -136,16 +182,14 @@ describe("accountTree", () => {
     ).toEqual(["salary"]);
   });
 
-  it("makes each account in a parent loop a top node, once", () => {
-    const tree = accountTree([
-      account(1, "one", 2, 10),
-      account(2, "two", 1, 20),
-      account(3, "under-one", 1, 5),
-    ]);
-
-    expect(shape(tree)).toEqual([
-      ["two", 20, 20, []],
-      ["one", 10, 15, [["under-one", 5, 5, []]]],
-    ]);
+  it("throws on a parent loop, even one with no amounts", () => {
+    expect(() =>
+      accountTree([
+        account(1, "food", 4, 500),
+        account(2, "groceries", 1, 3000),
+        account(3, "dining", 1),
+        account(4, "restaurants", 3),
+      ]),
+    ).toThrow("parent_id loops through accounts 1 → 4 → 3 → 1");
   });
 });

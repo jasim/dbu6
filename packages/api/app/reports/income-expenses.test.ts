@@ -150,29 +150,14 @@ describe("Where your money went", () => {
     ).toEqual([["Expenses", 0, 26000, ["Rent", "Food"]]]);
   });
 
-  it("shows each account in a parent loop once, as a top account", () => {
+  it("throws on a loop in parent_id", () => {
     const sqlite = ledger();
-    // Food (1) now sits under its own grandchild, restaurants (4): food,
-    // dining and restaurants are in the loop, groceries hangs from food.
+    // Food (1) now sits under its own grandchild, restaurants (4).
     sqlite.exec("UPDATE accounts SET parent_id = 4 WHERE id = 1");
 
-    const report = incomeExpensesReport(sqlite, firstQuarter);
-
-    expect(report.spending.total).toBe(26000);
-    expect(shape(report.spending.accounts)).toEqual([
-      ["Rent", 20000, 20000, []],
-      ["Food", 500, 3500, [["Groceries", 3000, 3000, []]]],
-      ["Restaurants", 1500, 1500, []],
-      ["Dining", 1000, 1000, []],
-    ]);
-
-    // An account below one in a loop still hangs from it.
-    sqlite.exec("UPDATE accounts SET parent_id = 1 WHERE id = 5");
-    const names = (accounts: IncomeExpensesAccount[]): string[] =>
-      accounts.flatMap((account) => [account.name, ...names(account.children)]);
-    expect(
-      names(incomeExpensesReport(sqlite, firstQuarter).spending.accounts),
-    ).toEqual(["Food", "Rent", "Groceries", "Restaurants", "Dining"]);
+    expect(() => incomeExpensesReport(sqlite, firstQuarter)).toThrow(
+      "parent_id loops through accounts 1 → 4 → 3 → 1",
+    );
   });
 
   it("gives every month in the period, zero-filled, and the first month", () => {

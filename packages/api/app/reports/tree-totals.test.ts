@@ -4,7 +4,10 @@ import {
   type GridDataset,
 } from "@sapporta/shared/grid-dataset";
 import { describe, expect, it } from "vitest";
-import { loadAccountLedgerJournalEntries } from "./account-ledger.js";
+import {
+  ledgerAccountIds,
+  loadAccountLedgerJournalEntries,
+} from "./account-ledger.js";
 import { balanceSheetReport } from "./balance-sheet.js";
 import { expenseBreakdownReport } from "./expense-breakdown.js";
 import { incomeStatementReport } from "./income-statement.js";
@@ -167,20 +170,35 @@ describe("reports over an account tree", () => {
     expect(footer(result, "category_total")).toEqual([26000]);
   });
 
-  // A regression here hangs rather than fails: better-sqlite3 runs the
-  // recursive query synchronously, out of reach of the test timeout.
-  it("account ledger ends on a loop in parent_id", () => {
+  it("account ledger takes the account's whole branch", () => {
     const sqlite = ledger();
-    // Food (1) now sits under its own grandchild, restaurants (4).
-    sqlite.exec("UPDATE accounts SET parent_id = 4 WHERE id = 1");
-
     const lines = loadAccountLedgerJournalEntries(sqlite, {
       ...january,
-      accountId: 1,
+      accountId: 3,
+      accountIds: ledgerAccountIds(sqlite, scope, 3),
     });
 
     expect(lines.map((line) => line.entry_id)).toEqual([
       111, 112, 113, 114, 115, 116,
     ]);
+  });
+
+  describe("on a loop in parent_id", () => {
+    function looped(): Database.Database {
+      const sqlite = ledger();
+      // Food (1) now sits under its own grandchild, restaurants (4).
+      sqlite.exec("UPDATE accounts SET parent_id = 4 WHERE id = 1");
+      return sqlite;
+    }
+    const loop = "parent_id loops through accounts 1 → 4 → 3 → 1";
+
+    it("the account ledger throws, even for an account outside the loop", () => {
+      expect(() => ledgerAccountIds(looped(), scope, 1)).toThrow(loop);
+      expect(() => ledgerAccountIds(looped(), scope, 8)).toThrow(loop);
+    });
+
+    it("spending breakdown throws", () => {
+      expect(() => expenseBreakdownReport(looped(), january)).toThrow(loop);
+    });
   });
 });

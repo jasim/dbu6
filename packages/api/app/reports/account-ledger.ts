@@ -1,6 +1,7 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
+import { subtree, type TreeAccount } from "../account-tree.js";
 import {
   allRows,
   authorizeReport,
@@ -12,6 +13,7 @@ import {
   openRecordLink,
   sum,
   textColumn,
+  type ScopeParams,
 } from "./shared.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -22,9 +24,10 @@ api.register(
   ({ c, request }) => {
     const scope = authorizeReport(c, "account-ledger");
     const sqlite = c.get("sqlite");
-    const query = {
+    const query: AccountLedgerQuery = {
       ...scope,
       accountId: request.query.account_id,
+      accountIds: ledgerAccountIds(sqlite, scope, request.query.account_id),
       fromDate: request.query.from_date ?? null,
       toDate: request.query.to_date ?? null,
     };
@@ -46,7 +49,7 @@ api.register(
       END AS opening_balance
     FROM scoped_accounts a
     WHERE a.id = @accountId`,
-      query,
+      treeParams(query),
     );
     const rows = allRows<AccountLedgerTransactionRow>(
       sqlite,
@@ -75,7 +78,7 @@ api.register(
       AND (@toDate IS NULL OR j.date <= @toDate)
     GROUP BY j.id, j.date, j.description
     ORDER BY j.date, j.id`,
-      query,
+      treeParams(query),
     );
     const journalEntries = loadAccountLedgerJournalEntries(sqlite, query);
 
@@ -118,26 +121,40 @@ type AccountLedgerJournalEntryRow = {
   comment: string | null;
 };
 
-type AccountLedgerQuery = {
-  workspaceId: string;
-  userId: string;
+type AccountLedgerQuery = ScopeParams & {
   accountId: number;
+  /** The account and every account under it (`ledgerAccountIds`). */
+  accountIds: readonly number[];
   fromDate: string | null;
   toDate: string | null;
 };
 
 /**
- * `account_tree`: the ledger's account and every account under it. `UNION`,
- * not `UNION ALL`, so a loop in `parent_id` ends instead of recursing forever.
+ * The ledger's account and every account under it, from the accounts in
+ * scope. Throws on a loop in `parent_id` anywhere among them (`subtree`).
  */
+export function ledgerAccountIds(
+  sqlite: Parameters<typeof allRows>[0],
+  scope: ScopeParams,
+  accountId: number,
+): number[] {
+  const accounts = allRows<TreeAccount>(
+    sqlite,
+    `${ledgerCtes} SELECT id AS account_id, parent_id FROM scoped_accounts`,
+    scope,
+  );
+  return subtree(accounts, accountId).map((account) => account.account_id);
+}
+
+/** `account_tree`: the query's `accountIds`, bound by `treeParams`. */
 const accountTreeCte = `
     , account_tree AS (
-      SELECT id FROM scoped_accounts WHERE id = @accountId
-      UNION
-      SELECT a.id
-      FROM scoped_accounts a
-      JOIN account_tree t ON a.parent_id = t.id
+      SELECT value AS id FROM json_each(@accountTree)
     )`;
+
+function treeParams(query: AccountLedgerQuery) {
+  return { ...query, accountTree: JSON.stringify(query.accountIds) };
+}
 
 export function loadAccountLedgerJournalEntries(
   sqlite: Parameters<typeof allRows>[0],
@@ -167,7 +184,7 @@ export function loadAccountLedgerJournalEntries(
     JOIN matching_journals mj ON mj.id = je.journal_id
     JOIN scoped_accounts a ON a.id = je.account_id
     ORDER BY je.journal_id, je.id`,
-    query,
+    treeParams(query),
   );
 }
 
