@@ -19,7 +19,7 @@
   "dependencies": {
     "@js-temporal/polyfill": "0.5.1",
     "@sapporta/rest-core": "3.52.2",
-    "@sapporta/shared": "link:/Users/jasim/m/a/code/sapporta/packages/shared",
+    "@sapporta/shared": "0.3.3",
     "zod": "4.4.3"
   },
   "devDependencies": {
