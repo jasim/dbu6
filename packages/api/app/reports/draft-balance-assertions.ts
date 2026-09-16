@@ -83,7 +83,7 @@ function toDraftBalanceAssertionsResult(
   };
   return flatResult(
     "draft-balance-assertions",
-    "Draft Balance Assertions",
+    "Draft Reconciliation Differences",
     levelColumns,
     rows,
     {

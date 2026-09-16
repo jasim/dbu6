@@ -86,7 +86,7 @@ function toLastReconciledResult(rows: LastReconciledRow[]): GridDataset {
   };
   return flatResult(
     "last-reconciled",
-    "Last Reconciled Entries",
+    "Last Reconciled Balances",
     levelColumns,
     rows,
     {

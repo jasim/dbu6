@@ -210,7 +210,7 @@ export const reportsContract = c.router({
   lastReconciled: c.query({
     method: "GET",
     path: "/reports/last-reconciled",
-    summary: "Last Reconciled Entries",
+    summary: "Last Reconciled Balances",
     metadata: { tags: ["reports"] },
     query: noParamsQuery,
     responses: {
@@ -234,7 +234,7 @@ export const reportsContract = c.router({
   draftBalanceAssertions: c.query({
     method: "GET",
     path: "/reports/draft-balance-assertions",
-    summary: "Draft Balance Assertions",
+    summary: "Draft Reconciliation Differences",
     metadata: { tags: ["reports"] },
     query: draftAccountQuery,
     responses: {

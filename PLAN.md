@@ -207,9 +207,10 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
   is Sapporta's raw table again since P3.
 - **`src/shell/`** is dbu6's app shell (D4): `AppShell`, `Sidebar` (sidebar and bottom
   bar), `navigation.ts` (the `{ everyday, more }` shape and the badge), `navigation-counts.ts`.
-- **`src/reports/registry.tsx`** lists the thirteen reports, each with one name and one
-  description, and the reports index group of the seven it lists (since 2026-09-16);
-  `ReportsIndex.tsx` (the `/reports` page) and `Advanced.tsx` (`/tools`) read it.
+- **`src/reports/registry.tsx`** lists the thirteen reports, each with one name, one
+  description, its subgroup on the reports index and its card layout, plus the index's
+  sections (since 2026-09-16). `ReportsIndex.tsx` (the `/reports` page) and `App.tsx`'s
+  routes read it; All tools no longer lists reports.
 - **`src/SapportaRoutes.tsx`** holds the framework routes: sign-in and sign-up screens,
   `/account/profile`, `/workspace/settings`, `/tables/:tableName`, `/tables/:tableName/new`,
   `/setup/:tableName/new`, and not found.
@@ -1498,8 +1499,9 @@ Sidebar items, in order (5 everyday, a rule, 1 more):
   is expected; note it in the card's description only if it confuses in testing.
 - The registry's labels (`reports/registry.tsx`) gain the plain and accounting names and
   descriptions above, so All tools and the index read from one list.
-- **Superseded 2026-09-16:** the index lists each report once, under Financial Statements,
-  Ledgers and Checks, with the owner's names and captions (§13, that date).
+- **Superseded 2026-09-16:** the index lists every report once, under Financial Statements,
+  Ledgers and Checks and their subgroups, with the owner's names and captions, and All
+  tools lists none (§13, that date).
 
 **States:** the index is static (no loading or error state). The Review badge is hidden at
 zero and when the count fails to load, as today.
@@ -2330,7 +2332,8 @@ desktop, everything stacked at 390px.
 ### P5 · All tools (handoff: Advanced): Status: Not started
 - Renamed labels, with their technical names still visible.
 - Search.
-- Where freeform import, the checkpoint and settings go.
+- Where freeform import and settings go. (Reports, the checkpoint included, moved to the
+  reports index on 2026-09-16.)
 
 ### P6 · Accounts (no handoff screen): Status: Not started
 - The list and adding an account.
@@ -2377,6 +2380,39 @@ desktop, everything stacked at 390px.
 ## 13. Progress log
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
+
+- 2026-09-16 · Step 6, Reports index · Every report on the index, none on All tools
+  (owner's request). The owner chose the grouping, names and captions; the index has no
+  description under its title.
+  - **Financial Statements**, two columns:
+    - *Income and spending*: Income and Expenses (tile), "See how much you spent against
+      income, by month"; Expense Breakdown, "Spending by category, largest first";
+      Monthly Summary, "Income, expenses, and savings rate for each month"; Income
+      Statement, "Income and expense totals per account, with net income".
+    - *Balances*: Balance Sheet (tile), "All assets and liabilities"; Net Worth Over Time,
+      "Monthly list of assets, liabilities, and net worth"; Trial Balance, "List of all
+      accounts and their balance".
+  - **Ledgers**, side by side: Account Ledger, "Complete statement of an account"; Asset
+    Inflows, "Money that came in from outside your accounts".
+  - **Checks**, two columns:
+    - *Posted entries*: Reconciliation Differences, "Where the ledger and bank/CC
+      statement balances disagree"; Last Reconciled Balances, "The date and account
+      balances of the last statements posted in the books. Shows each account with its
+      most recent balance assertion. Useful to determine which new statements need to be
+      uploaded".
+    - *Imported drafts*: Draft Reconciliation Differences, "Where the drafts and bank/CC
+      statement balances disagree"; Duplicate Drafts, "Drafts that may repeat a ledger
+      entry or another draft".
+  - **Changed from the entry below:** Net Worth Over Time is a row, not a tile; Trial
+    Balance moved from Checks to Balances.
+  - **Renamed everywhere** (screen title, API grid label, contract summary): Last
+    Reconciled Entries → Last Reconciled Balances; Draft Balance Assertions → Draft
+    Reconciliation Differences.
+  - **frontend:** the registry holds the index's sections and subgroups; each report has
+    a required `subgroup` and `layout`. All tools drops its All reports section; its
+    title is "Every table and specialist tool".
+  - **Checked:** typecheck; frontend (138) and API (300) tests. The index was rendered
+    alone at 1440 and 390px, since the dev app wants a sign-in; not walked in the app.
 
 - 2026-09-16 · Step 6, Reports index · One card per report, in three groups, with accounting
   names and plain captions (owner's names and captions). Replaces the Everyday and

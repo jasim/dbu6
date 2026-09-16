@@ -1,5 +1,4 @@
 import {
-  BarChart3,
   ClipboardPaste,
   Database,
   FileText,
@@ -10,7 +9,6 @@ import {
 import { useSchemaStore } from "@sapporta/frontend/schema";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { LinkCard, type LinkCardProps } from "./components/link-card";
-import { reportDefinitions } from "./reports/registry";
 
 const importTools: readonly LinkCardProps[] = [
   {
@@ -55,12 +53,11 @@ export function Advanced() {
             All tools
           </div>
           <h1 className="mt-3 text-title text-foreground sm:text-display">
-            Every table, report, and specialist tool
+            Every table and specialist tool
           </h1>
           <p className="mt-4 text-body text-ink-soft">
             The main sidebar follows the normal statement workflow. Use this
-            page when you need direct access to the underlying accounting data
-            or a less common report.
+            page when you need direct access to the underlying accounting data.
           </p>
         </header>
 
@@ -92,24 +89,6 @@ export function Advanced() {
               ))}
             </div>
           </AdvancedSection>
-
-          <AdvancedSection
-            title="All reports"
-            description="Open any available view of the posted books and draft checks."
-            className="lg:col-span-2"
-          >
-            <div className="grid gap-2 sm:grid-cols-2">
-              {reportDefinitions.map((report) => (
-                <LinkCard
-                  key={report.id}
-                  label={report.label}
-                  description={report.description}
-                  to={`/reports/${report.id}`}
-                  icon={BarChart3}
-                />
-              ))}
-            </div>
-          </AdvancedSection>
         </main>
       </div>
     </div>
@@ -119,16 +98,14 @@ export function Advanced() {
 function AdvancedSection({
   title,
   description,
-  className = "",
   children,
 }: {
   title: string;
   description: string;
-  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className={className}>
+    <section>
       <h2 className="text-heading text-foreground">{title}</h2>
       <p className="mt-1 text-meta text-ink-meta">{description}</p>
       <div className="mt-4">{children}</div>

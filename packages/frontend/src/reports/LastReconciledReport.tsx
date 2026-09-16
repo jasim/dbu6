@@ -11,7 +11,7 @@ export function LastReconciledReport() {
   const report = useReportResult(["last-reconciled"], callReport);
 
   return (
-    <ReportScreenFrame title="Last Reconciled Entries">
+    <ReportScreenFrame title="Last Reconciled Balances">
       <ReportToolbar
         actions={
           <ReportRunButton loading={report.loading} onClick={report.run} />
