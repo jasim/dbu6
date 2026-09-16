@@ -45,95 +45,86 @@ const RECEIVABLES = "assets:receivables:friends";
 /** Accounts with a statement: they get balance assertions, as a posted import does. */
 const STATEMENT_ACCOUNTS = [HDFC, SBI, HCC, ICC];
 
-const LEAF_ACCOUNTS = new Set([
-  HDFC, SBI, CASH, RECEIVABLES,
-  "assets:investments:epf",
-  "assets:investments:ppf",
-  "assets:investments:nps",
-  "assets:investments:mutual-funds:parag-parikh-flexi-cap",
-  "assets:investments:mutual-funds:uti-nifty-50-index",
-  "assets:investments:stocks:zerodha",
-  "assets:investments:gold",
-  "assets:deposits:hdfc-fixed-deposit",
-  HCC, ICC, CAR_LOAN,
-  "equity:opening-balances",
-  "income:salary:gross-pay",
-  "income:salary:employer-pf",
-  "income:salary:performance-bonus",
-  "income:interest:savings",
-  "income:interest:fixed-deposit",
-  "income:interest:epf",
-  "income:interest:ppf",
-  "income:dividends:stocks",
-  "income:rewards:card-cashback",
-  "expenses:housing:rent",
-  "expenses:housing:house-help",
-  "expenses:housing:repairs-maintenance",
-  "expenses:utilities:electricity",
-  "expenses:utilities:water",
-  "expenses:utilities:cooking-gas",
-  "expenses:utilities:internet",
-  "expenses:utilities:mobile",
-  "expenses:food:groceries",
-  "expenses:food:milk-dairy",
-  "expenses:food:dining-out",
-  "expenses:food:food-delivery",
-  "expenses:transport:fuel",
-  "expenses:transport:cabs-autos",
-  "expenses:transport:metro",
-  "expenses:transport:car-maintenance",
-  "expenses:transport:tolls-parking",
-  "expenses:insurance:term-life",
-  "expenses:insurance:health",
-  "expenses:insurance:parents-health",
-  "expenses:insurance:car",
-  "expenses:health:medicines",
-  "expenses:health:doctor-lab",
-  "expenses:health:fitness",
-  "expenses:personal:grooming",
-  "expenses:personal:clothing",
-  "expenses:shopping:household",
-  "expenses:shopping:electronics",
-  "expenses:shopping:furniture",
-  "expenses:subscriptions:streaming",
-  "expenses:subscriptions:software",
-  "expenses:entertainment:movies",
-  "expenses:entertainment:outings",
-  "expenses:travel:tickets",
-  "expenses:travel:stays",
-  "expenses:travel:local",
-  "expenses:child:school-fees",
-  "expenses:child:activities",
-  "expenses:child:books-toys",
-  "expenses:family:parents-support",
-  "expenses:family:gifts",
-  "expenses:family:festivals",
-  "expenses:giving:donations",
-  "expenses:education:courses-books",
-  "expenses:taxes:income-tax",
-  "expenses:taxes:professional-tax",
-  "expenses:finance:loan-interest",
-  "expenses:finance:bank-charges",
-]);
-
-function accountType(name) {
-  const root = name.split(":")[0];
-  return { assets: "Asset", liabilities: "Liability", equity: "Equity", income: "Revenue", expenses: "Expense" }[root];
-}
-
 /**
- * Leaves plus their ancestors, parents first, without the five roots. The
- * expense-breakdown report treats every Expense account that has children as a
- * category, so a root `expenses` account would list each leaf twice.
+ * The account tree: top accounts by account type, each account mapped to the
+ * accounts under it. Each account's parent and type come from where it sits
+ * here, never from its name. There is no `assets` or `expenses` account at the
+ * top, because reports group accounts by the top of their branch (`branchTops`
+ * in packages/api/app/account-tree.ts), so these top accounts are the groups
+ * they show. Postings may sit on any account, parents included.
  */
-function allAccountNames() {
-  const names = new Set();
-  for (const leaf of LEAF_ACCOUNTS) {
-    const parts = leaf.split(":");
-    for (let depth = 2; depth <= parts.length; depth++) names.add(parts.slice(0, depth).join(":"));
-  }
-  return [...names].sort((a, b) => a.split(":").length - b.split(":").length || a.localeCompare(b));
-}
+const ACCOUNT_TREE = {
+  Asset: {
+    "assets:bank": { [HDFC]: {}, [SBI]: {} },
+    [CASH]: {},
+    "assets:receivables": { [RECEIVABLES]: {} },
+    "assets:investments": {
+      "assets:investments:epf": {},
+      "assets:investments:ppf": {},
+      "assets:investments:nps": {},
+      "assets:investments:mutual-funds": {
+        "assets:investments:mutual-funds:parag-parikh-flexi-cap": {},
+        "assets:investments:mutual-funds:uti-nifty-50-index": {},
+      },
+      "assets:investments:stocks": { "assets:investments:stocks:zerodha": {} },
+      "assets:investments:gold": {},
+    },
+    "assets:deposits": { "assets:deposits:hdfc-fixed-deposit": {} },
+  },
+  Liability: {
+    "liabilities:credit-cards": { [HCC]: {}, [ICC]: {} },
+    "liabilities:loans": { [CAR_LOAN]: {} },
+  },
+  Equity: {
+    "equity:opening-balances": {},
+  },
+  Revenue: {
+    "income:salary": { "income:salary:gross-pay": {}, "income:salary:employer-pf": {}, "income:salary:performance-bonus": {} },
+    "income:interest": { "income:interest:savings": {}, "income:interest:fixed-deposit": {}, "income:interest:epf": {}, "income:interest:ppf": {} },
+    "income:dividends": { "income:dividends:stocks": {} },
+    "income:rewards": { "income:rewards:card-cashback": {} },
+  },
+  Expense: {
+    "expenses:housing": { "expenses:housing:rent": {}, "expenses:housing:house-help": {}, "expenses:housing:repairs-maintenance": {} },
+    "expenses:utilities": {
+      "expenses:utilities:electricity": {},
+      "expenses:utilities:water": {},
+      "expenses:utilities:cooking-gas": {},
+      "expenses:utilities:internet": {},
+      "expenses:utilities:mobile": {},
+    },
+    "expenses:food": { "expenses:food:groceries": {}, "expenses:food:milk-dairy": {}, "expenses:food:dining-out": {}, "expenses:food:food-delivery": {} },
+    "expenses:transport": {
+      "expenses:transport:fuel": {},
+      "expenses:transport:cabs-autos": {},
+      "expenses:transport:metro": {},
+      "expenses:transport:car-maintenance": {},
+      "expenses:transport:tolls-parking": {},
+    },
+    "expenses:insurance": { "expenses:insurance:term-life": {}, "expenses:insurance:health": {}, "expenses:insurance:parents-health": {}, "expenses:insurance:car": {} },
+    "expenses:health": { "expenses:health:medicines": {}, "expenses:health:doctor-lab": {}, "expenses:health:fitness": {} },
+    "expenses:personal": { "expenses:personal:grooming": {}, "expenses:personal:clothing": {} },
+    "expenses:shopping": { "expenses:shopping:household": {}, "expenses:shopping:electronics": {}, "expenses:shopping:furniture": {} },
+    "expenses:subscriptions": { "expenses:subscriptions:streaming": {}, "expenses:subscriptions:software": {} },
+    "expenses:entertainment": { "expenses:entertainment:movies": {}, "expenses:entertainment:outings": {} },
+    "expenses:travel": { "expenses:travel:tickets": {}, "expenses:travel:stays": {}, "expenses:travel:local": {} },
+    "expenses:child": { "expenses:child:school-fees": {}, "expenses:child:activities": {}, "expenses:child:books-toys": {} },
+    "expenses:family": { "expenses:family:parents-support": {}, "expenses:family:gifts": {}, "expenses:family:festivals": {} },
+    "expenses:giving": { "expenses:giving:donations": {} },
+    "expenses:education": { "expenses:education:courses-books": {} },
+    "expenses:taxes": { "expenses:taxes:income-tax": {}, "expenses:taxes:professional-tax": {} },
+    "expenses:finance": { "expenses:finance:loan-interest": {}, "expenses:finance:bank-charges": {} },
+  },
+};
+
+/** Every account in the tree as { name, parent, type }, each parent ahead of its children. */
+export const ACCOUNTS = Object.entries(ACCOUNT_TREE).flatMap(([type, tops]) => {
+  const walk = (children, parent) =>
+    Object.entries(children).flatMap(([name, below]) => [{ name, parent, type }, ...walk(below, name)]);
+  return walk(tops, null);
+});
+const ACCOUNT_TYPES = new Map(ACCOUNTS.map(({ name, type }) => [name, type]));
+if (ACCOUNT_TYPES.size !== ACCOUNTS.length) throw new Error("An account appears twice in ACCOUNT_TREE.");
 
 // ── Dates ─────────────────────────────────────────────────────────────────
 
@@ -226,7 +217,7 @@ export function buildLedger(asOf) {
    */
   function txn(date, description, postings, { prio = 5, narration, uncategorized = false } = {}) {
     const rows = postings.map(([account, rupees, comment = null]) => {
-      if (!LEAF_ACCOUNTS.has(account)) throw new Error(`Unknown account ${account} in "${description}"`);
+      if (!ACCOUNT_TYPES.has(account)) throw new Error(`Unknown account ${account} in "${description}"`);
       return { account, paise: Math.round(rupees * 100), comment };
     });
     const total = rows.reduce((sum, row) => sum + row.paise, 0);
@@ -404,6 +395,14 @@ export function buildLedger(asOf) {
       pay(date, SBI, "expenses:utilities:cooking-gas", 900, "LPG cylinder refill", "UPI/INDANE GAS/indane@sbi");
     }
 
+    // Spending that mixes a parent account's sub-accounts, or fits none of
+    // them, sits on the parent account itself.
+    pay(on(9, 13), HDFC, "expenses:food", 450, "Bakery — bread, cake and snacks", "UPI/SAMPLE BAKERY/bakery.sample@okaxis");
+    pay(on(12, 6), HCC, "expenses:food", 1500, "Snacks and drinks for a house party", "SAMPLE SUPERMARKET");
+    pay(on(3, 7), CASH, "expenses:food", 400, "Sweets and savouries", "Cash — sweet shop");
+    pay(on(6, 19), HDFC, "expenses:food", 1000, "Office cafeteria card top-up", "UPI/SAMPLE CAFETERIA/cafeteria.sample@okicici");
+    pay(on(11, 8), ICC, "expenses:shopping", 2600, "Amazon order — kitchenware and a desk lamp", "AMAZON PAY INDIA");
+
     // September
     pay(on(9, 18), HCC, "expenses:travel:tickets", 6800, "Train tickets home for Diwali", "IRCTC E-TICKETING");
     txn(on(9, 21), "Group dinner, split with friends", [
@@ -521,9 +520,14 @@ export function buildLedger(asOf) {
     receive(on(7, 20), HDFC, "income:dividends:stocks", 600, "HDFC Bank dividend", "ACH C- HDFC BANK LTD DIV");
 
     // August: last financial year's tax refund and EPF interest, a weekend
-    // trip with friends
+    // trip with friends. The refund's interest fits no sub-account of
+    // income:interest, so it sits on that account itself.
     const lastFinancialYear = fyLabel(financialYear(...yearMonth(on(8, 1))) - 1);
-    receive(on(8, 14), HDFC, "expenses:taxes:income-tax", 7800, `Income tax refund for ${lastFinancialYear}`, "NEFT CR-CPC INCOME TAX REFUND");
+    txn(on(8, 14), `Income tax refund for ${lastFinancialYear}`, [
+      [HDFC, 8200],
+      ["expenses:taxes:income-tax", -7800, "Refund"],
+      ["income:interest", -400, "Interest on the refund"],
+    ], { narration: "NEFT CR-CPC INCOME TAX REFUND" });
     pay(on(8, 22), HCC, "expenses:transport:car-maintenance", 5900, "Car periodic service", "SAMPLE MOTORS SERVICE CENTRE");
     receive(on(8, 25), "assets:investments:epf", "income:interest:epf", 58600, `EPF interest for ${lastFinancialYear}`, "EPFO INTEREST CREDIT");
     pay(on(8, 27), ICC, "expenses:family:gifts", 2500, "Raksha Bandhan gift", "AMAZON PAY INDIA");
@@ -646,9 +650,9 @@ function writeLedger(sqlite, scope, { posted, drafts }) {
     const insertAccount = sqlite.prepare(`
       INSERT INTO accounts (workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
       VALUES (@workspaceId, @userId, @name, @parentId, @type, @now, @now)`);
-    for (const name of allAccountNames()) {
-      const parentId = accountIds.get(name.split(":").slice(0, -1).join(":")) ?? null;
-      const { lastInsertRowid } = insertAccount.run({ ...scope, name, parentId, type: accountType(name), now });
+    for (const { name, parent, type } of ACCOUNTS) {
+      const parentId = parent === null ? null : accountIds.get(parent);
+      const { lastInsertRowid } = insertAccount.run({ ...scope, name, parentId, type, now });
       accountIds.set(name, Number(lastInsertRowid));
     }
 
@@ -771,15 +775,15 @@ function demoWorkspaceScope(sqlite) {
 
 function printSummary({ year, posted, drafts, closing, lowest }) {
   const inr = (paise) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-  const total = (prefix) =>
+  const total = (type) =>
     posted
       .filter((e) => e.date > year.openingDate)
-      .reduce((sum, e) => sum + e.postings.filter((p) => p.account.startsWith(prefix)).reduce((s, p) => s + p.paise, 0), 0);
+      .reduce((sum, e) => sum + e.postings.filter((p) => ACCOUNT_TYPES.get(p.account) === type).reduce((s, p) => s + p.paise, 0), 0);
 
   console.log(`Seeded ${DEMO_ACCOUNT.email} (password: ${DEMO_ACCOUNT.password})`);
   console.log(`  Posted ${addDays(year.openingDate, 1)} to ${year.lastPostedDate}; HDFC savings drafts to ${year.asOf}`);
-  console.log(`  ${allAccountNames().length} accounts, ${posted.length} journals, ${posted.reduce((n, e) => n + e.postings.length, 0)} entries, ${drafts.length} drafts`);
-  console.log(`  Income ${inr(-total("income:"))}, expenses ${inr(total("expenses:"))}`);
+  console.log(`  ${ACCOUNTS.length} accounts, ${posted.length} journals, ${posted.reduce((n, e) => n + e.postings.length, 0)} entries, ${drafts.length} drafts`);
+  console.log(`  Income ${inr(-total("Revenue"))}, expenses ${inr(total("Expense"))}`);
   console.log(`  Closing balances on ${year.lastPostedDate}:`);
   for (const account of [HDFC, SBI, CASH, HCC, ICC, CAR_LOAN, "assets:deposits:hdfc-fixed-deposit"]) {
     console.log(`    ${account.padEnd(42)} ${inr(closing.get(account)).padStart(12)}   (lowest ${inr(lowest.get(account))})`);
