@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { today } from "../shared";
 import {
   activePreset,
   emptyPeriodSentence,
-  financialYearOf,
   monthOptions,
   periodHeading,
   pickedLabel,
@@ -11,94 +9,14 @@ import {
   pickFrom,
   pickTo,
   presetSearch,
-  presetSpan,
   readPeriod,
   spanSearch,
   withinOneMonth,
-  type Preset,
 } from "./period";
-
-vi.mock("@sapporta/frontend", () => ({ appTimeZone: () => "Asia/Kolkata" }));
 
 const dates = (first_date: string, last_date: string) => ({
   first_date,
   last_date,
-});
-
-function spans(day: string): Record<Preset, string> {
-  const presets: Preset[] = [
-    "this-month",
-    "last-month",
-    "last-12-months",
-    "this-financial-year",
-    "last-financial-year",
-  ];
-  return Object.fromEntries(
-    presets.map((preset) => {
-      const { first_date, last_date } = presetSpan(preset, day);
-      return [preset, `${first_date} – ${last_date}`];
-    }),
-  ) as Record<Preset, string>;
-}
-
-describe("presets", () => {
-  it("resolve on the last day of a month", () => {
-    expect(spans("2026-09-30")).toEqual({
-      "this-month": "2026-09-01 – 2026-09-30",
-      "last-month": "2026-08-01 – 2026-08-31",
-      "last-12-months": "2025-10-01 – 2026-09-30",
-      "this-financial-year": "2026-04-01 – 2026-09-30",
-      "last-financial-year": "2025-04-01 – 2026-03-31",
-    });
-  });
-
-  it("resolve on the first day of the next month", () => {
-    expect(spans("2026-10-01")).toEqual({
-      "this-month": "2026-10-01 – 2026-10-01",
-      "last-month": "2026-09-01 – 2026-09-30",
-      "last-12-months": "2025-11-01 – 2026-10-01",
-      "this-financial-year": "2026-04-01 – 2026-10-01",
-      "last-financial-year": "2025-04-01 – 2026-03-31",
-    });
-  });
-
-  it("start a new financial year on 1 April, not 31 March", () => {
-    expect(spans("2026-03-31")).toEqual({
-      "this-month": "2026-03-01 – 2026-03-31",
-      "last-month": "2026-02-01 – 2026-02-28",
-      "last-12-months": "2025-04-01 – 2026-03-31",
-      "this-financial-year": "2025-04-01 – 2026-03-31",
-      "last-financial-year": "2024-04-01 – 2025-03-31",
-    });
-    expect(spans("2026-04-01")).toEqual({
-      "this-month": "2026-04-01 – 2026-04-01",
-      "last-month": "2026-03-01 – 2026-03-31",
-      "last-12-months": "2025-05-01 – 2026-04-01",
-      "this-financial-year": "2026-04-01 – 2026-04-01",
-      "last-financial-year": "2025-04-01 – 2026-03-31",
-    });
-  });
-
-  it("follow the workspace's day, not UTC's", () => {
-    vi.useFakeTimers();
-    // 20:00 in UTC on 31 March is 01:30 on 1 April in Kolkata.
-    vi.setSystemTime(new Date("2026-03-31T20:00:00Z"));
-    try {
-      expect(presetSpan("this-financial-year", today())).toEqual(
-        dates("2026-04-01", "2026-04-01"),
-      );
-      expect(presetSpan("last-month", today())).toEqual(
-        dates("2026-03-01", "2026-03-31"),
-      );
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("know which financial year a month is in", () => {
-    expect(financialYearOf("2026-03")).toBe(2025);
-    expect(financialYearOf("2026-04")).toBe(2026);
-  });
 });
 
 describe("the query string", () => {

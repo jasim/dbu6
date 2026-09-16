@@ -7,10 +7,10 @@ import {
 } from "@sapporta/frontend/report";
 import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
 import type { LookupValue } from "@sapporta/grid/lookup";
-import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsApi } from "../api";
 import { accountLedgerRow, type LedgerLinkInput } from "./links";
-import { DateInput, ReportResultBody, useReportResult } from "./shared";
+import { ReportPeriodField, useReportPeriod } from "./ReportPeriodField";
+import { ReportResultBody, useReportResult } from "./shared";
 
 const links = {
   journal_entries: {
@@ -21,26 +21,23 @@ const links = {
 export function AccountLedgerReport() {
   const [searchParams, setSearchParams] = useSearchParams();
   const accountId = searchParams.get("account_id") ?? "";
-  const fromDate = searchParams.get("from_date") ?? "";
-  const toDate = searchParams.get("to_date") ?? "";
+  const { period, dates, setPeriod } = useReportPeriod();
   const accountLookup = useTableLookup("accounts");
   const selectedAccount = lookupValueFromParam(accountId);
   const hasAccount = accountId !== "";
   const report = useReportResult(
-    ["account-ledger", accountId, fromDate, toDate],
+    ["account-ledger", accountId, dates],
     () =>
-      callReport({
-        account_id: accountId,
-        from_date: fromDate,
-        to_date: toDate,
+      reportsApi.accountLedger({
+        query: { account_id: Number(accountId), ...dates },
       }),
     hasAccount,
   );
 
-  const setParam = (key: string, value: string) => {
+  const setAccount = (value: string) => {
     const next = new URLSearchParams(searchParams);
-    if (value) next.set(key, value);
-    else next.delete(key);
+    if (value) next.set("account_id", value);
+    else next.delete("account_id");
     setSearchParams(next, { replace: true });
   };
 
@@ -60,51 +57,21 @@ export function AccountLedgerReport() {
           <LookupPicker
             lookup={accountLookup}
             value={selectedAccount}
-            onChange={(value) =>
-              setParam("account_id", value == null ? "" : String(value))
-            }
+            onChange={(value) => setAccount(value == null ? "" : String(value))}
             placeholder="Select account"
             className="h-sap-ctl min-w-[140px] rounded-[5px] text-sap-emph"
           />
         </label>
-        <DateInput
-          label="from"
-          value={fromDate}
-          onChange={(value) => setParam("from_date", value)}
-        />
-        <DateInput
-          label="to"
-          value={toDate}
-          onChange={(value) => setParam("to_date", value)}
-        />
+        <ReportPeriodField period={period} onChange={setPeriod} />
       </ReportToolbar>
       <ReportResultBody<LedgerLinkInput>
         error={report.error}
         result={report.result}
         links={links}
-        linkContext={{
-          input: {
-            from_date: fromDate || undefined,
-            to_date: toDate || undefined,
-          },
-        }}
+        linkContext={{ input: dates }}
       />
     </ReportScreenFrame>
   );
-}
-
-function callReport(params: {
-  account_id: string;
-  from_date: string;
-  to_date: string;
-}): Promise<GridDataset> {
-  return reportsApi.accountLedger({
-    query: {
-      account_id: Number(params.account_id),
-      from_date: params.from_date || undefined,
-      to_date: params.to_date || undefined,
-    },
-  });
 }
 
 function lookupValueFromParam(value: string): LookupValue | null {

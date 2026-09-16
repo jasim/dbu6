@@ -2,7 +2,7 @@ import type { DateSpan, IncomeExpenses } from "dbu6-shared";
 import { Temporal } from "@sapporta/shared/temporal";
 import { formatMonth, monthName } from "../../format";
 import { signedAmount } from "./figures";
-import { financialYearOf, financialYearSpan } from "./period";
+import { financialYearOf, financialYearSpan } from "../periods";
 
 /*
  * The month-by-month chart's bars (PLAN.md §11 P4): a pair per month, or per

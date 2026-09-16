@@ -21,6 +21,13 @@ export function SelectLabel({
   );
 }
 
+/**
+ * The trigger's look. A control beside a select that opens something else
+ * (a calendar) wears it too, so the pair reads as one set.
+ */
+export const selectTriggerClassName =
+  "flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-control border border-sap-border-strong bg-card px-3.5 text-left text-row text-foreground outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 data-popup-open:bg-muted data-disabled:cursor-not-allowed data-disabled:border-waiting-border data-disabled:bg-waiting-bg data-disabled:text-waiting-fg";
+
 export function SelectTrigger({
   className,
   placeholder,
@@ -33,10 +40,7 @@ export function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       {...props}
-      className={cn(
-        "flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-control border border-sap-border-strong bg-card px-3.5 text-left text-row text-foreground outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 data-popup-open:bg-muted data-disabled:cursor-not-allowed data-disabled:border-waiting-border data-disabled:bg-waiting-bg data-disabled:text-waiting-fg",
-        className,
-      )}
+      className={cn(selectTriggerClassName, className)}
     >
       <SelectPrimitive.Value
         placeholder={placeholder}

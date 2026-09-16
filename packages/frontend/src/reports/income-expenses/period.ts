@@ -1,23 +1,37 @@
 import type { DateSpan } from "dbu6-shared";
 import { Temporal } from "@sapporta/shared/temporal";
 import { formatDateRange, formatDaySpan, formatMonthSpan } from "../../format";
+import {
+  monthEnd,
+  parseSpan,
+  presetLabel,
+  presetSpan,
+  type PeriodPreset,
+} from "../periods";
 
 /*
  * The period Income and Expenses covers (PLAN.md §11 P4): a preset,
  * resolved against today each time the page reads it, or dates picked on the
  * page or carried by a link. Dates are `YYYY-MM-DD` in the workspace's time
- * zone (`today()` in `reports/shared.tsx`); months are `YYYY-MM`.
+ * zone (`today()` in `reports/shared.tsx`); months are `YYYY-MM`. The presets
+ * themselves are the reports' (`reports/periods.ts`).
  */
 
-export const PRESETS = [
-  { id: "this-month", label: "This month" },
-  { id: "last-month", label: "Last month" },
-  { id: "last-12-months", label: "Last 12 months" },
-  { id: "this-financial-year", label: "This financial year" },
-  { id: "last-financial-year", label: "Last financial year" },
-] as const;
+const PAGE_PRESETS = [
+  "this-month",
+  "last-month",
+  "last-12-months",
+  "this-financial-year",
+  "last-financial-year",
+] as const satisfies readonly PeriodPreset[];
 
-export type Preset = (typeof PRESETS)[number]["id"];
+export type Preset = (typeof PAGE_PRESETS)[number];
+
+/** The page's preset buttons, in order. */
+export const PRESETS = PAGE_PRESETS.map((id) => ({
+  id,
+  label: presetLabel(id),
+}));
 
 /** Twelve bars in the chart, even early in a financial year. */
 export const DEFAULT_PRESET: Preset = "last-12-months";
@@ -26,41 +40,13 @@ export type Period =
   | { kind: "preset"; preset: Preset; span: DateSpan }
   | { kind: "picked"; span: DateSpan };
 
-// A financial year runs from 1 April to 31 March.
-const FINANCIAL_YEAR_START_MONTH = 4;
-
-/** The dates a preset covers on `today`. A period never ends after today. */
-export function presetSpan(preset: Preset, today: string): DateSpan {
-  const day = Temporal.PlainDate.from(today);
-  const thisMonth = day.with({ day: 1 });
-  switch (preset) {
-    case "this-month":
-      return span(thisMonth, day);
-    case "last-month": {
-      const lastMonth = thisMonth.subtract({ months: 1 });
-      return span(lastMonth, monthEnd(lastMonth));
-    }
-    case "last-12-months":
-      return span(thisMonth.subtract({ months: 11 }), day);
-    case "this-financial-year":
-      return span(financialYearStart(day), day);
-    case "last-financial-year": {
-      const start = financialYearStart(day);
-      return span(start.subtract({ years: 1 }), start.subtract({ days: 1 }));
-    }
-  }
-}
-
 /**
  * The period a query string asks for. Valid `from_date` and `to_date`, in
  * order, win; then a known `period`; otherwise the default preset.
  */
 export function readPeriod(search: URLSearchParams, today: string): Period {
-  const from = search.get("from_date");
-  const to = search.get("to_date");
-  if (isDate(from) && isDate(to) && from <= to) {
-    return { kind: "picked", span: { first_date: from, last_date: to } };
-  }
+  const picked = parseSpan(search.get("from_date"), search.get("to_date"));
+  if (picked !== null) return { kind: "picked", span: picked };
   const named = PRESETS.find((preset) => preset.id === search.get("period"));
   const preset = named?.id ?? DEFAULT_PRESET;
   return { kind: "preset", preset, span: presetSpan(preset, today) };
@@ -168,22 +154,6 @@ export function monthOptions(
   return months;
 }
 
-/** The year a month's financial year starts in: March 2026 is in 2025's. */
-export function financialYearOf(month: string): number {
-  const { year, month: number } = Temporal.PlainYearMonth.from(month);
-  return financialYearStartYear(year, number);
-}
-
-/** A financial year's dates: 1 April to 31 March. */
-export function financialYearSpan(startYear: number): DateSpan {
-  const first = Temporal.PlainDate.from({
-    year: startYear,
-    month: FINANCIAL_YEAR_START_MONTH,
-    day: 1,
-  });
-  return span(first, first.add({ years: 1 }).subtract({ days: 1 }));
-}
-
 /** The dates under the title: "1 October 2025 – 16 September 2026". */
 export function periodHeading(dates: DateSpan): string {
   return formatDaySpan(dates, { withYear: true, months: "long" });
@@ -216,32 +186,6 @@ function span(first: Temporal.PlainDate, last: Temporal.PlainDate): DateSpan {
   return { first_date: first.toString(), last_date: last.toString() };
 }
 
-function monthEnd(date: Temporal.PlainDate): Temporal.PlainDate {
-  return date.with({ day: date.daysInMonth });
-}
-
-function financialYearStartYear(year: number, month: number): number {
-  return month >= FINANCIAL_YEAR_START_MONTH ? year : year - 1;
-}
-
-function financialYearStart(date: Temporal.PlainDate): Temporal.PlainDate {
-  return Temporal.PlainDate.from({
-    year: financialYearStartYear(date.year, date.month),
-    month: FINANCIAL_YEAR_START_MONTH,
-    day: 1,
-  });
-}
-
 function sameSpan(a: DateSpan, b: DateSpan): boolean {
   return a.first_date === b.first_date && a.last_date === b.last_date;
-}
-
-function isDate(value: string | null): value is string {
-  if (value === null || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  try {
-    Temporal.PlainDate.from(value, { overflow: "reject" });
-    return true;
-  } catch {
-    return false;
-  }
 }

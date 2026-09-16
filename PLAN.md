@@ -232,7 +232,11 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
     account frame and tabs), `Overview.tsx` (`overview-state.ts` decides what it says),
     `DraftsTab.tsx`, `DuplicatesTab.tsx`, `BalanceChecksTab.tsx`, `agentPrompts.ts`, `routes.ts`
   - `src/views/*`: import statements, freeform import, reclassify, render hledger, journals
-  - `src/reports/*`: 12 report screens plus `registry.tsx`
+  - `src/reports/*`: 12 report screens plus `registry.tsx`. `periods.ts` holds the named
+    presets (This month … Last financial year) and the 1 April financial year for every
+    screen. The six date-range reports share `ReportPeriodField.tsx` (preset menu plus a
+    `react-day-picker` range calendar) over the pure `report-period.ts`; Balance Sheet and
+    Trial Balance keep `DateInput`
   - `src/reports/income-expenses/*` (Income and Expenses, P4): `IncomeExpensesPage.tsx`,
     `MonthChart.tsx`, `AccountRows.tsx`, and the pure `period.ts`, `chart.ts`, `figures.ts`
 - **`src/app.css` is the only CSS entry point.** Order: `@import "tailwindcss"` →
@@ -2380,6 +2384,24 @@ desktop, everything stacked at 390px.
 ## 13. Progress log
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
+
+- 2026-09-16 · Reports · A period field on the date-range reports (owner's request).
+  Income Statement, Expense Breakdown, Monthly Summary, Account Ledger, Asset Inflows and
+  Net Worth replace their `from:` and `to:` date inputs with one `period:` menu: All time,
+  This month, Last month, Last 3 months, Last 12 months, This financial year, Last
+  financial year, Custom range…. A preset shows the dates it covers beside the menu;
+  Custom range shows one field that opens a calendar, where two clicks pick the range.
+  - **Query string:** `period=<preset>` so a bookmark stays relative; picked dates stay
+    `from_date` and `to_date`, which links into the ledger already carry; `period=custom`
+    is a custom range with nothing picked. No period is All time, as before. Choosing
+    Custom range starts from the preset's dates.
+  - **Shared:** the presets and the financial year moved from
+    `income-expenses/period.ts` to `reports/periods.ts`; Income and Expenses keeps its five
+    buttons. `select.tsx` exports its trigger look for the calendar field.
+  - **Dependency:** `react-day-picker` 10 (Base UI has no calendar), styled with the
+    theme's tokens; its stylesheet isn't imported.
+  - **Not changed:** Balance Sheet and Trial Balance keep their single `as of` date (owner's
+    call).
 
 - 2026-09-16 · Step 6, Reports index · Every report on the index, none on All tools
   (owner's request). The owner chose the grouping, names and captions; the index has no
