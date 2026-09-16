@@ -115,26 +115,46 @@ export const mappings = {
 };
 ```
 
-## Running it
+## Getting started
 
-Requirements:
+You need Node 22 or newer, pnpm 11, `uv`, and `pdftotext` (from poppler) for
+PDF statements.
+[mise](https://mise.jdx.dev) is optional; without its shell hook, prefix the
+`pnpm` commands below with `mise exec --`.
 
-- Node 22 or newer and pnpm.
-- A Nuabase API key in `NUABASE_API_KEY`, for LLM-backed categorization.
-- `pdftotext` (from poppler) if you import PDF statements.
+1. Install the Sapporta skill for your coding agent:
 
-```bash
-pnpm install
-pnpm dev
-```
+   ```bash
+   npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --global --yes
+   ```
 
-This starts the API and the web UI in watch mode. Open the frontend port
-configured in `mise.toml` in your browser. For a production build, run
-`pnpm build` then `pnpm start`, or use the included `Dockerfile`.
+2. dbu6 currently builds against a local checkout of Sapporta. Clone Sapporta
+   and run `pnpm install && pnpm build` in it, then link it with
+   `pnpm package-sources use:local /absolute/path/to/sapporta`.
 
-dbu6 currently depends on locally linked checkouts of the Sapporta and
-Nuabase packages. See [DEVELOPMENT.md](./DEVELOPMENT.md) for what that means
-and for the full setup.
+3. Create the local config, then set `BETTER_AUTH_SECRET` in
+   `.env.development`:
+
+   ```bash
+   cp mise.toml.example mise.toml
+   cp .env.development.example .env.development
+   ```
+
+4. Install, create the database, and start the API and web UI in watch mode:
+
+   ```bash
+   pnpm install
+   pnpm setup
+   pnpm --filter ./packages/api db:migrate
+   pnpm dev
+   ```
+
+5. Open http://localhost:2340 (`frontend_port` in `mise.toml`) and sign up. For
+   sample data, run `pnpm seed` while `pnpm dev` is running and sign in as
+   `demo@example.com` / `demo-password`.
+
+For a production build, run `pnpm build` then `pnpm start`, or use the included
+`Dockerfile`. [DEVELOPMENT.md](./DEVELOPMENT.md) has the full setup.
 
 ## More
 

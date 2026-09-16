@@ -4,6 +4,18 @@ Guidance for AI agents and contributors. See also
 [CODING-PRINCIPLES.md](CODING-PRINCIPLES.md), [DEVELOPMENT.md](DEVELOPMENT.md),
 [custom-built-parsers/README.md](custom-built-parsers/README.md).
 
+## Sapporta skill
+
+dbu6 is a [Sapporta](https://github.com/jasim/sapporta) application. Work on it
+needs the `sapporta` agent skill. If it is not available to you, install it (or
+ask the user to) before making changes:
+
+```bash
+npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --global --yes
+```
+
+Load it for any change to the schema, API, auth, or UI.
+
 ## No personally identifying information (PII)
 
 Tests, fixtures, documentation, comments, and code must never contain PII:

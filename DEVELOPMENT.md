@@ -50,8 +50,9 @@ Development ports and their derived URLs live in `mise.toml`. With the mise
 shell hook active, run `pnpm dev`; otherwise run `mise exec -- pnpm dev`.
 
 `pnpm dev` also loads `.env.development` with Node's built-in `--env-file`
-support. That ignored file contains local-only auth and mail defaults, including
-a generated `BETTER_AUTH_SECRET` and `SAPPORTA_MAIL_TRANSPORT=stream`, so
+support. That ignored file is copied from `.env.development.example` and holds
+local-only auth and mail defaults: set `BETTER_AUTH_SECRET` to a random value.
+`SAPPORTA_MAIL_TRANSPORT=stream` is set there, so
 Nodemailer prints the full generated email source to the API console instead of
 delivering it.
 
