@@ -142,10 +142,8 @@ export function AutoImportStatements() {
       header={
         <ScreenTitle title="Import statements">
           <p>
-            Drop the statement files you downloaded from your bank. Each one is
-            matched to its account, so you can drop statements from several
-            banks at once. New transactions wait in Review, and your books don't
-            change until you add them.
+            Upload your bank or credit-card statements here. They'll be
+            categorized automatically, and saved as Drafts for your review.
           </p>
         </ScreenTitle>
       }

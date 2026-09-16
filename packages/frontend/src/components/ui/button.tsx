@@ -77,7 +77,7 @@ export const Button = React.forwardRef<HTMLElement, ButtonProps>(
     );
     if (waiting === undefined) return button;
     return (
-      <span className="inline-flex flex-col items-start gap-1.5">
+      <span className="inline-flex flex-col items-start gap-4">
         {button}
         <span className="text-meta text-ink-meta">{waiting}</span>
       </span>
