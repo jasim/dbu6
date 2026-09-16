@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { cn } from "@sapporta/ui/cn";
 import { Button } from "../../components/ui/button";
 import type { FileStatus } from "./describeBatch";
@@ -200,7 +200,8 @@ export function FileRow({
 
 /**
  * The optional Google Pay Takeout, in its own row under the statements. It
- * is added only here, never through the dropzone.
+ * starts folded behind a plus, since most imports don't need it, and opens
+ * to say why and how. It is added only here, never through the dropzone.
  */
 export function GooglePayRow({
   file,
@@ -225,28 +226,50 @@ export function GooglePayRow({
     );
   }
   return (
-    <li className={cn(ROW, "flex-wrap gap-y-3 py-3.5")}>
-      <TypeTile label="HTML" chosen={false} />
-      <div className="min-w-0 flex-1 basis-[220px]">
-        <p className="text-[16.5px] font-semibold text-foreground">
-          Names from Google Pay{" "}
-          <span className="font-normal text-ink-meta">(optional)</span>
-        </p>
-        <p className="mt-0.5 text-meta text-ink-meta">
-          Add the activity page from your Google Pay Takeout, and UPI payments
-          get the recipient's name before they're categorised.
-        </p>
-      </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={disabled}
-        onClick={() => input.current?.click()}
-        className="ml-auto"
-      >
-        Choose file
-      </Button>
+    <li>
+      <details className="group/gpay">
+        <summary
+          className={cn(
+            ROW,
+            "cursor-pointer list-none outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden",
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className="flex size-[38px] shrink-0 items-center justify-center rounded-[10px] border border-dashed border-waiting-marker bg-waiting-bg text-ink-meta"
+          >
+            <Plus className="size-[18px] transition-transform duration-150 group-open/gpay:rotate-45" />
+          </span>
+          <span className="text-row font-semibold text-foreground">
+            Names from Google Pay{" "}
+            <span className="font-normal text-ink-meta">(optional)</span>
+          </span>
+        </summary>
+        <div className="space-y-3 pb-4 pl-[68px] pr-4 text-meta text-ink-meta sm:pl-[76px] sm:pr-5">
+          <p>
+            If you use UPI often, your bank statements usually carry only UPI
+            reference numbers, not the names of the other party. Those names are
+            essential for automatic categorization. Upload your Google Pay
+            activity here, and dbu6 will match each bank transaction against its
+            UPI details from GPay and add the relevant information.
+          </p>
+          <p>
+            To get the file, go to takeout.google.com and deselect everything
+            except Google Pay. The export is usually ready within a few minutes.
+            From the downloaded zip, upload the My Activity.html page, which
+            holds the transaction details.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => input.current?.click()}
+          >
+            Choose file
+          </Button>
+        </div>
+      </details>
       <input
         ref={input}
         type="file"

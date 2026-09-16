@@ -23,7 +23,7 @@ export function newTransactionCount(result: AutoImportResult): number {
 }
 
 const FILES_KEPT =
-  "Your files are still in the list above. Once this is sorted out, import them again.";
+  "There is likely no matching parser for this statement format";
 
 export function describeBatch(outcome: ImportOutcome): BatchSummary {
   if (outcome.kind === "imported") {

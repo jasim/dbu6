@@ -247,7 +247,7 @@ export function ProblemCard({
       )}
       <div className="mt-3">
         {problem.agent && (
-          <Disclosure summary="Ask your coding agent to fix this">
+          <Disclosure summary="You can use your coding agent to automatically create a parser for this format">
             <p className="text-body text-ink-soft">
               Copy this prompt into your coding agent, running in the app's
               repository. {problem.agent.afterwards}
