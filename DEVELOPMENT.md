@@ -196,6 +196,16 @@ Avoid migrations that drop and recreate a table. SQLite cascades the drop to
 child rows. Back up `data/sqlite.db` before running a migration you have not
 run before.
 
+Drizzle's schema doesn't know about triggers. `accounts` has two, from the
+custom migration `0004_account_tree_rules.sql`, which keep `parent_id` in the
+same workspace, user and account type and refuse loops. Dropping the table
+drops them, so a migration that rebuilds `accounts` must create them again;
+`schema/accounts.test.ts` migrates a fresh database and fails until it does.
+Write further database-only rules the same way: `db:generate:custom`, then a
+test against a migrated database. `drizzle-kit migrate` exits 1 without a
+message when a statement fails; run the migration through drizzle-orm's
+`migrate()` to see the error.
+
 ## Email
 
 This project uses Nodemailer. `packages/api/mailer.ts` exports

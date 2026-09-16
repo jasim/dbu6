@@ -7,9 +7,10 @@
  * tree goes. The hierarchy comes only from `parent_id`, never from the
  * account's name.
  *
- * A loop in `parent_id` is corrupt data with no tree to show, so each of these
- * throws on one, anywhere among the accounts it is given, rather than pick a
- * shape for it.
+ * The database refuses a loop in `parent_id`
+ * (migrations/0004_account_tree_rules.sql), so one here is corrupt data with
+ * no tree to show: each of these throws on one, anywhere among the accounts it
+ * is given, rather than pick a shape for it.
  */
 
 export type TreeAccount = { account_id: number; parent_id: number | null };

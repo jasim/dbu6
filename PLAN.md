@@ -2376,6 +2376,26 @@ desktop, everything stacked at 390px.
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
 
+- 2026-09-16 · Step 6, P4 follow-up · The database keeps the account tree's rules (owner's
+  request): an account's parent is in the same workspace, for the same user, with the
+  same account type, and parents never loop.
+  - **api:** custom migration `0004_account_tree_rules.sql`. It first counts rows
+    already breaking a rule and stops (`CHECK constraint failed:
+    accounts_already_break_tree_rules`) if there are any. Then two triggers, on insert
+    and on update of `id`, `parent_id`, `workspace_id`, `scoped_to_user_id` or
+    `account_type`, refuse a mismatched parent, a loop, and an account with sub-accounts
+    changing workspace, user or type, each with a plain message; Sapporta's table writes
+    answer 422 with it. Checks run row by row, so a whole branch moves to another type
+    by taking its sub-accounts off first.
+  - **Tests:** `schema/accounts.test.ts` migrates a fresh database and checks each rule,
+    so a later migration that rebuilds `accounts` without the triggers fails.
+    DEVELOPMENT.md says so.
+  - **Applied** to the dev database, backed up first to
+    `data/sqlite.before-0004-account-tree-rules.db`; it had nothing breaking a rule.
+    Through `drizzle-kit migrate`, a copy with one mismatched parent was refused and
+    rolled back, though the CLI exits 1 without printing why. The seed script already
+    follows the rules. Not tried: a grid edit in the browser.
+
 - 2026-09-16 · Step 6, P4 follow-up · A loop in `parent_id` now fails loudly (owner's
   request), instead of each tree walk choosing its own shape for it.
   - **Why:** `branchTops` and `accountTree` handled a loop differently, so Spending
@@ -2393,7 +2413,7 @@ Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and foll
     tests (296) pass.
   - **Not covered:** a loop through accounts outside what a function is given (one
     crossing account types, or another workspace) goes unseen by the reports that pass
-    one type. Preventing loops in the database is proposed, not built.
+    one type. The database now refuses such parents (next entry above).
 
 - 2026-09-16 · Step 6, P4 · Where your money went built as specified (§11 P4). Uncommitted at the time of writing.
   - **shared:** `reportsContract.incomeExpenses` with `incomeExpensesSchema` and the

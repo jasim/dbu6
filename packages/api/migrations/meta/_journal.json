@@ -29,6 +29,13 @@
       "when": 1788806412061,
       "tag": "0003_quick_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789551480837,
+      "tag": "0004_account_tree_rules",
+      "breakpoints": true
     }
   ]
 }

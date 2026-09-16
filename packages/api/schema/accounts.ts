@@ -19,6 +19,8 @@ export const accountsTable = sqliteTable("accounts", {
   workspace_id: text("workspace_id").notNull(),
   scoped_to_user_id: text("scoped_to_user_id").notNull(),
   name: text("name").notNull(),
+  // Triggers (migrations/0004_account_tree_rules.sql) keep the parent in the
+  // same workspace, user and account type, and refuse a loop.
   parent_id: integer("parent_id").references(
     (): AnySQLiteColumn => accountsTable.id,
   ),
