@@ -11,7 +11,7 @@ export function BalanceAssertionsReport() {
   const report = useReportResult(["balance-assertions"], callReport);
 
   return (
-    <ReportScreenFrame title="Balance Assertions">
+    <ReportScreenFrame title="Reconciliation Differences">
       <ReportToolbar
         actions={
           <ReportRunButton loading={report.loading} onClick={report.run} />

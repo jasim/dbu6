@@ -16,7 +16,7 @@ import {
 import { authorizeReport, type ScopeParams } from "./shared.js";
 
 /*
- * Where your money went (PLAN.md §11 P4): income and spending for a period
+ * Income and Expenses (PLAN.md §11 P4): income and spending for a period
  * as two account trees, month by month, and the first month there is
  * anything to show. Every figure comes from the amounts module the income
  * statement reads, so the two agree.

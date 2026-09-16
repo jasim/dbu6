@@ -210,8 +210,8 @@ function AccountRow({
         {href && (
           <Link
             to={href}
-            aria-label={`Account history for ${account.name}`}
-            title="Account history"
+            aria-label={`Account ledger for ${account.name}`}
+            title="Account ledger"
             className="flex w-11 shrink-0 items-center justify-center text-[22px] text-ink-meta no-underline outline-none transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
           >
             ›

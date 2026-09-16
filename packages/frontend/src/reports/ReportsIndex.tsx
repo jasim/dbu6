@@ -1,14 +1,17 @@
 import { usePageTitle } from "@sapporta/frontend/shell";
+import { cn } from "@sapporta/ui/cn";
 import { LinkCard } from "../components/link-card";
-import { reportCards, type ReportGroup } from "./registry";
+import { reportGroups, reportsInGroup } from "./registry";
 
 /**
- * Where the sidebar's Reports item lands: every report, the everyday ones
- * first. The cards come from the report registry, so this page and All tools
+ * Where the sidebar's Reports item lands: one card per report, in groups.
+ * The financial statements lead as tiles; ledgers and checks follow side by
+ * side. The cards come from the report registry, so this page and All tools
  * read one list.
  */
 export function ReportsIndex() {
   usePageTitle("Reports");
+  const [statements, ...details] = reportGroups;
   return (
     <div className="flex-1 overflow-y-auto bg-sap-surface">
       <div className="mx-auto max-w-[1080px] px-5 py-8 sm:px-8 lg:px-10">
@@ -17,15 +20,18 @@ export function ReportsIndex() {
             Reports
           </h1>
           <p className="mt-4 text-body text-ink-soft">
-            Every report dbu6 can show. The everyday ones use plain words; the
-            accounting view shows the same books the way a bookkeeper would.
+            Statements show how you're doing, ledgers show the detail, and
+            checks show whether you can trust the numbers.
           </p>
         </header>
 
-        <main className="py-8">
-          <ReportGroupSection title="Everyday" group="everyday" />
-          <hr className="my-10 border-0 border-t border-sap-border" />
-          <ReportGroupSection title="Accounting view" group="accounting" />
+        <main className="space-y-10 py-8">
+          <ReportGroupSection group={statements} layout="tile" />
+          <div className="grid gap-10 lg:grid-cols-2 lg:gap-6">
+            {details.map((group) => (
+              <ReportGroupSection key={group.id} group={group} layout="row" />
+            ))}
+          </div>
         </main>
       </div>
     </div>
@@ -33,18 +39,29 @@ export function ReportsIndex() {
 }
 
 function ReportGroupSection({
-  title,
   group,
+  layout,
 }: {
-  title: string;
-  group: ReportGroup;
+  group: (typeof reportGroups)[number];
+  layout: "row" | "tile";
 }) {
   return (
     <section>
-      <h2 className="text-heading text-foreground">{title}</h2>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        {reportCards(group).map((card) => (
-          <LinkCard key={card.id} {...card} marker={group} />
+      <h2 className="text-heading text-foreground">{group.title}</h2>
+      <div
+        className={cn(
+          "mt-4 grid",
+          layout === "tile" ? "gap-3 sm:grid-cols-3" : "gap-2",
+        )}
+      >
+        {reportsInGroup(group.id).map((report) => (
+          <LinkCard
+            key={report.id}
+            label={report.label}
+            description={report.description}
+            to={report.to}
+            layout={layout}
+          />
         ))}
       </div>
     </section>

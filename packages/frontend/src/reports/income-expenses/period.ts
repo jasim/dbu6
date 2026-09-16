@@ -3,7 +3,7 @@ import { Temporal } from "@sapporta/shared/temporal";
 import { formatDateRange, formatDaySpan, formatMonthSpan } from "../../format";
 
 /*
- * The period Where your money went covers (PLAN.md §11 P4): a preset,
+ * The period Income and Expenses covers (PLAN.md §11 P4): a preset,
  * resolved against today each time the page reads it, or dates picked on the
  * page or carried by a link. Dates are `YYYY-MM-DD` in the workspace's time
  * zone (`today()` in `reports/shared.tsx`); months are `YYYY-MM`.

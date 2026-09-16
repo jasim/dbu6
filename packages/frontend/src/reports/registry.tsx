@@ -13,172 +13,130 @@ import { MonthlySummaryReport } from "./MonthlySummaryReport";
 import { NetWorthReport } from "./NetWorthReport";
 import { TrialBalanceReport } from "./TrialBalanceReport";
 
-/** How the reports index presents a report: a name and one line on what it shows. */
-export interface ReportCard {
-  label: string;
-  description: string;
-}
+/** The groups of the reports index, in the order it shows them. */
+export const reportGroups = [
+  { id: "statements", title: "Financial Statements" },
+  { id: "ledgers", title: "Ledgers" },
+  { id: "checks", title: "Checks" },
+] as const;
+
+export type ReportGroup = (typeof reportGroups)[number]["id"];
 
 export interface ReportDefinition {
   id: string;
-  /** The report's own name, as its screen and All tools show it. */
+  /** The report's name, on its card, its screen and All tools. */
   label: string;
+  /** One line on what it shows, in plain words. */
+  description: string;
   Component: ComponentType;
-  /** Its card among the everyday reports, in plain words, when it has one. */
-  everyday?: ReportCard;
-  /** Its card in the accounting view, when it has one. */
-  accounting?: ReportCard;
-  /** What All tools says about a report with neither card. */
-  description?: string;
+  /**
+   * Where the reports index lists it. Reports without a group repeat another
+   * screen (Home, Review, or a report here), so only All tools lists them.
+   */
+  group?: ReportGroup;
 }
 
-/*
- * Until Step 6 builds the plain-language reports (P7), an everyday card and
- * its accounting twin may open the same screen (What you own and owe and the
- * balance sheet). That is expected.
- */
+/* The index lists each group's reports in this order. */
 export const reportDefinitions = [
   {
     id: "income-expenses",
-    label: "Where your money went",
+    label: "Income and Expenses",
+    description: "See how much you spent against income, by month",
     Component: IncomeExpensesPage,
-    everyday: {
-      label: "Where your money went",
-      description: "Income and spending for a period",
-    },
-  },
-  {
-    id: "income-statement",
-    label: "Income Statement",
-    Component: IncomeStatementReport,
-    accounting: {
-      label: "Income statement",
-      description: "Revenue, expenses and net income",
-    },
+    group: "statements",
   },
   {
     id: "balance-sheet",
     label: "Balance Sheet",
+    description: "All assets and liabilities",
     Component: BalanceSheetReport,
-    everyday: {
-      label: "What you own and owe",
-      description: "Balance sheet, in plain words",
-    },
-    accounting: {
-      label: "Balance sheet",
-      description: "Assets, liabilities and equity",
-    },
-  },
-  {
-    id: "account-ledger",
-    label: "Account Ledger",
-    Component: AccountLedgerReport,
-    everyday: {
-      label: "Account history",
-      description: "Every entry for one account",
-    },
-  },
-  {
-    id: "monthly-summary",
-    label: "Monthly Summary",
-    Component: MonthlySummaryReport,
-    everyday: {
-      label: "Month by month",
-      description: "Totals for each month side by side",
-    },
+    group: "statements",
   },
   {
     id: "net-worth",
     label: "Net Worth Over Time",
+    description: "Monthly list of assets, liabilities, and net worth",
     Component: NetWorthReport,
-    everyday: {
-      label: "Net worth over time",
-      description: "How your position has changed",
-    },
+    group: "statements",
   },
   {
-    id: "expense-breakdown",
-    label: "Expense Breakdown",
-    Component: ExpenseBreakdownReport,
-    // Folded into Where your money went (P4); still on All tools.
-    description: "Expenses grouped and ranked",
+    id: "account-ledger",
+    label: "Account Ledger",
+    description: "Complete statement of an account",
+    Component: AccountLedgerReport,
+    group: "ledgers",
+  },
+  {
+    id: "asset-inflows",
+    label: "Asset Inflows",
+    description: "Money that came in from outside your accounts",
+    Component: AssetInflowsReport,
+    group: "ledgers",
   },
   {
     id: "trial-balance",
     label: "Trial Balance",
+    description: "List of all accounts and their balance",
     Component: TrialBalanceReport,
-    accounting: {
-      label: "Trial balance",
-      description: "Debit and credit totals per account",
-    },
-  },
-  {
-    id: "asset-inflows",
-    label: "All In-flows to asset accounts",
-    Component: AssetInflowsReport,
-    accounting: {
-      label: "All in-flows to asset accounts",
-      description: "Every rupee that arrived",
-    },
+    group: "checks",
   },
   {
     id: "balance-assertions",
-    label: "Balance Assertions",
+    label: "Reconciliation Differences",
+    description: "Where the ledger and bank/CC statement balances disagree",
     Component: BalanceAssertionsReport,
-    accounting: {
-      label: "Balance assertions",
-      description: "Recorded balance checks",
-    },
+    group: "checks",
   },
   {
-    id: "draft-balance-assertions",
-    label: "Draft Balance Assertions",
-    Component: DraftBalanceAssertionsReport,
-    accounting: {
-      label: "Draft balance assertions",
-      description: "Balance checks for drafts not yet added",
-    },
+    // Income and Expenses links to it.
+    id: "income-statement",
+    label: "Income Statement",
+    description: "Revenue, expenses and net income",
+    Component: IncomeStatementReport,
   },
   {
-    id: "duplicate-drafts",
-    label: "Duplicate Drafts",
-    Component: DuplicateDraftsReport,
-    accounting: {
-      label: "Duplicate drafts",
-      description: "Drafts that may be repeats",
-    },
+    // Income and Expenses charts each month.
+    id: "monthly-summary",
+    label: "Monthly Summary",
+    description: "Totals for each month side by side",
+    Component: MonthlySummaryReport,
   },
   {
+    // Folded into Income and Expenses (P4).
+    id: "expense-breakdown",
+    label: "Expense Breakdown",
+    description: "Expenses grouped and ranked",
+    Component: ExpenseBreakdownReport,
+  },
+  {
+    // Home shows each account's last checked date and balance.
     id: "last-reconciled",
     label: "Last Reconciled Entries",
+    description: "The last date and balance recorded for each account",
     Component: LastReconciledReport,
-    accounting: {
-      label: "Import checkpoint",
-      description: "The last date and balance recorded for each account",
-    },
+  },
+  {
+    // Review's Balance checks tab.
+    id: "draft-balance-assertions",
+    label: "Draft Balance Assertions",
+    description: "Balance checks for drafts not yet added",
+    Component: DraftBalanceAssertionsReport,
+  },
+  {
+    // Review's Duplicates tab.
+    id: "duplicate-drafts",
+    label: "Duplicate Drafts",
+    description: "Drafts that may be repeats",
+    Component: DuplicateDraftsReport,
   },
 ] as const satisfies readonly ReportDefinition[];
 
-export type ReportGroup = "everyday" | "accounting";
-
-/** The cards of one group of the reports index, each with its route. */
-export function reportCards(
+/** The reports of one group of the index, each with its route. */
+export function reportsInGroup(
   group: ReportGroup,
-): (ReportCard & { id: string; to: string })[] {
+): (ReportDefinition & { to: string })[] {
   const reports: readonly ReportDefinition[] = reportDefinitions;
-  return reports.flatMap((report) => {
-    const card = report[group];
-    return card
-      ? [{ ...card, id: report.id, to: `/reports/${report.id}` }]
-      : [];
-  });
-}
-
-/** One line on what a report shows, from whichever card it has. */
-export function reportDescription(report: ReportDefinition): string {
-  return (
-    (report.accounting ?? report.everyday)?.description ??
-    report.description ??
-    report.label
-  );
+  return reports
+    .filter((report) => report.group === group)
+    .map((report) => ({ ...report, to: `/reports/${report.id}` }));
 }

@@ -184,7 +184,7 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
     not domain JSON), except `income-expenses.ts` (P4), which returns the
     `reportsContract.incomeExpenses` JSON. `reports/account-amounts.ts` (since P4) is the
     one source for income and spending per account and per month; the income statement,
-    Spending breakdown, Monthly summary and Where your money went read it.
+    Expense breakdown, Monthly summary and Income and Expenses read it.
 - **`packages/shared`**: ts-rest contracts, imported as `dbu6-shared`.
 - **`packages/frontend`**: Vite 8, React 19, React Router 7, Tailwind 4.3, `lucide-react`. No shadcn.
 - **`custom-built-parsers/`**: Python statement parsers.
@@ -207,8 +207,9 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
   is Sapporta's raw table again since P3.
 - **`src/shell/`** is dbu6's app shell (D4): `AppShell`, `Sidebar` (sidebar and bottom
   bar), `navigation.ts` (the `{ everyday, more }` shape and the badge), `navigation-counts.ts`.
-- **`src/reports/registry.tsx`** lists the thirteen reports with their everyday and accounting
-  cards; `ReportsIndex.tsx` (the `/reports` page) and `Advanced.tsx` (`/tools`) read it.
+- **`src/reports/registry.tsx`** lists the thirteen reports, each with one name and one
+  description, and the reports index group of the seven it lists (since 2026-09-16);
+  `ReportsIndex.tsx` (the `/reports` page) and `Advanced.tsx` (`/tools`) read it.
 - **`src/SapportaRoutes.tsx`** holds the framework routes: sign-in and sign-up screens,
   `/account/profile`, `/workspace/settings`, `/tables/:tableName`, `/tables/:tableName/new`,
   `/setup/:tableName/new`, and not found.
@@ -231,7 +232,7 @@ The target direction is **option 2a, "Quiet Ledger, neutral"**:
     `DraftsTab.tsx`, `DuplicatesTab.tsx`, `BalanceChecksTab.tsx`, `agentPrompts.ts`, `routes.ts`
   - `src/views/*`: import statements, freeform import, reclassify, render hledger, journals
   - `src/reports/*`: 12 report screens plus `registry.tsx`
-  - `src/reports/income-expenses/*` (Where your money went, P4): `IncomeExpensesPage.tsx`,
+  - `src/reports/income-expenses/*` (Income and Expenses, P4): `IncomeExpensesPage.tsx`,
     `MonthChart.tsx`, `AccountRows.tsx`, and the pure `period.ts`, `chart.ts`, `figures.ts`
 - **`src/app.css` is the only CSS entry point.** Order: `@import "tailwindcss"` →
   `@sapporta/ui/index.css` (tokens) → `@sapporta/grid/index.css` → `@sapporta/frontend/index.css`
@@ -1497,6 +1498,8 @@ Sidebar items, in order (5 everyday, a rule, 1 more):
   is expected; note it in the card's description only if it confuses in testing.
 - The registry's labels (`reports/registry.tsx`) gain the plain and accounting names and
   descriptions above, so All tools and the index read from one list.
+- **Superseded 2026-09-16:** the index lists each report once, under Financial Statements,
+  Ledgers and Checks, with the owner's names and captions (§13, that date).
 
 **States:** the index is static (no loading or error state). The Review badge is hidden at
 zero and when the count fails to load, as today.
@@ -2326,7 +2329,6 @@ desktop, everything stacked at 390px.
 
 ### P5 · All tools (handoff: Advanced): Status: Not started
 - Renamed labels, with their technical names still visible.
-- Which reports are "everyday" (green marker) and which are "accounting" (grey).
 - Search.
 - Where freeform import, the checkpoint and settings go.
 
@@ -2336,8 +2338,8 @@ desktop, everything stacked at 390px.
 - Whether category names and hues are managed here.
 
 ### P7 · Other reports (no handoff screen): Status: Not started
-- Which get plain-language treatment (Account history, What you own and owe, Month by month,
-  Net worth) and which stay as grid reports in the restyled report frame.
+- Which get a designed page like Income and Expenses (Balance Sheet, Net Worth Over Time,
+  Account Ledger) and which stay as grid reports in the restyled report frame.
 - Presets replacing the Run button and bare date inputs everywhere.
 
 ### P8 · Tool screens (reclassify, render hledger, post drafts, journals, raw tables): Status: Not started
@@ -2375,6 +2377,36 @@ desktop, everything stacked at 390px.
 ## 13. Progress log
 
 Newest first. Format: `YYYY-MM-DD · Step · what changed · deviations and follow-ups`.
+
+- 2026-09-16 · Step 6, Reports index · One card per report, in three groups, with accounting
+  names and plain captions (owner's names and captions). Replaces the Everyday and
+  Accounting view groups, which listed the balance sheet and the income figures twice.
+  - **Financial Statements** (tiles, three across): Income and Expenses, "See how much you
+    spent against income, by month" → `income-expenses`; Balance Sheet, "All assets and
+    liabilities" → `balance-sheet`; Net Worth Over Time, "Monthly list of assets,
+    liabilities, and net worth" → `net-worth`.
+  - **Ledgers** (rows): Account Ledger, "Complete statement of an account" →
+    `account-ledger`; Asset Inflows, "Money that came in from outside your accounts" →
+    `asset-inflows`.
+  - **Checks** (rows, beside Ledgers at desktop): Trial Balance, "List of all accounts and
+    their balance" → `trial-balance`; Reconciliation Differences, "Where the ledger and
+    bank/CC statement balances disagree" → `balance-assertions`.
+  - **Off the index, still on All tools:** Income Statement (Income and Expenses links to
+    it), Monthly Summary (Income and Expenses charts each month), Expense Breakdown,
+    Last Reconciled Entries (Home shows each account's checkpoint), and Draft Balance
+    Assertions and Duplicate Drafts (Review's tabs).
+  - **Description:** "Statements show how you're doing, ledgers show the detail, and checks
+    show whether you can trust the numbers."
+  - **Renamed everywhere** (screen title, API grid label, contract summary): Where your
+    money went → Income and Expenses; All In-flows to asset accounts → Asset Inflows;
+    Balance Assertions → Reconciliation Differences. Income and Expenses' account link
+    reads "Account ledger".
+  - **frontend:** the registry gives each report one `label`, one `description` and an
+    optional `group`; the everyday and accounting cards are gone. `LinkCard` loses the
+    marker and gains `layout: "row" | "tile"`. Descriptions now wrap instead of being cut
+    to one line, on All tools too.
+  - **Checked:** typecheck; frontend (138) and API (300) tests. The index was rendered
+    alone at 1440 and 390px, since the dev app wants a sign-in; not walked in the app.
 
 - 2026-09-16 · Step 6, P4 follow-up · The database keeps the account tree's rules (owner's
   request): an account's parent is in the same workspace, for the same user, with the

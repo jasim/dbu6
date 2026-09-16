@@ -48,10 +48,10 @@ import {
   type Preset,
 } from "./period";
 
-const TITLE = "Where your money went";
+const TITLE = "Income and Expenses";
 
 /**
- * Where your money went (PLAN.md §11 P4): where the money came from and
+ * Income and Expenses (PLAN.md §11 P4): where the money came from and
  * where it went over a period, with every account a click away. No primary
  * button; the presets and the rows are the controls.
  */
@@ -99,7 +99,7 @@ export function IncomeExpensesPage() {
       {error ? (
         <div className="mt-8">
           <LoadError
-            title="Couldn't load where your money went"
+            title="Couldn't load income and expenses"
             message={error}
             retry={() => void query.refetch()}
           />

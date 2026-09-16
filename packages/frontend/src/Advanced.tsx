@@ -10,7 +10,7 @@ import {
 import { useSchemaStore } from "@sapporta/frontend/schema";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { LinkCard, type LinkCardProps } from "./components/link-card";
-import { reportDefinitions, reportDescription } from "./reports/registry";
+import { reportDefinitions } from "./reports/registry";
 
 const importTools: readonly LinkCardProps[] = [
   {
@@ -103,7 +103,7 @@ export function Advanced() {
                 <LinkCard
                   key={report.id}
                   label={report.label}
-                  description={reportDescription(report)}
+                  description={report.description}
                   to={`/reports/${report.id}`}
                   icon={BarChart3}
                 />

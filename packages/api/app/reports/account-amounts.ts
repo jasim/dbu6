@@ -3,11 +3,11 @@ import { allRows, ledgerCtes, type ScopeParams } from "./shared.js";
 
 /*
  * Income and spending, per account and per month: the one source the
- * income statement, Spending breakdown, Monthly summary and Where your money
- * went read, so the page and the grids can't disagree. Amounts are signed so
- * that income and spending are both positive: Revenue is credit − debit,
- * Expense is debit − credit. A refund larger than the spending makes an
- * amount negative.
+ * income statement, Expense breakdown, Monthly summary and Income and
+ * Expenses read, so the page and the grids can't disagree. Amounts are
+ * signed so that income and spending are both positive: Revenue is
+ * credit − debit, Expense is debit − credit. A refund larger than the
+ * spending makes an amount negative.
  */
 
 export type IncomeSpendingType = "Revenue" | "Expense";

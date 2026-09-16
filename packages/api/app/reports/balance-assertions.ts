@@ -83,7 +83,7 @@ function toBalanceAssertionsResult(rows: BalanceAssertionRow[]): GridDataset {
   };
   return flatResult(
     "balance-assertions",
-    "Balance Assertions",
+    "Reconciliation Differences",
     levelColumns,
     rows,
     {

@@ -93,7 +93,7 @@ function shape(accounts: IncomeExpensesAccount[]): Shape[] {
   ]);
 }
 
-describe("Where your money went", () => {
+describe("Income and Expenses", () => {
   it("lists each section as its account tree, ranked by total", () => {
     const report = incomeExpensesSchema.parse(
       incomeExpensesReport(ledger(), firstQuarter),

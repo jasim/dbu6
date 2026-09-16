@@ -45,7 +45,7 @@ type IncomeExpensesAccountShape = {
 };
 
 /**
- * An income or spending account as Where your money went lists it, with its
+ * An income or spending account as Income and Expenses lists it, with its
  * children through `parent_id`. `own` is the amount of its own entries in the
  * period; `total` adds everything below it, so it matches the account's
  * history. Both are positive for income and for spending.
@@ -134,7 +134,7 @@ export const reportsContract = c.router({
   assetInflows: c.query({
     method: "GET",
     path: "/reports/asset-inflows",
-    summary: "All In-flows to asset accounts",
+    summary: "Asset Inflows",
     metadata: { tags: ["reports"] },
     query: optionalDateRangeQuery,
     responses: {
@@ -146,7 +146,7 @@ export const reportsContract = c.router({
   incomeExpenses: c.query({
     method: "GET",
     path: "/reports/income-expenses",
-    summary: "Where your money went",
+    summary: "Income and Expenses",
     metadata: { tags: ["reports"] },
     query: incomeExpensesQuery,
     responses: {
@@ -222,7 +222,7 @@ export const reportsContract = c.router({
   balanceAssertions: c.query({
     method: "GET",
     path: "/reports/balance-assertions",
-    summary: "Balance Assertions",
+    summary: "Reconciliation Differences",
     metadata: { tags: ["reports"] },
     query: noParamsQuery,
     responses: {

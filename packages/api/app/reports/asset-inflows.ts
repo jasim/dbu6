@@ -95,7 +95,7 @@ export function loadAssetInflows(
 export function toAssetInflowsResult(rows: AssetInflowRow[]): GridDataset {
   return flatResult(
     "asset-inflows",
-    "All In-flows to asset accounts",
+    "Asset Inflows",
     {
       inflow: [
         hiddenIdColumn("entry_id", "Journal Entry ID"),

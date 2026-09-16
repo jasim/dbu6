@@ -168,7 +168,7 @@ function row(name: string): HTMLButtonElement {
   return found;
 }
 
-describe("Where your money went", () => {
+describe("Income and Expenses", () => {
   it("shows the last 12 months by default and a preset by name", async () => {
     responses = [report()];
     await renderAt("/reports/income-expenses");
@@ -237,7 +237,7 @@ describe("Where your money went", () => {
       "Food, not in a sub-account2%−₹500.00",
     ]);
     const history = host.querySelector<HTMLAnchorElement>(
-      'a[aria-label="Account history for Groceries"]',
+      'a[aria-label="Account ledger for Groceries"]',
     );
     expect(history?.getAttribute("href")).toBe(
       "/reports/account-ledger?account_id=3&from_date=2025-10-01&to_date=2026-09-16",

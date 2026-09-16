@@ -50,7 +50,7 @@ export function reviewAccountQuery(accountId: number) {
 }
 
 /**
- * Where your money went for a period. A new period keeps showing the last
+ * Income and Expenses for a period. A new period keeps showing the last
  * one's figures until its own arrive, so nothing jumps.
  */
 export function incomeExpensesQuery(dates: DateSpan) {

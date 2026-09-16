@@ -145,7 +145,7 @@ describe("Asset inflows result", () => {
     expect(() => gridDatasetSchema.parse(result)).not.toThrow();
     expect(result).toMatchObject({
       name: "asset-inflows",
-      label: "All In-flows to asset accounts",
+      label: "Asset Inflows",
       rootLevel: "inflow",
     });
     expect(result.levels.inflow?.columns.slice(0, 3)).toEqual([

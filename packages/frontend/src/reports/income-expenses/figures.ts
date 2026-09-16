@@ -3,7 +3,7 @@ import { formatAmount, type Direction } from "../../components/amount";
 import { formatMoney, plural } from "../../format";
 
 /*
- * What the figures at the top of Where your money went say (PLAN.md §11 P4),
+ * What the figures at the top of Income and Expenses say (PLAN.md §11 P4),
  * and the direction and share of any amount in its section. Income and
  * spending both arrive positive; a negative amount has run the other way
  * (refunds larger than the spending, say).

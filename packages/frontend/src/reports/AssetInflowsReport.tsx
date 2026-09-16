@@ -32,7 +32,7 @@ export function AssetInflowsReport() {
   };
 
   return (
-    <ReportScreenFrame title="All In-flows to asset accounts">
+    <ReportScreenFrame title="Asset Inflows">
       <ReportToolbar
         actions={
           <ReportRunButton loading={report.loading} onClick={report.run} />
