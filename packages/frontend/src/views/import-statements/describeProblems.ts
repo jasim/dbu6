@@ -35,7 +35,7 @@ export type ProblemAction =
   | { kind: "keep-only-files"; label: string; fileNames: string[] }
   | { kind: "link"; label: string; to: string };
 
-export interface AgentHandoff {
+export interface AgentPrompt {
   prompt: string;
   // What the user does once the agent reports back.
   afterwards: string;
@@ -64,7 +64,7 @@ export interface Problem {
   // Plain advice the user can act on without the app's help.
   steps: string[];
   actions: ProblemAction[];
-  agent: AgentHandoff | null;
+  agent: AgentPrompt | null;
   // The server's own words, for the disclosure at the bottom of the card.
   technical: string | null;
 }

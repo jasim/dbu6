@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { CategorizationLlm } from "../../llm-engine.js";
 import {
   categorizeViaLLM,
   buildPrompt,
@@ -8,6 +7,7 @@ import {
   parseLLMResponse,
   reportedError,
   splitIntoCalls,
+  type CategorizationLlm,
   type LLMCategorizationConfig,
 } from "./llm-categorization.js";
 import type { Abacus } from "../abacus/index.js";
@@ -16,16 +16,19 @@ const listMock = vi.fn();
 
 function engine(overrides: Partial<CategorizationLlm> = {}): CategorizationLlm {
   return {
-    engine: "nuabase",
-    caller: {
-      ready: true,
-      nua: { list: listMock },
-      model: { provider: "openrouter", model: "sample-model" },
-    },
-    maxRowsPerCall: null,
+    agent: "claude-code",
+    name: "Claude Code",
+    caller: { ready: true, client: { list: listMock }, maxRowsPerCall: null },
     ...overrides,
   };
 }
+
+// A coding agent takes at most 50 descriptions a call.
+const batchedCaller = {
+  ready: true as const,
+  client: { list: listMock },
+  maxRowsPerCall: 50,
+};
 
 const config: LLMCategorizationConfig = {
   promptTemplate:
@@ -261,12 +264,9 @@ describe("categorizeViaLLM", () => {
   // Answers each row of a call with an account named after its text.
   function answerEveryRow() {
     listMock.mockImplementation(
-      async (
-        _prompt: string,
-        options: { input: { id: string; text: string }[] },
-      ) => ({
-        success: true,
-        data: options.input.map((row) => ({
+      async (request: { rows: { id: string; text: string }[] }) => ({
+        ok: true,
+        rows: request.rows.map((row) => ({
           id: row.id,
           account: `expenses:${row.text.slice("Expense: ".length).toLowerCase()}`,
         })),
@@ -276,8 +276,8 @@ describe("categorizeViaLLM", () => {
 
   it("sends every row once with numbers preserved and does not retry unresolved rows", async () => {
     listMock.mockResolvedValueOnce({
-      success: true,
-      data: [
+      ok: true,
+      rows: [
         { id: "txn-0", account: "expenses:food" },
         { id: "txn-1", account: "" },
       ],
@@ -294,20 +294,17 @@ describe("categorizeViaLLM", () => {
       "STARBUCKS 123": "expenses:food",
     });
     expect(listMock).toHaveBeenCalledTimes(1);
-    expect(listMock.mock.calls[0][1].input).toEqual([
+    expect(listMock.mock.calls[0][0].rows).toEqual([
       { id: "txn-0", text: "Expense: STARBUCKS 123" },
       { id: "txn-1", text: "Expense: DUMMY NAME/NONP0050505" },
     ]);
-    expect(listMock.mock.calls[0][1].model).toEqual({
-      provider: "openrouter",
-      model: "sample-model",
-    });
+    expect(listMock.mock.calls[0][0].output.name).toBe("account");
   });
 
   it("reports every distinct description sent, and none failed, when the call succeeds", async () => {
     listMock.mockResolvedValueOnce({
-      success: true,
-      data: [
+      ok: true,
+      rows: [
         { id: "txn-0", account: "expenses:food" },
         { id: "txn-1", account: "expenses:travel" },
       ],
@@ -326,7 +323,7 @@ describe("categorizeViaLLM", () => {
         "UBER 456": "expenses:travel",
       },
       report: {
-        engine: "nuabase",
+        agent: "claude-code",
         sent_count: 2,
         failed_count: 0,
         error: null,
@@ -341,7 +338,7 @@ describe("categorizeViaLLM", () => {
     expect(result).toEqual({
       mappings: {},
       report: {
-        engine: "nuabase",
+        agent: "claude-code",
         sent_count: 0,
         failed_count: 0,
         error: null,
@@ -365,7 +362,7 @@ describe("categorizeViaLLM", () => {
     expect(result).toEqual({
       mappings: {},
       report: {
-        engine: "nuabase",
+        agent: "claude-code",
         sent_count: 2,
         failed_count: 2,
         error: "NUABASE_API_KEY is not set",
@@ -374,28 +371,18 @@ describe("categorizeViaLLM", () => {
     expect(listMock).not.toHaveBeenCalled();
   });
 
-  it("reports a failed or throwing call instead of throwing", async () => {
-    listMock.mockResolvedValueOnce({ success: false, error: "sample failure" });
+  it("reports a failed call instead of throwing", async () => {
+    listMock.mockResolvedValueOnce({ ok: false, error: "sample failure" });
+
     const failed = await categorizeViaLLM([withdrawal("A")], [0], config);
+
+    expect(failed.mappings).toEqual({});
     expect(failed.report).toEqual({
-      engine: "nuabase",
+      agent: "claude-code",
       sent_count: 1,
       failed_count: 1,
       error: "sample failure",
     });
-
-    listMock.mockResolvedValueOnce({
-      success: false,
-      error: { message: "sample object" },
-    });
-    const objectError = await categorizeViaLLM([withdrawal("A")], [0], config);
-    expect(objectError.report.failed_count).toBe(1);
-    expect(objectError.report.error).toBe("[object Object]");
-
-    listMock.mockRejectedValueOnce(new Error("sample network failure"));
-    const thrown = await categorizeViaLLM([withdrawal("A")], [0], config);
-    expect(thrown.report.error).toBe("sample network failure");
-    expect(thrown.mappings).toEqual({});
   });
 
   it("splits a local agent's descriptions into calls of 50 and merges the answers", async () => {
@@ -405,16 +392,16 @@ describe("categorizeViaLLM", () => {
     const result = await categorizeViaLLM(
       txns,
       txns.map((_, i) => i),
-      { ...config, llm: engine({ engine: "claude-code", maxRowsPerCall: 50 }) },
+      { ...config, llm: engine({ caller: batchedCaller }) },
     );
 
-    expect(listMock.mock.calls.map((call) => call[1].input.length)).toEqual([
+    expect(listMock.mock.calls.map((call) => call[0].rows.length)).toEqual([
       50, 50, 20,
     ]);
     expect(Object.keys(result.mappings)).toHaveLength(120);
     expect(result.mappings.SHOP119).toBe("expenses:shop119");
     expect(result.report).toEqual({
-      engine: "claude-code",
+      agent: "claude-code",
       sent_count: 120,
       failed_count: 0,
       error: null,
@@ -423,15 +410,17 @@ describe("categorizeViaLLM", () => {
 
   it("counts only a failed call's own descriptions and keeps the other calls' answers", async () => {
     answerEveryRow();
-    listMock.mockImplementationOnce(async (_prompt, options) => ({
-      success: true,
-      data: options.input.map((row: { id: string }) => ({
-        id: row.id,
-        account: "expenses:first",
-      })),
-    }));
+    listMock.mockImplementationOnce(
+      async (request: { rows: { id: string }[] }) => ({
+        ok: true,
+        rows: request.rows.map((row) => ({
+          id: row.id,
+          account: "expenses:first",
+        })),
+      }),
+    );
     listMock.mockImplementationOnce(async () => ({
-      success: false,
+      ok: false,
       error: "claude-code timed out",
     }));
     const txns = Array.from({ length: 120 }, (_, i) => withdrawal(`SHOP${i}`));
@@ -439,11 +428,11 @@ describe("categorizeViaLLM", () => {
     const result = await categorizeViaLLM(
       txns,
       txns.map((_, i) => i),
-      { ...config, llm: engine({ engine: "claude-code", maxRowsPerCall: 50 }) },
+      { ...config, llm: engine({ caller: batchedCaller }) },
     );
 
     expect(result.report).toEqual({
-      engine: "claude-code",
+      agent: "claude-code",
       sent_count: 120,
       failed_count: 50,
       error: "claude-code timed out",

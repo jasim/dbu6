@@ -1,5 +1,7 @@
 import {
-  CODING_AGENT_LABEL,
+  CODING_AGENTS,
+  NO_CODING_AGENT_MESSAGE,
+  noAgentModelMessage,
   type CodingAgentSettings,
   type CodingAgentStatus,
 } from "dbu6-shared";
@@ -17,10 +19,9 @@ export interface CodingAgentState {
   checkAgain: boolean;
 }
 
-const SIGN_IN_COMMAND = {
-  "claude-code": "claude",
-  codex: "codex login",
-} as const;
+// What dbu6 needs a coding agent for, said once.
+const AGENT_JOBS =
+  "categorize transactions, read new bank statements, or fix import problems";
 
 function activeAgent(
   settings: CodingAgentSettings,
@@ -40,17 +41,17 @@ export function describeCodingAgent(
   if (active === undefined) {
     return {
       tone: "attention",
-      text: "No coding agent found. Without one, dbu6 can't categorize transactions, read new bank statements, or fix import problems. Install Claude Code or Codex on this machine, then reload.",
+      text: `${NO_CODING_AGENT_MESSAGE} Without one, dbu6 can't ${AGENT_JOBS}. Reload once one is installed.`,
       details: [],
       checkAgain: false,
     };
   }
-  const label = CODING_AGENT_LABEL[active.agent];
+  const label = CODING_AGENTS[active.agent].label;
   if (!active.logged_in) {
     return {
       tone: "attention",
       text: `${label} isn't signed in. Run this in a terminal, then reload:`,
-      command: SIGN_IN_COMMAND[active.agent],
+      command: CODING_AGENTS[active.agent].signInCommand,
       details: [],
       checkAgain: false,
     };
@@ -84,7 +85,7 @@ export function describeCodingAgent(
     case "no_model":
       return {
         tone: "attention",
-        text: `${label} didn't answer on ${models.unavailable.map((model) => model.label).join(" or ")}, and dbu6 doesn't use less capable models. Until one answers, dbu6 can't categorize transactions, read new bank statements, or fix import problems.`,
+        text: `${noAgentModelMessage(active.agent, models.unavailable)} Until one answers, dbu6 can't ${AGENT_JOBS}.`,
         details: models.unavailable.map(
           (model) => `${model.label}: ${model.reason}`,
         ),

@@ -1,26 +1,24 @@
-import { Nua } from "nuabase";
-import { localAgent } from "nuabase/local-agent";
 import {
-  CODING_AGENT_LABEL,
+  CODING_AGENTS,
   type AgentModel,
   type AgentModels,
   type CodingAgent,
-  type UnavailableAgentModel,
 } from "dbu6-shared";
 import {
+  CODING_AGENT_RUN,
   detectCodingAgents,
+  logCodingAgent,
+} from "./agents.js";
+import {
+  askModel,
   type DetectedAgent,
   type InstalledAgent,
-} from "./coding-agent.js";
+} from "./nuabase.js";
 
 /*
- * The models dbu6 runs each coding agent on: a short list, most capable first,
- * whose last model is the floor. dbu6 never runs an agent on a less capable
- * model, for prompts or for categorization.
- *
- * Which models work depends on the user's login and plan (Codex refuses
- * GPT-5.6 Sol on some ChatGPT accounts), so dbu6 asks each model for a
- * one-word reply:
+ * Which of an agent's models (agents.ts) answer on this machine's login.
+ * Codex refuses GPT-5.6 Sol on some ChatGPT accounts, so dbu6 asks each model
+ * for a one-word reply:
  *
  * - at startup, for every signed-in agent;
  * - when Settings shows an agent that hasn't been checked;
@@ -28,21 +26,10 @@ import {
  *   (the agent may be signed in now);
  * - when the user asks again on Settings (a model may have become available).
  *
- * A check where some model answered holds until then. Prompts open on the
- * most capable model that answered, and categorization runs on the least
- * capable, which is faster and cheaper.
+ * A check where some model answered holds until then. Prompts open on the most
+ * capable model that answered, and categorization runs on the least capable,
+ * which is faster and cheaper.
  */
-
-const MODELS = {
-  "claude-code": [
-    { model: "opus", label: "Claude Opus" },
-    { model: "sonnet", label: "Claude Sonnet" },
-  ],
-  codex: [
-    { model: "gpt-5.6-sol", label: "GPT-5.6 Sol" },
-    { model: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
-  ],
-} as const satisfies Record<CodingAgent, readonly AgentModel[]>;
 
 /** How one model fared when asked for a reply. */
 export type ModelCheck =
@@ -73,66 +60,14 @@ export function agentModelsFrom(
   return { state: "ready", session, categorization, unavailable };
 }
 
-/**
- * Pure: the agent's own words from a failed call. Nuabase prefixes them with
- * its retries and the CLI's name, and Codex passes on the API's JSON error.
- */
-export function failureReason(error: string): string {
-  const message = error
-    .replace(/^LLM call failed after \d+ attempts\. Last error: /, "")
-    .replace(/^(claude|codex): /, "");
-  try {
-    const inner = (JSON.parse(message) as { error?: { message?: unknown } })
-      .error?.message;
-    if (typeof inner === "string") return inner;
-  } catch {
-    // Not JSON: the CLI's own message.
-  }
-  return message;
-}
-
-/** Why an agent none of whose models answered can't be used. */
-export function noModelMessage(
-  agent: CodingAgent,
-  unavailable: readonly UnavailableAgentModel[],
-): string {
-  const labels = unavailable.map((model) => model.label).join(" or ");
-  const floor = unavailable.at(-1);
-  const reason = floor === undefined ? "" : ` (${floor.reason})`;
-  return `${CODING_AGENT_LABEL[agent]} didn't answer on ${labels}${reason}. See Settings.`;
-}
-
-// The part of a nuabase client a check calls. The package's own declarations
-// don't resolve under NodeNext (see llm-engine.ts).
-type GetResult =
-  { success: true; data: unknown } | { success: false; error: string };
-
-const CHECK_PROMPT = "Reply with the single word OK.";
-// A model answers in a few seconds; a refused one fails at once, or after
-// Nuabase's retries.
-const CHECK_TIMEOUT_MS = 60_000;
-
 async function checkModel(
   agent: InstalledAgent,
   model: AgentModel,
 ): Promise<ModelCheck> {
-  try {
-    const nua = Nua.direct({
-      localAgent: localAgent({
-        agent: agent.agent,
-        model: model.model,
-        binaryPath: agent.binaryPath,
-        timeoutMs: CHECK_TIMEOUT_MS,
-      }),
-    });
-    const result: GetResult = await nua.get(CHECK_PROMPT);
-    return result.success
-      ? { model, answered: true }
-      : { model, answered: false, reason: failureReason(result.error) };
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    return { model, answered: false, reason };
-  }
+  const reply = await askModel(agent, model.model);
+  return reply.answered
+    ? { model, answered: true }
+    : { model, answered: false, reason: reply.reason };
 }
 
 type Check = {
@@ -163,7 +98,9 @@ function checkModels(
     return check.models;
   }
   const models = Promise.all(
-    MODELS[agent.agent].map((model) => checkModel(agent, model)),
+    CODING_AGENT_RUN[agent.agent].models.map((model) =>
+      checkModel(agent, model),
+    ),
   ).then(agentModelsFrom);
   const started: Check = {
     binaryPath: agent.binaryPath,
@@ -204,18 +141,22 @@ export function agentModelsNow(status: DetectedAgent): AgentModels {
   return checks.get(status.agent)?.settled ?? { state: "checking" };
 }
 
-/** Checks every signed-in agent's models, for startup. */
-export async function checkSignedInAgentModels(): Promise<void> {
+/**
+ * Startup: log the agent dbu6 will use, and ask every signed-in agent's models
+ * whether they answer, so a prompt or an import doesn't wait for the check.
+ */
+export async function startCodingAgent(): Promise<void> {
   const detected = await detectCodingAgents();
-  await Promise.all(
-    detected
+  await Promise.all([
+    logCodingAgent(),
+    ...detected
       .filter((status): status is InstalledAgent => status.loggedIn)
       .map(agentModels),
-  );
+  ]);
 }
 
 function logAgentModels(agent: CodingAgent, models: CheckedAgentModels) {
-  const label = CODING_AGENT_LABEL[agent];
+  const label = CODING_AGENTS[agent].label;
   const unavailable = models.unavailable
     .map((model) => `${model.model} didn't answer (${model.reason})`)
     .join("; ");

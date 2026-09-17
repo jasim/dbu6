@@ -9,18 +9,9 @@ import {
   type AbacusStatement,
 } from "./abacus/index.js";
 import type { Chrono } from "./domain/Chrono.js";
+import type { CategorizationLlm } from "./categorization/llm-categorization.js";
 import { parseAccount } from "./domain/Account.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
-
-// The engine would detect the coding agents installed on this machine, running
-// their CLIs; these tests don't categorize.
-vi.mock("../llm-engine.js", () => ({
-  categorizationLlm: async () => ({
-    engine: null,
-    caller: { ready: false, reason: "no engine in tests" },
-    maxRowsPerCall: null,
-  }),
-}));
 
 // Stub the persistence tail so the test can inspect exactly what reaches it.
 // Everything before it (key assignment, balance validation, reconciliation
@@ -41,7 +32,7 @@ vi.mock("./draft-import.js", () => ({
       backfilled_count: 0,
       same_account_skips: [],
       categorization: {
-        engine: "nuabase",
+        agent: null,
         sent_count: 0,
         failed_count: 0,
         error: null,
@@ -97,12 +88,21 @@ function statement(): AbacusStatement {
   };
 }
 
+// Categorization would run the coding agent's CLI; these tests import with an
+// engine that can't call anything.
+const noLlm: CategorizationLlm = {
+  agent: null,
+  name: "no engine in tests",
+  caller: { ready: false, reason: "no engine in tests" },
+};
+
 function options(gpayHtmlPath: string | null): ImportOptions {
   return {
     baseAccount: BASE_ACCOUNT,
     accountKind: "bank",
     customMappingsFilenames: [],
     gpayHtmlPath,
+    llm: noLlm,
   };
 }
 

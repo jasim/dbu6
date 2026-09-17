@@ -1,14 +1,9 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Copy, SquareTerminal } from "lucide-react";
-import {
-  CODING_AGENT_LABEL,
-  type AgentHandoff,
-  type AgentHandoffRequest,
-  type CodingAgent,
-} from "dbu6-shared";
+import { CODING_AGENTS, type AgentHandoff } from "dbu6-shared";
 import { agentHandoffApi, apiRefusalMessage } from "../api";
-import { agentHandoffCapabilitiesQuery } from "../queries";
+import { agentHandoffAvailabilityQuery } from "../queries";
 import { Disclosure } from "./disclosure";
 import { Button } from "./ui/button";
 
@@ -17,46 +12,42 @@ import { Button } from "./ui/button";
  * on its own (Import, freeform import, Review). Copy prompt always; and when
  * the server's machine has a coding agent, a session started on the prompt in
  * the agent chosen in Settings: in a new terminal window on macOS, or a
- * command to run in one elsewhere. The session is interactive, so the user
- * answers the agent there; it runs in auto mode, so its edits don't wait on
- * the user's approval.
+ * command to run in one elsewhere. Which agent, and which of the two, is the
+ * server's to decide, so the button only asks and the result says what
+ * happened. The session is interactive, so the user answers the agent there;
+ * it runs in auto mode, so its edits don't wait on the user's approval.
  */
 export function AgentPromptActions({ prompt }: { prompt: string }) {
-  const capabilities = useQuery(agentHandoffCapabilitiesQuery).data;
+  const availability = useQuery(agentHandoffAvailabilityQuery).data;
   const handoff = useMutation({
-    mutationFn: ({ request }: HandoffClick) =>
-      agentHandoffApi.handOffPrompt({ body: request }),
+    mutationFn: (text: string) =>
+      agentHandoffApi.handOffPrompt({ body: { prompt: text } }),
   });
   // A result belongs to the prompt it was made for.
-  const click =
-    handoff.variables?.request.prompt === prompt ? handoff.variables : null;
-  const open = capabilities?.open_terminal === true;
-  const agent = capabilities?.shell_command ? capabilities.agent : null;
+  const asked = handoff.variables === prompt;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2.5">
         <CopyButton text={prompt} label="Copy prompt" />
-        {agent !== null && (
+        {availability !== undefined && availability.mode !== "none" && (
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={handoff.isPending}
-            onClick={() => handoff.mutate({ agent, request: { prompt, open } })}
+            onClick={() => handoff.mutate(prompt)}
           >
             <SquareTerminal />
-            {open
-              ? `Open in ${CODING_AGENT_LABEL[agent]}`
-              : `Command for ${CODING_AGENT_LABEL[agent]}`}
+            {availability.mode === "terminal"
+              ? `Open in ${CODING_AGENTS[availability.agent].label}`
+              : `Command for ${CODING_AGENTS[availability.agent].label}`}
           </Button>
         )}
       </div>
       <div aria-live="polite">
-        {click !== null && handoff.isSuccess && (
-          <HandoffResult click={click} handoff={handoff.data} />
-        )}
-        {click !== null && handoff.isError && (
+        {asked && handoff.isSuccess && <HandoffResult handoff={handoff.data} />}
+        {asked && handoff.isError && (
           <p className="text-body text-destructive [overflow-wrap:anywhere]">
             {apiRefusalMessage(handoff.error)}
           </p>
@@ -66,21 +57,9 @@ export function AgentPromptActions({ prompt }: { prompt: string }) {
   );
 }
 
-// The agent is the one the button named.
-interface HandoffClick {
-  agent: CodingAgent;
-  request: AgentHandoffRequest;
-}
-
-function HandoffResult({
-  click,
-  handoff,
-}: {
-  click: HandoffClick;
-  handoff: AgentHandoff;
-}) {
-  const label = CODING_AGENT_LABEL[click.agent];
-  if (!click.request.open) {
+function HandoffResult({ handoff }: { handoff: AgentHandoff }) {
+  const label = CODING_AGENTS[handoff.agent].label;
+  if (handoff.mode === "command") {
     return (
       <div className="space-y-2">
         <p className="text-body text-ink-soft">

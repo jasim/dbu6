@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DetectedAgent, InstalledAgent } from "./coding-agent.js";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DetectedAgent, InstalledAgent } from "./nuabase.js";
 
 // Nuabase is stubbed: each test says which models answer.
 const { detectLocalAgents, localAgent, direct } = vi.hoisted(() => ({
@@ -11,7 +14,9 @@ vi.mock("nuabase/local-agent", () => ({ detectLocalAgents, localAgent }));
 vi.mock("nuabase", () => ({ Nua: { direct } }));
 
 // The module keeps each agent's check, so each test loads it afresh.
-let models: typeof import("./coding-agent-models.js");
+let models: typeof import("./models.js");
+
+let dataDir: string;
 
 const CODEX: InstalledAgent = {
   agent: "codex",
@@ -51,10 +56,21 @@ function askedModels(): string[] {
 
 beforeEach(async () => {
   vi.resetModules();
-  models = await import("./coding-agent-models.js");
+  models = await import("./models.js");
   detectLocalAgents.mockReset();
   localAgent.mockClear();
   direct.mockReset();
+  // startCodingAgent logs the chosen agent, which reads user-config.
+  dataDir = await mkdtemp(join(tmpdir(), "dbu6-agent-models-"));
+  vi.stubEnv("SAPPORTA_DATA_DIR", dataDir);
+  vi.spyOn(console, "log").mockImplementation(() => undefined);
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+});
+
+afterEach(async () => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  await rm(dataDir, { recursive: true, force: true });
 });
 
 describe("agentModelsFrom", () => {
@@ -108,35 +124,6 @@ describe("agentModelsFrom", () => {
         { ...TERRA, reason: "sample timeout" },
       ],
     });
-  });
-});
-
-describe("failureReason", () => {
-  it("reads the message out of the API error Codex passes on", () => {
-    expect(models.failureReason(refusal("gpt-5.6-sol"))).toBe(
-      "The 'gpt-5.6-sol' model is not supported on this sample account.",
-    );
-  });
-
-  it("drops Nuabase's retry prefix and the CLI's name", () => {
-    expect(
-      models.failureReason(
-        "LLM call failed after 3 attempts. Last error: claude: There's an issue with the selected model (sample-050505).",
-      ),
-    ).toBe("There's an issue with the selected model (sample-050505).");
-  });
-});
-
-describe("noModelMessage", () => {
-  it("names the models and why the last didn't answer", () => {
-    expect(
-      models.noModelMessage("codex", [
-        { ...SOL, reason: "sample refusal" },
-        { ...TERRA, reason: "Not logged in" },
-      ]),
-    ).toBe(
-      "Codex didn't answer on GPT-5.6 Sol or GPT-5.6 Terra (Not logged in). See Settings.",
-    );
   });
 });
 
@@ -275,15 +262,15 @@ describe("agentModelsNow", () => {
   });
 });
 
-describe("checkSignedInAgentModels", () => {
-  it("checks every signed-in agent", async () => {
+describe("startCodingAgent", () => {
+  it("checks every signed-in agent's models", async () => {
     detectLocalAgents.mockResolvedValue([
       CLAUDE,
       { ...CODEX, loggedIn: false },
     ]);
     answering("opus", "sonnet");
 
-    await models.checkSignedInAgentModels();
+    await models.startCodingAgent();
 
     expect(askedModels()).toEqual(["opus", "sonnet"]);
     expect(models.agentModelsNow(CLAUDE)).toMatchObject({ state: "ready" });

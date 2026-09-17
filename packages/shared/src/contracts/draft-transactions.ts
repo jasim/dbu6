@@ -24,6 +24,21 @@ const classifiedDraftTransactionSchema = z.object({
   account_name: z.string().nullable(),
 });
 
+// Classifying drafts again: each draft's narration and account, and how the
+// LLM fared on what the mapping rules didn't categorize.
+export const draftClassificationSchema = z.object({
+  transactions: z.array(classifiedDraftTransactionSchema),
+  categorization: categorizationReportSchema,
+});
+export type DraftClassification = z.infer<typeof draftClassificationSchema>;
+
+export const gpayDraftClassificationSchema = draftClassificationSchema.extend({
+  gpay_enriched_count: z.number(),
+});
+export type GPayDraftClassification = z.infer<
+  typeof gpayDraftClassificationSchema
+>;
+
 const repeatedFormStringSchema = z
   .union([z.string(), z.array(z.string())])
   .transform((value) => (Array.isArray(value) ? value : [value]));
@@ -43,10 +58,7 @@ export const draftTransactionsContract = c.router({
       custom_mappings_filenames: z.array(z.string()).optional(),
     }),
     responses: {
-      200: z.object({
-        transactions: z.array(classifiedDraftTransactionSchema),
-        categorization: categorizationReportSchema,
-      }),
+      200: draftClassificationSchema,
       400: errorSchema,
       403: errorSchema,
     },
@@ -63,11 +75,7 @@ export const draftTransactionsContract = c.router({
         .default([]),
     }),
     responses: {
-      200: z.object({
-        transactions: z.array(classifiedDraftTransactionSchema),
-        gpay_enriched_count: z.number(),
-        categorization: categorizationReportSchema,
-      }),
+      200: gpayDraftClassificationSchema,
       400: errorSchema,
       403: errorSchema,
     },

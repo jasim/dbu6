@@ -4,6 +4,16 @@ import type { AbacusImportRequest } from "dbu6-shared";
 // Request validation runs for real; only the ledger write at the tail is
 // stubbed, and the ledger's account names are passed in, so the tests need no
 // database.
+// The engine would detect this machine's coding agents; the import itself is
+// stubbed, so nothing categorizes here.
+vi.mock("../coding-agent/categorization-llm.js", () => ({
+  categorizationLlm: async () => ({
+    agent: null,
+    name: "no engine in tests",
+    caller: { ready: false, reason: "no engine in tests" },
+  }),
+}));
+
 const { runStatementImport } = vi.hoisted(() => ({
   runStatementImport: vi.fn(),
 }));
@@ -73,7 +83,7 @@ function imported(count: number): StatementImportResult {
     same_account_skips: [],
     gpay_enriched_count: 0,
     categorization: {
-      engine: "nuabase",
+      agent: null,
       sent_count: 0,
       failed_count: 0,
       error: null,
@@ -156,7 +166,7 @@ describe("importAbacusStatement", () => {
     });
     expect(runStatementImport).toHaveBeenCalledTimes(1);
     const [parts, options, , , sourceNames] = runStatementImport.mock.calls[0];
-    expect(options).toEqual({
+    expect(options).toMatchObject({
       baseAccount: "liabilities:card:sample",
       accountKind: "card",
       customMappingsFilenames: [],

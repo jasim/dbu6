@@ -1,7 +1,4 @@
-import {
-  CATEGORIZATION_ENGINE_LABEL,
-  type CategorizationReport,
-} from "dbu6-shared";
+import { CODING_AGENTS, type CategorizationReport } from "dbu6-shared";
 
 // Descriptions the LLM got no answer for, because a call failed or couldn't
 // run: said on the Import statements result and on Classify drafts. Those
@@ -9,7 +6,7 @@ import {
 export interface CategorizationProblem {
   // "Couldn't categorize 3 of 12 descriptions with Claude Code"
   text: string;
-  // The engine's own words for the first failure.
+  // The agent's own words for the first failure.
   reason: string;
 }
 
@@ -26,9 +23,9 @@ export function describeCategorizationProblem(
         : `${failed} of ${sent} descriptions`;
   return {
     text:
-      report.engine === null
+      report.agent === null
         ? `Couldn't categorize ${which}`
-        : `Couldn't categorize ${which} with ${CATEGORIZATION_ENGINE_LABEL[report.engine]}`,
+        : `Couldn't categorize ${which} with ${CODING_AGENTS[report.agent].label}`,
     reason: report.error ?? "No reason was given.",
   };
 }

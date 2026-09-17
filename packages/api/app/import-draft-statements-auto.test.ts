@@ -6,6 +6,16 @@ import type { ImportPreset } from "dbu6-shared";
 // Recognition and preset resolution run for real against the sanitized
 // fixtures; only the ledger write at the tail is stubbed, so the tests need
 // no database and never read data/user-config/import-presets.json.
+// The engine would detect this machine's coding agents; the import itself is
+// stubbed, so nothing categorizes here.
+vi.mock("../coding-agent/categorization-llm.js", () => ({
+  categorizationLlm: async () => ({
+    agent: null,
+    name: "no engine in tests",
+    caller: { ready: false, reason: "no engine in tests" },
+  }),
+}));
+
 const { runStatementImport } = vi.hoisted(() => ({
   runStatementImport: vi.fn(),
 }));
@@ -78,7 +88,7 @@ function importedNothing(): StatementImportResult {
     same_account_skips: [],
     gpay_enriched_count: 0,
     categorization: {
-      engine: "nuabase",
+      agent: null,
       sent_count: 0,
       failed_count: 0,
       error: null,
@@ -259,7 +269,7 @@ describe("automatic statement import", () => {
     expect(runStatementImport).toHaveBeenCalledTimes(3);
     const [statements, options, , , sourceNames] =
       runStatementImport.mock.calls[1];
-    expect(options).toEqual({
+    expect(options).toMatchObject({
       baseAccount: "liabilities:card:sample",
       accountKind: "card",
       customMappingsFilenames: [],

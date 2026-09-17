@@ -1,10 +1,51 @@
 import { z } from "zod";
-import type { CategorizationEngine, CategorizationReport } from "dbu6-shared";
-import type { CategorizationLlm, ListRow } from "../../llm-engine.js";
+import type { CategorizationReport, CodingAgent } from "dbu6-shared";
 import type { Abacus } from "../abacus/index.js";
 import type { Account } from "../domain/Account.js";
 import { parseAccount } from "../domain/Account.js";
 import { isWithdrawal } from "../domain/Money.js";
+
+/*
+ * What categorization needs of an LLM, and who can answer it: one call that
+ * takes a prompt and a batch of descriptions and answers each by id. The
+ * coding agent and the deprecated gateway both fill it, in
+ * coding-agent/categorization-llm.ts.
+ */
+
+export type ListRow = { id: string; text: string };
+
+export interface ListRequest {
+  prompt: string;
+  rows: readonly ListRow[];
+  /** The field to answer each row in. */
+  output: { name: string; schema: z.ZodType<string> };
+}
+
+export type ListAnswer =
+  { ok: true; rows: unknown[] } | { ok: false; error: string };
+
+export interface ListClient {
+  list(request: ListRequest): Promise<ListAnswer>;
+}
+
+export interface CategorizationLlm {
+  /**
+   * The coding agent categorization runs on, for the report. Null when it runs
+   * on no agent: the deprecated gateway, or none installed.
+   */
+  agent: CodingAgent | null;
+  /** What to call the engine in the log. */
+  name: string;
+  /** Who answers and how much one call carries, or why no call can run. */
+  caller:
+    | {
+        ready: true;
+        client: ListClient;
+        /** The most descriptions one call carries; null sends them all. */
+        maxRowsPerCall: number | null;
+      }
+    | { ready: false; reason: string };
+}
 
 export interface LLMCategorizationConfig {
   promptTemplate: string;
@@ -15,7 +56,7 @@ export interface LLMCategorizationConfig {
 
 export interface LLMRequest {
   prompt: string;
-  rows: Array<{ id: string; text: string }>;
+  rows: ListRow[];
   reverseMap: Record<string, string[]>;
 }
 
@@ -44,10 +85,10 @@ export function buildLLMInput(
   transactions: Abacus[],
   unmappedIndices: number[],
 ): {
-  rows: Array<{ id: string; text: string }>;
+  rows: ListRow[];
   reverseMap: Record<string, string[]>;
 } {
-  const rows: Array<{ id: string; text: string }> = [];
+  const rows: ListRow[] = [];
   const reverseMap: Record<string, string[]> = {};
   const seenTexts = new Map<string, string>(); // text -> rowId
 
@@ -107,11 +148,15 @@ export function parseLLMResponse(
   return mappings;
 }
 
-/** The report when no description needed the LLM. */
+/**
+ * The report when no description needed the LLM. Only resolve.ts builds one:
+ * everything outside categorization is given the report of the run it asked
+ * for.
+ */
 export function nothingSentReport(
-  engine: CategorizationEngine | null,
+  llm: CategorizationLlm,
 ): CategorizationReport {
-  return { engine, sent_count: 0, failed_count: 0, error: null };
+  return { agent: llm.agent, sent_count: 0, failed_count: 0, error: null };
 }
 
 /** The narration→Account answers, and how the LLM fared. */
@@ -153,6 +198,8 @@ export function reportedError(message: string): string {
     : text;
 }
 
+const ACCOUNT_OUTPUT = { name: "account", schema: z.string() };
+
 type ReadyCaller = Extract<CategorizationLlm["caller"], { ready: true }>;
 
 type CallOutcome =
@@ -160,42 +207,31 @@ type CallOutcome =
   | { ok: false; rowCount: number; error: string };
 
 async function callList(
-  engine: CategorizationLlm["engine"],
+  llm: CategorizationLlm,
   caller: ReadyCaller,
   prompt: string,
   rows: ListRow[],
   label: string,
 ): Promise<CallOutcome> {
-  console.log(`\n── [${engine}] LLM Categorization Request${label} ──`);
+  console.log(`\n── [${llm.name}] LLM Categorization Request${label} ──`);
   console.log("Input rows:\n", JSON.stringify(rows, null, 2));
 
-  let result;
-  try {
-    result = await caller.nua.list(prompt, {
-      input: rows,
-      primaryKey: "id",
-      output: { name: "account", schema: z.string() },
-      model: caller.model,
-    });
-  } catch (error) {
-    result = {
-      success: false as const,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-
-  if (!result.success) {
+  const answer = await caller.client.list({
+    prompt,
+    rows,
+    output: ACCOUNT_OUTPUT,
+  });
+  if (!answer.ok) {
     console.error(
-      `[${engine}] LLM categorization failed${label}:`,
-      result.error,
+      `[${llm.name}] LLM categorization failed${label}:`,
+      answer.error,
     );
-    // Typed as a string, but a gateway may pass an error object through.
-    return { ok: false, rowCount: rows.length, error: String(result.error) };
+    return { ok: false, rowCount: rows.length, error: answer.error };
   }
 
-  console.log(`\n── [${engine}] LLM Categorization Response${label} ──`);
-  console.log(JSON.stringify(result.data, null, 2));
-  return { ok: true, rows: result.data as LLMResponseRow[] };
+  console.log(`\n── [${llm.name}] LLM Categorization Response${label} ──`);
+  console.log(JSON.stringify(answer.rows, null, 2));
+  return { ok: true, rows: answer.rows as LLMResponseRow[] };
 }
 
 /**
@@ -210,35 +246,40 @@ export async function categorizeViaLLM(
   unmappedIndices: number[],
   config: LLMCategorizationConfig,
 ): Promise<LLMCategorization> {
-  const { engine, caller, maxRowsPerCall } = config.llm;
+  const { llm } = config;
   const { prompt, rows, reverseMap } = buildLLMRequest(
     transactions,
     unmappedIndices,
     config,
   );
   const report: CategorizationReport = {
-    ...nothingSentReport(engine),
+    ...nothingSentReport(llm),
     sent_count: rows.length,
   };
   if (rows.length === 0) return { mappings: {}, report };
 
-  if (!caller.ready) {
+  if (!llm.caller.ready) {
     console.error(
-      `[${engine ?? "no coding agent"}] LLM categorization can't run: ${caller.reason}`,
+      `[${llm.name}] LLM categorization can't run: ${llm.caller.reason}`,
     );
     return {
       mappings: {},
-      report: { ...report, failed_count: rows.length, error: caller.reason },
+      report: {
+        ...report,
+        failed_count: rows.length,
+        error: llm.caller.reason,
+      },
     };
   }
 
-  console.log(`\n── [${engine}] LLM Categorization Prompt ──`);
+  console.log(`\n── [${llm.name}] LLM Categorization Prompt ──`);
   console.log(prompt);
-  const calls = splitIntoCalls(rows, maxRowsPerCall);
+  const calls = splitIntoCalls(rows, llm.caller.maxRowsPerCall);
+  const caller = llm.caller;
   const outcomes = await Promise.all(
     calls.map((callRows, index) =>
       callList(
-        engine,
+        llm,
         caller,
         prompt,
         callRows,

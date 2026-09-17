@@ -15,9 +15,9 @@
   },
   "include": [
     "*.ts",
-    "agent-handoff",
     "app",
     "bank-importer",
+    "coding-agent",
     "project-auth",
     "schema"
   ],

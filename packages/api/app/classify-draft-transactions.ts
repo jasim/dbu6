@@ -1,5 +1,5 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
-import { categorizationLlm } from "../llm-engine.js";
+import { categorizationLlm } from "../coding-agent/categorization-llm.js";
 import { userConfigDir } from "../user-data.js";
 import { draftTransactionsContract } from "dbu6-shared";
 import { ApiImportError } from "../bank-importer/import-errors.js";

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 import { draftTransactionsContract } from "dbu6-shared";
 import type { RowScopeAuth } from "../../bank-importer/draft-persistence.js";
-import type { CategorizationLlm } from "../../llm-engine.js";
+import type { CategorizationLlm } from "../../bank-importer/categorization/llm-categorization.js";
 import { accountsTable } from "../../schema/accounts.js";
 import { draftTransactionsTable } from "../../schema/draft-journals.js";
 import { classifyDraftTransactions } from "./classification.js";
@@ -24,9 +24,9 @@ const auth: RowScopeAuth = {
 // The mapping rules categorize everything these tests classify, so the LLM is
 // never asked.
 const llm: CategorizationLlm = {
-  engine: "nuabase",
-  caller: { ready: false, reason: "NUABASE_API_KEY is not set" },
-  maxRowsPerCall: null,
+  agent: "claude-code",
+  name: "Claude Code",
+  caller: { ready: false, reason: "not called in these tests" },
 };
 
 const tempDirs: string[] = [];
@@ -79,7 +79,7 @@ describe("classifyDraftTransactions", () => {
       ],
       gpayEnrichedCount: 1,
       categorization: {
-        engine: "nuabase",
+        agent: "claude-code",
         sent_count: 0,
         failed_count: 0,
         error: null,
@@ -188,7 +188,7 @@ function scopedAccount(
 describe("draft classification response contract", () => {
   it("carries the categorization report with the transactions", () => {
     const report = {
-      engine: "codex",
+      agent: "codex",
       sent_count: 3,
       failed_count: 3,
       error: "sample failure",

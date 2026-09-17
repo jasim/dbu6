@@ -44,8 +44,7 @@ export interface GroupSummary {
   // "Named 6 UPI payments from Google Pay", or null when none were named.
   gpay: string | null;
   // Descriptions the LLM couldn't categorize, and why; null when it answered
-  // for all of them, or when nothing new came in (a re-import's rows are
-  // categorized before the ones already in Review are dropped).
+  // for all of them, or when the import has no report to give.
   categorization: CategorizationProblem | null;
   // Collapsed under "Details": where the rows that were not new went (empty
   // when everything was new), then the facts behind the import.
@@ -209,9 +208,9 @@ export function describeGroup(
         ? `Named ${plural(enriched, "UPI payment")} from Google Pay`
         : null,
     categorization:
-      fresh > 0
-        ? describeCategorizationProblem(group.result.categorization)
-        : null,
+      group.result.categorization === null
+        ? null
+        : describeCategorizationProblem(group.result.categorization),
     breakdown: breakdown(group),
     details: details(group),
   };

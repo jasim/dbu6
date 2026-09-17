@@ -1,6 +1,6 @@
 import type { AccountKind, DatedBalance, DateSpan } from "dbu6-shared";
-import { categorizationLlm } from "../llm-engine.js";
 import { userConfigDir } from "../user-data.js";
+import type { CategorizationLlm } from "./categorization/llm-categorization.js";
 import type { Account } from "./domain/Account.js";
 import { unsafeAsChrono } from "./domain/Chrono.js";
 import { enrichWithGPayHtml } from "./domain/GPayIndex.js";
@@ -33,6 +33,9 @@ export interface ImportOptions {
   baseAccount: Account;
   accountKind: AccountKind;
   customMappingsFilenames: string[];
+  // Where categorization runs. The route resolves it, so nothing in the
+  // pipeline reaches for the process's engine.
+  llm: CategorizationLlm;
   // Path to a staged Google Pay Takeout HTML export. When set, withdrawals
   // that survive the reconciliation filter get their narration prefixed with
   // the GPay recipient before categorization. Applied after transaction keys
@@ -230,7 +233,7 @@ export async function runStatementImport(
     categorizationConfig: {
       userConfigDir: userConfigDir(),
       customMappingsFilenames: opts.customMappingsFilenames,
-      llm: await categorizationLlm(),
+      llm: opts.llm,
     },
     logPrefix: "statement-import",
     db,

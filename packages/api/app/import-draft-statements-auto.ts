@@ -28,6 +28,7 @@ import {
   recognizeStatementFile,
   savedCustomStatementParserPaths,
 } from "../bank-importer/statement-recognition.js";
+import { categorizationLlm } from "../coding-agent/categorization-llm.js";
 import { respondWithImportErrors } from "./import-error-response.js";
 import {
   filesFromField,
@@ -170,12 +171,14 @@ async function importGroups(
   auth: RowScopeAuth,
 ): Promise<AutoImportRouteResponse> {
   const imported: AutoImportGroupResult[] = [];
+  // One engine for the batch: every group categorizes on the same agent.
+  const llm = await categorizationLlm();
 
   for (const group of groups) {
     const response = await respondWithImportErrors(() =>
       runStatementImport(
         group.statements.map((one) => one.statement),
-        importOptionsFromPreset(group.preset, gpayHtmlPath),
+        importOptionsFromPreset(group.preset, gpayHtmlPath, llm),
         db,
         auth,
         group.statements.map((one) => one.file),

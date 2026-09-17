@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
-import { CODING_AGENT_LABEL, type CodingAgent } from "dbu6-shared";
+import { CODING_AGENTS, type CodingAgent } from "dbu6-shared";
 import { apiErrorMessage, apiRefusalMessage, codingAgentApi } from "../../api";
 import { LoadError } from "../../components/load-error";
 import { Screen } from "../../components/screen";
@@ -82,7 +82,7 @@ export function Settings() {
             >
               {settings.data.agents.map(({ agent, installed }) => (
                 <RadioGroupItem key={agent} value={agent} disabled={!installed}>
-                  {CODING_AGENT_LABEL[agent]}
+                  {CODING_AGENTS[agent].label}
                   {!installed && " (not installed)"}
                 </RadioGroupItem>
               ))}

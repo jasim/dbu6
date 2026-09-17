@@ -5,7 +5,7 @@ describe("describeCategorizationProblem", () => {
   it("says nothing when every call answered, or nothing was sent", () => {
     expect(
       describeCategorizationProblem({
-        engine: "claude-code",
+        agent: "claude-code",
         sent_count: 12,
         failed_count: 0,
         error: null,
@@ -13,7 +13,7 @@ describe("describeCategorizationProblem", () => {
     ).toBeNull();
     expect(
       describeCategorizationProblem({
-        engine: "nuabase",
+        agent: "claude-code",
         sent_count: 0,
         failed_count: 0,
         error: null,
@@ -24,7 +24,7 @@ describe("describeCategorizationProblem", () => {
   it("counts the descriptions a failed call left out, and why", () => {
     expect(
       describeCategorizationProblem({
-        engine: "claude-code",
+        agent: "claude-code",
         sent_count: 120,
         failed_count: 50,
         error: "claude-code timed out after 180000 ms",
@@ -38,18 +38,18 @@ describe("describeCategorizationProblem", () => {
   it("says when none could be categorized", () => {
     expect(
       describeCategorizationProblem({
-        engine: "nuabase",
+        agent: "claude-code",
         sent_count: 12,
         failed_count: 12,
-        error: "NUABASE_API_KEY is not set",
+        error: "Not logged in",
       }),
     ).toEqual({
-      text: "Couldn't categorize any of the 12 descriptions with Nuabase",
-      reason: "NUABASE_API_KEY is not set",
+      text: "Couldn't categorize any of the 12 descriptions with Claude Code",
+      reason: "Not logged in",
     });
     expect(
       describeCategorizationProblem({
-        engine: "codex",
+        agent: "codex",
         sent_count: 1,
         failed_count: 1,
         error: null,
@@ -60,10 +60,10 @@ describe("describeCategorizationProblem", () => {
     });
   });
 
-  it("names no engine when no coding agent is installed", () => {
+  it("names no agent when categorization ran on none", () => {
     expect(
       describeCategorizationProblem({
-        engine: null,
+        agent: null,
         sent_count: 12,
         failed_count: 12,
         error:

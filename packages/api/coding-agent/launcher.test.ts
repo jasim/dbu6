@@ -15,13 +15,12 @@ const PROMPT = [
 ].join("\n");
 
 describe("launcherScript", () => {
-  it("cds to the project root and runs the agent on the model, in auto mode, on the prompt file", () => {
+  it("cds to the project root and runs the binary with its options on the prompt file", () => {
     expect(
       launcherScript({
         projectRoot: "/sample/dbu6",
-        agent: "claude-code",
         binaryPath: "/sample/bin/claude",
-        model: "opus",
+        agentArgs: ["--model", "opus", "--permission-mode", "auto"],
         promptPath: "/sample/dbu6/tmp/agent-prompts/sample.md",
       }),
     ).toBe(
@@ -37,9 +36,8 @@ describe("launcherScript", () => {
   it("quotes paths with spaces and single quotes", () => {
     const script = launcherScript({
       projectRoot: "/sample/NOPII's books",
-      agent: "codex",
       binaryPath: "/sample/my bin/codex",
-      model: "gpt-5.6-terra",
+      agentArgs: ["--model", "gpt-5.6-terra", "--approve-for-me"],
       promptPath: "/sample/NOPII's books/tmp/agent-prompts/sample.md",
     });
 
@@ -83,9 +81,8 @@ describe.skipIf(process.platform === "win32")("running a launcher", () => {
       launcherPath,
       launcherScript({
         projectRoot,
-        agent: "codex",
         binaryPath,
-        model: "gpt-5.6-sol",
+        agentArgs: ["--model", "gpt-5.6-sol", "--approve-for-me"],
         promptPath,
       }),
     );

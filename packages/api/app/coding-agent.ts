@@ -1,23 +1,16 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
-import { CODING_AGENT_LABEL, codingAgentContract } from "dbu6-shared";
+import { codingAgentContract } from "dbu6-shared";
 import {
-  activeCodingAgent,
-  chosenCodingAgent,
+  chooseCodingAgent,
   codingAgentSettings,
-  detectCodingAgents,
-  NO_CODING_AGENT_MESSAGE,
-  saveChosenCodingAgent,
-} from "../coding-agent.js";
-import {
-  agentModelsNow,
-  checkAgentModelsAgain,
-} from "../coding-agent-models.js";
+  recheckCodingAgentModels,
+} from "../coding-agent/settings.js";
+import { respondWithCodingAgentErrors } from "./coding-agent-error-response.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
-// The Settings screen's coding agent. Every route detects the agents afresh,
-// so one installed or logged in since shows up on reload. Each agent's models
-// come from its last check (coding-agent-models.ts); a check still running
-// shows as `checking`, and the screen asks again until it finishes.
+// The Settings screen's coding agent. Each route checks access, makes one call
+// into coding-agent/settings.ts, and returns what it gives back; which agents
+// there are, which one dbu6 uses and what its models can do are decided there.
 
 const api = new TsRestApi<SapportaEnv>();
 
@@ -26,14 +19,7 @@ api.register(
   codingAgentContract.getCodingAgentSettings,
   async ({ c }) => {
     requireWorkflowAuth(c);
-    const [detected, chosen] = await Promise.all([
-      detectCodingAgents({ fresh: true }),
-      chosenCodingAgent(),
-    ]);
-    return {
-      status: 200,
-      body: codingAgentSettings(detected, chosen, agentModelsNow),
-    };
+    return { status: 200, body: await codingAgentSettings() };
   },
 );
 
@@ -42,24 +28,9 @@ api.register(
   codingAgentContract.chooseCodingAgent,
   async ({ c, request }) => {
     requireWorkflowAuth(c);
-    const { agent } = request.body;
-    const detected = await detectCodingAgents({ fresh: true });
-    if (
-      !detected.some((status) => status.agent === agent && status.installed)
-    ) {
-      return {
-        status: 400,
-        body: {
-          error: "agent_not_installed",
-          message: `${CODING_AGENT_LABEL[agent]} isn't installed on the machine running dbu6.`,
-        },
-      };
-    }
-    await saveChosenCodingAgent(agent);
-    return {
-      status: 200,
-      body: codingAgentSettings(detected, agent, agentModelsNow),
-    };
+    return respondWithCodingAgentErrors(() =>
+      chooseCodingAgent(request.body.agent),
+    );
   },
 );
 
@@ -68,22 +39,7 @@ api.register(
   codingAgentContract.checkCodingAgentModels,
   async ({ c }) => {
     requireWorkflowAuth(c);
-    const [detected, chosen] = await Promise.all([
-      detectCodingAgents({ fresh: true }),
-      chosenCodingAgent(),
-    ]);
-    const active = activeCodingAgent(detected, chosen);
-    if (active === null) {
-      return {
-        status: 400,
-        body: { error: "no_coding_agent", message: NO_CODING_AGENT_MESSAGE },
-      };
-    }
-    void checkAgentModelsAgain(active);
-    return {
-      status: 200,
-      body: codingAgentSettings(detected, chosen, agentModelsNow),
-    };
+    return respondWithCodingAgentErrors(recheckCodingAgentModels);
   },
 );
 

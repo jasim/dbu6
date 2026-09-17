@@ -2,20 +2,32 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 
 /*
- * The coding-agent CLIs dbu6 works with on the machine running its server:
- * Claude Code (`claude`) and Codex (`codex`), in preference order. dbu6 uses
- * one of them for everything AI: categorization runs on it, and prompts for
- * the user's agent open in it. Which one is a setting; until the user picks,
- * it is the first one installed.
+ * The coding-agent CLIs dbu6 works with on the machine running its server, in
+ * preference order. dbu6 uses one of them for everything AI: categorization
+ * runs on it, and prompts for the user's agent open in it. Which one is a
+ * setting; until the user picks, it is the first one installed.
+ *
+ * What the screens say about an agent is here; how the server runs one —
+ * its models and its session options — is in packages/api/coding-agent/.
  */
 
 export const codingAgentSchema = z.enum(["claude-code", "codex"]);
 export type CodingAgent = z.infer<typeof codingAgentSchema>;
 
-export const CODING_AGENT_LABEL = {
-  "claude-code": "Claude Code",
-  codex: "Codex",
-} as const satisfies Record<CodingAgent, string>;
+export const CODING_AGENTS = {
+  "claude-code": { label: "Claude Code", signInCommand: "claude" },
+  codex: { label: "Codex", signInCommand: "codex login" },
+} as const satisfies Record<
+  CodingAgent,
+  { label: string; signInCommand: string }
+>;
+
+/** "Claude Code or Codex": the agents dbu6 works with, named. */
+export const ANY_CODING_AGENT = codingAgentSchema.options
+  .map((agent) => CODING_AGENTS[agent].label)
+  .join(" or ");
+
+export const NO_CODING_AGENT_MESSAGE = `No coding agent found. Install ${ANY_CODING_AGENT} on the machine running dbu6.`;
 
 const c = initContract();
 
@@ -56,6 +68,19 @@ export const agentModelsSchema = z.discriminatedUnion("state", [
   }),
 ]);
 export type AgentModels = z.infer<typeof agentModelsSchema>;
+
+/**
+ * Why an agent none of whose models answered can't be used. The server says
+ * this when it refuses a prompt or a categorization; Settings says it with
+ * each model's reason under it.
+ */
+export function noAgentModelMessage(
+  agent: CodingAgent,
+  unavailable: readonly UnavailableAgentModel[],
+): string {
+  const labels = unavailable.map((model) => model.label).join(" or ");
+  return `${CODING_AGENTS[agent].label} didn't answer on ${labels}, and dbu6 doesn't use less capable models.`;
+}
 
 export const codingAgentStatusSchema = z.object({
   agent: codingAgentSchema,

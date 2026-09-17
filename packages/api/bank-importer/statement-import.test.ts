@@ -14,18 +14,9 @@ import {
   BalanceMismatchError,
   ClosingBalanceUnavailable,
 } from "./import-errors.js";
+import type { CategorizationLlm } from "./categorization/llm-categorization.js";
 import { parseAccount } from "./domain/Account.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
-
-// The engine would detect the coding agents installed on this machine, running
-// their CLIs; these tests don't categorize.
-vi.mock("../llm-engine.js", () => ({
-  categorizationLlm: async () => ({
-    engine: null,
-    caller: { ready: false, reason: "no engine in tests" },
-    maxRowsPerCall: null,
-  }),
-}));
 
 // runStatementImport resolves the user-config directory before the draft
 // import, and dataPath() refuses to run without a data directory. Nothing here
@@ -147,12 +138,21 @@ describe("runStatementImport", () => {
   });
 });
 
+// Categorization would run the coding agent's CLI; these tests import with an
+// engine that can't call anything.
+const noLlm: CategorizationLlm = {
+  agent: null,
+  name: "no engine in tests",
+  caller: { ready: false, reason: "no engine in tests" },
+};
+
 function options(): ImportOptions {
   return {
     baseAccount: parseAccount("cc:stanc"),
     accountKind: "card",
     customMappingsFilenames: [],
     gpayHtmlPath: null,
+    llm: noLlm,
   };
 }
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { abacusImportRequestSchema } from "./abacus.js";
-import { CODING_AGENT_LABEL, codingAgentSchema } from "./coding-agent.js";
+import { codingAgentSchema } from "./coding-agent.js";
 import { dateSpanSchema } from "./date-span.js";
 import { datedBalanceSchema } from "./dated-balance.js";
 import { statementImportErrorSchema } from "./import-errors.js";
@@ -16,26 +16,14 @@ export const sameAccountSkipSchema = z.object({
   account: z.string(),
 });
 
-// Where categorization's LLM runs: the coding agent dbu6 uses on the server's
-// machine, or the deprecated Nuabase gateway (LLM_ENGINE=nuabase).
-export const categorizationEngineSchema = z.enum([
-  "nuabase",
-  ...codingAgentSchema.options,
-]);
-export type CategorizationEngine = z.infer<typeof categorizationEngineSchema>;
-
-export const CATEGORIZATION_ENGINE_LABEL = {
-  nuabase: "Nuabase",
-  ...CODING_AGENT_LABEL,
-} as const satisfies Record<CategorizationEngine, string>;
-
 // How the LLM fared on the descriptions the mapping rules didn't categorize.
 // A description is a distinct narration with its direction, sent once however
 // many transactions share it. When the rules map everything, or there is
 // nothing new, `sent_count` is 0.
 export const categorizationReportSchema = z.object({
-  // Null when no coding agent is installed.
-  engine: categorizationEngineSchema.nullable(),
+  // The coding agent categorization runs on. Null when it runs on none: no
+  // agent is installed, or the server uses the deprecated Nuabase gateway.
+  agent: codingAgentSchema.nullable(),
   // Distinct descriptions that needed the LLM.
   sent_count: z.number(),
   // Of those, how many got no answer because a call failed or couldn't run.
@@ -57,7 +45,10 @@ export const importSummarySchema = z.object({
   backfilled_count: z.number(),
   same_account_skips: z.array(sameAccountSkipSchema),
   gpay_enriched_count: z.number().default(0),
-  categorization: categorizationReportSchema,
+  // Null when the import created no drafts: categorization runs before the
+  // rows already in Review or the ledger are dropped, so a report would be
+  // about rows that weren't imported.
+  categorization: categorizationReportSchema.nullable(),
 });
 
 export const balanceSourceSchema = z.enum([

@@ -55,7 +55,7 @@ function importedGroup(
       same_account_skips: [],
       gpay_enriched_count: 0,
       categorization: {
-        engine: "nuabase",
+        agent: "claude-code",
         sent_count: 6,
         failed_count: 0,
         error: null,

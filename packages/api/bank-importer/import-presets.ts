@@ -6,6 +6,7 @@ import {
   type ImportPreset,
 } from "dbu6-shared";
 import { userConfigPath } from "../user-data.js";
+import type { CategorizationLlm } from "./categorization/llm-categorization.js";
 import { parseAccount } from "./domain/Account.js";
 import type { ImportOptions } from "./statement-import.js";
 
@@ -130,11 +131,13 @@ export function resolveImportPreset(
 export function importOptionsFromPreset(
   preset: ImportPreset,
   gpayHtmlPath: string | null,
+  llm: CategorizationLlm,
 ): ImportOptions {
   return {
     baseAccount: parseAccount(preset.base_account),
     accountKind: accountKindOf(preset.is_credit_card),
     customMappingsFilenames: preset.custom_mappings_filenames,
     gpayHtmlPath,
+    llm,
   };
 }

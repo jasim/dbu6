@@ -1,10 +1,8 @@
-import { z } from "zod";
-import { categorizationReportSchema } from "dbu6-shared";
+import type { z } from "zod";
+import type { importSummarySchema } from "dbu6-shared";
 import type { Abacus } from "./abacus/index.js";
 import type { Account } from "./domain/Account.js";
-import { type Chrono, chronoEmpty } from "./domain/Chrono.js";
-import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";
-import { nothingSentReport } from "./categorization/llm-categorization.js";
+import type { Chrono } from "./domain/Chrono.js";
 import type { CategorizationConfig } from "./categorization/resolve.js";
 import { processStatement } from "./pipeline.js";
 import {
@@ -14,20 +12,12 @@ import {
   sameAccountSkipSchema,
 } from "./draft-persistence.js";
 
-export const importSummarySchema = z.object({
-  hledger_journal: z.string(),
-  transaction_count: z.number(),
-  skipped_reconciled_count: z.number(),
-  draft_transaction_count: z.number(),
-  duplicate_count: z.number(),
-  draft_duplicate_count: z.number().default(0),
-  journal_duplicate_count: z.number().default(0),
-  legacy_match_count: z.number().default(0),
-  backfilled_count: z.number(),
-  same_account_skips: z.array(sameAccountSkipSchema),
-  categorization: categorizationReportSchema,
-});
-export type ImportSummary = z.infer<typeof importSummarySchema>;
+// What an import did, as the contract states it (dbu6-shared). Everything
+// but the Google Pay count, which `runStatementImport` adds.
+export type ImportSummary = Omit<
+  z.infer<typeof importSummarySchema>,
+  "gpay_enriched_count"
+>;
 
 export interface DraftImportInput {
   baseAccount: Account;
@@ -57,19 +47,12 @@ export async function runDraftImport(
     auth,
   } = input;
 
-  // When reconciliation has consumed everything there is nothing to
-  // categorize, so the categorizer isn't asked.
+  // With nothing new, this categorizes nothing and formats an empty journal.
   const { hledgerJournal, categorized, categorization } =
-    newTransactions.length === 0
-      ? {
-          hledgerJournal: "",
-          categorized: chronoEmpty<CategorizedTransaction>(),
-          categorization: nothingSentReport(categorizationConfig.llm.engine),
-        }
-      : await processStatement(newTransactions, {
-          baseAccount,
-          categorization: categorizationConfig,
-        });
+    await processStatement(newTransactions, {
+      baseAccount,
+      categorization: categorizationConfig,
+    });
 
   const {
     rows: draftRows,
@@ -97,6 +80,8 @@ export async function runDraftImport(
     legacy_match_count: persisted.legacyMatches,
     backfilled_count: persisted.backfilled,
     same_account_skips: sameAccountSkips,
-    categorization,
+    // Categorization runs before the duplicates are dropped, so a report is
+    // only about this import when it created drafts.
+    categorization: persisted.inserted > 0 ? categorization : null,
   };
 }

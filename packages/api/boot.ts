@@ -31,9 +31,8 @@ import {
 import { loadApp } from "./app.js";
 import { publicApiRoutes } from "./app.js";
 import { buildAbility } from "./authz/ability.js";
-import { logCodingAgent } from "./coding-agent.js";
-import { checkSignedInAgentModels } from "./coding-agent-models.js";
-import { llmEngineSetting } from "./llm-engine.js";
+import { startCodingAgent } from "./coding-agent/models.js";
+import { llmEngineSetting } from "./coding-agent/categorization-llm.js";
 import { resolveRequestDataAuthority } from "./authz/request-data-authority.js";
 import { createSapportaMailer } from "./mailer.js";
 import { createProjectAuth, readProjectAuthEnv } from "./project-auth/index.js";
@@ -49,12 +48,9 @@ setProjectRoot(projectRoot);
 // A bad LLM_ENGINE stops the server here rather than at the first import.
 llmEngineSetting();
 // Detecting the coding agents and asking which of their models answer run
-// their CLIs, so neither holds up startup. Settings shows the models found.
-logCodingAgent().catch((error: unknown) => {
-  console.error("[coding-agent] detection failed:", error);
-});
-checkSignedInAgentModels().catch((error: unknown) => {
-  console.error("[coding-agent] model check failed:", error);
+// their CLIs, so neither holds up startup. Settings shows what was found.
+startCodingAgent().catch((error: unknown) => {
+  console.error("[coding-agent] startup check failed:", error);
 });
 const { apiDistDir, frontendDistDir } = fromProjectRoot(projectRoot);
 // The database is in the directory named by SAPPORTA_DATA_DIR.

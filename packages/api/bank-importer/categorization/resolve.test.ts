@@ -11,10 +11,10 @@ vi.mock("./llm-categorization.js", async (importOriginal) => ({
   categorizeViaLLM: vi.fn(),
 }));
 
-import type { CategorizationLlm } from "../../llm-engine.js";
 import { CategorizationConfigError, resolveCategories } from "./resolve.js";
 import {
   categorizeViaLLM,
+  type CategorizationLlm,
   type LLMCategorization,
 } from "./llm-categorization.js";
 import { PROMPT_TEMPLATE } from "./prompt-template.js";
@@ -23,9 +23,9 @@ const llmMock = categorizeViaLLM as unknown as ReturnType<typeof vi.fn>;
 
 // categorizeViaLLM is mocked, so the engine is only passed along.
 const llm: CategorizationLlm = {
-  engine: "nuabase",
+  agent: "claude-code",
+  name: "Claude Code",
   caller: { ready: false, reason: "not called in these tests" },
-  maxRowsPerCall: null,
 };
 
 function answered(
@@ -35,7 +35,7 @@ function answered(
   return {
     mappings,
     report: {
-      engine: "nuabase",
+      agent: "claude-code",
       sent_count: Object.keys(mappings).length,
       failed_count: 0,
       error: null,
@@ -92,7 +92,7 @@ describe("resolveCategories", () => {
         { transaction: txns[0], account: parseAccount("expenses:food") },
       ],
       report: {
-        engine: "nuabase",
+        agent: "claude-code",
         sent_count: 0,
         failed_count: 0,
         error: null,
@@ -212,7 +212,7 @@ describe("resolveCategories", () => {
       UNCATEGORIZED,
     ]);
     expect(result.report).toEqual({
-      engine: "nuabase",
+      agent: "claude-code",
       sent_count: 1,
       failed_count: 1,
       error: "sample failure",

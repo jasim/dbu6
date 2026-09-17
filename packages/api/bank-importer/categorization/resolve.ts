@@ -5,7 +5,11 @@ import type { Abacus } from "../abacus/index.js";
 import type { CategorizedTransaction } from "../domain/CategorizedTransaction.js";
 import type { Account } from "../domain/Account.js";
 import { parseAccount, UNCATEGORIZED } from "../domain/Account.js";
-import { categorizeViaLLM, nothingSentReport } from "./llm-categorization.js";
+import {
+  categorizeViaLLM,
+  nothingSentReport,
+  type CategorizationLlm,
+} from "./llm-categorization.js";
 import { PROMPT_TEMPLATE } from "./prompt-template.js";
 import {
   classifyWith,
@@ -13,7 +17,6 @@ import {
   mappingRulesSchema,
 } from "./mapping-rules.js";
 import type { CategorizationReport, StatementImportError } from "dbu6-shared";
-import type { CategorizationLlm } from "../../llm-engine.js";
 import { ApiImportError } from "../import-errors.js";
 
 export interface CategorizationConfig {
@@ -164,6 +167,13 @@ export async function resolveCategories(
   transactions: Abacus[],
   config: CategorizationConfig,
 ): Promise<ResolvedCategories> {
+  // Nothing to categorize: no mapping rules to read, and no LLM to ask. The
+  // callers that have nothing to import rely on this, rather than each
+  // deciding what an unasked LLM reports.
+  if (transactions.length === 0) {
+    return { categorized: [], report: nothingSentReport(config.llm) };
+  }
+
   // 1. Apply the authoritative executable mappings before asking the LLM.
   const classifier = await loadTransactionClassifier(config.userConfigDir);
   const { mapped, unmappedIndices } = partitionByClassifier(
@@ -173,7 +183,7 @@ export async function resolveCategories(
 
   // 2. Call LLM for unmapped transactions
   let llmMappings: Record<string, Account> = {};
-  let report = nothingSentReport(config.llm.engine);
+  let report = nothingSentReport(config.llm);
   if (unmappedIndices.length > 0) {
     const hledgerAccounts = readRequiredConfigFile(
       config.userConfigDir,

@@ -149,54 +149,63 @@ The categorization prompt template is in
 `packages/api/bank-importer/categorization/prompt-template.ts`. It is filled
 with `hledger_accounts.prompt` and the `custom_mappings_*.prompt` files named
 by the matching entry in `import-presets.json`.
-`categorization/llm-categorization.ts` is the only LLM call site. It sends the
-descriptions the mapping rules didn't categorize with `nua.list`, on the engine
-set up in `packages/api/llm-engine.ts`.
+`categorization/llm-categorization.ts` is the only LLM call site. It says what
+categorization needs of an LLM (`CategorizationLlm`), sends the descriptions
+the mapping rules didn't categorize, and reports how the calls fared; which
+engine fills that need is `packages/api/coding-agent/`'s business.
 
 ### LLM engine
 
 dbu6 uses one coding agent for everything AI: Claude Code (`claude`) or Codex
-(`codex`), installed and logged in on the machine running the server.
-`packages/api/coding-agent.ts` detects both (`detectLocalAgents` from
-`nuabase/local-agent`, kept for a minute) and uses the one chosen on the
-**Settings** screen, or the first installed, Claude Code first, until one is
-chosen. The choice is saved in `data/user-config/settings.json`. The agent's
-executable must be on the server's `PATH`.
+(`codex`), installed and logged in on the machine running the server. It is
+chosen on the **Settings** screen; until then dbu6 uses the first installed,
+Claude Code first. The choice is saved in `data/user-config/settings.json`, and
+the agent's executable must be on the server's `PATH`.
 
-- **Models.** Each agent runs on a short list of models, most capable first:
-  Claude Code on `opus` then `sonnet`, Codex on `gpt-5.6-sol` then
-  `gpt-5.6-terra`. The last is the floor: dbu6 never uses a less capable
-  model. Which ones work depends on the login and plan (Codex refuses Sol on
-  some ChatGPT accounts), so `packages/api/coding-agent-models.ts` asks each
-  model for a one-word reply at startup, for every signed-in agent, and logs
-  what it found. It checks again when a prompt or categorization needs a model
-  and none answered last time, and when **Check models again** is pressed on
-  Settings, which shows the models and why any didn't answer.
-- **Categorization** runs on it in Nuabase's headless mode (`Nua.direct` with
-  `localAgent`), on the least capable model that answered. Each call runs
-  `claude -p` or `codex exec` with no tools, billed to your own Claude or
-  ChatGPT plan rather than an API key. Calls carry at most 50 descriptions, two
-  run at a time, and nothing is cached, so reclassifying sends every
-  description again. On sample data `sonnet` chose the same accounts as the
-  gateway and was faster than `haiku`, which left more blank.
-- **Agent prompts** open in it (`packages/api/app/agent-handoff.ts`), on the
-  most capable model that answered and in the agent's auto mode
-  (`claude --permission-mode auto`, `codex --approve-for-me`): the agent's
-  own reviewer approves edits and commands, so the user isn't asked for each
-  one.
+Everything the server does with an agent is in `packages/api/coding-agent/`:
+
+| Module | What it holds |
+| --- | --- |
+| `agents.ts` | `CODING_AGENT_RUN`: each agent's models, most capable first, and its auto-mode options. Detection, the saved choice, and which agent is active. |
+| `models.ts` | Which of an agent's models answer on this machine, and when to ask again. |
+| `nuabase.ts` | The only import of `nuabase`; every call into it and every value out of it. |
+| `categorization-llm.ts` | The engine categorization runs on: the agent, or the deprecated gateway. |
+| `handoff.ts`, `launcher.ts` | Starting an agent on a prompt in a terminal. |
+| `errors.ts` | Why the server refused, as the routes state it. |
+| `settings.ts` | What the Settings screen reads and changes. |
+
+The screens' side of an agent — its name, how to sign in — is
+`codingAgentSchema` and `CODING_AGENTS` in `dbu6-shared`. Adding an agent is an
+entry in each of those two tables.
+
+- **Models.** The last model in an agent's list is the floor: dbu6 never uses a
+  less capable one. Which models work depends on the login and plan (Codex
+  refuses Sol on some ChatGPT accounts), so dbu6 asks each model for a one-word
+  reply at startup, for every signed-in agent, and logs what it found. It asks
+  again when a prompt or categorization needs a model and none answered last
+  time, and when **Check models again** is pressed on Settings, which shows the
+  models and why any didn't answer.
+- **Categorization** runs headless (`Nua.direct` with `localAgent`), on the
+  least capable model that answered, billed to your own Claude or ChatGPT plan
+  rather than an API key. Nothing is cached, so reclassifying sends every
+  description again.
+- **Agent prompts** open on the most capable model that answered, in the
+  agent's auto mode: the agent's own reviewer approves edits and commands, so
+  the user isn't asked for each one.
 
 With no agent installed, or none of its models answering, categorization
 reports why and the import goes through uncategorized, and prompts can only be
 copied.
 
 `LLM_ENGINE=nuabase` is a deprecated override that categorizes on the Nuabase
-gateway (`Nua.gateway`), paid for with `NUABASE_API_KEY`, on the provider model
-named in `llm-engine.ts`, all descriptions in one call. The app never offers
-it. Any other `LLM_ENGINE` stops the server at startup.
+gateway (`Nua.gateway`), paid for with `NUABASE_API_KEY`, all descriptions in
+one call. The app never offers it, and a report of a run on it names no agent.
+Any other `LLM_ENGINE` stops the server at startup.
 
 Categorization failures don't fail an import: the transactions stay
 uncategorized, and the import result and the Classify drafts screen say how
-many descriptions weren't categorized and why (the `categorization` report).
+many descriptions weren't categorized and why (the `categorization` report,
+which an import that created no drafts leaves out).
 
 Calls on a local agent count against your plan's limits. Use one only on an
 instance you run for yourself.

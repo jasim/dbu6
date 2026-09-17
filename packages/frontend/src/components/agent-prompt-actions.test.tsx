@@ -11,7 +11,7 @@ import {
   it,
   vi,
 } from "vitest";
-import type { AgentHandoffCapabilities } from "dbu6-shared";
+import type { AgentHandoffAvailability } from "dbu6-shared";
 import { AgentPromptActions } from "./agent-prompt-actions";
 
 /*
@@ -21,7 +21,7 @@ import { AgentPromptActions } from "./agent-prompt-actions";
 
 let host: HTMLDivElement;
 let root: Root;
-let capabilities: { status: number; body: unknown };
+let availability: { status: number; body: unknown };
 let handoff: { status: number; body: unknown };
 let posts: unknown[];
 
@@ -42,6 +42,8 @@ beforeEach(() => {
   handoff = {
     status: 200,
     body: {
+      agent: "claude-code",
+      mode: "terminal",
       prompt_path: LAUNCHER.replace(/\.command$/, ".md"),
       launcher_path: LAUNCHER,
       command: `sh '${LAUNCHER}'`,
@@ -57,7 +59,7 @@ beforeEach(() => {
         posts.push(JSON.parse(body));
         return Response.json(handoff.body, { status: handoff.status });
       }
-      return Response.json(capabilities.body, { status: capabilities.status });
+      return Response.json(availability.body, { status: availability.status });
     }),
   );
 });
@@ -68,8 +70,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function capable(body: AgentHandoffCapabilities) {
-  capabilities = { status: 200, body };
+function offers(body: AgentHandoffAvailability) {
+  availability = { status: 200, body };
+}
+
+/** The handoff the server reports for a click. */
+function handedOffIn(mode: "terminal" | "command", agent = "claude-code") {
+  handoff = { ...handoff, body: { ...(handoff.body as object), agent, mode } };
 }
 
 let client: QueryClient;
@@ -117,48 +124,36 @@ async function click(label: string) {
 
 describe("AgentPromptActions", () => {
   it("opens the agent dbu6 uses in a terminal on macOS", async () => {
-    capable({ agent: "codex", open_terminal: true, shell_command: true });
+    offers({ mode: "terminal", agent: "codex" });
     await render();
 
     expect(buttons()).toEqual(["Copy prompt", "Open in Codex"]);
   });
 
   it("offers a command where no terminal can be opened", async () => {
-    capable({ agent: "codex", open_terminal: false, shell_command: true });
+    offers({ mode: "command", agent: "codex" });
     await render();
 
     expect(buttons()).toEqual(["Copy prompt", "Command for Codex"]);
   });
 
-  it("offers only Copy prompt without an agent, on Windows, or when capabilities can't load", async () => {
-    capable({ agent: null, open_terminal: false, shell_command: false });
+  it("offers only Copy prompt when the server hands nothing off, or can't be asked", async () => {
+    offers({ mode: "none" });
     await render();
     expect(buttons()).toEqual(["Copy prompt"]);
 
-    capable({
-      agent: "claude-code",
-      open_terminal: false,
-      shell_command: false,
-    });
-    await render();
-    expect(buttons()).toEqual(["Copy prompt"]);
-
-    capabilities = { status: 403, body: { error: "Forbidden" } };
+    availability = { status: 403, body: { error: "Forbidden" } };
     await render();
     expect(buttons()).toEqual(["Copy prompt"]);
   });
 
   it("asks the server to open the agent, and says where to answer it", async () => {
-    capable({
-      agent: "claude-code",
-      open_terminal: true,
-      shell_command: true,
-    });
+    offers({ mode: "terminal", agent: "claude-code" });
     await render();
 
     await click("Open in Claude Code");
 
-    expect(posts).toEqual([{ prompt: PROMPT, open: true }]);
+    expect(posts).toEqual([{ prompt: PROMPT }]);
     expect(host.textContent).toContain(
       "Claude Code opened in a new terminal window. Answer it there.",
     );
@@ -169,16 +164,13 @@ describe("AgentPromptActions", () => {
   });
 
   it("shows the command to run after a Command click", async () => {
-    capable({
-      agent: "claude-code",
-      open_terminal: false,
-      shell_command: true,
-    });
+    offers({ mode: "command", agent: "claude-code" });
+    handedOffIn("command");
     await render();
 
     await click("Command for Claude Code");
 
-    expect(posts).toEqual([{ prompt: PROMPT, open: false }]);
+    expect(posts).toEqual([{ prompt: PROMPT }]);
     expect(host.textContent).toContain(
       "Run this in a terminal to start Claude Code on the prompt",
     );
@@ -186,12 +178,21 @@ describe("AgentPromptActions", () => {
     expect(buttons()).toContain("Copy");
   });
 
+  it("names the agent the server actually started, not the one the button named", async () => {
+    offers({ mode: "terminal", agent: "claude-code" });
+    handedOffIn("terminal", "codex");
+    await render();
+
+    await click("Open in Claude Code");
+
+    expect(host.textContent).toContain(
+      "Codex opened in a new terminal window.",
+    );
+  });
+
   it("drops the result when the prompt changes", async () => {
-    capable({
-      agent: "claude-code",
-      open_terminal: false,
-      shell_command: true,
-    });
+    offers({ mode: "command", agent: "claude-code" });
+    handedOffIn("command");
     await render();
     await click("Command for Claude Code");
     expect(host.querySelector("code")).not.toBeNull();
@@ -203,11 +204,7 @@ describe("AgentPromptActions", () => {
   });
 
   it("shows the server's message when the handoff fails", async () => {
-    capable({
-      agent: "claude-code",
-      open_terminal: true,
-      shell_command: true,
-    });
+    offers({ mode: "terminal", agent: "claude-code" });
     handoff = {
       status: 500,
       body: {

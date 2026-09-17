@@ -25,7 +25,7 @@ function group(
       same_account_skips: [],
       gpay_enriched_count: 0,
       categorization: {
-        engine: "nuabase",
+        agent: "claude-code",
         sent_count: 6,
         failed_count: 0,
         error: null,
@@ -92,7 +92,7 @@ describe("describeGroup", () => {
     const summary = describeGroup(
       group({
         categorization: {
-          engine: "claude-code",
+          agent: "claude-code",
           sent_count: 6,
           failed_count: 6,
           error: "Not logged in",
@@ -105,18 +105,13 @@ describe("describeGroup", () => {
     });
   });
 
-  it("says nothing about categorizing when nothing new came in", () => {
+  it("says nothing about categorizing when the import gives no report", () => {
     const summary = describeGroup(
       group({
         draft_transaction_count: 0,
         duplicate_count: 6,
         draft_duplicate_count: 6,
-        categorization: {
-          engine: "nuabase",
-          sent_count: 6,
-          failed_count: 6,
-          error: "NUABASE_API_KEY is not set",
-        },
+        categorization: null,
       }),
     );
     expect(summary.categorization).toBeNull();

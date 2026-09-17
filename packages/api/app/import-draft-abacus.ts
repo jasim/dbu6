@@ -16,6 +16,7 @@ import {
   type RowScopeAuth,
 } from "../bank-importer/draft-persistence.js";
 import { runStatementImport } from "../bank-importer/statement-import.js";
+import { categorizationLlm } from "../coding-agent/categorization-llm.js";
 import { respondWithImportErrors } from "./import-error-response.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
@@ -64,6 +65,7 @@ export async function importAbacusStatement(
   console.log(
     `[abacus-import] ${statement.rows.length} row(s) from ${JSON.stringify(sourceName)} into ${base_account}`,
   );
+  const llm = await categorizationLlm();
   const response = await respondWithImportErrors(() => {
     const balanced = abacusStatementFromJson(statement);
     verifyDeclaredBalances(balanced);
@@ -74,6 +76,7 @@ export async function importAbacusStatement(
         accountKind: accountKindOf(is_credit_card),
         customMappingsFilenames: [],
         gpayHtmlPath: null,
+        llm,
       },
       db,
       auth,

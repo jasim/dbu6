@@ -150,7 +150,8 @@ The response is JSON; read it and tell the user what happened in plain words.
   account's last confirmed balance, and `hledger_journal` the draft entries.
   `categorization` says how the LLM fared on the descriptions the mapping
   rules didn't categorize: when `failed_count` is above 0, tell the user that
-  many were left uncategorized and quote `error`.
+  many were left uncategorized and quote `error`. It is null when the import
+  created no drafts.
   Show a credit card's balances as amounts owed. Point the user to Draft entries
   in the app to review the new rows.
 - **400 with `code: "BAD_REQUEST"`**: the request does not match the contract;

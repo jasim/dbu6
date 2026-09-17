@@ -2,34 +2,62 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
 import {
-  CODING_AGENT_LABEL,
+  CODING_AGENTS,
   codingAgentSchema,
-  type AgentModels,
+  type AgentModel,
   type CodingAgent,
-  type CodingAgentSettings,
 } from "dbu6-shared";
-import { detectLocalAgents } from "nuabase/local-agent";
-import { userConfigPath } from "./user-data.js";
+import { userConfigPath } from "../user-data.js";
+import {
+  detectAgents,
+  type DetectedAgent,
+  type InstalledAgent,
+} from "./nuabase.js";
 
 /*
- * The coding agent dbu6 uses for everything AI: categorization runs on it, and
- * prompts for the user's agent open in it. It is the agent chosen in Settings
- * when that one is installed, else the first installed one, Claude Code
- * first. The choice lives in data/user-config/settings.json: the agent belongs
- * to this machine, not to a workspace.
+ * Which coding agent dbu6 uses for everything AI, and how it runs each one.
+ * It is the agent chosen in Settings when that one is installed, else the
+ * first installed one, Claude Code first. The choice lives in
+ * data/user-config/settings.json: the agent belongs to this machine, not to a
+ * workspace.
+ *
+ * What the screens say about an agent — its name, how to sign in — is in
+ * dbu6-shared's CODING_AGENTS. Both are keyed by the same agents, so adding
+ * one is an entry in each.
  */
 
-// What this module reads of nuabase's LocalAgentStatus. Its published
-// declarations don't resolve under NodeNext, so the import is untyped.
-export type DetectedAgent =
-  | { agent: CodingAgent; installed: false; loggedIn: false }
-  | {
-      agent: CodingAgent;
-      installed: true;
-      loggedIn: boolean;
-      binaryPath: string;
-    };
-export type InstalledAgent = Extract<DetectedAgent, { installed: true }>;
+/**
+ * How dbu6 runs each agent.
+ *
+ * `models` are the agent's models, most capable first; the last is a floor, so
+ * dbu6 never runs the agent on a less capable model. Which of them answer
+ * depends on the user's login and plan, which models.ts checks.
+ *
+ * `autoModeArgs` put an interactive session in the agent's auto mode: its own
+ * reviewer approves edits and commands and stops risky ones, so the user
+ * answers questions but isn't asked for every step. Codex's auto review keeps
+ * it in the workspace-write sandbox. Headless categorization has nothing to
+ * approve and takes none of these.
+ */
+export const CODING_AGENT_RUN = {
+  "claude-code": {
+    models: [
+      { model: "opus", label: "Claude Opus" },
+      { model: "sonnet", label: "Claude Sonnet" },
+    ],
+    autoModeArgs: ["--permission-mode", "auto"],
+  },
+  codex: {
+    models: [
+      { model: "gpt-5.6-sol", label: "GPT-5.6 Sol" },
+      { model: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
+    ],
+    autoModeArgs: ["--approve-for-me"],
+  },
+} as const satisfies Record<
+  CodingAgent,
+  { models: readonly AgentModel[]; autoModeArgs: readonly string[] }
+>;
 
 const DETECTION_TTL_MS = 60_000;
 
@@ -46,7 +74,7 @@ export function detectCodingAgents({
 }: { fresh?: boolean } = {}): Promise<DetectedAgent[]> {
   const now = Date.now();
   if (fresh || detection === null || now - detection.at >= DETECTION_TTL_MS) {
-    const agents: Promise<DetectedAgent[]> = detectLocalAgents();
+    const agents = detectAgents();
     agents.catch(() => {
       if (detection?.agents === agents) detection = null;
     });
@@ -89,35 +117,22 @@ export async function saveChosenCodingAgent(agent: CodingAgent): Promise<void> {
   );
 }
 
-export const NO_CODING_AGENT_MESSAGE =
-  "No coding agent found. Install Claude Code or Codex on the machine running dbu6.";
+/** Pure: the agents that are installed, in preference order. */
+export function installedCodingAgents(
+  detected: readonly DetectedAgent[],
+): InstalledAgent[] {
+  return detected.filter(
+    (status): status is InstalledAgent => status.installed,
+  );
+}
 
 /** Pure: the chosen agent when it is installed, else the first installed. */
 export function activeCodingAgent(
   detected: readonly DetectedAgent[],
   chosen: CodingAgent | null,
 ): InstalledAgent | null {
-  const installed = detected.filter(
-    (status): status is InstalledAgent => status.installed,
-  );
+  const installed = installedCodingAgents(detected);
   return installed.find((a) => a.agent === chosen) ?? installed[0] ?? null;
-}
-
-/** What the Settings screen shows, with each agent's models as `models` has them. */
-export function codingAgentSettings(
-  detected: readonly DetectedAgent[],
-  chosen: CodingAgent | null,
-  models: (status: DetectedAgent) => AgentModels,
-): CodingAgentSettings {
-  return {
-    agents: detected.map((status) => ({
-      agent: status.agent,
-      installed: status.installed,
-      logged_in: status.loggedIn,
-      models: models(status),
-    })),
-    active: activeCodingAgent(detected, chosen)?.agent ?? null,
-  };
 }
 
 /** The agent dbu6 uses right now, or null when none is installed. */
@@ -129,12 +144,12 @@ export async function currentCodingAgent(): Promise<InstalledAgent | null> {
   return activeCodingAgent(detected, chosen);
 }
 
-/** Detects the agents at startup and logs the one dbu6 will use. */
+/** Logs the agent dbu6 will use, for startup. */
 export async function logCodingAgent(): Promise<void> {
   const agent = await currentCodingAgent();
   console.log(
     agent === null
       ? "[coding-agent] no coding agent installed: categorization and agent prompts are off"
-      : `[coding-agent] using ${CODING_AGENT_LABEL[agent.agent]} (${agent.binaryPath})`,
+      : `[coding-agent] using ${CODING_AGENTS[agent.agent].label} (${agent.binaryPath})`,
   );
 }

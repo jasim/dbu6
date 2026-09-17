@@ -12,10 +12,7 @@ export {
 export {
   importDraftsContract,
   importSummarySchema,
-  categorizationEngineSchema,
   categorizationReportSchema,
-  CATEGORIZATION_ENGINE_LABEL,
-  type CategorizationEngine,
   type CategorizationReport,
   statementImportResultSchema,
   sameAccountSkipSchema,
@@ -84,7 +81,13 @@ export {
   type StatementAccount,
   type StatementAccountKind,
 } from "./statement-account.js";
-export { draftTransactionsContract } from "./draft-transactions.js";
+export {
+  draftTransactionsContract,
+  draftClassificationSchema,
+  gpayDraftClassificationSchema,
+  type DraftClassification,
+  type GPayDraftClassification,
+} from "./draft-transactions.js";
 export {
   agentModelSchema,
   agentModelsSchema,
@@ -93,7 +96,10 @@ export {
   codingAgentSettingsSchema,
   codingAgentStatusSchema,
   chooseCodingAgentRequestSchema,
-  CODING_AGENT_LABEL,
+  noAgentModelMessage,
+  ANY_CODING_AGENT,
+  CODING_AGENTS,
+  NO_CODING_AGENT_MESSAGE,
   unavailableAgentModelSchema,
   type AgentModel,
   type AgentModels,
@@ -104,11 +110,13 @@ export {
 } from "./coding-agent.js";
 export {
   agentHandoffContract,
-  agentHandoffCapabilitiesSchema,
+  agentHandoffAvailabilitySchema,
+  agentHandoffModeSchema,
   agentHandoffRequestSchema,
   agentHandoffSchema,
   agentHandoffErrorSchema,
-  type AgentHandoffCapabilities,
+  type AgentHandoffAvailability,
+  type AgentHandoffMode,
   type AgentHandoffRequest,
   type AgentHandoff,
   type AgentHandoffErrorBody,

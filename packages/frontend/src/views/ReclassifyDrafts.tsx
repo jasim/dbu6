@@ -9,7 +9,11 @@ import {
 } from "lucide-react";
 import { getApiBase } from "@sapporta/frontend/platform";
 import { AppPage } from "@sapporta/frontend/shell";
-import type { CategorizationReport } from "dbu6-shared";
+import {
+  gpayDraftClassificationSchema,
+  type CategorizationReport,
+  type DraftClassification,
+} from "dbu6-shared";
 import { draftTransactionsApi } from "../api";
 import { Button } from "../components/ui/button";
 import { AccountImportInputs } from "./AccountImportInputs";
@@ -29,18 +33,10 @@ interface DraftRow {
   account_id: number | null;
 }
 
-interface ClassifyResult {
-  id: number;
-  narration: string;
-  account_id: number | null;
-  account_name: string | null;
-}
-
-interface GPayClassifyResult {
-  transactions: ClassifyResult[];
-  gpay_enriched_count: number;
-  categorization: CategorizationReport;
-}
+// Both classify routes answer with the same transactions and report; only the
+// Google Pay one is called through `fetch`, for the upload, so its answer is
+// parsed against the contract here.
+type ClassifyResult = DraftClassification["transactions"][number];
 
 export function ReclassifyDrafts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -135,7 +131,9 @@ export function ReclassifyDrafts() {
               : `HTTP ${response.status}`;
           throw new Error(message);
         }
-        const result = (await response.json()) as GPayClassifyResult;
+        const result = gpayDraftClassificationSchema.parse(
+          await response.json(),
+        );
         updated = result;
         setGpayEnrichedCount(result.gpay_enriched_count);
         setCategorization(result.categorization);

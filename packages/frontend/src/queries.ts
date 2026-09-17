@@ -85,13 +85,13 @@ export const codingAgentSettingsQuery = queryOptions({
 });
 
 /**
- * Which coding agent a prompt can be opened in. It changes only when an agent
- * is installed or chosen in Settings, which refreshes it, so it is read once
- * in a while, not on every screen.
+ * How a prompt would be handed off, and to which agent. It changes only when
+ * an agent is installed or chosen in Settings, which refreshes it, so it is
+ * read once in a while, not on every screen.
  */
-export const agentHandoffCapabilitiesQuery = queryOptions({
+export const agentHandoffAvailabilityQuery = queryOptions({
   queryKey: [...CODING_AGENT_KEY, "handoff"],
-  queryFn: () => agentHandoffApi.getAgentHandoffCapabilities(),
+  queryFn: () => agentHandoffApi.getAgentHandoffAvailability(),
   ...FRESH_QUERY,
   staleTime: 10 * 60_000,
 });

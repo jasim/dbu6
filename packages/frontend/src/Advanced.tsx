@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useSchemaStore } from "@sapporta/frontend/schema";
 import { usePageTitle } from "@sapporta/frontend/shell";
+import { ANY_CODING_AGENT } from "dbu6-shared";
 import { LinkCard, type LinkCardProps } from "./components/link-card";
 
 const importTools: readonly LinkCardProps[] = [
@@ -97,7 +98,7 @@ export function Advanced() {
           >
             <LinkCard
               label="Coding agent"
-              description="Choose Claude Code or Codex for categorization and agent prompts."
+              description={`Choose ${ANY_CODING_AGENT}: the agent dbu6 runs its AI on.`}
               to="/settings"
               icon={Settings}
             />

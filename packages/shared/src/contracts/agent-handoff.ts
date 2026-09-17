@@ -4,38 +4,41 @@ import { codingAgentSchema } from "./coding-agent.js";
 
 /*
  * Handing a prompt to the coding agent dbu6 uses, on the machine running the
- * server. The server writes the prompt to a file under `tmp/agent-prompts/`
- * with a small launcher script beside it, which starts the agent
- * interactively in the project root with the prompt as its first message. On macOS the server can
- * open the launcher in a new terminal window; elsewhere the user runs
- * `command` in a terminal of their own.
+ * server, as an interactive session the user carries on in a terminal. The
+ * server decides how: on macOS it opens a terminal window running the agent on
+ * the prompt; on other POSIX systems it gives a command to run in one.
  */
 
 const c = initContract();
 
-export const agentHandoffCapabilitiesSchema = z.object({
-  /**
-   * The agent a prompt opens in: the one dbu6 uses (chosen in Settings), or
-   * null when none is installed.
-   */
-  agent: codingAgentSchema.nullable(),
-  /** The server can open a terminal window running the launcher (macOS). */
-  open_terminal: z.boolean(),
-  /** The server can write a launcher for the user to run (not on Windows). */
-  shell_command: z.boolean(),
-});
-export type AgentHandoffCapabilities = z.infer<
-  typeof agentHandoffCapabilitiesSchema
+/**
+ * terminal: the server opens a terminal window running the agent.
+ * command: the user runs the handoff's `command` in a terminal of their own.
+ */
+export const agentHandoffModeSchema = z.enum(["terminal", "command"]);
+export type AgentHandoffMode = z.infer<typeof agentHandoffModeSchema>;
+
+/**
+ * How a prompt would be handed off now, and to which agent. `none` when no
+ * coding agent is installed, or on Windows, which has no launcher.
+ */
+export const agentHandoffAvailabilitySchema = z.union([
+  z.object({ mode: z.literal("none") }),
+  z.object({ mode: agentHandoffModeSchema, agent: codingAgentSchema }),
+]);
+export type AgentHandoffAvailability = z.infer<
+  typeof agentHandoffAvailabilitySchema
 >;
 
 export const agentHandoffRequestSchema = z.object({
   prompt: z.string().min(1).max(256_000),
-  /** Open the launcher in a new terminal window as well as writing it. */
-  open: z.boolean(),
 });
 export type AgentHandoffRequest = z.infer<typeof agentHandoffRequestSchema>;
 
+/** A handoff the server made: the agent it started, and how. */
 export const agentHandoffSchema = z.object({
+  agent: codingAgentSchema,
+  mode: agentHandoffModeSchema,
   prompt_path: z.string(),
   launcher_path: z.string(),
   /** Runs the launcher from any terminal: `sh '<launcher_path>'`. */
@@ -52,12 +55,12 @@ export const agentHandoffErrorSchema = z
 export type AgentHandoffErrorBody = z.infer<typeof agentHandoffErrorSchema>;
 
 export const agentHandoffContract = c.router({
-  getAgentHandoffCapabilities: c.query({
+  getAgentHandoffAvailability: c.query({
     method: "GET",
     path: "/agent-handoff",
-    summary: "Which coding agent a prompt can be handed to on this machine",
+    summary: "Which coding agent a prompt would be handed to, and how",
     responses: {
-      200: agentHandoffCapabilitiesSchema,
+      200: agentHandoffAvailabilitySchema,
       403: agentHandoffErrorSchema,
     },
   }),
@@ -65,7 +68,7 @@ export const agentHandoffContract = c.router({
     method: "POST",
     path: "/agent-handoff",
     summary:
-      "Write a prompt and a launcher that starts a coding agent on it, and optionally open it in a terminal",
+      "Write a prompt and a launcher that starts the coding agent on it, and open it in a terminal where the server can",
     body: agentHandoffRequestSchema,
     responses: {
       200: agentHandoffSchema,

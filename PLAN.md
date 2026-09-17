@@ -10,12 +10,28 @@
 - **Changed 2026-09-17, later:** each agent's models are checked at startup, with a floor of
   Claude Sonnet / GPT-5.6 Terra, and prompts open in auto mode; this supersedes §3.2
   decisions 1 and 11 and the categorization models in the log (see the last log entry).
+- **Changed 2026-09-17, later still:** a legibility review moved every module named in this
+  plan into `packages/api/coding-agent/` and changed the shapes it describes — see
+  "Where this plan's code lives now" below. The decisions still hold; the paths and a few
+  contract fields don't.
 - **Next:** A3's hands-on terminal checks on macOS (an owner's check: they open real
   terminal windows and need someone to answer the agent), then the follow-ups in §5 and §6.
 
 This file stands on its own. A coding agent should be able to pick up any step using only
 this file, the dbu6 repository, and the Nuabase checkout named in §1.4. You don't need the
 conversation that produced it.
+
+**Where this plan's code lives now.** `packages/api/coding-agent.ts`, `coding-agent-models.ts`,
+`llm-engine.ts` and `agent-handoff/launcher.ts` are gone; their contents are in
+`packages/api/coding-agent/` (`agents.ts`, `models.ts`, `nuabase.ts`, `categorization-llm.ts`,
+`handoff.ts`, `launcher.ts`, `errors.ts`, `settings.ts`). Each agent's models and auto-mode
+options are one table, `CODING_AGENT_RUN` in `agents.ts`; its name and sign-in command are
+`CODING_AGENTS` in `dbu6-shared`. `nuabase.ts` is the only module that imports `nuabase`.
+The handoff contract now answers with how a prompt would be handed off
+(`{ mode: "none" | "terminal" | "command" }`) and what the server did with it
+(`{ agent, mode, … }`), instead of capabilities the browser posts back; the categorization
+report names an `agent` rather than an engine, and an import that created no drafts has
+none. See DEVELOPMENT.md's "LLM engine".
 
 ---
 
