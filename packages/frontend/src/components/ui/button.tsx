@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@sapporta/ui/cn";
 
 /*
- * dbu6's button (PLAN.md §4.6). Four styles, three sizes, and a waiting
+ * dbu6's button (PLAN.md §4.6). Five styles, three sizes, and a waiting
  * state. One primary button per screen.
  */
 export const buttonVariants = cva(
@@ -23,6 +23,12 @@ export const buttonVariants = cva(
         /** Rare: deleting a draft, removing an account. */
         destructive:
           "bg-destructive text-destructive-foreground hover:brightness-95",
+        /**
+         * Assist: hands a prompt to the coding agent. The only violet
+         * button, and the only filled one that isn't the screen's primary.
+         */
+        assist:
+          "bg-assist text-assist-foreground shadow-pill hover:bg-assist-hover",
       },
       size: {
         /** 48px: page-level actions. */

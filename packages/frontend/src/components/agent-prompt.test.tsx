@@ -12,11 +12,12 @@ import {
   vi,
 } from "vitest";
 import type { AgentHandoffAvailability } from "dbu6-shared";
-import { AgentPromptActions } from "./agent-prompt-actions";
+import { AgentPrompt } from "./agent-prompt";
 
 /*
- * Copy prompt always shows; an Open or Command button shows for the agent
- * the server can start, and a click shows what happened.
+ * The panel says what the prompt gets done and that the button opens a
+ * terminal. Copy prompt always shows; an Open or Command button shows for
+ * the agent the server can start, and a click shows what happened.
  */
 
 let host: HTMLDivElement;
@@ -26,6 +27,7 @@ let handoff: { status: number; body: unknown };
 let posts: unknown[];
 
 const PROMPT = "Build a parser for NOPII sample statement 050505.";
+const TITLE = "Build a reader for this file's layout";
 const LAUNCHER = "/sample/dbu6/tmp/agent-prompts/sample-claude-code.command";
 
 beforeAll(() => {
@@ -92,7 +94,7 @@ async function rerender(prompt: string) {
       createElement(
         QueryClientProvider,
         { client },
-        createElement(AgentPromptActions, { prompt }),
+        createElement(AgentPrompt, { title: TITLE, prompt }),
       ),
     );
   });
@@ -122,19 +124,45 @@ async function click(label: string) {
   await settle();
 }
 
-describe("AgentPromptActions", () => {
+describe("AgentPrompt", () => {
+  it("says what the prompt gets done and that it opens a terminal", async () => {
+    offers({ mode: "terminal", agent: "claude-code" });
+    await render();
+
+    expect(host.querySelector("h3")?.textContent).toBe(TITLE);
+    expect(host.textContent).toContain("AI assisted");
+    expect(host.textContent).toContain(
+      "Opens Claude Code in a new terminal window, on this prompt.",
+    );
+    expect(host.textContent).toContain(
+      "Or copy it and paste it into an agent of your own.",
+    );
+    expect(host.querySelector("pre")?.textContent).toBe(PROMPT);
+  });
+
+  it("asks for a copy where no agent can be started", async () => {
+    offers({ mode: "none" });
+    await render();
+
+    expect(host.querySelector("h3")?.textContent).toBe(TITLE);
+    expect(host.textContent).toContain(
+      "Copy this prompt into your coding agent",
+    );
+    expect(host.textContent).not.toContain("terminal window");
+  });
+
   it("opens the agent dbu6 uses in a terminal on macOS", async () => {
     offers({ mode: "terminal", agent: "codex" });
     await render();
 
-    expect(buttons()).toEqual(["Copy prompt", "Open in Codex"]);
+    expect(buttons()).toEqual(["Open in Codex", "Copy prompt"]);
   });
 
   it("offers a command where no terminal can be opened", async () => {
     offers({ mode: "command", agent: "codex" });
     await render();
 
-    expect(buttons()).toEqual(["Copy prompt", "Command for Codex"]);
+    expect(buttons()).toEqual(["Command for Codex", "Copy prompt"]);
   });
 
   it("offers only Copy prompt when the server hands nothing off, or can't be asked", async () => {

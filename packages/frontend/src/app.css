@@ -126,6 +126,16 @@
   --attention-hover: #e4edf8; /* NeedsCategory hover */
   --attention-surface: #fbfdff; /* the current step card */
 
+  /* Assist: violet, only for the coding-agent prompts the app hands over.
+     Nothing else in the app is violet, so an AI-assisted prompt is
+     recognisable before a word of it is read. */
+  --assist: #5f3dc4;
+  --assist-bg: #f6f4fd;
+  --assist-border: #cdc3ea;
+  --assist-ink: #4a3593;
+  --assist-hover: #503098; /* the assist button's hover fill */
+  --assist-foreground: #ffffff;
+
   /* Waiting: a step or action that can't run yet */
   --waiting-bg: #fafbfb;
   --waiting-border: #d9dbdb;
@@ -249,6 +259,12 @@
   --color-attention-ink: var(--attention-ink);
   --color-attention-hover: var(--attention-hover);
   --color-attention-surface: var(--attention-surface);
+  --color-assist: var(--assist);
+  --color-assist-bg: var(--assist-bg);
+  --color-assist-border: var(--assist-border);
+  --color-assist-ink: var(--assist-ink);
+  --color-assist-hover: var(--assist-hover);
+  --color-assist-foreground: var(--assist-foreground);
   --color-waiting-bg: var(--waiting-bg);
   --color-waiting-border: var(--waiting-border);
   --color-waiting-fg: var(--waiting-fg);

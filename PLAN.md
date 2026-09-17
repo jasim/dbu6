@@ -322,7 +322,8 @@ Codex, with Codex's binary path.
 - **Old files:** none are deleted.
 
 **Frontend**: `packages/frontend/src/components/agent-prompt-actions.tsx` replaces
-`components/copy-prompt-button.tsx` (delete the old file once nothing imports it).
+`components/copy-prompt-button.tsx` (delete the old file once nothing imports it). It
+later became the whole panel, `components/agent-prompt.tsx` (§6, 2026-09-18).
 
 - **Props:** `{ prompt: string }`.
 - **Data:** fetches `GET /agent-handoff` with react-query under one key and a long
@@ -760,3 +761,17 @@ Against scratch data (§0, rule 5), with `pnpm seed`:
   - **Follow-ups:** a model that answered at startup but fails later (a usage limit, say) is
     not dropped until **Check models again** or a restart. Nuabase retries Claude Code's
     unknown-model error three times, so checking a model that doesn't exist takes about 10 s.
+- **2026-09-18, one panel for every agent prompt** (asked for outside the plan): the four
+  places that showed a prompt (Import problem cards, Import freeform step 2, Review's
+  Duplicates and Balance checks) now render `components/agent-prompt.tsx`, which carries the
+  whole block: an "AI assisted" eyebrow, a `title` saying what the prompt gets done, a line
+  saying the button opens the agent in a terminal, the buttons, a quiet note about pasting it
+  into an agent of your own, and the preview `<pre>` behind a disclosure. The panel is violet
+  (`--assist-*` in `app.css`, `variant="assist"` on `Button`, `tone="assist"` on
+  `Disclosure`), the app's only violet, so an AI-assisted prompt is recognisable before it is
+  read. Each import card's title lives with its prompt in `describeProblems.ts`
+  (`ProblemPrompt`, was `AgentPrompt`). The card no longer hides the prompt behind a
+  disclosure. **Checked** in a browser against a scratch API, Vite and data directory
+  (ports 2396/2395, `pnpm seed`): the freeform screen and an unreadable file's problem card.
+  A stray click on **Open in Claude Code** opened a Terminal window on the owner's desktop;
+  the session left the repository unchanged.

@@ -57,7 +57,10 @@ export function DuplicatesTab() {
           })
         }
       />
-      <AskYourAgent prompt={duplicatesPrompt(detail)} />
+      <AskYourAgent
+        title="Find out whether each pair is one transaction or two"
+        prompt={duplicatesPrompt(detail)}
+      />
     </ReportTab>
   );
 }

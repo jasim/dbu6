@@ -62,7 +62,10 @@ export function BalanceChecksTab() {
           })
         }
       />
-      <AskYourAgent prompt={balanceChecksPrompt(detail)} />
+      <AskYourAgent
+        title="Find out why the drafts miss the statement's balance"
+        prompt={balanceChecksPrompt(detail)}
+      />
     </ReportTab>
   );
 }

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
-import { AgentPromptActions } from "../components/agent-prompt-actions";
-import { Disclosure } from "../components/disclosure";
+import { AgentPrompt } from "../components/agent-prompt";
 import { LoadError } from "../components/load-error";
 import { ReportResultBody, useReportResult } from "../reports/shared";
 
@@ -58,27 +57,20 @@ export function AccountReport({
   );
 }
 
-export function AskYourAgent({ prompt }: { prompt: string }) {
+/** The tab's prompt, under its report. */
+export function AskYourAgent({
+  title,
+  prompt,
+}: {
+  title: string;
+  prompt: string;
+}) {
   return (
-    <section className="mt-8 max-w-[760px]">
-      <h2 className="text-subheading text-foreground">
-        Ask your coding agent to find out
-      </h2>
-      <p className="mt-1.5 text-body text-ink-soft">
-        Open this prompt in your coding agent, or copy it into the agent running
-        in the app's repository. It lists every row above and says how to read
-        the rest.
-      </p>
-      <div className="mt-3">
-        <AgentPromptActions prompt={prompt} />
-      </div>
-      <div className="mt-2">
-        <Disclosure summary="Preview the prompt">
-          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control bg-muted p-3 font-mono text-meta">
-            {prompt}
-          </pre>
-        </Disclosure>
-      </div>
-    </section>
+    <div className="mt-8 max-w-[760px]">
+      <AgentPrompt title={title} prompt={prompt}>
+        It lists every row above and says how to read the rest. Nothing changes
+        in your books until you tell the agent to change it.
+      </AgentPrompt>
+    </div>
   );
 }

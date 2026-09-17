@@ -35,9 +35,12 @@ export type ProblemAction =
   | { kind: "keep-only-files"; label: string; fileNames: string[] }
   | { kind: "link"; label: string; to: string };
 
-export interface AgentPrompt {
+// What a card hands to the user's coding agent: the prompt, the one thing
+// it gets done (the panel's title), and what the user does once the agent
+// reports back.
+export interface ProblemPrompt {
+  title: string;
   prompt: string;
-  // What the user does once the agent reports back.
   afterwards: string;
 }
 
@@ -64,7 +67,7 @@ export interface Problem {
   // Plain advice the user can act on without the app's help.
   steps: string[];
   actions: ProblemAction[];
-  agent: AgentPrompt | null;
+  agent: ProblemPrompt | null;
   // The server's own words, for the disclosure at the bottom of the card.
   technical: string | null;
 }
@@ -170,6 +173,7 @@ function planProblems(
             },
           ],
           agent: {
+            title: "Build a reader for this file's layout",
             prompt: unrecognizedPrompt(row),
             afterwards: REDROP_FILE,
           },
@@ -200,6 +204,7 @@ function planProblems(
             },
           ],
           agent: {
+            title: "Tell the two readers apart",
             prompt: ambiguousPrompt(row),
             afterwards: RETRY_FROM_SCREEN,
           },
@@ -253,6 +258,7 @@ function unresolvedProblem(
         why: "The app could read the statement, but it doesn't know which of your accounts it belongs to. Each account that receives statements needs to be set up once.",
         steps: [],
         agent: {
+          title: "Set up the account these statements belong to",
           prompt: noPresetPrompt(row),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -273,6 +279,7 @@ function unresolvedProblem(
         why: `${candidates} ${row.candidate_preset_names.length === 1 ? "is" : "are"} set up to check the account number printed on the statement, but the reader didn't report one. This needs a small fix to the reader or to the account's setup.`,
         steps: [],
         agent: {
+          title: "Make the reader report the account number",
           prompt: identifierRequiredPrompt(row),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -301,6 +308,7 @@ function unresolvedProblem(
           },
         ],
         agent: {
+          title: "Set up the account this statement is for",
           prompt: identifierMismatchPrompt(row),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -350,6 +358,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
             ]
           : [],
         agent: {
+          title: "Find the row that doesn't add up",
           prompt: balanceMismatchPrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -377,6 +386,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
         ],
         why: "Almost always a row in between was read wrongly by the reader.",
         agent: {
+          title: "Find the row that doesn't add up",
           prompt: balanceMismatchPrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -430,6 +440,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
           },
         ],
         agent: {
+          title: "Find the period missing between these files",
           prompt: boundaryGapPrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -465,6 +476,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
           fileNames: [part],
         })),
         agent: {
+          title: "Work out which file is right for that day",
           prompt: disagreementPrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -495,6 +507,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
         facts: [{ label: "Detail", value: detail, face: "words" }],
         why: "Its own opening or closing balance doesn't match its rows. Either the bank's export is broken or the reader misread it.",
         agent: {
+          title: "Find out whether the file or the reader is wrong",
           prompt: partInvalidPrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -516,6 +529,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
         ],
         why: "The statement has rows on that day, but none of them shows the confirmed balance, so the app can't tell which transactions are new. Either your books and the bank have drifted apart, or the statement is missing a row on that day.",
         agent: {
+          title: "Line this statement up with your books",
           prompt: reconciliationPrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -526,6 +540,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
         verdict: "The app needs a starting balance for this account.",
         why: "This statement doesn't print running balances or an opening balance, and your books don't have a confirmed balance for this account yet. This only happens the first time an account is imported.",
         agent: {
+          title: "Set this account's starting balance",
           prompt: openingBalancePrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -536,6 +551,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
         verdict: "The app needs the closing balance for this card.",
         why: "The reader didn't find a total amount owed on this card statement, so the app can't check the import against the bank. Usually the statement does print one and the reader missed it.",
         agent: {
+          title: "Make the reader find the amount owed",
           prompt: closingBalancePrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -548,6 +564,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
         facts: [{ label: "Day", value: formatDate(refusal.date) }],
         why: "The statement's closing balance for that day doesn't match the balance already recorded as confirmed in your books.",
         agent: {
+          title: "Find out which of the two balances is right",
           prompt: genericFailurePrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
@@ -560,6 +577,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
         verdict: "The import stopped with an unexpected error.",
         why: refusal.message,
         agent: {
+          title: "Investigate this error and propose a fix",
           prompt: genericFailurePrompt(refusal),
           afterwards: RETRY_FROM_SCREEN,
         },
