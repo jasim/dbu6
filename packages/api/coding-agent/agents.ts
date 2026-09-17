@@ -145,8 +145,7 @@ export async function currentCodingAgent(): Promise<InstalledAgent | null> {
 }
 
 /** Logs the agent dbu6 will use, for startup. */
-export async function logCodingAgent(): Promise<void> {
-  const agent = await currentCodingAgent();
+export function logCodingAgent(agent: InstalledAgent | null): void {
   console.log(
     agent === null
       ? "[coding-agent] no coding agent installed: categorization and agent prompts are off"

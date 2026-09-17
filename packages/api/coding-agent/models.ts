@@ -6,7 +6,7 @@ import {
 } from "dbu6-shared";
 import {
   CODING_AGENT_RUN,
-  detectCodingAgents,
+  currentCodingAgent,
   logCodingAgent,
 } from "./agents.js";
 import {
@@ -20,7 +20,7 @@ import {
  * Codex refuses GPT-5.6 Sol on some ChatGPT accounts, so dbu6 asks each model
  * for a one-word reply:
  *
- * - at startup, for every signed-in agent;
+ * - at startup, for the agent dbu6 will use;
  * - when Settings shows an agent that hasn't been checked;
  * - when a prompt or categorization needs a model and none answered last time
  *   (the agent may be signed in now);
@@ -142,17 +142,15 @@ export function agentModelsNow(status: DetectedAgent): AgentModels {
 }
 
 /**
- * Startup: log the agent dbu6 will use, and ask every signed-in agent's models
- * whether they answer, so a prompt or an import doesn't wait for the check.
+ * Startup: log the agent dbu6 will use, and ask its models whether they answer,
+ * so a prompt or an import doesn't wait for the check. Only that agent is
+ * asked: every call a model check costs is billed to the user's plan, and the
+ * others are never run until Settings asks about them (agentModelsNow).
  */
 export async function startCodingAgent(): Promise<void> {
-  const detected = await detectCodingAgents();
-  await Promise.all([
-    logCodingAgent(),
-    ...detected
-      .filter((status): status is InstalledAgent => status.loggedIn)
-      .map(agentModels),
-  ]);
+  const agent = await currentCodingAgent();
+  logCodingAgent(agent);
+  if (agent?.loggedIn) await agentModels(agent);
 }
 
 function logAgentModels(agent: CodingAgent, models: CheckedAgentModels) {

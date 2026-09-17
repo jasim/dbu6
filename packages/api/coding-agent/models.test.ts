@@ -263,16 +263,21 @@ describe("agentModelsNow", () => {
 });
 
 describe("startCodingAgent", () => {
-  it("checks every signed-in agent's models", async () => {
-    detectLocalAgents.mockResolvedValue([
-      CLAUDE,
-      { ...CODEX, loggedIn: false },
-    ]);
+  it("checks the agent dbu6 will use, and no other signed-in agent", async () => {
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX]);
     answering("opus", "sonnet");
 
     await models.startCodingAgent();
 
     expect(askedModels()).toEqual(["opus", "sonnet"]);
     expect(models.agentModelsNow(CLAUDE)).toMatchObject({ state: "ready" });
+  });
+
+  it("checks nothing when the agent isn't signed in", async () => {
+    detectLocalAgents.mockResolvedValue([{ ...CLAUDE, loggedIn: false }]);
+
+    await models.startCodingAgent();
+
+    expect(direct).not.toHaveBeenCalled();
   });
 });

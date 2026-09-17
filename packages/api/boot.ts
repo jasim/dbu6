@@ -47,8 +47,9 @@ if (!projectRoot) {
 setProjectRoot(projectRoot);
 // A bad LLM_ENGINE stops the server here rather than at the first import.
 llmEngineSetting();
-// Detecting the coding agents and asking which of their models answer run
-// their CLIs, so neither holds up startup. Settings shows what was found.
+// Detecting the coding agents and asking which of the chosen one's models
+// answer run their CLIs, so neither holds up startup. Settings shows what was
+// found, and checks the other agents only when it shows them.
 startCodingAgent().catch((error: unknown) => {
   console.error("[coding-agent] startup check failed:", error);
 });
