@@ -7,6 +7,9 @@
 - **Changed 2026-09-17, after the build:** one coding agent, chosen in Settings, now runs
   everything AI; this supersedes §3.2 decision 9 and §4.2 decisions 1–3 (see the last log
   entry).
+- **Changed 2026-09-17, later:** each agent's models are checked at startup, with a floor of
+  Claude Sonnet / GPT-5.6 Terra, and prompts open in auto mode; this supersedes §3.2
+  decisions 1 and 11 and the categorization models in the log (see the last log entry).
 - **Next:** A3's hands-on terminal checks on macOS (an owner's check: they open real
   terminal windows and need someone to answer the agent), then the follow-ups in §5 and §6.
 
@@ -710,3 +713,34 @@ Against scratch data (§0, rule 5), with `pnpm seed`:
     detection, and Claude Code runs on `sonnet` (Step B4's recommendation), Codex on its default.
   - **Agent prompts:** `GET /api/agent-handoff` returns the one `agent` (or null), `POST` no
     longer takes one, and the screens show a single Open (or Command) button for it.
+- **2026-09-17, models checked at startup, prompts in auto mode.** At the owner's request.
+  - **Models:** `packages/api/coding-agent-models.ts` lists each agent's models, most capable
+    first: Claude Code `opus`, `sonnet`; Codex `gpt-5.6-sol`, `gpt-5.6-terra`. The last is a
+    floor (Sonnet-class): Luna and Haiku are never used. Each model is asked for a one-word
+    reply through Nuabase (`nua.get`, 60 s timeout) at startup for every signed-in agent, when
+    Settings shows an unchecked agent, when a prompt or categorization finds that no model
+    answered last time, and on **Check models again** (`POST /api/coding-agent/model-check`).
+    Prompts open on the most capable model that answered; categorization runs on the least
+    capable. `GET /api/coding-agent` gives each agent's `models` (`not_checked`, `checking`,
+    `ready` with `session`, `categorization` and `unavailable`, or `no_model`); Settings
+    polls every 2 s while the active agent's check runs. With no model answering, handoff
+    refuses with `no_agent_model` and categorization reports why.
+  - **Auto mode:** the launcher starts `claude --model <m> --permission-mode auto` or
+    `codex --model <m> --approve-for-me` (auto review in the workspace-write sandbox). This
+    supersedes §3.2 decision 1 (the agent's reviewer, not the user, approves edits) and the
+    reason in decision 11: taking prompt text from the browser stays acceptable because only a
+    workflow user can post one and the session runs in a terminal in front of the user.
+    Headless categorization is unchanged: Claude Code has no tools and Codex runs `exec` in a
+    read-only sandbox, so there is nothing to approve.
+  - **Found:** checked against Claude Code 2.1.274 and codex-cli 0.154.0 on the owner's
+    logins, `opus`, `sonnet` and `gpt-5.6-terra` answer in 3 to 6 s. `gpt-5.6-sol` is refused
+    ("not supported when using Codex with a ChatGPT account", since 2026-08-09, and absent
+    from `codex debug models`), so Codex falls back to Terra for both.
+  - **Checked** with the real CLIs against a scratch data directory: startup logged both
+    agents' models; the Settings route went from `checking` to `ready` with Sol's reason; the
+    launchers named `opus` and `gpt-5.6-terra` with the auto-mode flags; categorization ran on
+    `claude-sonnet-5` and `gpt-5.6-terra` and chose the expected accounts. The Settings screen
+    itself wasn't seen in a browser (it needs a sign-in).
+  - **Follow-ups:** a model that answered at startup but fails later (a usage limit, say) is
+    not dropped until **Check models again** or a restart. Nuabase retries Claude Code's
+    unknown-model error three times, so checking a model that doesn't exist takes about 10 s.

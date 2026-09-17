@@ -19,6 +19,7 @@ import {
   NO_CODING_AGENT_MESSAGE,
   type InstalledAgent,
 } from "../coding-agent.js";
+import { agentModels, noModelMessage } from "../coding-agent-models.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
 // Hands a prompt the app offers to copy to the coding agent dbu6 uses on this
@@ -31,9 +32,12 @@ import { requireWorkflowAuth } from "./workflow-auth.js";
 //     -> on macOS with `open`: `open <launcher>` runs it in a new window of
 //        the user's terminal app, which needs no Automation permission
 //
-// Every edit and command in that session still needs the user's approval, so
-// taking the prompt text from the browser is acceptable. tmp/ is gitignored;
-// no file is ever deleted.
+// The session runs on the most capable model the agent answered on
+// (coding-agent-models.ts), in its auto mode (launcher.ts): its reviewer, not
+// the user, approves edits and commands, and stops risky ones. Taking the
+// prompt text from the browser is still acceptable: only a workflow user can
+// post one, and the session runs in a terminal in front of the user, who can
+// stop it. tmp/ is gitignored; no file is ever deleted.
 
 const PROMPTS_DIR = ["tmp", "agent-prompts"] as const;
 // Linux caps one command-line argument at 131072 bytes (MAX_ARG_STRLEN), and the
@@ -115,7 +119,24 @@ export async function handOffPrompt(
     };
   }
 
-  const handoff = await writeHandoffFiles(root, target, request.prompt);
+  // At startup the check may still be running; it takes a few seconds.
+  const models = await agentModels(target);
+  if (models.state === "no_model") {
+    return {
+      status: 400,
+      body: {
+        error: "no_agent_model",
+        message: noModelMessage(target.agent, models.unavailable),
+      },
+    };
+  }
+
+  const handoff = await writeHandoffFiles(
+    root,
+    target,
+    models.session.model,
+    request.prompt,
+  );
   if (request.open) {
     try {
       await promisify(execFile)("open", [handoff.launcher_path]);
@@ -136,6 +157,7 @@ export async function handOffPrompt(
 async function writeHandoffFiles(
   root: string,
   { agent, binaryPath }: InstalledAgent,
+  model: string,
   prompt: string,
 ): Promise<AgentHandoff> {
   const dir = join(root, ...PROMPTS_DIR);
@@ -147,7 +169,7 @@ async function writeHandoffFiles(
   await writeFile(promptPath, prompt, { mode: 0o600, flag: "wx" });
   await writeFile(
     launcherPath,
-    launcherScript({ projectRoot: root, binaryPath, promptPath }),
+    launcherScript({ projectRoot: root, agent, binaryPath, model, promptPath }),
     { mode: 0o700, flag: "wx" },
   );
   return {

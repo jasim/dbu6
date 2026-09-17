@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   CODING_AGENT_LABEL,
   codingAgentSchema,
+  type AgentModels,
   type CodingAgent,
   type CodingAgentSettings,
 } from "dbu6-shared";
@@ -102,16 +103,18 @@ export function activeCodingAgent(
   return installed.find((a) => a.agent === chosen) ?? installed[0] ?? null;
 }
 
-/** Pure: what the Settings screen shows. */
+/** What the Settings screen shows, with each agent's models as `models` has them. */
 export function codingAgentSettings(
   detected: readonly DetectedAgent[],
   chosen: CodingAgent | null,
+  models: (status: DetectedAgent) => AgentModels,
 ): CodingAgentSettings {
   return {
     agents: detected.map((status) => ({
       agent: status.agent,
       installed: status.installed,
       logged_in: status.loggedIn,
+      models: models(status),
     })),
     active: activeCodingAgent(detected, chosen)?.agent ?? null,
   };

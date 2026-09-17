@@ -163,17 +163,31 @@ dbu6 uses one coding agent for everything AI: Claude Code (`claude`) or Codex
 chosen. The choice is saved in `data/user-config/settings.json`. The agent's
 executable must be on the server's `PATH`.
 
+- **Models.** Each agent runs on a short list of models, most capable first:
+  Claude Code on `opus` then `sonnet`, Codex on `gpt-5.6-sol` then
+  `gpt-5.6-terra`. The last is the floor: dbu6 never uses a less capable
+  model. Which ones work depends on the login and plan (Codex refuses Sol on
+  some ChatGPT accounts), so `packages/api/coding-agent-models.ts` asks each
+  model for a one-word reply at startup, for every signed-in agent, and logs
+  what it found. It checks again when a prompt or categorization needs a model
+  and none answered last time, and when **Check models again** is pressed on
+  Settings, which shows the models and why any didn't answer.
 - **Categorization** runs on it in Nuabase's headless mode (`Nua.direct` with
-  `localAgent`). Each call runs `claude -p` or `codex exec` with no tools,
-  billed to your own Claude or ChatGPT plan rather than an API key. Calls
-  carry at most 50 descriptions, two run at a time, and nothing is cached, so
-  reclassifying sends every description again. Claude Code runs on `sonnet`:
-  on sample data it chose the same accounts as the gateway and was faster
-  than `haiku`, which left more blank. Codex runs on its default model.
-- **Agent prompts** open in it (`packages/api/app/agent-handoff.ts`).
+  `localAgent`), on the least capable model that answered. Each call runs
+  `claude -p` or `codex exec` with no tools, billed to your own Claude or
+  ChatGPT plan rather than an API key. Calls carry at most 50 descriptions, two
+  run at a time, and nothing is cached, so reclassifying sends every
+  description again. On sample data `sonnet` chose the same accounts as the
+  gateway and was faster than `haiku`, which left more blank.
+- **Agent prompts** open in it (`packages/api/app/agent-handoff.ts`), on the
+  most capable model that answered and in the agent's auto mode
+  (`claude --permission-mode auto`, `codex --approve-for-me`): the agent's
+  own reviewer approves edits and commands, so the user isn't asked for each
+  one.
 
-With no agent installed, categorization reports that no coding agent was found
-and the import goes through uncategorized.
+With no agent installed, or none of its models answering, categorization
+reports why and the import goes through uncategorized, and prompts can only be
+copied.
 
 `LLM_ENGINE=nuabase` is a deprecated override that categorizes on the Nuabase
 gateway (`Nua.gateway`), paid for with `NUABASE_API_KEY`, on the provider model

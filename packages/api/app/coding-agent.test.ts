@@ -5,12 +5,27 @@ import { Hono } from "hono";
 import type { SapportaEnv } from "@sapporta/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Detection is stubbed; the choice is saved for real in a temporary data
-// directory.
-const { detectLocalAgents } = vi.hoisted(() => ({
+// Detection and the models' replies are stubbed; the choice is saved for real
+// in a temporary data directory.
+const { detectLocalAgents, localAgent, direct } = vi.hoisted(() => ({
   detectLocalAgents: vi.fn(),
+  localAgent: vi.fn((config: { model: string }) => config),
+  direct: vi.fn(),
 }));
-vi.mock("nuabase/local-agent", () => ({ detectLocalAgents }));
+vi.mock("nuabase/local-agent", () => ({ detectLocalAgents, localAgent }));
+vi.mock("nuabase", () => ({ Nua: { direct } }));
+
+/** Only these models answer. */
+function answering(...answered: string[]) {
+  direct.mockImplementation(
+    ({ localAgent: config }: { localAgent: { model: string } }) => ({
+      get: async () =>
+        answered.includes(config.model)
+          ? { success: true, data: "OK" }
+          : { success: false, error: "codex: sample refusal" },
+    }),
+  );
+}
 
 const CLAUDE_ONLY = [
   {
@@ -36,6 +51,9 @@ let dataDir: string;
 beforeEach(async () => {
   vi.resetModules();
   detectLocalAgents.mockReset();
+  localAgent.mockClear();
+  direct.mockReset();
+  answering("opus", "sonnet");
   dataDir = await mkdtemp(join(tmpdir(), "dbu6-coding-agent-api-"));
   vi.stubEnv("SAPPORTA_DATA_DIR", dataDir);
 });
@@ -56,6 +74,14 @@ async function app(allowed = true) {
   return hono;
 }
 
+function checkAgain(hono: Hono<SapportaEnv>) {
+  return hono.request("/coding-agent/model-check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+}
+
 function choose(hono: Hono<SapportaEnv>, agent: string) {
   return hono.request("/coding-agent", {
     method: "PUT",
@@ -70,9 +96,11 @@ describe("/coding-agent", () => {
 
     const get = await hono.request("/coding-agent");
     const put = await choose(hono, "codex");
+    const check = await checkAgain(hono);
 
-    expect([get.status, put.status]).toEqual([403, 403]);
+    expect([get.status, put.status, check.status]).toEqual([403, 403, 403]);
     expect(detectLocalAgents).not.toHaveBeenCalled();
+    expect(direct).not.toHaveBeenCalled();
   });
 
   it("uses the first installed agent until one is chosen", async () => {
@@ -82,11 +110,42 @@ describe("/coding-agent", () => {
 
     expect(await response.json()).toEqual({
       agents: [
-        { agent: "claude-code", installed: true, logged_in: true },
-        { agent: "codex", installed: true, logged_in: false },
+        {
+          agent: "claude-code",
+          installed: true,
+          logged_in: true,
+          models: { state: "checking" },
+        },
+        {
+          agent: "codex",
+          installed: true,
+          logged_in: false,
+          models: { state: "not_checked" },
+        },
       ],
       active: "claude-code",
     });
+  });
+
+  it("shows the models a signed-in agent answered on once they are checked", async () => {
+    detectLocalAgents.mockResolvedValue(BOTH);
+    answering("sonnet");
+    const hono = await app();
+
+    await hono.request("/coding-agent");
+    await vi.waitFor(async () => {
+      const [claude] = (await (await hono.request("/coding-agent")).json())
+        .agents;
+      expect(claude.models).toEqual({
+        state: "ready",
+        session: { model: "sonnet", label: "Claude Sonnet" },
+        categorization: { model: "sonnet", label: "Claude Sonnet" },
+        unavailable: [
+          { model: "opus", label: "Claude Opus", reason: "sample refusal" },
+        ],
+      });
+    });
+    expect(direct).toHaveBeenCalledTimes(2);
   });
 
   it("saves the chosen agent", async () => {
@@ -116,6 +175,46 @@ describe("/coding-agent", () => {
     expect(await put.json()).toEqual({
       error: "agent_not_installed",
       message: "Codex isn't installed on the machine running dbu6.",
+    });
+  });
+  it("checks the active agent's models again when asked", async () => {
+    detectLocalAgents.mockResolvedValue(BOTH);
+    answering("sonnet");
+    const hono = await app();
+    await hono.request("/coding-agent");
+    await vi.waitFor(() => expect(direct).toHaveBeenCalledTimes(2));
+    answering("opus", "sonnet");
+
+    const check = await checkAgain(hono);
+
+    expect(check.status).toBe(200);
+    expect((await check.json()).agents[0].models).toEqual({
+      state: "checking",
+    });
+    await vi.waitFor(async () => {
+      const [claude] = (await (await hono.request("/coding-agent")).json())
+        .agents;
+      expect(claude.models).toMatchObject({
+        state: "ready",
+        session: { model: "opus" },
+      });
+    });
+    expect(direct).toHaveBeenCalledTimes(4);
+  });
+
+  it("can't check again without an installed agent", async () => {
+    detectLocalAgents.mockResolvedValue([
+      { agent: "claude-code", installed: false, loggedIn: false },
+      { agent: "codex", installed: false, loggedIn: false },
+    ]);
+
+    const check = await checkAgain(await app());
+
+    expect(check.status).toBe(400);
+    expect(await check.json()).toEqual({
+      error: "no_coding_agent",
+      message:
+        "No coding agent found. Install Claude Code or Codex on the machine running dbu6.",
     });
   });
 });

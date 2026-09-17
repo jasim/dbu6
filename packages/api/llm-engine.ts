@@ -6,6 +6,7 @@ import {
   type CategorizationEngine,
   type CodingAgent,
 } from "dbu6-shared";
+import { agentModels, noModelMessage } from "./coding-agent-models.js";
 import {
   currentCodingAgent,
   NO_CODING_AGENT_MESSAGE,
@@ -16,8 +17,10 @@ import {
  * Where categorization's LLM runs:
  *
  * - The coding agent dbu6 uses (coding-agent.ts), in Nuabase's headless mode,
- *   billed to the user's own Claude or ChatGPT plan. This is the default, and
- *   the only choice the app offers.
+ *   billed to the user's own Claude or ChatGPT plan, on the least capable of
+ *   its models that answered (coding-agent-models.ts): Claude Sonnet or GPT-5.6
+ *   Terra, or a more capable one when that didn't answer. This is the default,
+ *   and the only choice the app offers.
  * - The Nuabase gateway, paid for with NUABASE_API_KEY, when
  *   LLM_ENGINE=nuabase. Deprecated: kept for instances with no coding agent,
  *   such as the Docker image.
@@ -87,14 +90,6 @@ const GATEWAY_MODEL: ProviderModel = {
 // Each local call is one CLI process with a 180 s timeout, two at a time.
 const LOCAL_AGENT_ROWS_PER_CALL = 50;
 
-// The agent's own model for categorization. On sample data Claude Code's
-// `sonnet` chose the same accounts as the gateway, faster than `haiku`, which
-// left more blank; Codex does well on its default (PLAN.md §6, Step B4).
-const LOCAL_AGENT_MODEL: Record<CodingAgent, string | undefined> = {
-  "claude-code": "sonnet",
-  codex: undefined,
-};
-
 export function gatewayLlm(apiKey: string | null): CategorizationLlm {
   return {
     engine: "nuabase",
@@ -110,15 +105,11 @@ export function gatewayLlm(apiKey: string | null): CategorizationLlm {
   };
 }
 
-/** Categorization on a detected coding agent, or why it can't run. */
-export function localAgentLlm(agent: InstalledAgent | null): CategorizationLlm {
-  if (agent === null) {
-    return {
-      engine: null,
-      caller: { ready: false, reason: NO_CODING_AGENT_MESSAGE },
-      maxRowsPerCall: LOCAL_AGENT_ROWS_PER_CALL,
-    };
-  }
+/** Categorization on a coding agent, on one of its models. */
+export function localAgentLlm(
+  agent: InstalledAgent,
+  model: string,
+): CategorizationLlm {
   return {
     engine: agent.agent,
     // No per-call model: a local agent takes its own model names only.
@@ -127,12 +118,24 @@ export function localAgentLlm(agent: InstalledAgent | null): CategorizationLlm {
       nua: Nua.direct({
         localAgent: localAgent({
           agent: agent.agent,
-          model: LOCAL_AGENT_MODEL[agent.agent],
+          model,
           binaryPath: agent.binaryPath,
         }),
       }),
       model: undefined,
     },
+    maxRowsPerCall: LOCAL_AGENT_ROWS_PER_CALL,
+  };
+}
+
+/** Categorization that can't run: no agent (null), or none of its models. */
+export function unavailableLocalAgentLlm(
+  engine: CodingAgent | null,
+  reason: string,
+): CategorizationLlm {
+  return {
+    engine,
+    caller: { ready: false, reason },
     maxRowsPerCall: LOCAL_AGENT_ROWS_PER_CALL,
   };
 }
@@ -158,8 +161,8 @@ export function llmEngineSetting(): LlmEngineSetting {
 }
 
 let gateway: CategorizationLlm | null = null;
-// One per agent executable, so its limit on processes running at once holds
-// across requests.
+// One per agent executable and model, so its limit on processes running at
+// once holds across requests.
 const localAgents = new Map<string, CategorizationLlm>();
 
 /** The engine categorization runs on right now. */
@@ -170,11 +173,22 @@ export async function categorizationLlm(): Promise<CategorizationLlm> {
     return gateway;
   }
   const agent = await currentCodingAgent();
-  if (agent === null) return localAgentLlm(null);
-  const key = `${agent.agent}:${agent.binaryPath}`;
+  if (agent === null) {
+    return unavailableLocalAgentLlm(null, NO_CODING_AGENT_MESSAGE);
+  }
+  // At startup the check may still be running; it takes a few seconds.
+  const models = await agentModels(agent);
+  if (models.state === "no_model") {
+    return unavailableLocalAgentLlm(
+      agent.agent,
+      noModelMessage(agent.agent, models.unavailable),
+    );
+  }
+  const { model } = models.categorization;
+  const key = `${agent.agent}:${agent.binaryPath}:${model}`;
   let llm = localAgents.get(key);
   if (llm === undefined) {
-    llm = localAgentLlm(agent);
+    llm = localAgentLlm(agent, model);
     localAgents.set(key, llm);
   }
   return llm;

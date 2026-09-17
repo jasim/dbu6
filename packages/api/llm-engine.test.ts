@@ -4,6 +4,7 @@ import {
   gatewayLlm,
   localAgentLlm,
   parseLlmEngineSetting,
+  unavailableLocalAgentLlm,
 } from "./llm-engine.js";
 
 describe("parseLlmEngineSetting", () => {
@@ -63,21 +64,26 @@ describe("gatewayLlm", () => {
 });
 
 describe("localAgentLlm", () => {
-  it("runs the detected agent on its own model, 50 descriptions a call", () => {
-    const llm = localAgentLlm({
-      agent: "claude-code",
-      installed: true,
-      loggedIn: true,
-      binaryPath: "/sample/bin/claude",
-    });
+  it("runs the agent on the given model, 50 descriptions a call", () => {
+    const llm = localAgentLlm(
+      {
+        agent: "codex",
+        installed: true,
+        loggedIn: true,
+        binaryPath: "/sample/bin/codex",
+      },
+      "gpt-5.6-terra",
+    );
 
-    expect(llm.engine).toBe("claude-code");
+    expect(llm.engine).toBe("codex");
     expect(llm.maxRowsPerCall).toBe(50);
     expect(llm.caller).toMatchObject({ ready: true, model: undefined });
   });
+});
 
-  it("says why nothing can run without a coding agent", () => {
-    const llm = localAgentLlm(null);
+describe("unavailableLocalAgentLlm", () => {
+  it("says why nothing can run", () => {
+    const llm = unavailableLocalAgentLlm(null, NO_CODING_AGENT_MESSAGE);
 
     expect(llm.engine).toBeNull();
     expect(llm.caller).toEqual({

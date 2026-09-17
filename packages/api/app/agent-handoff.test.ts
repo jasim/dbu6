@@ -13,14 +13,17 @@ import type { SapportaEnv } from "@sapporta/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentHandoffRequest } from "dbu6-shared";
 
-// Detection and `open` are stubbed; the files are written for real under a
-// temporary project root, and the chosen agent is read from a temporary data
-// directory.
-const { detectLocalAgents, execFile } = vi.hoisted(() => ({
+// Detection, the models' replies and `open` are stubbed; the files are
+// written for real under a temporary project root, and the chosen agent is
+// read from a temporary data directory.
+const { detectLocalAgents, localAgent, direct, execFile } = vi.hoisted(() => ({
   detectLocalAgents: vi.fn(),
+  localAgent: vi.fn((config: { model: string }) => config),
+  direct: vi.fn(),
   execFile: vi.fn(),
 }));
-vi.mock("nuabase/local-agent", () => ({ detectLocalAgents }));
+vi.mock("nuabase/local-agent", () => ({ detectLocalAgents, localAgent }));
+vi.mock("nuabase", () => ({ Nua: { direct } }));
 vi.mock("node:child_process", async (importOriginal) => ({
   ...(await importOriginal<typeof import("node:child_process")>()),
   execFile,
@@ -52,6 +55,18 @@ const NONE = [
   { agent: "codex", installed: false, loggedIn: false },
 ];
 
+/** Only these models answer. */
+function answering(...answered: string[]) {
+  direct.mockImplementation(
+    ({ localAgent: config }: { localAgent: { model: string } }) => ({
+      get: async () =>
+        answered.includes(config.model)
+          ? { success: true, data: "OK" }
+          : { success: false, error: "codex: Not logged in" },
+    }),
+  );
+}
+
 const PROMPT =
   'Rerun with `curl -H "Authorization: Bearer $SAPPORTA_API_TOKEN"` and C:\\sample\\050505.';
 
@@ -76,6 +91,9 @@ beforeEach(async () => {
   vi.resetModules();
   handoff = await import("./agent-handoff.js");
   detectLocalAgents.mockReset();
+  localAgent.mockClear();
+  direct.mockReset();
+  answering("opus", "sonnet", "gpt-5.6-sol", "gpt-5.6-terra");
   execFile.mockReset();
   execFile.mockImplementation((_file, _args, callback) =>
     callback(null, "", ""),
@@ -165,7 +183,7 @@ describe("GET /agent-handoff capabilities", () => {
 });
 
 describe("POST /agent-handoff", () => {
-  it("writes the prompt and a launcher that runs the chosen agent on it", async () => {
+  it("writes the prompt and a launcher that runs the chosen agent on it, on its most capable model", async () => {
     detectLocalAgents.mockResolvedValue(BOTH);
     await choose("codex");
 
@@ -189,7 +207,7 @@ describe("POST /agent-handoff", () => {
       [
         "#!/bin/sh",
         `cd '${root}' || exit 1`,
-        `exec '/sample/bin/codex' -- "$(cat '${prompt_path}')"`,
+        `exec '/sample/bin/codex' '--model' 'gpt-5.6-sol' '--approve-for-me' -- "$(cat '${prompt_path}')"`,
         "",
       ].join("\n"),
     );
@@ -213,6 +231,43 @@ describe("POST /agent-handoff", () => {
       "open",
       [response.body.launcher_path],
     ]);
+  });
+
+  it("opens on the model below when the most capable doesn't answer", async () => {
+    detectLocalAgents.mockResolvedValue(BOTH);
+    await choose("codex");
+    answering("gpt-5.6-terra");
+
+    const response = await handoff.handOffPrompt(request(), "linux", root);
+
+    expect(response.status).toBe(200);
+    if (response.status !== 200) return;
+    expect(await readFile(response.body.launcher_path, "utf8")).toContain(
+      `exec '/sample/bin/codex' '--model' 'gpt-5.6-terra' '--approve-for-me' -- `,
+    );
+  });
+
+  it("refuses when none of the agent's models answer, writing nothing", async () => {
+    detectLocalAgents.mockResolvedValue(BOTH);
+    await choose("codex");
+    answering();
+
+    const response = await handoff.handOffPrompt(
+      request({ open: true }),
+      "darwin",
+      root,
+    );
+
+    expect(response).toEqual({
+      status: 400,
+      body: {
+        error: "no_agent_model",
+        message:
+          "Codex didn't answer on GPT-5.6 Sol or GPT-5.6 Terra (Not logged in). See Settings.",
+      },
+    });
+    expect(execFile).not.toHaveBeenCalled();
+    await expect(stat(join(root, "tmp"))).rejects.toThrow();
   });
 
   it("refuses when no coding agent is installed", async () => {

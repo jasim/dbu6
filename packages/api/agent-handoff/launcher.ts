@@ -15,21 +15,38 @@
  * server detected, whatever the terminal's PATH.
  */
 
-export type LauncherPaths = {
+import type { CodingAgent } from "dbu6-shared";
+
+// Prompts open in the agent's auto mode: its own reviewer approves edits and
+// commands and stops risky ones, so the user answers questions but isn't
+// asked for every step. Codex's auto review keeps it in the workspace-write
+// sandbox.
+const AUTO_MODE = {
+  "claude-code": ["--permission-mode", "auto"],
+  codex: ["--approve-for-me"],
+} as const satisfies Record<CodingAgent, readonly string[]>;
+
+export type LauncherTarget = {
   projectRoot: string;
+  agent: CodingAgent;
   binaryPath: string;
+  /** The agent's own name for the model (coding-agent-models.ts). */
+  model: string;
   promptPath: string;
 };
 
 export function launcherScript({
   projectRoot,
+  agent,
   binaryPath,
+  model,
   promptPath,
-}: LauncherPaths): string {
+}: LauncherTarget): string {
+  const command = [binaryPath, "--model", model, ...AUTO_MODE[agent]];
   return [
     "#!/bin/sh",
     `cd ${shellQuote(projectRoot)} || exit 1`,
-    `exec ${shellQuote(binaryPath)} -- "$(cat ${shellQuote(promptPath)})"`,
+    `exec ${command.map(shellQuote).join(" ")} -- "$(cat ${shellQuote(promptPath)})"`,
     "",
   ].join("\n");
 }

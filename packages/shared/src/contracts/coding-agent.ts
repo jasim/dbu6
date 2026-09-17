@@ -19,10 +19,49 @@ export const CODING_AGENT_LABEL = {
 
 const c = initContract();
 
+/** One of the models dbu6 runs an agent on, by the agent's own name for it. */
+export const agentModelSchema = z.object({
+  model: z.string(),
+  label: z.string(),
+});
+export type AgentModel = z.infer<typeof agentModelSchema>;
+
+export const unavailableAgentModelSchema = agentModelSchema.extend({
+  /** Why the model didn't answer, as the agent put it. */
+  reason: z.string(),
+});
+export type UnavailableAgentModel = z.infer<typeof unavailableAgentModelSchema>;
+
+/**
+ * Which of an agent's models answer on this machine's login. dbu6 runs each
+ * agent on a short list of models, most capable first, and never on a model
+ * below the last (Claude Sonnet, GPT-5.6 Terra).
+ */
+export const agentModelsSchema = z.discriminatedUnion("state", [
+  /** Not installed or not signed in, so not asked yet. */
+  z.object({ state: z.literal("not_checked") }),
+  z.object({ state: z.literal("checking") }),
+  z.object({
+    state: z.literal("ready"),
+    /** The most capable model that answered; prompts open on it. */
+    session: agentModelSchema,
+    /** The least capable model that answered; categorization runs on it. */
+    categorization: agentModelSchema,
+    unavailable: z.array(unavailableAgentModelSchema),
+  }),
+  /** None of the models answered, so the agent can't be used. */
+  z.object({
+    state: z.literal("no_model"),
+    unavailable: z.array(unavailableAgentModelSchema),
+  }),
+]);
+export type AgentModels = z.infer<typeof agentModelsSchema>;
+
 export const codingAgentStatusSchema = z.object({
   agent: codingAgentSchema,
   installed: z.boolean(),
   logged_in: z.boolean(),
+  models: agentModelsSchema,
 });
 export type CodingAgentStatus = z.infer<typeof codingAgentStatusSchema>;
 
@@ -63,6 +102,18 @@ export const codingAgentContract = c.router({
     path: "/coding-agent",
     summary: "Choose the coding agent dbu6 uses",
     body: chooseCodingAgentRequestSchema,
+    responses: {
+      200: codingAgentSettingsSchema,
+      400: codingAgentErrorSchema,
+      403: codingAgentErrorSchema,
+    },
+  }),
+  checkCodingAgentModels: c.mutation({
+    method: "POST",
+    path: "/coding-agent/model-check",
+    summary:
+      "Ask each of the active agent's models again whether it answers; the settings show the check running",
+    body: z.object({}),
     responses: {
       200: codingAgentSettingsSchema,
       400: codingAgentErrorSchema,

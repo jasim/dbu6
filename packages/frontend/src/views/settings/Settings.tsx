@@ -1,34 +1,52 @@
 import { useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
 import { CODING_AGENT_LABEL, type CodingAgent } from "dbu6-shared";
 import { apiErrorMessage, apiRefusalMessage, codingAgentApi } from "../../api";
 import { LoadError } from "../../components/load-error";
 import { Screen } from "../../components/screen";
+import { Button } from "../../components/ui/button";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { codingAgentSettingsQuery, refreshCodingAgent } from "../../queries";
 import {
+  checkingModels,
   describeCodingAgent,
   type CodingAgentState,
 } from "./describeCodingAgent";
 
+// A model check takes a few seconds; the screen asks again until it's done.
+const CHECKING_POLL_MS = 2000;
+
 /*
  * The coding agent dbu6 uses for everything AI, installed on the server's
- * machine. Until the user picks one, dbu6 uses the first installed.
+ * machine, and the models it runs on. Until the user picks one, dbu6 uses the
+ * first installed.
  */
 export function Settings() {
   usePageTitle("Settings");
   const labelId = useId();
   const client = useQueryClient();
-  const settings = useQuery(codingAgentSettingsQuery);
+  const settings = useQuery({
+    ...codingAgentSettingsQuery,
+    refetchInterval: (query) =>
+      query.state.data !== undefined && checkingModels(query.state.data)
+        ? CHECKING_POLL_MS
+        : false,
+  });
   const choose = useMutation({
     mutationFn: (agent: CodingAgent) =>
       codingAgentApi.chooseCodingAgent({ body: { agent } }),
     onSuccess: (body) => {
       client.setQueryData(codingAgentSettingsQuery.queryKey, body);
       void refreshCodingAgent(client);
+    },
+  });
+  const checkAgain = useMutation({
+    mutationFn: () => codingAgentApi.checkCodingAgentModels({ body: {} }),
+    onSuccess: (body) => {
+      client.setQueryData(codingAgentSettingsQuery.queryKey, body);
     },
   });
 
@@ -69,10 +87,19 @@ export function Settings() {
                 </RadioGroupItem>
               ))}
             </RadioGroup>
-            <AgentState state={describeCodingAgent(settings.data)} />
+            <AgentState
+              state={describeCodingAgent(settings.data)}
+              checkAgain={() => checkAgain.mutate()}
+              checkingAgain={checkAgain.isPending}
+            />
             {choose.isError && (
               <p className="text-body text-destructive [overflow-wrap:anywhere]">
                 {apiRefusalMessage(choose.error)}
+              </p>
+            )}
+            {checkAgain.isError && (
+              <p className="text-body text-destructive [overflow-wrap:anywhere]">
+                {apiRefusalMessage(checkAgain.error)}
               </p>
             )}
           </>
@@ -82,31 +109,63 @@ export function Settings() {
   );
 }
 
-function AgentState({ state }: { state: CodingAgentState }) {
+function AgentState({
+  state,
+  checkAgain,
+  checkingAgain,
+}: {
+  state: CodingAgentState;
+  checkAgain: () => void;
+  checkingAgain: boolean;
+}) {
   const ok = state.tone === "ok";
   const Icon = ok ? CheckCircle2 : AlertTriangle;
   return (
-    <p
-      className={cn(
-        "flex max-w-[640px] items-start gap-2 text-body",
-        ok ? "text-ink-soft" : "text-attention-ink",
-      )}
-    >
-      <Icon
-        aria-hidden="true"
-        className={cn("mt-0.5 size-4 shrink-0", ok && "text-money-in")}
-      />
-      <span>
-        {state.text}
-        {state.command && (
-          <>
-            {" "}
-            <code className="rounded-control bg-muted px-1.5 py-0.5 font-mono text-meta text-foreground">
-              {state.command}
-            </code>
-          </>
+    <div className="max-w-[640px] space-y-2">
+      <p
+        className={cn(
+          "flex items-start gap-2 text-body",
+          ok ? "text-ink-soft" : "text-attention-ink",
         )}
-      </span>
-    </p>
+      >
+        <Icon
+          aria-hidden="true"
+          className={cn("mt-0.5 size-4 shrink-0", ok && "text-money-in")}
+        />
+        <span>
+          {state.text}
+          {state.command && (
+            <>
+              {" "}
+              <code className="rounded-control bg-muted px-1.5 py-0.5 font-mono text-meta text-foreground">
+                {state.command}
+              </code>
+            </>
+          )}
+        </span>
+      </p>
+      {state.details.map((line) => (
+        <p
+          key={line}
+          className="pl-6 text-meta text-ink-meta [overflow-wrap:anywhere]"
+        >
+          {line}
+        </p>
+      ))}
+      {state.checkAgain && (
+        <div className="pl-6">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={checkingAgain}
+            onClick={checkAgain}
+          >
+            <RefreshCw />
+            Check models again
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

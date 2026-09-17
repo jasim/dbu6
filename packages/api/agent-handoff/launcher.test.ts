@@ -15,18 +15,20 @@ const PROMPT = [
 ].join("\n");
 
 describe("launcherScript", () => {
-  it("cds to the project root and runs the binary on the prompt file", () => {
+  it("cds to the project root and runs the agent on the model, in auto mode, on the prompt file", () => {
     expect(
       launcherScript({
         projectRoot: "/sample/dbu6",
+        agent: "claude-code",
         binaryPath: "/sample/bin/claude",
+        model: "opus",
         promptPath: "/sample/dbu6/tmp/agent-prompts/sample.md",
       }),
     ).toBe(
       [
         "#!/bin/sh",
         "cd '/sample/dbu6' || exit 1",
-        `exec '/sample/bin/claude' -- "$(cat '/sample/dbu6/tmp/agent-prompts/sample.md')"`,
+        `exec '/sample/bin/claude' '--model' 'opus' '--permission-mode' 'auto' -- "$(cat '/sample/dbu6/tmp/agent-prompts/sample.md')"`,
         "",
       ].join("\n"),
     );
@@ -35,13 +37,15 @@ describe("launcherScript", () => {
   it("quotes paths with spaces and single quotes", () => {
     const script = launcherScript({
       projectRoot: "/sample/NOPII's books",
+      agent: "codex",
       binaryPath: "/sample/my bin/codex",
+      model: "gpt-5.6-terra",
       promptPath: "/sample/NOPII's books/tmp/agent-prompts/sample.md",
     });
 
     expect(script).toContain(`cd '/sample/NOPII'\\''s books' || exit 1`);
     expect(script).toContain(
-      `exec '/sample/my bin/codex' -- "$(cat '/sample/NOPII'\\''s books/tmp/agent-prompts/sample.md')"`,
+      `exec '/sample/my bin/codex' '--model' 'gpt-5.6-terra' '--approve-for-me' -- "$(cat '/sample/NOPII'\\''s books/tmp/agent-prompts/sample.md')"`,
     );
   });
 });
@@ -54,7 +58,7 @@ describe.skipIf(process.platform === "win32")("running a launcher", () => {
     dir = null;
   });
 
-  it("runs the given binary in the project root with the prompt unchanged after its options end", async () => {
+  it("runs the given binary in the project root with its options, then the prompt unchanged after they end", async () => {
     dir = await mkdtemp(join(tmpdir(), "dbu6-launcher-"));
     const projectRoot = join(dir, "NOPII's books");
     const binaryPath = join(dir, "my bin", "agent");
@@ -67,16 +71,23 @@ describe.skipIf(process.platform === "win32")("running a launcher", () => {
     );
     await mkdir(join(projectRoot, "tmp", "agent-prompts"), { recursive: true });
     await mkdir(join(dir, "my bin"));
-    // A stand-in agent that reports where it ran and what it was given.
+    // A stand-in agent that reports where it ran and what it was given, one
+    // argument a line.
     await writeFile(
       binaryPath,
-      '#!/bin/sh\nprintf "%s\\n%s\\n%s\\n%s" "$#" "$(pwd -P)" "$1" "$2"\n',
+      '#!/bin/sh\nprintf "%s\\n%s" "$#" "$(pwd -P)"\nprintf "\\n%s" "$@"\n',
     );
     await chmod(binaryPath, 0o700);
     await writeFile(promptPath, PROMPT);
     await writeFile(
       launcherPath,
-      launcherScript({ projectRoot, binaryPath, promptPath }),
+      launcherScript({
+        projectRoot,
+        agent: "codex",
+        binaryPath,
+        model: "gpt-5.6-sol",
+        promptPath,
+      }),
     );
 
     const { stdout } = await run(
@@ -91,15 +102,19 @@ describe.skipIf(process.platform === "win32")("running a launcher", () => {
       },
     );
 
-    const [argumentCount, workingDir, endOfOptions, ...prompt] =
-      stdout.split("\n");
-    expect(argumentCount).toBe("2");
-    expect(endOfOptions).toBe("--");
+    const [argumentCount, workingDir, ...lines] = stdout.split("\n");
+    expect(argumentCount).toBe("5");
+    expect(lines.slice(0, 4)).toEqual([
+      "--model",
+      "gpt-5.6-sol",
+      "--approve-for-me",
+      "--",
+    ]);
     expect(workingDir).toBe(
       (
         await run("/bin/sh", ["-c", "pwd -P"], { cwd: projectRoot })
       ).stdout.trim(),
     );
-    expect(prompt.join("\n")).toBe(PROMPT);
+    expect(lines.slice(4).join("\n")).toBe(PROMPT);
   });
 });

@@ -18,7 +18,8 @@ import { Button } from "./ui/button";
  * the server's machine has a coding agent, a session started on the prompt in
  * the agent chosen in Settings: in a new terminal window on macOS, or a
  * command to run in one elsewhere. The session is interactive, so the user
- * answers the agent and approves its edits there.
+ * answers the agent there; it runs in auto mode, so its edits don't wait on
+ * the user's approval.
  */
 export function AgentPromptActions({ prompt }: { prompt: string }) {
   const capabilities = useQuery(agentHandoffCapabilitiesQuery).data;

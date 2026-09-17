@@ -74,11 +74,28 @@ describe("activeCodingAgent", () => {
 });
 
 describe("codingAgentSettings", () => {
-  it("lists every agent with its status, and the active one", () => {
-    expect(codingAgent.codingAgentSettings([CLAUDE, NO_CODEX], null)).toEqual({
+  it("lists every agent with its status and models, and the active one", () => {
+    const models = (status: DetectedAgent) =>
+      status.installed
+        ? ({ state: "checking" } as const)
+        : ({ state: "not_checked" } as const);
+
+    expect(
+      codingAgent.codingAgentSettings([CLAUDE, NO_CODEX], null, models),
+    ).toEqual({
       agents: [
-        { agent: "claude-code", installed: true, logged_in: true },
-        { agent: "codex", installed: false, logged_in: false },
+        {
+          agent: "claude-code",
+          installed: true,
+          logged_in: true,
+          models: { state: "checking" },
+        },
+        {
+          agent: "codex",
+          installed: false,
+          logged_in: false,
+          models: { state: "not_checked" },
+        },
       ],
       active: "claude-code",
     });

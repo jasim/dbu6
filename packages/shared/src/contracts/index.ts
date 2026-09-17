@@ -86,15 +86,21 @@ export {
 } from "./statement-account.js";
 export { draftTransactionsContract } from "./draft-transactions.js";
 export {
+  agentModelSchema,
+  agentModelsSchema,
   codingAgentContract,
   codingAgentSchema,
   codingAgentSettingsSchema,
   codingAgentStatusSchema,
   chooseCodingAgentRequestSchema,
   CODING_AGENT_LABEL,
+  unavailableAgentModelSchema,
+  type AgentModel,
+  type AgentModels,
   type CodingAgent,
   type CodingAgentSettings,
   type CodingAgentStatus,
+  type UnavailableAgentModel,
 } from "./coding-agent.js";
 export {
   agentHandoffContract,
