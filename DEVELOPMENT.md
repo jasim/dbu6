@@ -7,8 +7,10 @@ use it, see [README.md](./README.md). For production deployment, see
 ## Prerequisites
 
 - Node 22+ and pnpm 11 (the version is pinned in `package.json`).
-- `mise` is optional but recommended; `mise.toml` holds the dev ports and
-  derived URLs. Copy `mise.toml.example` to `mise.toml` to start.
+- `mise` is optional. Everything the app needs has a working default in
+  `.env.development`; `mise.toml` only pins the Node version and holds personal
+  settings such as `NUABASE_API_KEY`. Copy `mise.toml.example` to `mise.toml` if
+  you want it.
 - For automatic categorization and the Open in terminal buttons, Claude Code or
   Codex installed and logged in on this machine. See [LLM engine](#llm-engine).
 - `pdftotext` (poppler) for PDF imports.
@@ -17,21 +19,28 @@ use it, see [README.md](./README.md). For production deployment, see
   hardcoded to `~/m/a/code/tools/pdf-extract/` in
   `custom-built-parsers/stanc-bank-pdf-table/parser.py`.
 
-### Linked dependencies
+### Sapporta packages
 
-The `@sapporta/*` packages in `packages/api`, `packages/frontend`, and
-`packages/shared` are `link:` dependencies pointing at a sibling checkout of
-the Sapporta repo, and `nuabase` is a `file:` dependency on a local Nuabase
-client checkout. `pnpm install` expects both to exist at the paths in the
-package manifests. After changing Sapporta, rebuild its `dist` before
-typechecking dbu6, or you will see stale type errors.
+The `@sapporta/*` packages and `nuabase` come from the npm registry at the
+versions pinned in each `package.json`, so `pnpm install` needs nothing beside
+this repository. That is the committed state, and the one to commit.
+
+To work on the framework itself, clone Sapporta, run `pnpm install && pnpm build`
+there, and point this project at it with
+`pnpm package-sources use:local /absolute/path/to/sapporta`; `pnpm package-sources
+use:npm` switches back and `pnpm package-sources status` says which is active.
+While linked, rebuild Sapporta's `dist` after changing it and before typechecking
+dbu6, or you will see stale type errors.
 
 ## Commands
 
 - `pnpm dev` — start backend and frontend in watch mode. Runs `pnpm setup`
   and a clean first.
-- `pnpm setup` — seed `data/user-config/` from `user-config.example/` without
-  overwriting edited files.
+- `pnpm setup` — bring a checkout to a runnable state: create
+  `.env.development` from `.env.development.example` with a generated
+  `BETTER_AUTH_SECRET`, seed `data/user-config/` from `user-config.example/`,
+  and apply pending migrations. Every step is idempotent and leaves an existing
+  file alone, so `pnpm dev` can run it on every start.
 - `pnpm seed [YYYY-MM-DD]` — with `pnpm dev` running, create
   `demo@example.com` (password `demo-password`) holding a year of sample
   personal finances up to today, or up to the given date. The twelve months
@@ -47,15 +56,17 @@ typechecking dbu6, or you will see stale type errors.
 
 ## Ports and environment
 
-Development ports and their derived URLs live in `mise.toml`. With the mise
-shell hook active, run `pnpm dev`; otherwise run `mise exec -- pnpm dev`.
+The whole development environment lives in `.env.development`, which `pnpm dev`
+and every `pnpm db:*` script load with Node's built-in `--env-file` support.
+That ignored file is created from `.env.development.example` by `pnpm setup`,
+which also fills in `BETTER_AUTH_SECRET`. It holds the dev ports and the URLs
+derived from them, the data directory, and local-only auth and mail defaults —
+`SAPPORTA_MAIL_TRANSPORT=stream` among them, so Nodemailer prints the full
+generated email source to the API console instead of delivering it.
 
-`pnpm dev` also loads `.env.development` with Node's built-in `--env-file`
-support. That ignored file is copied from `.env.development.example` and holds
-local-only auth and mail defaults: set `BETTER_AUTH_SECRET` to a random value.
-`SAPPORTA_MAIL_TRANSPORT=stream` is set there, so
-Nodemailer prints the full generated email source to the API console instead of
-delivering it.
+A value already in the environment wins over one from an env file, so a
+`mise.toml` entry or a plain shell export overrides any of these without
+editing the file. That is what makes mise optional here rather than required.
 
 `SAPPORTA_DATA_DIR` in `.env.development` names the directory that holds
 `sqlite.db` and `user-config/`: an absolute path, or a path relative to the
@@ -66,19 +77,20 @@ real data.
 
 ### Running multiple Sapporta projects on one machine
 
-Each backend binds to `SAPPORTA_API_PORT` (default `3000`) and each Vite dev
-server binds to `SAPPORTA_FRONTEND_PORT` (default `5173`). To run several
-projects side-by-side, give each its own stable port pair in `mise.toml`:
+Each backend binds to `SAPPORTA_API_PORT` and each Vite dev server binds to
+`SAPPORTA_FRONTEND_PORT` — `2345` and `2340` here, `3000` and `5173` when
+neither is set. To run several projects side-by-side, give each its own stable
+port pair, either by editing its `.env.development`:
 
-```toml
-[vars]
-frontend_port = 5174
-api_port = 3001
+```sh
+SAPPORTA_FRONTEND_PORT=2341
+SAPPORTA_API_PORT=2346
+SAPPORTA_PUBLIC_APP_URL=http://localhost:2341
+SAPPORTA_API_URL=http://localhost:2346
 ```
 
-The `mise.toml` env templates derive `SAPPORTA_API_PORT`,
-`SAPPORTA_FRONTEND_PORT`, `SAPPORTA_PUBLIC_APP_URL`, and `SAPPORTA_API_URL` from
-that pair. `packages/frontend/vite.config.ts` points its `/api` proxy at the API
+or by overriding the same four variables from `mise.toml`, which
+`mise.toml.example` shows commented out. `packages/frontend/vite.config.ts` points its `/api` proxy at the API
 port and binds Vite to the frontend port. The API trusts the derived public app
 URL and uses it for auth/email callback links, so those links also go through
 Vite's `/api/*` proxy in development. `VITE_API_URL` is not needed because
@@ -101,7 +113,7 @@ packages/shared/         ts-rest contracts + types shared by backend and fronten
 custom-built-parsers/    saved Python parsers for known statement layouts
 user-config.example/     tracked template for the private user config
 data/                    gitignored — the SQLite database and user config
-scripts/                 dev runner, user-config seeding, dist cleanup
+scripts/                 dev runner, first-run setup, sample data, dist cleanup
 ```
 
 Inside `packages/api`:

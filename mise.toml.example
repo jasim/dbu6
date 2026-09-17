@@ -1,17 +1,19 @@
-[vars]
-frontend_port = 2340
-api_port = 2345
+# Optional. Everything the app needs has a working default in .env.development,
+# which `pnpm dev` creates for you; mise is only for pinning Node and for the
+# settings below, which do not belong in a file copied from an example.
+#
+# Anything set here overrides .env.development, because a value already in the
+# environment wins over one loaded from an env file.
+
+[tools]
+node = "24"
 
 [env]
-SAPPORTA_API_TOKEN = 
+SAPPORTA_API_TOKEN = ""
 # Deprecated. AI runs on the coding agent chosen in Settings (Claude Code or Codex).
 # Set LLM_ENGINE to nuabase, with NUABASE_API_KEY, only to categorize on the Nuabase gateway instead.
-LLM_ENGINE = 
-NUABASE_API_KEY = 
-SAPPORTA_FRONTEND_PORT = "{{ vars.frontend_port }}"
-SAPPORTA_API_PORT = "{{ vars.api_port }}"
-SAPPORTA_PUBLIC_APP_URL = "http://localhost:{{ vars.frontend_port }}"
-SAPPORTA_API_URL = "http://localhost:{{ vars.api_port }}"
+LLM_ENGINE = ""
+NUABASE_API_KEY = ""
 
 # Optional, only if you want to work on the Sapporta framework code locally,
 # and have dbu6 use that rather than the npm package. This lets you preview
@@ -19,5 +21,14 @@ SAPPORTA_API_URL = "http://localhost:{{ vars.api_port }}"
 # after configuring the directory here:
 SAPPORTA_PACKAGE_ROOT = "/absolute/path/to/sapporta"
 
-[tools]
-node = "24"
+# Uncomment to run on other ports than .env.development's 2340 and 2345 — for
+# example to run a second Sapporta project side by side.
+# [vars]
+# frontend_port = 2340
+# api_port = 2345
+#
+# [env]
+# SAPPORTA_FRONTEND_PORT = "{{ vars.frontend_port }}"
+# SAPPORTA_API_PORT = "{{ vars.api_port }}"
+# SAPPORTA_PUBLIC_APP_URL = "http://localhost:{{ vars.frontend_port }}"
+# SAPPORTA_API_URL = "http://localhost:{{ vars.api_port }}"

@@ -131,9 +131,8 @@ export const mappings = {
 ## Getting started
 
 You need Node 22 or newer, pnpm 11, `uv`, and `pdftotext` (from poppler) for
-PDF statements.
-[mise](https://mise.jdx.dev) is optional; without its shell hook, prefix the
-`pnpm` commands below with `mise exec --`.
+PDF statements. [mise](https://mise.jdx.dev) is optional; it only pins the Node
+version and holds personal settings.
 
 1. Install the Sapporta skill for your coding agent:
 
@@ -141,30 +140,22 @@ PDF statements.
    npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --global --yes
    ```
 
-2. dbu6 currently builds against a local checkout of Sapporta. Clone Sapporta
-   and run `pnpm install && pnpm build` in it, then link it with
-   `pnpm package-sources use:local /absolute/path/to/sapporta`.
-
-3. Create the local config, then set `BETTER_AUTH_SECRET` in
-   `.env.development`:
-
-   ```bash
-   cp mise.toml.example mise.toml
-   cp .env.development.example .env.development
-   ```
-
-4. Install, create the database, and start the API and web UI in watch mode:
+2. Start the API and web UI in watch mode:
 
    ```bash
    pnpm install
-   pnpm setup
-   pnpm --filter ./packages/api db:migrate
    pnpm dev
    ```
 
-5. Open http://localhost:2340 (`frontend_port` in `mise.toml`) and sign up. For
-   sample data, run `pnpm seed` while `pnpm dev` is running and sign in as
-   `demo@example.com` / `demo-password`.
+   The first `pnpm dev` sets the project up: it creates `.env.development` from
+   `.env.development.example` with a generated `BETTER_AUTH_SECRET`, seeds
+   `data/user-config/`, and creates the database by applying the migrations.
+   Every later start repeats those checks and changes nothing that already
+   exists. To do it without starting the app, run `pnpm setup`.
+
+3. Open http://localhost:2340 (`SAPPORTA_FRONTEND_PORT` in `.env.development`)
+   and sign up. For sample data, run `pnpm seed` while `pnpm dev` is running and
+   sign in as `demo@example.com` / `demo-password`.
 
 For a production build, run `pnpm build` then `pnpm start`, or use the included
 `Dockerfile`. [DEVELOPMENT.md](./DEVELOPMENT.md) has the full setup.
