@@ -49,6 +49,8 @@ function group(
 const source: AutoImportPlanFile = {
   status: "resolved",
   file_name: "Acct_Statement_050505_09092026.xls",
+  // The batch imported, so the app kept no copy of the statement.
+  saved_path: null,
   parser_path: "custom-built-parsers/hdfc-bank-xls/parser.py",
   account: { kind: "bank", identifier: "05050505050505" },
   institution: "HDFC BANK Ltd.",

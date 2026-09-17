@@ -37,4 +37,7 @@ Anonymize as follows:
 
 Before committing, scan the diff for non-round amounts, long digit strings
 without `050505`, and names or narrations not based on `sample` / `NOPII`.
-Real statements stay outside the repo.
+Real statements never enter the tracked tree. An upload the importer could
+not read is staged under `tmp/statement-uploads/`, which is gitignored and is
+where an import prompt points you: read the statement there, and copy nothing
+from it into a tracked file.

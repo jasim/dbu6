@@ -1,5 +1,6 @@
-import { access, readFile } from "node:fs/promises";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { access, readFile, rm } from "node:fs/promises";
+import { dirname } from "node:path";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { TsRestApi, projectPath, type SapportaEnv } from "@sapporta/server";
 import type { ImportPreset } from "dbu6-shared";
 
@@ -104,6 +105,16 @@ function importedNothing(): StatementImportResult {
   };
 }
 
+// A rejected batch keeps its uploads inside the project for the prompt the
+// screen offers, so the tests delete what they staged and leave tmp/ as they
+// found it.
+const staged = new Set<string>();
+
+afterEach(async () => {
+  for (const dir of staged) await rm(dir, { recursive: true, force: true });
+  staged.clear();
+});
+
 // Narrows the handler's response union to a rejection, so a test that expects
 // one reads its body without restating the union.
 function rejection(
@@ -112,7 +123,14 @@ function rejection(
   if (response.status === 200) {
     throw new Error("expected the batch to be rejected, but it imported");
   }
-  return response.body;
+  const body = response.body;
+  if ("files" in body) {
+    for (const file of body.files) {
+      if (file.saved_path !== null)
+        staged.add(dirname(projectPath(file.saved_path)));
+    }
+  }
+  return body;
 }
 
 /** The batch refused before any account was imported. */
@@ -205,6 +223,7 @@ describe("automatic statement import", () => {
       {
         status: "resolved",
         file_name: "bank-jan.xls",
+        saved_path: null,
         parser_path: BANK_PARSER,
         account: { kind: "bank", identifier: "05050505050505" },
         institution: "HDFC BANK Ltd.",
@@ -213,6 +232,7 @@ describe("automatic statement import", () => {
       {
         status: "resolved",
         file_name: "card-jan.xls",
+        saved_path: null,
         parser_path: CARD_PARSER,
         account: { kind: "card", identifier: "050505XXXXXX0505" },
         institution: "HDFC Bank Cards Division",
@@ -221,6 +241,7 @@ describe("automatic statement import", () => {
       {
         status: "resolved",
         file_name: "second-jan.xls",
+        saved_path: null,
         parser_path: SECOND_BANK_PARSER,
         account: { kind: "bank", identifier: "050505000012" },
         institution: null,
@@ -229,6 +250,7 @@ describe("automatic statement import", () => {
       {
         status: "resolved",
         file_name: "bank-feb.xls",
+        saved_path: null,
         parser_path: BANK_PARSER,
         account: { kind: "bank", identifier: "05050505050505" },
         institution: "HDFC BANK Ltd.",
@@ -345,6 +367,27 @@ describe("automatic statement import", () => {
     expect(
       file?.status === "unrecognized" ? file.candidate_parser_paths : [],
     ).toContain("custom-built-parsers/hdfc-cc-csv/parser.py");
+  }, 120_000);
+
+  it("keeps a rejected batch's uploads in the project, where the reply says", async () => {
+    const contents =
+      "date,narration,amount\n2026-01-01,NOPII sample payee,1000\n";
+    const response = await importStatementsAutomatically(
+      { statements: [new File([contents], "sample-notes.csv")], gpay: null },
+      [bankPreset],
+      db,
+      auth,
+    );
+
+    const [file] = planRejection(response).files;
+    // A path under the project root, so the coding agent the prompt is
+    // handed to opens it from the directory it starts in.
+    expect(file?.saved_path).toMatch(
+      /^tmp\/statement-uploads\/[^/]+\/0-sample-notes\.csv$/,
+    );
+    await expect(
+      readFile(projectPath(file?.saved_path ?? ""), "utf8"),
+    ).resolves.toBe(contents);
   }, 120_000);
 
   it("reports the accounts already imported when a later group fails", async () => {

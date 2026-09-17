@@ -15,6 +15,11 @@ import { readImportResponse, type ImportFailure } from "./outcome";
 
 const BANK_PARSER = "custom-built-parsers/hdfc-bank-xls/parser.py";
 
+/** Where the app staged an upload of a batch it could not import. */
+function staged(fileName: string): string {
+  return `tmp/statement-uploads/2026-09-09T05-05-05-0505/0-${fileName}`;
+}
+
 /** The failure a refused reply parses to. */
 function refused(status: number, body: unknown): ImportFailure {
   const outcome = readImportResponse(status, body);
@@ -75,6 +80,7 @@ function importedGroup(
 const resolvedRow = {
   status: "resolved" as const,
   file_name: "bank-aug.xls",
+  saved_path: staged("bank-aug.xls"),
   parser_path: BANK_PARSER,
   account: { kind: "bank" as const, identifier: "05050505050505" },
   institution: "HDFC BANK Ltd.",
@@ -86,6 +92,7 @@ describe("plan rejections", () => {
     const unrecognized: AutoImportPlanFile = {
       status: "unrecognized",
       file_name: "notes.txt",
+      saved_path: staged("notes.txt"),
       candidate_parser_paths: [],
     };
     const error = refused(422, planRejection([resolvedRow, unrecognized]));
@@ -115,7 +122,11 @@ describe("plan rejections", () => {
         to: FREEFORM_IMPORT_ROUTE,
       },
     ]);
-    expect(problem.agent?.prompt).toContain("The file is called notes.txt");
+    // The prompt points the agent at the copy the app kept inside the
+    // repository it starts in, instead of describing the file.
+    expect(problem.agent?.prompt).toContain(
+      `The file is in this repository at ${staged("notes.txt")}.`,
+    );
     expect(problem.agent?.prompt).toContain(
       "custom-built-parsers/import-statement-parser-guide.md",
     );
@@ -155,6 +166,7 @@ describe("plan rejections", () => {
         {
           status: "unrecognized",
           file_name: "card.csv",
+          saved_path: staged("card.csv"),
           candidate_parser_paths: [
             "custom-built-parsers/hdfc-cc-csv/parser.py",
             "custom-built-parsers/stanc-bank-csv/parser.py",
@@ -178,6 +190,7 @@ describe("plan rejections", () => {
         {
           status: "unresolved",
           file_name: "card-aug.xls",
+          saved_path: staged("card-aug.xls"),
           parser_path: "custom-built-parsers/hdfc-cc-xls/parser.py",
           account: { kind: "card", identifier: "050505XXXXXX0505" },
           institution: "HDFC Bank Cards Division",
@@ -201,7 +214,9 @@ describe("plan rejections", () => {
     expect(problem.agent?.prompt).toContain(
       "statement_account_identifier to 050505XXXXXX0505",
     );
-    expect(problem.agent?.prompt).toContain("curl");
+    expect(problem.agent?.prompt).toContain(
+      `-F "files=@${staged("card-aug.xls")}"`,
+    );
   });
 
   it("tells a mismatched account apart from a mistaken drop", () => {
@@ -211,6 +226,7 @@ describe("plan rejections", () => {
         {
           status: "unresolved",
           file_name: "other.xls",
+          saved_path: staged("other.xls"),
           parser_path: BANK_PARSER,
           account: { kind: "bank", identifier: "050505000099" },
           institution: "HDFC BANK Ltd.",
@@ -279,6 +295,13 @@ describe("account import failures", () => {
     expect(problem.agent?.prompt).toContain(BANK_PARSER);
     expect(problem.agent?.prompt).toContain("difference 100");
     expect(problem.agent?.prompt).toContain("import-draft/statements/auto");
+    // The account's own files, for the agent to read and to post back.
+    expect(problem.agent?.prompt).toContain(
+      `The uploads are in this repository at ${staged("bank-aug.xls")}.`,
+    );
+    expect(problem.agent?.prompt).toContain(
+      `-F "files=@${staged("bank-aug.xls")}"`,
+    );
     expect(problem.fileNames).toEqual(["bank-aug.xls"]);
     expect(problem.tone).toBe("problem");
     expect(describeBatch({ kind: "failed", failure: error })).toMatchObject({
@@ -526,11 +549,13 @@ describe("problem tones", () => {
         {
           status: "unrecognized",
           file_name: "notes.html",
+          saved_path: staged("notes.html"),
           candidate_parser_paths: [],
         },
         {
           status: "ambiguous",
           file_name: "bank.csv",
+          saved_path: staged("bank.csv"),
           matching_parser_paths: [BANK_PARSER, BANK_PARSER],
         },
         ...(
@@ -543,6 +568,7 @@ describe("problem tones", () => {
           ...resolvedRow,
           status: "unresolved" as const,
           file_name: `${reason}.xls`,
+          saved_path: staged(`${reason}.xls`),
           reason,
           message: "sample",
           candidate_preset_names: ["Sample Bank"],

@@ -85,8 +85,19 @@ export const statementImportResultSchema = importSummarySchema.extend({
 // saved parser whose extensions fit the file, then the parser and the account
 // identifier the statement reports pick the preset. Each outcome carries only
 // what explains it, so a rejection annotates the list the user dropped.
-const reportedStatementFields = {
+//
+// The upload itself, as every outcome names it.
+const uploadedFileFields = {
   file_name: z.string(),
+  // The copy the app staged inside the project, relative to the project root,
+  // for a coding agent to open. Null when the batch imported: a clean import
+  // keeps no copy of the statement.
+  saved_path: z.string().nullable(),
+};
+
+// What the parser that read the file reported about it.
+const reportedStatementFields = {
+  ...uploadedFileFields,
   parser_path: z.string(),
   // What the statement prints about itself; null when the parser emits none.
   account: statementAccountSchema.nullable(),
@@ -101,12 +112,12 @@ export const autoImportPlanFileSchema = z.discriminatedUnion("status", [
     preset_name: z.string(),
   }),
   z.object({
-    file_name: z.string(),
+    ...uploadedFileFields,
     status: z.literal("unrecognized"),
     candidate_parser_paths: z.array(z.string()),
   }),
   z.object({
-    file_name: z.string(),
+    ...uploadedFileFields,
     status: z.literal("ambiguous"),
     matching_parser_paths: z.array(z.string()),
   }),

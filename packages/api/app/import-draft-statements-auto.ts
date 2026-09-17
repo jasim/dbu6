@@ -33,15 +33,16 @@ import { respondWithImportErrors } from "./import-error-response.js";
 import {
   filesFromField,
   uploadedFile,
+  withStagedUploads,
   withTempUpload,
-  withTempUploads,
+  type StagedUploads,
 } from "./upload-tmp.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
 // Automatic statement import: the user uploads statement files, and
 // optionally a Google Pay Takeout, and nothing else.
 //
-//   withTempUploads(statements)
+//   withStagedUploads(statements)
 //     -> per file: savedCustomStatementParserPaths(ext)
 //                  recognizeStatementFile(candidates, path)
 //     -> planAutoImport(recognitions, presets)   pure: groups, or a rejection
@@ -51,6 +52,14 @@ import { requireWorkflowAuth } from "./workflow-auth.js";
 //
 // Everything the account resolution decided is reported back, whether or not
 // anything was imported, so the user can fix a preset and retry.
+//
+// The uploads are staged inside the project (tmp/statement-uploads/), and a
+// batch that did not import keeps them: every file the reply reports says
+// where its copy is, which is what the screen's prompts hand to a coding
+// agent instead of asking the user to find the file again.
+
+// Where a batch is staged, under the project's own tmp/.
+const STAGED_UPLOADS_DIR = "statement-uploads";
 
 type AutoImportRouteResponse =
   | {
@@ -60,12 +69,16 @@ type AutoImportRouteResponse =
   | { status: 400; body: AutoImportErrorBody }
   | { status: 422; body: AutoImportErrorBody };
 
-function planFileRow(file: PlannedFile): AutoImportPlanFile {
+function planFileRow(
+  file: PlannedFile,
+  savedPath: string | null,
+): AutoImportPlanFile {
   switch (file.status) {
     case "resolved":
       return {
         status: "resolved",
         file_name: file.file,
+        saved_path: savedPath,
         parser_path: file.parserPath,
         account: file.account,
         institution: file.institution,
@@ -75,18 +88,21 @@ function planFileRow(file: PlannedFile): AutoImportPlanFile {
       return {
         status: "unrecognized",
         file_name: file.file,
+        saved_path: savedPath,
         candidate_parser_paths: file.candidateParserPaths,
       };
     case "ambiguous":
       return {
         status: "ambiguous",
         file_name: file.file,
+        saved_path: savedPath,
         matching_parser_paths: file.matchingParserPaths,
       };
     case "unresolved":
       return {
         status: "unresolved",
         file_name: file.file,
+        saved_path: savedPath,
         parser_path: file.parserPath,
         account: file.account,
         institution: file.institution,
@@ -245,29 +261,53 @@ async function importStaged(
   db: unknown,
   auth: RowScopeAuth,
 ): Promise<AutoImportRouteResponse> {
-  return withTempUploads(
-    statements,
-    "auto-statement-upload",
-    async (_workDir, paths) => {
-      const recognitions = await recognizeUploads(
-        statements.map((file) => file.name),
-        paths,
-      );
-      const plan = planAutoImport(recognitions, presets);
-      const files = plan.files.map(planFileRow);
-      if (!plan.ok) return planRejection(files);
+  return withStagedUploads(statements, STAGED_UPLOADS_DIR, async (staged) => {
+    const names = statements.map((file) => file.name);
+    const recognitions = await recognizeUploads(names, staged.paths);
+    const plan = planAutoImport(recognitions, presets);
+    // The plan keys a file by the name it was uploaded under, which is how
+    // its staged copy is found again.
+    const stagedAt = new Map(
+      names.map((name, index) => [name, staged.projectPaths[index]]),
+    );
+    const files = plan.files.map((file) =>
+      planFileRow(file, stagedAt.get(file.file) ?? null),
+    );
+    if (!plan.ok) return keepUploadsFor(planRejection(files), staged);
 
-      console.log(
-        `[auto-statement-upload] importing ${plan.groups.length} account(s): ${plan.groups
-          .map(
-            (group) =>
-              `${group.preset.name} <- ${group.statements.map((one) => one.file).join(", ")}`,
-          )
-          .join("; ")}`,
-      );
-      return importGroups(plan.groups, files, gpayHtmlPath, db, auth);
+    console.log(
+      `[auto-statement-upload] importing ${plan.groups.length} account(s): ${plan.groups
+        .map(
+          (group) =>
+            `${group.preset.name} <- ${group.statements.map((one) => one.file).join(", ")}`,
+        )
+        .join("; ")}`,
+    );
+    return keepUploadsFor(
+      await importGroups(plan.groups, files, gpayHtmlPath, db, auth),
+      staged,
+    );
+  });
+}
+
+// The staged copies exist for the prompts the screen offers when something
+// went wrong, so a batch that imported keeps none: its files go with the work
+// directory, and its reply points at nothing.
+function keepUploadsFor(
+  response: AutoImportRouteResponse,
+  staged: StagedUploads,
+): AutoImportRouteResponse {
+  if (response.status !== 200) {
+    staged.keep();
+    return response;
+  }
+  return {
+    status: 200,
+    body: {
+      files: response.body.files.map((file) => ({ ...file, saved_path: null })),
+      groups: response.body.groups,
     },
-  );
+  };
 }
 
 const api = new TsRestApi<SapportaEnv>();
