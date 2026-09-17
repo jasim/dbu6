@@ -67,10 +67,11 @@ export function AskYourAgent({
 }) {
   return (
     <div className="mt-8 max-w-[760px]">
-      <AgentPrompt title={title} prompt={prompt}>
-        It lists every row above and says how to read the rest. Nothing changes
-        in your books until you tell the agent to change it.
-      </AgentPrompt>
+      <AgentPrompt
+        title={title}
+        prompt={prompt}
+        afterwards="Nothing changes in your books until you tell the agent to."
+      />
     </div>
   );
 }

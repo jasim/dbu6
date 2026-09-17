@@ -143,12 +143,8 @@ export function ImportFreeformTransactions() {
             <AgentPrompt
               title="Turn your transactions into drafts"
               prompt={prompt}
-            >
-              Paste the transactions as your first reply in the terminal, or
-              right after the prompt if you copy it. The agent asks for the
-              balance just before the earliest transaction and just after the
-              latest one, so have them ready.
-            </AgentPrompt>
+              afterwards="Paste the transactions as your first reply. It asks for the balance just before the earliest and just after the latest."
+            />
           )}
         </Step>
 

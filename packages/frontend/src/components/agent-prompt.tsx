@@ -1,11 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Copy, Sparkles, SquareTerminal } from "lucide-react";
-import {
-  CODING_AGENTS,
-  type AgentHandoff,
-  type AgentHandoffAvailability,
-} from "dbu6-shared";
+import { CODING_AGENTS, type AgentHandoff } from "dbu6-shared";
 import { agentHandoffApi, apiRefusalMessage } from "../api";
 import { agentHandoffAvailabilityQuery } from "../queries";
 import { Disclosure } from "./disclosure";
@@ -14,28 +10,27 @@ import { Button } from "./ui/button";
 /**
  * The one panel for every prompt the app hands to the user's coding agent
  * (Import, freeform import, Review). It is violet, and nothing else in the
- * app is, so an AI-assisted prompt is recognisable before it is read. Two
- * things carry: `title`, the one thing this prompt gets done, and the line
- * under it, which says the button opens the agent in a terminal.
+ * app is, so an AI-assisted prompt is recognisable before it is read.
  *
- * Copying the prompt always works, so a user with no agent on the server's
- * machine, or one who keeps a session of their own open, loses nothing.
+ * It gives the user as little to read as it can: the `title`, and buttons
+ * that say what they do. `afterwards` is for once the agent has the prompt,
+ * so it waits until the user has taken it somewhere.
  *
  * Which agent is started, and whether the server can open a terminal for it,
  * is the server's to decide: the button only asks, and the result says what
- * happened. The session is interactive, so the user answers the agent there;
- * it runs in auto mode, so its edits don't wait on the user's approval.
+ * happened. The session is interactive, so the user carries the conversation
+ * on there; it runs in auto mode, so its edits don't wait on approval.
  */
 export function AgentPrompt({
   title,
   prompt,
-  children,
+  afterwards,
 }: {
   /** What this prompt gets done, in one short line. */
   title: string;
   prompt: string;
-  /** Anything else the user has to know before starting the agent. */
-  children?: ReactNode;
+  /** What the user does once the agent has the prompt. */
+  afterwards?: ReactNode;
 }) {
   const availability = useQuery(agentHandoffAvailabilityQuery).data;
   // The button shows only where the server can start an agent; copying is
@@ -45,8 +40,11 @@ export function AgentPrompt({
     mutationFn: (text: string) =>
       agentHandoffApi.handOffPrompt({ body: { prompt: text } }),
   });
-  // A result belongs to the prompt it was made for.
+  const [copied, setCopied] = useState<string>();
+  // A result, and the advice that follows it, belong to the prompt they were
+  // made for; a new prompt leaves both behind.
   const asked = handoff.variables === prompt;
+  const acted = copied === prompt || (asked && handoff.isSuccess);
 
   return (
     <section className="rounded-card border border-assist-border bg-assist-bg px-5 py-[18px] sm:px-6">
@@ -57,13 +55,7 @@ export function AgentPrompt({
       <h3 className="mt-1.5 text-subheading text-foreground [overflow-wrap:anywhere]">
         {title}
       </h3>
-      <p className="mt-1 text-body text-ink-soft">
-        {whatHappens(availability)}
-      </p>
-      {children && (
-        <div className="mt-1 text-body text-ink-soft">{children}</div>
-      )}
-      <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
+      <div className="mt-3 flex flex-wrap items-center gap-2.5">
         {handsOff && (
           <Button
             type="button"
@@ -78,11 +70,11 @@ export function AgentPrompt({
               : `Command for ${CODING_AGENTS[availability.agent].label}`}
           </Button>
         )}
-        <CopyButton text={prompt} label="Copy prompt" />
+        <CopyButton text={prompt} label="Copy prompt" onCopied={setCopied} />
       </div>
-      {handsOff && (
+      {!handsOff && (
         <p className="mt-2 text-meta text-ink-meta">
-          Or copy it and paste it into an agent of your own.
+          Run your agent in this app's repo.
         </p>
       )}
       <div aria-live="polite">
@@ -91,6 +83,9 @@ export function AgentPrompt({
           <p className="mt-3 text-body text-destructive [overflow-wrap:anywhere]">
             {apiRefusalMessage(handoff.error)}
           </p>
+        )}
+        {acted && afterwards !== undefined && (
+          <div className="mt-3 text-body text-ink-soft">{afterwards}</div>
         )}
       </div>
       <div className="mt-2">
@@ -104,31 +99,13 @@ export function AgentPrompt({
   );
 }
 
-/**
- * What the button does, in the terms of the machine running the server: a
- * window it opens, or a command it writes. With no agent there — a deployed
- * instance, or Windows — there is no button, and copying is the whole story.
- */
-function whatHappens(
-  availability: AgentHandoffAvailability | undefined,
-): string {
-  if (availability === undefined || availability.mode === "none") {
-    return "Copy this prompt into your coding agent, running in this app's repository. It carries everything the agent needs.";
-  }
-  const label = CODING_AGENTS[availability.agent].label;
-  return availability.mode === "terminal"
-    ? `Opens ${label} in a new terminal window, on this prompt. You answer it there.`
-    : `Starts ${label} on this prompt and gives you the command to run in a terminal. You answer it there.`;
-}
-
 function HandoffResult({ handoff }: { handoff: AgentHandoff }) {
   const label = CODING_AGENTS[handoff.agent].label;
   if (handoff.mode === "command") {
     return (
       <div className="mt-3 space-y-2">
         <p className="text-body text-ink-soft">
-          Run this in a terminal to start {label} on the prompt, then answer it
-          there:
+          Run this to start {label}, then continue there:
         </p>
         <Command command={handoff.command} />
       </div>
@@ -137,12 +114,10 @@ function HandoffResult({ handoff }: { handoff: AgentHandoff }) {
   return (
     <div className="mt-3">
       <p className="text-body text-ink-soft">
-        {label} opened in a new terminal window. Answer it there.
+        {label} is open in a terminal. Continue there.
       </p>
       <Disclosure tone="assist" summary="Didn't open?">
-        <p className="text-body text-ink-soft">
-          Run this in a terminal instead:
-        </p>
+        <p className="text-body text-ink-soft">Run this instead:</p>
         <Command command={handoff.command} />
       </Disclosure>
     </div>
@@ -160,8 +135,16 @@ function Command({ command }: { command: string }) {
   );
 }
 
-/** Copies text, and says so for two seconds. */
-function CopyButton({ text, label }: { text: string; label: string }) {
+/** Copies text, says so for two seconds, and tells the panel what it copied. */
+function CopyButton({
+  text,
+  label,
+  onCopied,
+}: {
+  text: string;
+  label: string;
+  onCopied?: (text: string) => void;
+}) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -174,7 +157,10 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       variant="outline"
       size="sm"
       onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => setCopied(true));
+        void navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          onCopied?.(text);
+        });
       }}
     >
       <Copy />

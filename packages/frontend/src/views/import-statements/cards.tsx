@@ -261,9 +261,8 @@ export function ProblemCard({
           <AgentPrompt
             title={problem.agent.title}
             prompt={problem.agent.prompt}
-          >
-            {problem.agent.afterwards}
-          </AgentPrompt>
+            afterwards={problem.agent.afterwards}
+          />
         </div>
       )}
       <div className="mt-3">

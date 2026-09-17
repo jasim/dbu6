@@ -15,9 +15,10 @@ import type { AgentHandoffAvailability } from "dbu6-shared";
 import { AgentPrompt } from "./agent-prompt";
 
 /*
- * The panel says what the prompt gets done and that the button opens a
- * terminal. Copy prompt always shows; an Open or Command button shows for
- * the agent the server can start, and a click shows what happened.
+ * The panel shows its title and its buttons and nothing else to read. Copy
+ * prompt always shows; an Open or Command button shows for the agent the
+ * server can start, and a click shows what happened. What the user does next
+ * waits until they have taken the prompt somewhere.
  */
 
 let host: HTMLDivElement;
@@ -28,6 +29,7 @@ let posts: unknown[];
 
 const PROMPT = "Build a parser for NOPII sample statement 050505.";
 const TITLE = "Build a reader for this file's layout";
+const AFTERWARDS = "Drop the file again once the agent says it is done.";
 const LAUNCHER = "/sample/dbu6/tmp/agent-prompts/sample-claude-code.command";
 
 beforeAll(() => {
@@ -51,6 +53,10 @@ beforeEach(() => {
       command: `sh '${LAUNCHER}'`,
     },
   };
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async () => {} },
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -83,18 +89,18 @@ function handedOffIn(mode: "terminal" | "command", agent = "claude-code") {
 
 let client: QueryClient;
 
-async function render(prompt = PROMPT) {
+async function render(prompt = PROMPT, afterwards?: string) {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  await rerender(prompt);
+  await rerender(prompt, afterwards);
 }
 
-async function rerender(prompt: string) {
+async function rerender(prompt: string, afterwards?: string) {
   await act(async () => {
     root.render(
       createElement(
         QueryClientProvider,
         { client },
-        createElement(AgentPrompt, { title: TITLE, prompt }),
+        createElement(AgentPrompt, { title: TITLE, prompt, afterwards }),
       ),
     );
   });
@@ -125,30 +131,25 @@ async function click(label: string) {
 }
 
 describe("AgentPrompt", () => {
-  it("says what the prompt gets done and that it opens a terminal", async () => {
+  it("says what the prompt gets done, and leaves the buttons to say the rest", async () => {
     offers({ mode: "terminal", agent: "claude-code" });
-    await render();
+    await render(PROMPT, AFTERWARDS);
 
     expect(host.querySelector("h3")?.textContent).toBe(TITLE);
     expect(host.textContent).toContain("AI assisted");
-    expect(host.textContent).toContain(
-      "Opens Claude Code in a new terminal window, on this prompt.",
-    );
-    expect(host.textContent).toContain(
-      "Or copy it and paste it into an agent of your own.",
-    );
+    expect(buttons()).toEqual(["Open in Claude Code", "Copy prompt"]);
+    expect(host.textContent).not.toContain("terminal");
+    expect(host.textContent).not.toContain(AFTERWARDS);
     expect(host.querySelector("pre")?.textContent).toBe(PROMPT);
   });
 
-  it("asks for a copy where no agent can be started", async () => {
+  it("says where to run the agent when it can't start one", async () => {
     offers({ mode: "none" });
     await render();
 
     expect(host.querySelector("h3")?.textContent).toBe(TITLE);
-    expect(host.textContent).toContain(
-      "Copy this prompt into your coding agent",
-    );
-    expect(host.textContent).not.toContain("terminal window");
+    expect(host.textContent).toContain("Run your agent in this app's repo.");
+    expect(host.textContent).not.toContain("terminal");
   });
 
   it("opens the agent dbu6 uses in a terminal on macOS", async () => {
@@ -175,7 +176,7 @@ describe("AgentPrompt", () => {
     expect(buttons()).toEqual(["Copy prompt"]);
   });
 
-  it("asks the server to open the agent, and says where to answer it", async () => {
+  it("asks the server to open the agent, and says where to continue", async () => {
     offers({ mode: "terminal", agent: "claude-code" });
     await render();
 
@@ -183,7 +184,7 @@ describe("AgentPrompt", () => {
 
     expect(posts).toEqual([{ prompt: PROMPT }]);
     expect(host.textContent).toContain(
-      "Claude Code opened in a new terminal window. Answer it there.",
+      "Claude Code is open in a terminal. Continue there.",
     );
     expect(host.querySelector("summary")?.textContent).toContain(
       "Didn't open?",
@@ -200,7 +201,7 @@ describe("AgentPrompt", () => {
 
     expect(posts).toEqual([{ prompt: PROMPT }]);
     expect(host.textContent).toContain(
-      "Run this in a terminal to start Claude Code on the prompt",
+      "Run this to start Claude Code, then continue there:",
     );
     expect(host.querySelector("code")?.textContent).toBe(`sh '${LAUNCHER}'`);
     expect(buttons()).toContain("Copy");
@@ -213,22 +214,43 @@ describe("AgentPrompt", () => {
 
     await click("Open in Claude Code");
 
-    expect(host.textContent).toContain(
-      "Codex opened in a new terminal window.",
-    );
+    expect(host.textContent).toContain("Codex is open in a terminal.");
   });
 
-  it("drops the result when the prompt changes", async () => {
+  it("drops the result, and what to do next, when the prompt changes", async () => {
     offers({ mode: "command", agent: "claude-code" });
     handedOffIn("command");
-    await render();
+    await render(PROMPT, AFTERWARDS);
     await click("Command for Claude Code");
     expect(host.querySelector("code")).not.toBeNull();
+    expect(host.textContent).toContain(AFTERWARDS);
 
-    await rerender("A different NOPII sample prompt.");
+    await rerender("A different NOPII sample prompt.", AFTERWARDS);
 
     expect(host.querySelector("code")).toBeNull();
-    expect(host.textContent).not.toContain("Run this in a terminal");
+    expect(host.textContent).not.toContain("Run this to start");
+    expect(host.textContent).not.toContain(AFTERWARDS);
+  });
+
+  it("says what to do next once the agent has the prompt", async () => {
+    offers({ mode: "terminal", agent: "claude-code" });
+    await render(PROMPT, AFTERWARDS);
+    expect(host.textContent).not.toContain(AFTERWARDS);
+
+    await click("Open in Claude Code");
+
+    expect(host.textContent).toContain(AFTERWARDS);
+  });
+
+  it("says what to do next after a copy, with no agent to start", async () => {
+    offers({ mode: "none" });
+    await render(PROMPT, AFTERWARDS);
+    expect(host.textContent).not.toContain(AFTERWARDS);
+
+    await click("Copy prompt");
+
+    expect(buttons()).toEqual(["Copied"]);
+    expect(host.textContent).toContain(AFTERWARDS);
   });
 
   it("shows the server's message when the handoff fails", async () => {
