@@ -17,6 +17,16 @@ import {
 import { parseAccount } from "./domain/Account.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 
+// The engine would detect the coding agents installed on this machine, running
+// their CLIs; these tests don't categorize.
+vi.mock("../llm-engine.js", () => ({
+  categorizationLlm: async () => ({
+    engine: null,
+    caller: { ready: false, reason: "no engine in tests" },
+    maxRowsPerCall: null,
+  }),
+}));
+
 // runStatementImport resolves the user-config directory before the draft
 // import, and dataPath() refuses to run without a data directory. Nothing here
 // reads files from it.

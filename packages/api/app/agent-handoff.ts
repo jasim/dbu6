@@ -13,14 +13,19 @@ import {
   type AgentHandoffRequest,
   type CodingAgent,
 } from "dbu6-shared";
-import { detectLocalAgents } from "nuabase/local-agent";
 import { launcherCommand, launcherScript } from "../agent-handoff/launcher.js";
+import {
+  currentCodingAgent,
+  NO_CODING_AGENT_MESSAGE,
+  type InstalledAgent,
+} from "../coding-agent.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
-// Hands a prompt the app offers to copy to a coding agent on this machine, as
-// an interactive session the user carries on in a terminal.
+// Hands a prompt the app offers to copy to the coding agent dbu6 uses on this
+// machine (coding-agent.ts), as an interactive session the user carries on in
+// a terminal.
 //
-//   POST { agent, prompt, open }
+//   POST { prompt, open }
 //     -> tmp/agent-prompts/<stamp>-<agent>-<hex>.md       the prompt, 0600
 //     -> tmp/agent-prompts/<stamp>-<agent>-<hex>.command  the launcher, 0700
 //     -> on macOS with `open`: `open <launcher>` runs it in a new window of
@@ -35,50 +40,15 @@ const PROMPTS_DIR = ["tmp", "agent-prompts"] as const;
 // launcher passes the whole prompt as one. macOS only caps all arguments
 // together, at 1 MiB, above the contract's limit.
 const LINUX_MAX_ARGUMENT_BYTES = 131_072;
-const DETECTION_TTL_MS = 60_000;
-
-type InstalledAgent = { agent: CodingAgent; binaryPath: string };
-
-// What this module reads of nuabase's LocalAgentStatus. Its published
-// declarations don't resolve under NodeNext, so the import is untyped.
-type DetectedAgent =
-  | { agent: CodingAgent; installed: false }
-  | { agent: CodingAgent; installed: true; binaryPath: string };
-
-let detection: { at: number; agents: Promise<InstalledAgent[]> } | null = null;
-
-/**
- * The agents installed on this machine, Claude Code first. Detection runs each
- * CLI, so it is kept for a minute: an agent installed later shows up without a
- * restart, and a click doesn't wait on the CLIs.
- */
-function installedAgents(): Promise<InstalledAgent[]> {
-  const now = Date.now();
-  if (detection === null || now - detection.at >= DETECTION_TTL_MS) {
-    const detected: Promise<DetectedAgent[]> = detectLocalAgents();
-    const agents = detected.then((statuses) =>
-      statuses.flatMap((status) =>
-        status.installed
-          ? [{ agent: status.agent, binaryPath: status.binaryPath }]
-          : [],
-      ),
-    );
-    agents.catch(() => {
-      if (detection?.agents === agents) detection = null;
-    });
-    detection = { at: now, agents };
-  }
-  return detection.agents;
-}
 
 export function handoffCapabilities(
-  agents: readonly CodingAgent[],
+  agent: CodingAgent | null,
   platform: NodeJS.Platform,
 ): AgentHandoffCapabilities {
   // The launcher is a POSIX shell script.
-  const shellCommand = agents.length > 0 && platform !== "win32";
+  const shellCommand = agent !== null && platform !== "win32";
   return {
-    agents: [...agents],
+    agent,
     open_terminal: shellCommand && platform === "darwin",
     shell_command: shellCommand,
   };
@@ -87,11 +57,8 @@ export function handoffCapabilities(
 export async function agentHandoffCapabilities(
   platform: NodeJS.Platform,
 ): Promise<AgentHandoffCapabilities> {
-  const installed = await installedAgents();
-  return handoffCapabilities(
-    installed.map((a) => a.agent),
-    platform,
-  );
+  const agent = await currentCodingAgent();
+  return handoffCapabilities(agent?.agent ?? null, platform);
 }
 
 type HandOffResponse =
@@ -104,22 +71,18 @@ export async function handOffPrompt(
   platform: NodeJS.Platform,
   root: string,
 ): Promise<HandOffResponse> {
-  const label = CODING_AGENT_LABEL[request.agent];
-  const installed = await installedAgents();
-  const target = installed.find((a) => a.agent === request.agent);
-  if (!target) {
+  const target = await currentCodingAgent();
+  if (target === null) {
     return {
       status: 400,
       body: {
-        error: "agent_not_installed",
-        message: `${label} isn't installed on the machine running dbu6.`,
+        error: "no_coding_agent",
+        message: NO_CODING_AGENT_MESSAGE,
       },
     };
   }
-  const capabilities = handoffCapabilities(
-    installed.map((a) => a.agent),
-    platform,
-  );
+  const label = CODING_AGENT_LABEL[target.agent];
+  const capabilities = handoffCapabilities(target.agent, platform);
   if (!capabilities.shell_command) {
     return {
       status: 400,

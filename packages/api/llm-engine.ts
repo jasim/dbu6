@@ -1,76 +1,52 @@
-import { accessSync, constants, statSync } from "node:fs";
-import { isAbsolute } from "node:path";
 import { Nua } from "nuabase";
 import { localAgent } from "nuabase/local-agent";
 import type { z } from "zod";
 import {
-  categorizationEngineSchema,
   CATEGORIZATION_ENGINE_LABEL,
   type CategorizationEngine,
   type CodingAgent,
 } from "dbu6-shared";
+import {
+  currentCodingAgent,
+  NO_CODING_AGENT_MESSAGE,
+  type InstalledAgent,
+} from "./coding-agent.js";
 
 /*
- * Where categorization's LLM runs, chosen once per process by LLM_ENGINE:
+ * Where categorization's LLM runs:
  *
- * - `nuabase` (the default): the Nuabase gateway, paid for with
- *   NUABASE_API_KEY, on a provider model.
- * - `claude-code` or `codex`: the coding agent installed and logged in on this
- *   machine, in Nuabase's headless mode, billed to the user's own plan. It
- *   runs the agent's own model (LOCAL_AGENT_MODEL, or its default) and can't
- *   take a provider model.
- *
- * Detection never picks the engine: switching between the Nuabase account and
- * the user's plan must not happen silently.
+ * - The coding agent dbu6 uses (coding-agent.ts), in Nuabase's headless mode,
+ *   billed to the user's own Claude or ChatGPT plan. This is the default, and
+ *   the only choice the app offers.
+ * - The Nuabase gateway, paid for with NUABASE_API_KEY, when
+ *   LLM_ENGINE=nuabase. Deprecated: kept for instances with no coding agent,
+ *   such as the Docker image.
  */
 
-export type LlmEngineSettings =
-  | { engine: "nuabase"; apiKey: string | null }
-  | {
-      engine: CodingAgent;
-      model: string | undefined;
-      binaryPath: string | undefined;
-    };
+export type LlmEngineSetting =
+  { engine: "coding-agent" } | { engine: "nuabase"; apiKey: string | null };
 
-export type ParsedLlmEngineSettings =
-  { ok: true; settings: LlmEngineSettings } | { ok: false; message: string };
+export type ParsedLlmEngineSetting =
+  { ok: true; setting: LlmEngineSetting } | { ok: false; message: string };
 
-/** Reads LLM_ENGINE and the settings it uses. Blank values count as unset. */
-export function parseLlmEngineSettings(
+/** Reads LLM_ENGINE and the key it uses. Blank values count as unset. */
+export function parseLlmEngineSetting(
   env: Readonly<Record<string, string | undefined>>,
-): ParsedLlmEngineSettings {
+): ParsedLlmEngineSetting {
   const value = (name: string) => env[name]?.trim() || undefined;
-  const engine = categorizationEngineSchema.safeParse(
-    value("LLM_ENGINE") ?? "nuabase",
-  );
-  if (!engine.success) {
-    return {
-      ok: false,
-      message: `LLM_ENGINE must be one of ${categorizationEngineSchema.options.join(", ")}; it is ${JSON.stringify(env.LLM_ENGINE)}.`,
-    };
+  const engine = value("LLM_ENGINE");
+  if (engine === undefined) {
+    return { ok: true, setting: { engine: "coding-agent" } };
   }
-  if (engine.data === "nuabase") {
+  if (engine === "nuabase") {
     return {
       ok: true,
-      settings: { engine: "nuabase", apiKey: value("NUABASE_API_KEY") ?? null },
-    };
-  }
-  // The agent runs in a temporary directory, where a relative path means
-  // something else.
-  const binaryPath = value("LOCAL_AGENT_BINARY");
-  if (binaryPath !== undefined && !isAbsolute(binaryPath)) {
-    return {
-      ok: false,
-      message: `LOCAL_AGENT_BINARY must be an absolute path; it is ${JSON.stringify(binaryPath)}.`,
+      setting: { engine: "nuabase", apiKey: value("NUABASE_API_KEY") ?? null },
     };
   }
   return {
-    ok: true,
-    settings: {
-      engine: engine.data,
-      model: value("LOCAL_AGENT_MODEL"),
-      binaryPath,
-    },
+    ok: false,
+    message: `LLM_ENGINE can only be "nuabase" (the deprecated Nuabase gateway); it is ${JSON.stringify(env.LLM_ENGINE)}. Unset it to use the coding agent chosen in Settings.`,
   };
 }
 
@@ -93,7 +69,8 @@ export interface NuaListClient {
 }
 
 export interface CategorizationLlm {
-  engine: CategorizationEngine;
+  /** Null when no coding agent is installed. */
+  engine: CategorizationEngine | null;
   /** The client and the model to name in each call, or why no call can run. */
   caller:
     | { ready: true; nua: NuaListClient; model: ProviderModel | undefined }
@@ -110,95 +87,95 @@ const GATEWAY_MODEL: ProviderModel = {
 // Each local call is one CLI process with a 180 s timeout, two at a time.
 const LOCAL_AGENT_ROWS_PER_CALL = 50;
 
-/**
- * Sets up the engine the settings name. Throws, with what to fix, when a local
- * agent can't be found: the server doesn't start on a setting that can never
- * work. A missing NUABASE_API_KEY doesn't throw; imports still run, leaving
- * transactions uncategorized, and say why.
- */
-export function buildCategorizationLlm(
-  settings: LlmEngineSettings,
-): CategorizationLlm {
-  if (settings.engine === "nuabase") {
+// The agent's own model for categorization. On sample data Claude Code's
+// `sonnet` chose the same accounts as the gateway, faster than `haiku`, which
+// left more blank; Codex does well on its default (PLAN.md §6, Step B4).
+const LOCAL_AGENT_MODEL: Record<CodingAgent, string | undefined> = {
+  "claude-code": "sonnet",
+  codex: undefined,
+};
+
+export function gatewayLlm(apiKey: string | null): CategorizationLlm {
+  return {
+    engine: "nuabase",
+    caller:
+      apiKey === null
+        ? { ready: false, reason: "NUABASE_API_KEY is not set" }
+        : {
+            ready: true,
+            nua: Nua.gateway({ apiKey }),
+            model: GATEWAY_MODEL,
+          },
+    maxRowsPerCall: null,
+  };
+}
+
+/** Categorization on a detected coding agent, or why it can't run. */
+export function localAgentLlm(agent: InstalledAgent | null): CategorizationLlm {
+  if (agent === null) {
     return {
-      engine: "nuabase",
-      caller:
-        settings.apiKey === null
-          ? { ready: false, reason: "NUABASE_API_KEY is not set" }
-          : {
-              ready: true,
-              nua: Nua.gateway({ apiKey: settings.apiKey }),
-              model: GATEWAY_MODEL,
-            },
-      maxRowsPerCall: null,
+      engine: null,
+      caller: { ready: false, reason: NO_CODING_AGENT_MESSAGE },
+      maxRowsPerCall: LOCAL_AGENT_ROWS_PER_CALL,
     };
   }
-
-  const label = CATEGORIZATION_ENGINE_LABEL[settings.engine];
-  if (settings.binaryPath !== undefined) {
-    assertExecutableFile(settings.binaryPath, label);
-  }
-  let agent: unknown;
-  try {
-    agent = localAgent({
-      agent: settings.engine,
-      model: settings.model,
-      binaryPath: settings.binaryPath,
-    });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `LLM_ENGINE is ${settings.engine}, but ${label} can't be set up: ${reason} ` +
-        "Install it, set LOCAL_AGENT_BINARY to its executable, or unset LLM_ENGINE to use Nuabase.",
-      { cause: error },
-    );
-  }
   return {
-    engine: settings.engine,
+    engine: agent.agent,
     // No per-call model: a local agent takes its own model names only.
     caller: {
       ready: true,
-      nua: Nua.direct({ localAgent: agent }),
+      nua: Nua.direct({
+        localAgent: localAgent({
+          agent: agent.agent,
+          model: LOCAL_AGENT_MODEL[agent.agent],
+          binaryPath: agent.binaryPath,
+        }),
+      }),
       model: undefined,
     },
     maxRowsPerCall: LOCAL_AGENT_ROWS_PER_CALL,
   };
 }
 
-function assertExecutableFile(path: string, label: string): void {
-  let problem: string | null = null;
-  try {
-    if (!statSync(path).isFile()) problem = "is not a file";
-    else accessSync(path, constants.X_OK);
-  } catch (error) {
-    problem =
-      (error as NodeJS.ErrnoException).code === "ENOENT"
-        ? "does not exist"
-        : "is not executable";
-  }
-  if (problem !== null) {
-    throw new Error(
-      `LOCAL_AGENT_BINARY (${path}) ${problem}. Set it to ${label}'s executable, or unset it to find ${label} on PATH.`,
-    );
-  }
-}
-
-let engine: CategorizationLlm | null = null;
+let setting: LlmEngineSetting | null = null;
 
 /**
- * The engine this process categorizes with, set up from the environment on
- * first use and kept. boot.ts calls it at startup so a bad setting stops the
- * server there.
+ * LLM_ENGINE, read once. Throws on a value that can never work; boot.ts calls
+ * it at startup so the server stops there.
  */
-export function categorizationLlm(): CategorizationLlm {
-  if (engine === null) {
-    const parsed = parseLlmEngineSettings(process.env);
+export function llmEngineSetting(): LlmEngineSetting {
+  if (setting === null) {
+    const parsed = parseLlmEngineSetting(process.env);
     if (!parsed.ok) throw new Error(parsed.message);
-    engine = buildCategorizationLlm(parsed.settings);
-    console.log(
-      `[llm-engine] categorization runs on ${CATEGORIZATION_ENGINE_LABEL[engine.engine]}` +
-        (engine.caller.ready ? "" : ` (unavailable: ${engine.caller.reason})`),
-    );
+    setting = parsed.setting;
+    if (setting.engine === "nuabase") {
+      console.log(
+        `[llm-engine] categorization runs on ${CATEGORIZATION_ENGINE_LABEL.nuabase} (LLM_ENGINE=nuabase, deprecated)`,
+      );
+    }
   }
-  return engine;
+  return setting;
+}
+
+let gateway: CategorizationLlm | null = null;
+// One per agent executable, so its limit on processes running at once holds
+// across requests.
+const localAgents = new Map<string, CategorizationLlm>();
+
+/** The engine categorization runs on right now. */
+export async function categorizationLlm(): Promise<CategorizationLlm> {
+  const current = llmEngineSetting();
+  if (current.engine === "nuabase") {
+    gateway ??= gatewayLlm(current.apiKey);
+    return gateway;
+  }
+  const agent = await currentCodingAgent();
+  if (agent === null) return localAgentLlm(null);
+  const key = `${agent.agent}:${agent.binaryPath}`;
+  let llm = localAgents.get(key);
+  if (llm === undefined) {
+    llm = localAgentLlm(agent);
+    localAgents.set(key, llm);
+  }
+  return llm;
 }

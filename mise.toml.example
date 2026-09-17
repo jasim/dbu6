@@ -4,14 +4,10 @@ api_port = 2345
 
 [env]
 SAPPORTA_API_TOKEN = 
-NUABASE_API_KEY = 
-# Where categorization runs: nuabase (default, needs NUABASE_API_KEY), claude-code, or codex.
-# claude-code and codex use the agent installed and logged in on this machine, billed to your plan.
+# Deprecated. AI runs on the coding agent chosen in Settings (Claude Code or Codex).
+# Set LLM_ENGINE to nuabase, with NUABASE_API_KEY, only to categorize on the Nuabase gateway instead.
 LLM_ENGINE = 
-# Optional. The agent's own model name; "sonnet" is recommended for Claude Code.
-LOCAL_AGENT_MODEL = 
-# Optional. The agent's executable, as an absolute path, when it isn't on the server's PATH.
-LOCAL_AGENT_BINARY = 
+NUABASE_API_KEY = 
 SAPPORTA_FRONTEND_PORT = "{{ vars.frontend_port }}"
 SAPPORTA_API_PORT = "{{ vars.api_port }}"
 SAPPORTA_PUBLIC_APP_URL = "http://localhost:{{ vars.frontend_port }}"

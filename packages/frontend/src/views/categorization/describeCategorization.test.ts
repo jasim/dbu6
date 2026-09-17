@@ -59,4 +59,20 @@ describe("describeCategorizationProblem", () => {
       reason: "No reason was given.",
     });
   });
+
+  it("names no engine when no coding agent is installed", () => {
+    expect(
+      describeCategorizationProblem({
+        engine: null,
+        sent_count: 12,
+        failed_count: 12,
+        error:
+          "No coding agent found. Install Claude Code or Codex on the machine running dbu6.",
+      }),
+    ).toEqual({
+      text: "Couldn't categorize any of the 12 descriptions",
+      reason:
+        "No coding agent found. Install Claude Code or Codex on the machine running dbu6.",
+    });
+  });
 });

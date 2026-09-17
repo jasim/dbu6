@@ -18,7 +18,6 @@ export function describeCategorizationProblem(
 ): CategorizationProblem | null {
   const { failed_count: failed, sent_count: sent } = report;
   if (failed === 0) return null;
-  const engine = CATEGORIZATION_ENGINE_LABEL[report.engine];
   const which =
     sent === 1
       ? "the 1 description"
@@ -26,7 +25,10 @@ export function describeCategorizationProblem(
         ? `any of the ${sent} descriptions`
         : `${failed} of ${sent} descriptions`;
   return {
-    text: `Couldn't categorize ${which} with ${engine}`,
+    text:
+      report.engine === null
+        ? `Couldn't categorize ${which}`
+        : `Couldn't categorize ${which} with ${CATEGORIZATION_ENGINE_LABEL[report.engine]}`,
     reason: report.error ?? "No reason was given.",
   };
 }

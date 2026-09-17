@@ -109,7 +109,7 @@ export function parseLLMResponse(
 
 /** The report when no description needed the LLM. */
 export function nothingSentReport(
-  engine: CategorizationEngine,
+  engine: CategorizationEngine | null,
 ): CategorizationReport {
   return { engine, sent_count: 0, failed_count: 0, error: null };
 }
@@ -223,7 +223,9 @@ export async function categorizeViaLLM(
   if (rows.length === 0) return { mappings: {}, report };
 
   if (!caller.ready) {
-    console.error(`[${engine}] LLM categorization can't run: ${caller.reason}`);
+    console.error(
+      `[${engine ?? "no coding agent"}] LLM categorization can't run: ${caller.reason}`,
+    );
     return {
       mappings: {},
       report: { ...report, failed_count: rows.length, error: caller.reason },

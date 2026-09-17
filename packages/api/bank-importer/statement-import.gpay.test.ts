@@ -12,6 +12,16 @@ import type { Chrono } from "./domain/Chrono.js";
 import { parseAccount } from "./domain/Account.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
 
+// The engine would detect the coding agents installed on this machine, running
+// their CLIs; these tests don't categorize.
+vi.mock("../llm-engine.js", () => ({
+  categorizationLlm: async () => ({
+    engine: null,
+    caller: { ready: false, reason: "no engine in tests" },
+    maxRowsPerCall: null,
+  }),
+}));
+
 // Stub the persistence tail so the test can inspect exactly what reaches it.
 // Everything before it (key assignment, balance validation, reconciliation
 // filtering, GPay enrichment) runs for real.

@@ -1,4 +1,11 @@
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hono } from "hono";
@@ -7,7 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentHandoffRequest } from "dbu6-shared";
 
 // Detection and `open` are stubbed; the files are written for real under a
-// temporary project root.
+// temporary project root, and the chosen agent is read from a temporary data
+// directory.
 const { detectLocalAgents, execFile } = vi.hoisted(() => ({
   detectLocalAgents: vi.fn(),
   execFile: vi.fn(),
@@ -18,7 +26,7 @@ vi.mock("node:child_process", async (importOriginal) => ({
   execFile,
 }));
 
-// The handler keeps detection for a minute, so each test loads it afresh.
+// Detection is kept for a minute, so each test loads the handler afresh.
 let handoff: typeof import("./agent-handoff.js");
 
 const CLAUDE_ONLY = [
@@ -50,10 +58,19 @@ const PROMPT =
 function request(
   overrides: Partial<AgentHandoffRequest> = {},
 ): AgentHandoffRequest {
-  return { agent: "claude-code", prompt: PROMPT, open: false, ...overrides };
+  return { prompt: PROMPT, open: false, ...overrides };
 }
 
 let root: string;
+let dataDir: string;
+
+async function choose(agent: string) {
+  await mkdir(join(dataDir, "user-config"), { recursive: true });
+  await writeFile(
+    join(dataDir, "user-config", "settings.json"),
+    JSON.stringify({ coding_agent: agent }),
+  );
+}
 
 beforeEach(async () => {
   vi.resetModules();
@@ -64,10 +81,14 @@ beforeEach(async () => {
     callback(null, "", ""),
   );
   root = await mkdtemp(join(tmpdir(), "dbu6-handoff-"));
+  dataDir = await mkdtemp(join(tmpdir(), "dbu6-handoff-data-"));
+  vi.stubEnv("SAPPORTA_DATA_DIR", dataDir);
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
+  await rm(dataDir, { recursive: true, force: true });
 });
 
 describe("/agent-handoff routes", () => {
@@ -93,21 +114,30 @@ describe("/agent-handoff routes", () => {
 });
 
 describe("GET /agent-handoff capabilities", () => {
-  it("opens a terminal on macOS", async () => {
+  it("opens the first installed agent in a terminal on macOS", async () => {
     detectLocalAgents.mockResolvedValue(BOTH);
 
     expect(await handoff.agentHandoffCapabilities("darwin")).toEqual({
-      agents: ["claude-code", "codex"],
+      agent: "claude-code",
       open_terminal: true,
       shell_command: true,
     });
+  });
+
+  it("opens the agent chosen in Settings", async () => {
+    detectLocalAgents.mockResolvedValue(BOTH);
+    await choose("codex");
+
+    expect((await handoff.agentHandoffCapabilities("darwin")).agent).toBe(
+      "codex",
+    );
   });
 
   it("offers only the command on other POSIX systems", async () => {
     detectLocalAgents.mockResolvedValue(CLAUDE_ONLY);
 
     expect(await handoff.agentHandoffCapabilities("linux")).toEqual({
-      agents: ["claude-code"],
+      agent: "claude-code",
       open_terminal: false,
       shell_command: true,
     });
@@ -117,7 +147,7 @@ describe("GET /agent-handoff capabilities", () => {
     detectLocalAgents.mockResolvedValue(BOTH);
 
     expect(await handoff.agentHandoffCapabilities("win32")).toEqual({
-      agents: ["claude-code", "codex"],
+      agent: "claude-code",
       open_terminal: false,
       shell_command: false,
     });
@@ -127,45 +157,19 @@ describe("GET /agent-handoff capabilities", () => {
     detectLocalAgents.mockResolvedValue(NONE);
 
     expect(await handoff.agentHandoffCapabilities("darwin")).toEqual({
-      agents: [],
+      agent: null,
       open_terminal: false,
       shell_command: false,
     });
   });
-
-  it("detects again once a minute has passed", async () => {
-    vi.useFakeTimers();
-    try {
-      detectLocalAgents.mockResolvedValueOnce(NONE);
-      detectLocalAgents.mockResolvedValueOnce(CLAUDE_ONLY);
-
-      expect((await handoff.agentHandoffCapabilities("darwin")).agents).toEqual(
-        [],
-      );
-      vi.advanceTimersByTime(59_000);
-      expect((await handoff.agentHandoffCapabilities("darwin")).agents).toEqual(
-        [],
-      );
-      vi.advanceTimersByTime(1_000);
-      expect((await handoff.agentHandoffCapabilities("darwin")).agents).toEqual(
-        ["claude-code"],
-      );
-      expect(detectLocalAgents).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
 });
 
 describe("POST /agent-handoff", () => {
-  it("writes the prompt and a launcher that runs the agent on it", async () => {
+  it("writes the prompt and a launcher that runs the chosen agent on it", async () => {
     detectLocalAgents.mockResolvedValue(BOTH);
+    await choose("codex");
 
-    const response = await handoff.handOffPrompt(
-      request({ agent: "codex" }),
-      "linux",
-      root,
-    );
+    const response = await handoff.handOffPrompt(request(), "linux", root);
 
     expect(response.status).toBe(200);
     if (response.status !== 200) return;
@@ -211,20 +215,17 @@ describe("POST /agent-handoff", () => {
     ]);
   });
 
-  it("refuses an agent that isn't installed", async () => {
-    detectLocalAgents.mockResolvedValue(CLAUDE_ONLY);
+  it("refuses when no coding agent is installed", async () => {
+    detectLocalAgents.mockResolvedValue(NONE);
 
-    const response = await handoff.handOffPrompt(
-      request({ agent: "codex" }),
-      "darwin",
-      root,
-    );
+    const response = await handoff.handOffPrompt(request(), "darwin", root);
 
     expect(response).toEqual({
       status: 400,
       body: {
-        error: "agent_not_installed",
-        message: "Codex isn't installed on the machine running dbu6.",
+        error: "no_coding_agent",
+        message:
+          "No coding agent found. Install Claude Code or Codex on the machine running dbu6.",
       },
     });
     await expect(stat(join(root, "tmp"))).rejects.toThrow();

@@ -4,6 +4,9 @@
 - **Written:** 2026-09-17.
 - **Built 2026-09-17:** Step 0, Part A's Steps A1–A2 and A3's docs, and Part B's Steps
   B1–B4. See the progress log (§6).
+- **Changed 2026-09-17, after the build:** one coding agent, chosen in Settings, now runs
+  everything AI; this supersedes §3.2 decision 9 and §4.2 decisions 1–3 (see the last log
+  entry).
 - **Next:** A3's hands-on terminal checks on macOS (an owner's check: they open real
   terminal windows and need someone to answer the agent), then the follow-ups in §5 and §6.
 
@@ -690,3 +693,20 @@ Against scratch data (§0, rule 5), with `pnpm seed`:
   `error`); merging them would change other screens' errors. `ReclassifyDrafts.tsx` still
   hand-types the GPay response, as before. Rows a successful call leaves out aren't counted in
   `failed_count`, as §4.3 defines it.
+- **2026-09-17, one coding agent for everything, chosen in Settings.** At the owner's request,
+  AI now defaults to the local coding agent, and the Nuabase gateway is deprecated.
+  - **Which agent:** `packages/api/coding-agent.ts` detects Claude Code and Codex (detection
+    moved there from `app/agent-handoff.ts`, same one-minute cache) and uses the one saved in
+    `data/user-config/settings.json`, or the first installed until one is chosen. A chosen
+    agent that is later uninstalled falls back to the other.
+  - **Settings screen** (`/settings`, in the sidebar under the everyday items and on All
+    tools): a Claude Code / Codex picker, uninstalled ones disabled, and one line: connected
+    and what it does, not signed in with the command to sign in, or no agent found and what
+    won't work. `GET`/`PUT /api/coding-agent` detect afresh each time.
+  - **Categorization:** `categorizationLlm()` is async and runs on the current agent; with
+    none, the report's `engine` is null and its error says no coding agent was found.
+    `LLM_ENGINE` only accepts `nuabase` (deprecated override; any other value stops the
+    server). `LOCAL_AGENT_MODEL` and `LOCAL_AGENT_BINARY` are gone: the binary comes from
+    detection, and Claude Code runs on `sonnet` (Step B4's recommendation), Codex on its default.
+  - **Agent prompts:** `GET /api/agent-handoff` returns the one `agent` (or null), `POST` no
+    longer takes one, and the screens show a single Open (or Command) button for it.

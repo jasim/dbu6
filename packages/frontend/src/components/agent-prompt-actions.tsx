@@ -7,58 +7,57 @@ import {
   type AgentHandoffRequest,
   type CodingAgent,
 } from "dbu6-shared";
-import { agentHandoffApi, apiErrorMessage } from "../api";
+import { agentHandoffApi, apiRefusalMessage } from "../api";
 import { agentHandoffCapabilitiesQuery } from "../queries";
 import { Disclosure } from "./disclosure";
 import { Button } from "./ui/button";
 
 /**
  * Hands a prompt to the user's coding agent wherever the app can't go further
- * on its own (Import, freeform import, Review). Copy prompt always; and for
- * each agent installed on the server's machine, a session started on the
- * prompt: in a new terminal window on macOS, or a command to run in one
- * elsewhere. The session is interactive, so the user answers the agent and
- * approves its edits there.
+ * on its own (Import, freeform import, Review). Copy prompt always; and when
+ * the server's machine has a coding agent, a session started on the prompt in
+ * the agent chosen in Settings: in a new terminal window on macOS, or a
+ * command to run in one elsewhere. The session is interactive, so the user
+ * answers the agent and approves its edits there.
  */
 export function AgentPromptActions({ prompt }: { prompt: string }) {
   const capabilities = useQuery(agentHandoffCapabilitiesQuery).data;
   const handoff = useMutation({
-    mutationFn: (request: AgentHandoffRequest) =>
+    mutationFn: ({ request }: HandoffClick) =>
       agentHandoffApi.handOffPrompt({ body: request }),
   });
   // A result belongs to the prompt it was made for.
-  const request =
-    handoff.variables?.prompt === prompt ? handoff.variables : null;
+  const click =
+    handoff.variables?.request.prompt === prompt ? handoff.variables : null;
   const open = capabilities?.open_terminal === true;
-  const agents = capabilities?.shell_command ? capabilities.agents : [];
+  const agent = capabilities?.shell_command ? capabilities.agent : null;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2.5">
         <CopyButton text={prompt} label="Copy prompt" />
-        {agents.map((agent) => (
+        {agent !== null && (
           <Button
-            key={agent}
             type="button"
             variant="outline"
             size="sm"
             disabled={handoff.isPending}
-            onClick={() => handoff.mutate({ agent, prompt, open })}
+            onClick={() => handoff.mutate({ agent, request: { prompt, open } })}
           >
             <SquareTerminal />
             {open
               ? `Open in ${CODING_AGENT_LABEL[agent]}`
               : `Command for ${CODING_AGENT_LABEL[agent]}`}
           </Button>
-        ))}
+        )}
       </div>
       <div aria-live="polite">
-        {request !== null && handoff.isSuccess && (
-          <HandoffResult request={request} handoff={handoff.data} />
+        {click !== null && handoff.isSuccess && (
+          <HandoffResult click={click} handoff={handoff.data} />
         )}
-        {request !== null && handoff.isError && (
+        {click !== null && handoff.isError && (
           <p className="text-body text-destructive [overflow-wrap:anywhere]">
-            {handoffErrorMessage(handoff.error)}
+            {apiRefusalMessage(handoff.error)}
           </p>
         )}
       </div>
@@ -66,15 +65,21 @@ export function AgentPromptActions({ prompt }: { prompt: string }) {
   );
 }
 
+// The agent is the one the button named.
+interface HandoffClick {
+  agent: CodingAgent;
+  request: AgentHandoffRequest;
+}
+
 function HandoffResult({
-  request,
+  click,
   handoff,
 }: {
-  request: { agent: CodingAgent; open: boolean };
+  click: HandoffClick;
   handoff: AgentHandoff;
 }) {
-  const label = CODING_AGENT_LABEL[request.agent];
-  if (!request.open) {
+  const label = CODING_AGENT_LABEL[click.agent];
+  if (!click.request.open) {
     return (
       <div className="space-y-2">
         <p className="text-body text-ink-soft">
@@ -132,20 +137,4 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       {copied ? "Copied" : label}
     </Button>
   );
-}
-
-/** The server explains its refusals in `message`. */
-function handoffErrorMessage(error: unknown): string {
-  if (error && typeof error === "object" && "body" in error) {
-    const body = error.body;
-    if (
-      body &&
-      typeof body === "object" &&
-      "message" in body &&
-      typeof body.message === "string"
-    ) {
-      return body.message;
-    }
-  }
-  return apiErrorMessage(error);
 }

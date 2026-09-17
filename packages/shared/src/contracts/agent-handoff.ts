@@ -3,10 +3,10 @@ import { initContract } from "@sapporta/rest-core";
 import { codingAgentSchema } from "./coding-agent.js";
 
 /*
- * Handing a prompt to a coding agent on the machine running the server. The
- * server writes the prompt to a file under `tmp/agent-prompts/` with a small
- * launcher script beside it, which starts the agent interactively in the
- * project root with the prompt as its first message. On macOS the server can
+ * Handing a prompt to the coding agent dbu6 uses, on the machine running the
+ * server. The server writes the prompt to a file under `tmp/agent-prompts/`
+ * with a small launcher script beside it, which starts the agent
+ * interactively in the project root with the prompt as its first message. On macOS the server can
  * open the launcher in a new terminal window; elsewhere the user runs
  * `command` in a terminal of their own.
  */
@@ -14,8 +14,11 @@ import { codingAgentSchema } from "./coding-agent.js";
 const c = initContract();
 
 export const agentHandoffCapabilitiesSchema = z.object({
-  /** The agents installed on the server's machine, Claude Code first. */
-  agents: z.array(codingAgentSchema),
+  /**
+   * The agent a prompt opens in: the one dbu6 uses (chosen in Settings), or
+   * null when none is installed.
+   */
+  agent: codingAgentSchema.nullable(),
   /** The server can open a terminal window running the launcher (macOS). */
   open_terminal: z.boolean(),
   /** The server can write a launcher for the user to run (not on Windows). */
@@ -26,7 +29,6 @@ export type AgentHandoffCapabilities = z.infer<
 >;
 
 export const agentHandoffRequestSchema = z.object({
-  agent: codingAgentSchema,
   prompt: z.string().min(1).max(256_000),
   /** Open the launcher in a new terminal window as well as writing it. */
   open: z.boolean(),
@@ -53,7 +55,7 @@ export const agentHandoffContract = c.router({
   getAgentHandoffCapabilities: c.query({
     method: "GET",
     path: "/agent-handoff",
-    summary: "Which coding agents a prompt can be handed to on this machine",
+    summary: "Which coding agent a prompt can be handed to on this machine",
     responses: {
       200: agentHandoffCapabilitiesSchema,
       403: agentHandoffErrorSchema,

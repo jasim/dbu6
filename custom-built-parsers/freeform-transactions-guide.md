@@ -10,7 +10,7 @@ The user starts from the app's **Import freeform transactions** screen, which
 gives them a prompt saying whether the transactions are from a bank account or a
 credit card, and naming the ledger account they go into. They copy the prompt
 into a session and paste the content after it, or open a new session on it
-from the screen (**Open in Claude Code** / **Open in Codex**) and paste the
+from the screen (**Open in Claude Code** or **Open in Codex**) and paste the
 content as their first reply. They may also give you a file path.
 
 You turn the content into one Abacus JSON statement, get the opening and

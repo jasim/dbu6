@@ -7,7 +7,13 @@ import {
 } from "@tanstack/react-query";
 import type { DateSpan } from "dbu6-shared";
 import { ApiError } from "@sapporta/shared/client";
-import { agentHandoffApi, homeApi, reportsApi, reviewApi } from "./api";
+import {
+  agentHandoffApi,
+  codingAgentApi,
+  homeApi,
+  reportsApi,
+  reviewApi,
+} from "./api";
 
 /*
  * How the screens read the server: one TanStack query per request, with its
@@ -65,17 +71,35 @@ export function incomeExpensesQuery(dates: DateSpan) {
   });
 }
 
+/** Every query that depends on the coding agent dbu6 uses. */
+const CODING_AGENT_KEY = ["coding-agent"] as const;
+
 /**
- * Which coding agents a prompt can be opened in. It changes only when an agent
- * is installed on the server's machine, so it is read once in a while, not on
- * every screen.
+ * The coding agents on the server's machine and the one dbu6 uses, for
+ * Settings. The server detects them afresh each time.
+ */
+export const codingAgentSettingsQuery = queryOptions({
+  queryKey: [...CODING_AGENT_KEY, "settings"],
+  queryFn: () => codingAgentApi.getCodingAgentSettings(),
+  ...FRESH_QUERY,
+});
+
+/**
+ * Which coding agent a prompt can be opened in. It changes only when an agent
+ * is installed or chosen in Settings, which refreshes it, so it is read once
+ * in a while, not on every screen.
  */
 export const agentHandoffCapabilitiesQuery = queryOptions({
-  queryKey: ["agent-handoff"],
+  queryKey: [...CODING_AGENT_KEY, "handoff"],
   queryFn: () => agentHandoffApi.getAgentHandoffCapabilities(),
   ...FRESH_QUERY,
   staleTime: 10 * 60_000,
 });
+
+/** Refreshes Settings and every screen's agent prompt buttons. */
+export function refreshCodingAgent(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ queryKey: CODING_AGENT_KEY });
+}
 
 /** Refreshes Home, the Review picker and every account's summary. */
 export function refreshDraftStatus(client: QueryClient): Promise<void> {

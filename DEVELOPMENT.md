@@ -9,9 +9,8 @@ use it, see [README.md](./README.md). For production deployment, see
 - Node 22+ and pnpm 11 (the version is pinned in `package.json`).
 - `mise` is optional but recommended; `mise.toml` holds the dev ports and
   derived URLs. Copy `mise.toml.example` to `mise.toml` to start.
-- For automatic categorization, an LLM engine: `NUABASE_API_KEY` set in the
-  environment for the Nuabase gateway (the default), or Claude Code or Codex
-  installed and logged in on this machine. See [LLM engine](#llm-engine).
+- For automatic categorization and the Open in terminal buttons, Claude Code or
+  Codex installed and logged in on this machine. See [LLM engine](#llm-engine).
 - `pdftotext` (poppler) for PDF imports.
 - `uv`, which runs the saved statement parsers. The Standard Chartered PDF
   parser also needs the `extract-table-from-pdf.py` script, whose path is
@@ -156,30 +155,32 @@ set up in `packages/api/llm-engine.ts`.
 
 ### LLM engine
 
-`LLM_ENGINE` chooses where categorization runs. Set it in `mise.toml` (see
-`mise.toml.example`):
+dbu6 uses one coding agent for everything AI: Claude Code (`claude`) or Codex
+(`codex`), installed and logged in on the machine running the server.
+`packages/api/coding-agent.ts` detects both (`detectLocalAgents` from
+`nuabase/local-agent`, kept for a minute) and uses the one chosen on the
+**Settings** screen, or the first installed, Claude Code first, until one is
+chosen. The choice is saved in `data/user-config/settings.json`. The agent's
+executable must be on the server's `PATH`.
 
-- `nuabase`, the default when unset: the Nuabase gateway (`Nua.gateway`),
-  paid for with `NUABASE_API_KEY`, on the provider model named in
-  `llm-engine.ts`. All descriptions go in one call, and the gateway caches
-  rows it has answered before.
-- `claude-code` or `codex`: the coding agent installed and logged in on the
-  machine running the server, in Nuabase's headless mode (`Nua.direct` with
-  `localAgent` from `nuabase/local-agent`). Each call runs `claude -p` or
-  `codex exec` with no tools, billed to your own Claude or ChatGPT plan rather
-  than an API key. Calls carry at most 50 descriptions, two run at a time, and
-  nothing is cached, so reclassifying sends every description again.
-  `LOCAL_AGENT_MODEL` picks the agent's own model; unset, the agent uses its
-  default. For Claude Code, use `sonnet`: on sample data it chose the same
-  accounts as the gateway and was faster than `haiku`, which left more blank.
-  Codex does well on its default model. `LOCAL_AGENT_BINARY` is the absolute
-  path of the executable when it isn't on the server's `PATH`.
+- **Categorization** runs on it in Nuabase's headless mode (`Nua.direct` with
+  `localAgent`). Each call runs `claude -p` or `codex exec` with no tools,
+  billed to your own Claude or ChatGPT plan rather than an API key. Calls
+  carry at most 50 descriptions, two run at a time, and nothing is cached, so
+  reclassifying sends every description again. Claude Code runs on `sonnet`:
+  on sample data it chose the same accounts as the gateway and was faster
+  than `haiku`, which left more blank. Codex runs on its default model.
+- **Agent prompts** open in it (`packages/api/app/agent-handoff.ts`).
 
-Detection never picks the engine for you. The server sets the engine up at
-startup and refuses to start on an unknown `LLM_ENGINE`, or when the named
-agent's executable can't be found or `LOCAL_AGENT_BINARY` isn't an absolute
-path to an executable file. A missing `NUABASE_API_KEY` doesn't stop
-it. Categorization failures don't fail an import either: the transactions stay
+With no agent installed, categorization reports that no coding agent was found
+and the import goes through uncategorized.
+
+`LLM_ENGINE=nuabase` is a deprecated override that categorizes on the Nuabase
+gateway (`Nua.gateway`), paid for with `NUABASE_API_KEY`, on the provider model
+named in `llm-engine.ts`, all descriptions in one call. The app never offers
+it. Any other `LLM_ENGINE` stops the server at startup.
+
+Categorization failures don't fail an import: the transactions stay
 uncategorized, and the import result and the Classify drafts screen say how
 many descriptions weren't categorized and why (the `categorization` report).
 

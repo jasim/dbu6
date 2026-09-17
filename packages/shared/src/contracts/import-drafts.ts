@@ -16,8 +16,8 @@ export const sameAccountSkipSchema = z.object({
   account: z.string(),
 });
 
-// Where categorization's LLM runs: the Nuabase gateway, or a coding agent on
-// the server's machine (LLM_ENGINE).
+// Where categorization's LLM runs: the coding agent dbu6 uses on the server's
+// machine, or the deprecated Nuabase gateway (LLM_ENGINE=nuabase).
 export const categorizationEngineSchema = z.enum([
   "nuabase",
   ...codingAgentSchema.options,
@@ -34,7 +34,8 @@ export const CATEGORIZATION_ENGINE_LABEL = {
 // many transactions share it. When the rules map everything, or there is
 // nothing new, `sent_count` is 0.
 export const categorizationReportSchema = z.object({
-  engine: categorizationEngineSchema,
+  // Null when no coding agent is installed.
+  engine: categorizationEngineSchema.nullable(),
   // Distinct descriptions that needed the LLM.
   sent_count: z.number(),
   // Of those, how many got no answer because a call failed or couldn't run.

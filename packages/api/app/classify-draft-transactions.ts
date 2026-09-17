@@ -22,7 +22,7 @@ api.register(
         categorizationConfig: {
           userConfigDir: userConfigDir(),
           customMappingsFilenames: custom_mappings_filenames ?? [],
-          llm: categorizationLlm(),
+          llm: await categorizationLlm(),
         },
       });
       return {
@@ -52,6 +52,7 @@ api.register(
     }
 
     try {
+      const llm = await categorizationLlm();
       const result = await withTempUpload(
         gpay,
         "gpay-reclassify",
@@ -64,7 +65,7 @@ api.register(
             categorizationConfig: {
               userConfigDir: userConfigDir(),
               customMappingsFilenames: request.body.custom_mappings_filenames,
-              llm: categorizationLlm(),
+              llm,
             },
             gpayHtmlPath,
           }),

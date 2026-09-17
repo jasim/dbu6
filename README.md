@@ -43,8 +43,9 @@ For a layout that has no parser yet, you can ask the coding agent to write a
 parser for it. There is clear guide in the repo that lets the coding agent
 create an accurate parser in a single shot. The Import statements screen gives
 you the prompt: copy it, or, when Claude Code or Codex is installed on the
-machine running dbu6, click **Open in Claude Code** / **Open in Codex** to start
-the agent on it in a new terminal window, in the repository. (On Linux the
+machine running dbu6, click **Open in Claude Code** (or **Codex**, whichever
+Settings names) to start the agent on it in a new terminal window, in the
+repository. (On Linux the
 button gives you a command to run in a terminal instead.) See
 [custom-built-parsers/README.md](./custom-built-parsers/README.md) and
 [custom-built-parsers/import-statement-parser-guide.md](./custom-built-parsers/import-statement-parser-guide.md).
@@ -53,8 +54,8 @@ Transactions that no parser reads, in whatever form you have them (text copied
 from a PDF or a web page, HTML, CSV, or a list you typed), go through the Import
 freeform transactions screen. It gives you a prompt for your coding agent, which turns the
 transactions into a statement, asks you for the opening and closing balances,
-and imports them into Drafts. Copy the prompt, or open it in Claude Code or
-Codex from the same screen and paste the transactions as your first reply. See
+and imports them into Drafts. Copy the prompt, or open it in your coding agent
+from the same screen and paste the transactions as your first reply. See
 [custom-built-parsers/freeform-transactions-guide.md](./custom-built-parsers/freeform-transactions-guide.md).
 
 ### Automatic categorization
@@ -68,11 +69,12 @@ Each imported transaction is assigned an account in two passes.
    your written instructions on how to categorize. If the LLM is not
    confident, it leaves the entry blank for you.
 
-The LLM is the Nuabase gateway, paid for with a Nuabase API key, or the coding
-agent on your own machine: set `LLM_ENGINE` to `claude-code` or `codex` to use
-Claude Code or Codex, logged in with your own plan. If the LLM can't be
-reached, the import still goes through and says how many descriptions were
-left uncategorized, and why. See [DEVELOPMENT.md](./DEVELOPMENT.md#llm-engine).
+The LLM is the coding agent on your own machine, Claude Code or Codex, logged
+in with your own plan. dbu6 finds whichever is installed; **Settings** shows
+which one it uses and lets you switch. Without one, nothing is categorized
+automatically. If the LLM can't be reached, the import still goes through and
+says how many descriptions were left uncategorized, and why. See
+[DEVELOPMENT.md](./DEVELOPMENT.md#llm-engine).
 
 The sample instructions are in
 [user-config.example/custom_mappings_default.prompt](./user-config.example/custom_mappings_default.prompt).

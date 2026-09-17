@@ -13,6 +13,16 @@ import {
   StatementPartInvalidError,
 } from "./import-errors.js";
 
+// The engine would detect the coding agents installed on this machine, running
+// their CLIs; these tests don't categorize.
+vi.mock("../llm-engine.js", () => ({
+  categorizationLlm: async () => ({
+    engine: null,
+    caller: { ready: false, reason: "no engine in tests" },
+    maxRowsPerCall: null,
+  }),
+}));
+
 // Stub the persistence tail so the test can inspect exactly what reaches it.
 // Everything before it (assembly, key assignment, balance validation and the
 // reconciliation filter) runs for real.

@@ -3,6 +3,7 @@ import {
   Database,
   FileText,
   FileUp,
+  Settings,
   Settings2,
   Wand2,
 } from "lucide-react";
@@ -88,6 +89,18 @@ export function Advanced() {
                 <LinkCard key={tool.to} {...tool} />
               ))}
             </div>
+          </AdvancedSection>
+
+          <AdvancedSection
+            title="Settings"
+            description="How dbu6 runs on this machine."
+          >
+            <LinkCard
+              label="Coding agent"
+              description="Choose Claude Code or Codex for categorization and agent prompts."
+              to="/settings"
+              icon={Settings}
+            />
           </AdvancedSection>
         </main>
       </div>

@@ -230,7 +230,7 @@ export async function runStatementImport(
     categorizationConfig: {
       userConfigDir: userConfigDir(),
       customMappingsFilenames: opts.customMappingsFilenames,
-      llm: categorizationLlm(),
+      llm: await categorizationLlm(),
     },
     logPrefix: "statement-import",
     db,

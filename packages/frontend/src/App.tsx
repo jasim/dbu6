@@ -7,6 +7,7 @@ import {
   Home,
   Landmark,
   ListChecks,
+  Settings,
   Settings2,
 } from "lucide-react";
 import { TablePage } from "@sapporta/frontend";
@@ -27,6 +28,7 @@ import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
 import { JournalsTable } from "./views/JournalsTable";
 import { ReclassifyDrafts } from "./views/ReclassifyDrafts";
 import { RenderDraftHledger } from "./views/RenderDraftHledger";
+import { Settings as SettingsPage } from "./views/settings/Settings";
 
 /*
  * The sidebar: five everyday destinations, then the door to everything else
@@ -51,7 +53,10 @@ export const appNavigation: Navigation = {
     },
     { label: "Reports", icon: BarChart3, to: "/reports" },
   ],
-  more: [{ label: "All tools", icon: Settings2, to: "/tools" }],
+  more: [
+    { label: "Settings", icon: Settings, to: "/settings" },
+    { label: "All tools", icon: Settings2, to: "/tools" },
+  ],
 };
 
 // The screen behind each of an account's Review tabs.
@@ -95,6 +100,7 @@ export const appProtectedRoutes = (
       path="reports/:reportName"
       element={<Navigate to="/reports" replace />}
     />
+    <Route path="settings" element={<SettingsPage />} />
     <Route path="tools" element={<Advanced />} />
 
     {/* The tool screens, linked from All tools. */}
