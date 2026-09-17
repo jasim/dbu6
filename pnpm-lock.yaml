@@ -76,8 +76,8 @@ importers:
         specifier: 9.0.1
         version: 9.0.1
       nuabase:
-        specifier: file://Users/jasim/m/a/code/nuabase/nua-llm/nua-client
-        version: file:../nuabase/nua-llm/nua-client(zod@4.4.3)
+        specifier: 2.3.5
+        version: 2.3.5(zod@4.4.3)
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -1938,8 +1938,8 @@ packages:
     resolution: {integrity: sha512-Gwv8SQewT616ZM/URn0H54b8PWo/Wum7md3EW2aWy1lO27+WZCX+Xyak3J+NlmHUjDh5ME+uesJUDRbR3Ye8Bw==}
     engines: {node: '>=6.0.0'}
 
-  nuabase@file:../nuabase/nua-llm/nua-client:
-    resolution: {directory: ../nuabase/nua-llm/nua-client, type: directory}
+  nuabase@2.3.5:
+    resolution: {integrity: sha512-8pfb85Nfg03Jk82rkwAA4GsMGulkPqb4R7eJxelrnRb4r2uD8jxznyzp7PZLRWL2EYozBzaY0or9eMTcRizkbA==}
     engines: {node: '>=16.6.0'}
     peerDependencies:
       zod: 4.4.3
@@ -3677,7 +3677,7 @@ snapshots:
 
   nodemailer@9.0.1: {}
 
-  nuabase@file:../nuabase/nua-llm/nua-client(zod@4.4.3):
+  nuabase@2.3.5(zod@4.4.3):
     dependencies:
       zod: 4.4.3
 
