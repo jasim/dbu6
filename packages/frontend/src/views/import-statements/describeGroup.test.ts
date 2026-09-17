@@ -24,6 +24,12 @@ function group(
       backfilled_count: 0,
       same_account_skips: [],
       gpay_enriched_count: 0,
+      categorization: {
+        engine: "nuabase",
+        sent_count: 6,
+        failed_count: 0,
+        error: null,
+      },
       opening_balance: 1000,
       closing_balance_from_statement: 2500,
       custom_statement_parser_paths: [
@@ -65,6 +71,7 @@ describe("describeGroup", () => {
       figures: "₹1,000.00 → ₹2,500.00",
     });
     expect(summary.gpay).toBeNull();
+    expect(summary.categorization).toBeNull();
     expect(summary.breakdown).toEqual([]);
     expect(summary.details).toEqual([
       { label: "Ledger account", value: "assets:bank:sample" },
@@ -79,6 +86,40 @@ describe("describeGroup", () => {
         face: "words",
       },
     ]);
+  });
+
+  it("says how many descriptions weren't categorized, and why", () => {
+    const summary = describeGroup(
+      group({
+        categorization: {
+          engine: "claude-code",
+          sent_count: 6,
+          failed_count: 6,
+          error: "Not logged in",
+        },
+      }),
+    );
+    expect(summary.categorization).toEqual({
+      text: "Couldn't categorize any of the 6 descriptions with Claude Code",
+      reason: "Not logged in",
+    });
+  });
+
+  it("says nothing about categorizing when nothing new came in", () => {
+    const summary = describeGroup(
+      group({
+        draft_transaction_count: 0,
+        duplicate_count: 6,
+        draft_duplicate_count: 6,
+        categorization: {
+          engine: "nuabase",
+          sent_count: 6,
+          failed_count: 6,
+          error: "NUABASE_API_KEY is not set",
+        },
+      }),
+    );
+    expect(summary.categorization).toBeNull();
   });
 
   it("captions with the period and files alone when the plan rows are missing", () => {

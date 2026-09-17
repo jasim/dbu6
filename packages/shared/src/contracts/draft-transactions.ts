@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
+import { categorizationReportSchema } from "./import-drafts.js";
 
 const c = initContract();
 
@@ -42,7 +43,10 @@ export const draftTransactionsContract = c.router({
       custom_mappings_filenames: z.array(z.string()).optional(),
     }),
     responses: {
-      200: z.array(classifiedDraftTransactionSchema),
+      200: z.object({
+        transactions: z.array(classifiedDraftTransactionSchema),
+        categorization: categorizationReportSchema,
+      }),
       400: errorSchema,
       403: errorSchema,
     },
@@ -62,6 +66,7 @@ export const draftTransactionsContract = c.router({
       200: z.object({
         transactions: z.array(classifiedDraftTransactionSchema),
         gpay_enriched_count: z.number(),
+        categorization: categorizationReportSchema,
       }),
       400: errorSchema,
       403: errorSchema,

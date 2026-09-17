@@ -16,7 +16,7 @@ import { LEDGER_ACCOUNT_TYPE, type AccountKind } from "dbu6-shared";
 import { apiErrorMessage } from "../api";
 import { FRESH_QUERY } from "../queries";
 import { freeformTransactionsPrompt } from "./freeform-transactions/freeformTransactionsPrompt";
-import { CopyPromptButton } from "../components/copy-prompt-button";
+import { AgentPromptActions } from "../components/agent-prompt-actions";
 
 interface LedgerAccount {
   id: number;
@@ -136,10 +136,11 @@ export function ImportFreeformTransactions() {
 
         <Step number={2} title="Give the transactions to your coding agent">
           <p className="text-row text-ink-soft">
-            Copy this prompt into your coding agent, running in this app's
-            repository, and paste the transactions right after it. The agent
-            will ask for the balance just before the earliest transaction and
-            just after the latest one, so have them ready.
+            Open this prompt in your coding agent and paste the transactions as
+            your first reply in the terminal. Or copy it into the agent running
+            in this app's repository and paste the transactions right after it.
+            The agent will ask for the balance just before the earliest
+            transaction and just after the latest one, so have them ready.
           </p>
           {prompt === null ? (
             <p className="text-meta text-ink-meta">
@@ -147,7 +148,7 @@ export function ImportFreeformTransactions() {
             </p>
           ) : (
             <div className="space-y-2">
-              <CopyPromptButton text={prompt} />
+              <AgentPromptActions prompt={prompt} />
               <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control bg-muted p-3 font-mono text-meta">
                 {prompt}
               </pre>

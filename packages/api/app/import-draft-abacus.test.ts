@@ -72,6 +72,12 @@ function imported(count: number): StatementImportResult {
     backfilled_count: 0,
     same_account_skips: [],
     gpay_enriched_count: 0,
+    categorization: {
+      engine: "nuabase",
+      sent_count: 0,
+      failed_count: 0,
+      error: null,
+    },
     opening_balance: -2500,
     closing_balance_from_statement: -4000,
     balance_metadata: {

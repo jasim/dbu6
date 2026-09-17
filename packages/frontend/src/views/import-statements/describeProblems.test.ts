@@ -54,6 +54,12 @@ function importedGroup(
       backfilled_count: 0,
       same_account_skips: [],
       gpay_enriched_count: 0,
+      categorization: {
+        engine: "nuabase",
+        sent_count: 6,
+        failed_count: 0,
+        error: null,
+      },
       opening_balance: 1000,
       closing_balance_from_statement: 2500,
       balance_metadata: {

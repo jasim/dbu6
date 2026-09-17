@@ -1,4 +1,5 @@
 import type { AccountKind, DatedBalance, DateSpan } from "dbu6-shared";
+import { categorizationLlm } from "../llm-engine.js";
 import { userConfigDir } from "../user-data.js";
 import type { Account } from "./domain/Account.js";
 import { unsafeAsChrono } from "./domain/Chrono.js";
@@ -109,7 +110,6 @@ export async function runStatementImport(
   auth?: RowScopeAuth,
   sourceNames: readonly string[] = [],
 ): Promise<StatementImportResult> {
-  const apiKey = process.env.NUABASE_API_KEY ?? "";
   // Assemble first, key second. Keys number textually identical rows on one
   // day by occurrence, so two such rows that arrive one per part must be
   // numbered over the assembled sequence rather than collide at occurrence
@@ -230,7 +230,7 @@ export async function runStatementImport(
     categorizationConfig: {
       userConfigDir: userConfigDir(),
       customMappingsFilenames: opts.customMappingsFilenames,
-      nuabaseApiKey: apiKey,
+      llm: categorizationLlm(),
     },
     logPrefix: "statement-import",
     db,

@@ -8,8 +8,10 @@ description, and an amount for each.
 
 The user starts from the app's **Import freeform transactions** screen, which
 gives them a prompt saying whether the transactions are from a bank account or a
-credit card, and naming the ledger account they go into. They paste the content
-after the prompt, or give you a file path.
+credit card, and naming the ledger account they go into. They copy the prompt
+into a session and paste the content after it, or open a new session on it
+from the screen (**Open in Claude Code** / **Open in Codex**) and paste the
+content as their first reply. They may also give you a file path.
 
 You turn the content into one Abacus JSON statement, get the opening and
 closing balances from the user, import the statement into Drafts through the
@@ -146,6 +148,9 @@ The response is JSON; read it and tell the user what happened in plain words.
   remaining rows were skipped. `balance_metadata` gives the opening and closing
   used, `statement_period` the date range, `reconciliation_checkpoint` the
   account's last confirmed balance, and `hledger_journal` the draft entries.
+  `categorization` says how the LLM fared on the descriptions the mapping
+  rules didn't categorize: when `failed_count` is above 0, tell the user that
+  many were left uncategorized and quote `error`.
   Show a credit card's balances as amounts owed. Point the user to Draft entries
   in the app to review the new rows.
 - **400 with `code: "BAD_REQUEST"`**: the request does not match the contract;

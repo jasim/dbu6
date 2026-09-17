@@ -13,6 +13,13 @@
       "dbu6-shared": ["../shared/dist/index.d.ts"]
     }
   },
-  "include": ["*.ts", "app", "bank-importer", "project-auth", "schema"],
+  "include": [
+    "*.ts",
+    "agent-handoff",
+    "app",
+    "bank-importer",
+    "project-auth",
+    "schema"
+  ],
   "exclude": ["dist"]
 }

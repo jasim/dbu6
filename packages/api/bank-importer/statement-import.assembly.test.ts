@@ -31,6 +31,12 @@ vi.mock("./draft-import.js", () => ({
       legacy_match_count: 0,
       backfilled_count: 0,
       same_account_skips: [],
+      categorization: {
+        engine: "nuabase",
+        sent_count: 0,
+        failed_count: 0,
+        error: null,
+      },
     };
   },
 }));

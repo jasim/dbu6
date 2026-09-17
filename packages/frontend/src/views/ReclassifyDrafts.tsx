@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Loader2,
   Upload,
@@ -8,9 +9,11 @@ import {
 } from "lucide-react";
 import { getApiBase } from "@sapporta/frontend/platform";
 import { AppPage } from "@sapporta/frontend/shell";
+import type { CategorizationReport } from "dbu6-shared";
 import { draftTransactionsApi } from "../api";
 import { Button } from "../components/ui/button";
 import { AccountImportInputs } from "./AccountImportInputs";
+import { describeCategorizationProblem } from "./categorization/describeCategorization";
 
 interface Account {
   id: number;
@@ -36,6 +39,7 @@ interface ClassifyResult {
 interface GPayClassifyResult {
   transactions: ClassifyResult[];
   gpay_enriched_count: number;
+  categorization: CategorizationReport;
 }
 
 export function ReclassifyDrafts() {
@@ -46,6 +50,8 @@ export function ReclassifyDrafts() {
   const [gpayEnrichedCount, setGpayEnrichedCount] = useState<number | null>(
     null,
   );
+  const [categorization, setCategorization] =
+    useState<CategorizationReport | null>(null);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [classifying, setClassifying] = useState(false);
@@ -102,12 +108,13 @@ export function ReclassifyDrafts() {
     setClassifying(true);
     setError(null);
     setGpayEnrichedCount(null);
+    setCategorization(null);
     const customMappings = mappingsInput
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
     try {
-      let updated: ClassifyResult[];
+      let updated: { transactions: ClassifyResult[] };
       if (gpayFile) {
         const form = new FormData();
         rows.forEach((row) => form.append("ids", String(row.id)));
@@ -129,19 +136,25 @@ export function ReclassifyDrafts() {
           throw new Error(message);
         }
         const result = (await response.json()) as GPayClassifyResult;
-        updated = result.transactions;
+        updated = result;
         setGpayEnrichedCount(result.gpay_enriched_count);
+        setCategorization(result.categorization);
       } else {
-        updated = await draftTransactionsApi.classifyDraftTransactions({
+        const result = await draftTransactionsApi.classifyDraftTransactions({
           body: {
             ids: rows.map((r) => r.id),
             custom_mappings_filenames: customMappings,
           },
         });
+        updated = result;
+        setCategorization(result.categorization);
       }
 
       const byId = new Map(
-        updated.map((transaction) => [transaction.id, transaction]),
+        updated.transactions.map((transaction) => [
+          transaction.id,
+          transaction,
+        ]),
       );
       setRows((prev) =>
         prev.map((row) => {
@@ -161,6 +174,9 @@ export function ReclassifyDrafts() {
       setClassifying(false);
     }
   }
+
+  const categorizationProblem =
+    categorization && describeCategorizationProblem(categorization);
 
   // Why classifying can't start yet; undefined once it can.
   const classifyWaiting =
@@ -231,6 +247,19 @@ export function ReclassifyDrafts() {
           <div className="flex items-start gap-3 rounded-card border border-destructive/30 bg-destructive/10 p-4">
             <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
             <div className="text-row text-destructive break-words">{error}</div>
+          </div>
+        )}
+
+        {categorizationProblem && (
+          <div className="flex items-start gap-3 rounded-card border border-attention-border bg-attention-bg p-4">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-attention-ink mt-0.5" />
+            <div className="space-y-1 text-row text-attention-ink [overflow-wrap:anywhere]">
+              <p>
+                {categorizationProblem.text}. Those drafts stay uncategorized;
+                classify them again once this is fixed.
+              </p>
+              <p className="text-meta">{categorizationProblem.reason}</p>
+            </div>
           </div>
         )}
 

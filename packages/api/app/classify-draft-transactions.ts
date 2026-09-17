@@ -1,4 +1,5 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
+import { categorizationLlm } from "../llm-engine.js";
 import { userConfigDir } from "../user-data.js";
 import { draftTransactionsContract } from "dbu6-shared";
 import { ApiImportError } from "../bank-importer/import-errors.js";
@@ -21,10 +22,16 @@ api.register(
         categorizationConfig: {
           userConfigDir: userConfigDir(),
           customMappingsFilenames: custom_mappings_filenames ?? [],
-          nuabaseApiKey: process.env.NUABASE_API_KEY ?? "",
+          llm: categorizationLlm(),
         },
       });
-      return { status: 200, body: result.transactions };
+      return {
+        status: 200,
+        body: {
+          transactions: result.transactions,
+          categorization: result.categorization,
+        },
+      };
     } catch (err) {
       if (err instanceof ApiImportError && err.status === 400) {
         return { status: 400, body: err.toPayload() };
@@ -57,7 +64,7 @@ api.register(
             categorizationConfig: {
               userConfigDir: userConfigDir(),
               customMappingsFilenames: request.body.custom_mappings_filenames,
-              nuabaseApiKey: process.env.NUABASE_API_KEY ?? "",
+              llm: categorizationLlm(),
             },
             gpayHtmlPath,
           }),
@@ -67,6 +74,7 @@ api.register(
         body: {
           transactions: result.transactions,
           gpay_enriched_count: result.gpayEnrichedCount,
+          categorization: result.categorization,
         },
       };
     } catch (err) {

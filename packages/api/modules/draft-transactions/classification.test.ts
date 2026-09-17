@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 import { draftTransactionsContract } from "dbu6-shared";
 import type { RowScopeAuth } from "../../bank-importer/draft-persistence.js";
+import type { CategorizationLlm } from "../../llm-engine.js";
 import { accountsTable } from "../../schema/accounts.js";
 import { draftTransactionsTable } from "../../schema/draft-journals.js";
 import { classifyDraftTransactions } from "./classification.js";
@@ -18,6 +19,14 @@ const auth: RowScopeAuth = {
       insertValuesSync: (_db: unknown, input: unknown) => input,
     }),
   },
+};
+
+// The mapping rules categorize everything these tests classify, so the LLM is
+// never asked.
+const llm: CategorizationLlm = {
+  engine: "nuabase",
+  caller: { ready: false, reason: "NUABASE_API_KEY is not set" },
+  maxRowsPerCall: null,
 };
 
 const tempDirs: string[] = [];
@@ -54,7 +63,7 @@ describe("classifyDraftTransactions", () => {
       categorizationConfig: {
         userConfigDir: configDir,
         customMappingsFilenames: [],
-        nuabaseApiKey: "",
+        llm,
       },
       gpayHtmlPath: gpayPath,
     });
@@ -69,6 +78,12 @@ describe("classifyDraftTransactions", () => {
         },
       ],
       gpayEnrichedCount: 1,
+      categorization: {
+        engine: "nuabase",
+        sent_count: 0,
+        failed_count: 0,
+        error: null,
+      },
     });
     expect(
       sqlite
@@ -85,7 +100,7 @@ describe("classifyDraftTransactions", () => {
       categorizationConfig: {
         userConfigDir: configDir,
         customMappingsFilenames: [],
-        nuabaseApiKey: "",
+        llm,
       },
       gpayHtmlPath: gpayPath,
     });
@@ -169,6 +184,37 @@ function scopedAccount(
     account_type,
   };
 }
+
+describe("draft classification response contract", () => {
+  it("carries the categorization report with the transactions", () => {
+    const report = {
+      engine: "codex",
+      sent_count: 3,
+      failed_count: 3,
+      error: "sample failure",
+    };
+    const transactions = [
+      { id: 1, narration: "NOPII SHOP", account_id: null, account_name: null },
+    ];
+
+    expect(
+      draftTransactionsContract.classifyDraftTransactions.responses[200].parse({
+        transactions,
+        categorization: report,
+      }),
+    ).toEqual({ transactions, categorization: report });
+    expect(() =>
+      draftTransactionsContract.classifyDraftTransactions.responses[200].parse(
+        transactions,
+      ),
+    ).toThrow();
+    expect(
+      draftTransactionsContract.classifyDraftTransactionsWithGPay.responses[200].parse(
+        { transactions, gpay_enriched_count: 0, categorization: report },
+      ),
+    ).toEqual({ transactions, gpay_enriched_count: 0, categorization: report });
+  });
+});
 
 describe("GPay draft classification upload contract", () => {
   it("parses repeated form fields into typed classification input", () => {

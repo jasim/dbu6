@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { AutoImportGroupResult, AutoImportPlanFile } from "dbu6-shared";
 import { cn } from "@sapporta/ui/cn";
-import { CopyPromptButton } from "../../components/copy-prompt-button";
+import { AgentPromptActions } from "../../components/agent-prompt-actions";
 import { Disclosure } from "../../components/disclosure";
 import { Button } from "../../components/ui/button";
 import {
@@ -169,6 +169,17 @@ function ResultRow({
           <OutcomeLine tone="waiting">{summary.balances.text}</OutcomeLine>
         )}
         {summary.gpay && <p className="text-ink-soft">{summary.gpay}</p>}
+        {summary.categorization && (
+          <div>
+            <OutcomeLine tone="attention">
+              {summary.categorization.text}. Their new drafts are uncategorized
+              in Review.
+            </OutcomeLine>
+            <p className="text-meta text-ink-meta [overflow-wrap:anywhere]">
+              {summary.categorization.reason}
+            </p>
+          </div>
+        )}
       </div>
       <div className="mt-1">
         <Disclosure summary="Details">
@@ -249,10 +260,10 @@ export function ProblemCard({
         {problem.agent && (
           <Disclosure summary="You can use your coding agent to automatically create a parser for this format">
             <p className="text-body text-ink-soft">
-              Copy this prompt into your coding agent, running in the app's
-              repository. {problem.agent.afterwards}
+              Open this prompt in your coding agent, or copy it into the agent
+              running in the app's repository. {problem.agent.afterwards}
             </p>
-            <CopyPromptButton text={problem.agent.prompt} />
+            <AgentPromptActions prompt={problem.agent.prompt} />
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control bg-muted p-3 font-mono text-meta">
               {problem.agent.prompt}
             </pre>

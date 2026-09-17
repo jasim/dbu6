@@ -31,6 +31,7 @@ import {
 import { loadApp } from "./app.js";
 import { publicApiRoutes } from "./app.js";
 import { buildAbility } from "./authz/ability.js";
+import { categorizationLlm } from "./llm-engine.js";
 import { resolveRequestDataAuthority } from "./authz/request-data-authority.js";
 import { createSapportaMailer } from "./mailer.js";
 import { createProjectAuth, readProjectAuthEnv } from "./project-auth/index.js";
@@ -43,6 +44,9 @@ if (!projectRoot) {
   );
 }
 setProjectRoot(projectRoot);
+// Categorization's LLM engine (LLM_ENGINE) is set up once; a setting that can
+// never work stops the server here rather than at the first import.
+categorizationLlm();
 const { apiDistDir, frontendDistDir } = fromProjectRoot(projectRoot);
 // The database is in the directory named by SAPPORTA_DATA_DIR.
 const conn = connectProject(databasePath());

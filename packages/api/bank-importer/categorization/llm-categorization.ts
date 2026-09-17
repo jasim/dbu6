@@ -1,5 +1,6 @@
-import { Nua } from "nuabase";
 import { z } from "zod";
+import type { CategorizationEngine, CategorizationReport } from "dbu6-shared";
+import type { CategorizationLlm, ListRow } from "../../llm-engine.js";
 import type { Abacus } from "../abacus/index.js";
 import type { Account } from "../domain/Account.js";
 import { parseAccount } from "../domain/Account.js";
@@ -9,7 +10,7 @@ export interface LLMCategorizationConfig {
   promptTemplate: string;
   hledgerAccounts: string;
   customMappings: string;
-  nuabaseApiKey: string;
+  llm: CategorizationLlm;
 }
 
 export interface LLMRequest {
@@ -106,56 +107,152 @@ export function parseLLMResponse(
   return mappings;
 }
 
-type NuaGateway = ReturnType<typeof Nua.gateway>;
+/** The report when no description needed the LLM. */
+export function nothingSentReport(
+  engine: CategorizationEngine,
+): CategorizationReport {
+  return { engine, sent_count: 0, failed_count: 0, error: null };
+}
 
-const CATEGORIZATION_MODEL = {
-  provider: "openrouter",
-  model: "z-ai/glm-5.2",
-} as const;
-
-async function callCategorizationLLM(
-  nua: NuaGateway,
-  request: LLMRequest,
-): Promise<Record<string, Account>> {
-  const { prompt, rows, reverseMap } = request;
-  if (rows.length === 0) return {};
-
-  console.log(`\n── LLM Categorization Request  ──`);
-  console.log("Prompt:\n", prompt);
-  console.log("Input rows:\n", JSON.stringify(rows, null, 2));
-
-  const result = await nua.list(prompt, {
-    input: rows,
-    primaryKey: "id",
-    output: { name: "account", schema: z.string() },
-    model: CATEGORIZATION_MODEL,
-  });
-
-  if (!result.success) {
-    console.error(`LLM categorization failed :`, result.error);
-    return {};
-  }
-
-  console.log(`\n── LLM Categorization Response  ──`);
-  console.log(JSON.stringify(result.data, null, 2));
-
-  return parseLLMResponse(result.data as LLMResponseRow[], reverseMap);
+/** The narration→Account answers, and how the LLM fared. */
+export interface LLMCategorization {
+  mappings: Record<string, Account>;
+  report: CategorizationReport;
 }
 
 /**
- * I/O shell: call nua.list() to categorize unmapped transactions.
- * Returns a map from original narration to Account.
- * Returns {} on failure (graceful degradation).
+ * Pure: the rows in calls of at most `maxRowsPerCall`, in order; one call
+ * when there is no limit.
+ */
+export function splitIntoCalls<T>(
+  rows: readonly T[],
+  maxRowsPerCall: number | null,
+): T[][] {
+  if (maxRowsPerCall === null || rows.length <= maxRowsPerCall) {
+    return [[...rows]];
+  }
+  const calls: T[][] = [];
+  for (let start = 0; start < rows.length; start += maxRowsPerCall) {
+    calls.push(rows.slice(start, start + maxRowsPerCall));
+  }
+  return calls;
+}
+
+const MAX_REPORTED_ERROR_LENGTH = 300;
+
+/**
+ * Pure: a failure message short enough to show on a screen. An HTML error
+ * page (a gateway's 500) is reduced to its title, whitespace is collapsed,
+ * and anything past 300 characters is cut. The full message stays in the log.
+ */
+export function reportedError(message: string): string {
+  const title = /<title>([^<]*)<\/title>/i.exec(message)?.[1];
+  const text = (title ?? message).replace(/\s+/g, " ").trim();
+  return text.length > MAX_REPORTED_ERROR_LENGTH
+    ? `${text.slice(0, MAX_REPORTED_ERROR_LENGTH - 1)}…`
+    : text;
+}
+
+type ReadyCaller = Extract<CategorizationLlm["caller"], { ready: true }>;
+
+type CallOutcome =
+  | { ok: true; rows: LLMResponseRow[] }
+  | { ok: false; rowCount: number; error: string };
+
+async function callList(
+  engine: CategorizationLlm["engine"],
+  caller: ReadyCaller,
+  prompt: string,
+  rows: ListRow[],
+  label: string,
+): Promise<CallOutcome> {
+  console.log(`\n── [${engine}] LLM Categorization Request${label} ──`);
+  console.log("Input rows:\n", JSON.stringify(rows, null, 2));
+
+  let result;
+  try {
+    result = await caller.nua.list(prompt, {
+      input: rows,
+      primaryKey: "id",
+      output: { name: "account", schema: z.string() },
+      model: caller.model,
+    });
+  } catch (error) {
+    result = {
+      success: false as const,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (!result.success) {
+    console.error(
+      `[${engine}] LLM categorization failed${label}:`,
+      result.error,
+    );
+    // Typed as a string, but a gateway may pass an error object through.
+    return { ok: false, rowCount: rows.length, error: String(result.error) };
+  }
+
+  console.log(`\n── [${engine}] LLM Categorization Response${label} ──`);
+  console.log(JSON.stringify(result.data, null, 2));
+  return { ok: true, rows: result.data as LLMResponseRow[] };
+}
+
+/**
+ * I/O shell: ask the LLM for the accounts of unmapped transactions, in calls
+ * of at most `llm.maxRowsPerCall` descriptions run together. Returns a map
+ * from original narration to Account with the answers of the calls that
+ * succeeded, and a report counting the descriptions left unanswered because
+ * a call failed or couldn't run. Failures are reported, never thrown.
  */
 export async function categorizeViaLLM(
   transactions: Abacus[],
   unmappedIndices: number[],
   config: LLMCategorizationConfig,
-): Promise<Record<string, Account>> {
-  const request = buildLLMRequest(transactions, unmappedIndices, config);
+): Promise<LLMCategorization> {
+  const { engine, caller, maxRowsPerCall } = config.llm;
+  const { prompt, rows, reverseMap } = buildLLMRequest(
+    transactions,
+    unmappedIndices,
+    config,
+  );
+  const report: CategorizationReport = {
+    ...nothingSentReport(engine),
+    sent_count: rows.length,
+  };
+  if (rows.length === 0) return { mappings: {}, report };
 
-  if (request.rows.length === 0) return {};
+  if (!caller.ready) {
+    console.error(`[${engine}] LLM categorization can't run: ${caller.reason}`);
+    return {
+      mappings: {},
+      report: { ...report, failed_count: rows.length, error: caller.reason },
+    };
+  }
 
-  const nua = Nua.gateway({ apiKey: config.nuabaseApiKey });
-  return callCategorizationLLM(nua, request);
+  console.log(`\n── [${engine}] LLM Categorization Prompt ──`);
+  console.log(prompt);
+  const calls = splitIntoCalls(rows, maxRowsPerCall);
+  const outcomes = await Promise.all(
+    calls.map((callRows, index) =>
+      callList(
+        engine,
+        caller,
+        prompt,
+        callRows,
+        calls.length === 1 ? "" : ` (call ${index + 1} of ${calls.length})`,
+      ),
+    ),
+  );
+
+  const answered: LLMResponseRow[] = [];
+  for (const outcome of outcomes) {
+    if (outcome.ok) {
+      answered.push(...outcome.rows);
+    } else {
+      report.failed_count += outcome.rowCount;
+      report.error ??= reportedError(outcome.error);
+    }
+  }
+  return { mappings: parseLLMResponse(answered, reverseMap), report };
 }

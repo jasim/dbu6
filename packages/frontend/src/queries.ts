@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import type { DateSpan } from "dbu6-shared";
 import { ApiError } from "@sapporta/shared/client";
-import { homeApi, reportsApi, reviewApi } from "./api";
+import { agentHandoffApi, homeApi, reportsApi, reviewApi } from "./api";
 
 /*
  * How the screens read the server: one TanStack query per request, with its
@@ -64,6 +64,18 @@ export function incomeExpensesQuery(dates: DateSpan) {
     ...FRESH_QUERY,
   });
 }
+
+/**
+ * Which coding agents a prompt can be opened in. It changes only when an agent
+ * is installed on the server's machine, so it is read once in a while, not on
+ * every screen.
+ */
+export const agentHandoffCapabilitiesQuery = queryOptions({
+  queryKey: ["agent-handoff"],
+  queryFn: () => agentHandoffApi.getAgentHandoffCapabilities(),
+  ...FRESH_QUERY,
+  staleTime: 10 * 60_000,
+});
 
 /** Refreshes Home, the Review picker and every account's summary. */
 export function refreshDraftStatus(client: QueryClient): Promise<void> {

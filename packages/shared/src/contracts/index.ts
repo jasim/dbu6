@@ -12,6 +12,11 @@ export {
 export {
   importDraftsContract,
   importSummarySchema,
+  categorizationEngineSchema,
+  categorizationReportSchema,
+  CATEGORIZATION_ENGINE_LABEL,
+  type CategorizationEngine,
+  type CategorizationReport,
   statementImportResultSchema,
   sameAccountSkipSchema,
   autoImportPlanFileSchema,
@@ -80,6 +85,22 @@ export {
   type StatementAccountKind,
 } from "./statement-account.js";
 export { draftTransactionsContract } from "./draft-transactions.js";
+export {
+  codingAgentSchema,
+  CODING_AGENT_LABEL,
+  type CodingAgent,
+} from "./coding-agent.js";
+export {
+  agentHandoffContract,
+  agentHandoffCapabilitiesSchema,
+  agentHandoffRequestSchema,
+  agentHandoffSchema,
+  agentHandoffErrorSchema,
+  type AgentHandoffCapabilities,
+  type AgentHandoffRequest,
+  type AgentHandoff,
+  type AgentHandoffErrorBody,
+} from "./agent-handoff.js";
 export { journalsContract } from "./journals.js";
 export {
   homeContract,

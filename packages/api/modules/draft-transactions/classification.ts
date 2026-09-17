@@ -1,8 +1,10 @@
 import { eq, inArray } from "drizzle-orm";
 import { formatPlainDate } from "@sapporta/shared/temporal";
+import type { CategorizationReport } from "dbu6-shared";
 import type { Abacus } from "../../bank-importer/abacus/index.js";
 import { enrichWithGPayHtml } from "../../bank-importer/domain/GPayIndex.js";
 import { moneyFromColumns } from "../../bank-importer/domain/Money.js";
+import { nothingSentReport } from "../../bank-importer/categorization/llm-categorization.js";
 import {
   resolveCategories,
   type CategorizationConfig,
@@ -29,6 +31,7 @@ export interface ClassifiedDraftTransaction {
 export interface DraftClassificationResult {
   transactions: ClassifiedDraftTransaction[];
   gpayEnrichedCount: number;
+  categorization: CategorizationReport;
 }
 
 export async function classifyDraftTransactions(input: {
@@ -47,7 +50,11 @@ export async function classifyDraftTransactions(input: {
     .all();
 
   if (drafts.length === 0) {
-    return { transactions: [], gpayEnrichedCount: 0 };
+    return {
+      transactions: [],
+      gpayEnrichedCount: 0,
+      categorization: nothingSentReport(categorizationConfig.llm.engine),
+    };
   }
 
   const sourceTransactions: Abacus[] = drafts.map((draft) => ({
@@ -59,7 +66,7 @@ export async function classifyDraftTransactions(input: {
   const enrichment = gpayHtmlPath
     ? enrichWithGPayHtml(sourceTransactions, gpayHtmlPath)
     : { enriched: sourceTransactions, matchCount: 0, indexSize: 0 };
-  const categorized = await resolveCategories(
+  const { categorized, report } = await resolveCategories(
     enrichment.enriched,
     categorizationConfig,
   );
@@ -94,5 +101,6 @@ export async function classifyDraftTransactions(input: {
   return {
     transactions,
     gpayEnrichedCount: enrichment.matchCount,
+    categorization: report,
   };
 }

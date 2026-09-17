@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { categorizationReportSchema } from "dbu6-shared";
 import type { Abacus } from "./abacus/index.js";
 import type { Account } from "./domain/Account.js";
 import { type Chrono, chronoEmpty } from "./domain/Chrono.js";
 import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";
+import { nothingSentReport } from "./categorization/llm-categorization.js";
 import type { CategorizationConfig } from "./categorization/resolve.js";
 import { processStatement } from "./pipeline.js";
 import {
@@ -23,6 +25,7 @@ export const importSummarySchema = z.object({
   legacy_match_count: z.number().default(0),
   backfilled_count: z.number(),
   same_account_skips: z.array(sameAccountSkipSchema),
+  categorization: categorizationReportSchema,
 });
 export type ImportSummary = z.infer<typeof importSummarySchema>;
 
@@ -56,11 +59,12 @@ export async function runDraftImport(
 
   // When reconciliation has consumed everything there is nothing to
   // categorize, so the categorizer isn't asked.
-  const { hledgerJournal, categorized } =
+  const { hledgerJournal, categorized, categorization } =
     newTransactions.length === 0
       ? {
           hledgerJournal: "",
           categorized: chronoEmpty<CategorizedTransaction>(),
+          categorization: nothingSentReport(categorizationConfig.llm.engine),
         }
       : await processStatement(newTransactions, {
           baseAccount,
@@ -93,5 +97,6 @@ export async function runDraftImport(
     legacy_match_count: persisted.legacyMatches,
     backfilled_count: persisted.backfilled,
     same_account_skips: sameAccountSkips,
+    categorization,
   };
 }

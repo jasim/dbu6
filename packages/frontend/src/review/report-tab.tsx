@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
-import { CopyPromptButton } from "../components/copy-prompt-button";
+import { AgentPromptActions } from "../components/agent-prompt-actions";
 import { Disclosure } from "../components/disclosure";
 import { LoadError } from "../components/load-error";
 import { ReportResultBody, useReportResult } from "../reports/shared";
@@ -65,11 +65,12 @@ export function AskYourAgent({ prompt }: { prompt: string }) {
         Ask your coding agent to find out
       </h2>
       <p className="mt-1.5 text-body text-ink-soft">
-        Copy this prompt into your coding agent, running in the app's
-        repository. It lists every row above and says how to read the rest.
+        Open this prompt in your coding agent, or copy it into the agent running
+        in the app's repository. It lists every row above and says how to read
+        the rest.
       </p>
       <div className="mt-3">
-        <CopyPromptButton text={prompt} />
+        <AgentPromptActions prompt={prompt} />
       </div>
       <div className="mt-2">
         <Disclosure summary="Preview the prompt">

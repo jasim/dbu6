@@ -113,6 +113,12 @@ Then open `http://localhost:3000/`. The SPA and API are same-origin: browser
 requests to `/api/*` go to the Hono process in the same container. `VITE_API_URL`
 is not needed for this Docker shape.
 
+The image has no coding agent in it, so a container must categorize on the
+Nuabase gateway: leave `LLM_ENGINE` unset (or `nuabase`) and set
+`NUABASE_API_KEY`. `claude-code` and `codex` stop the server at startup there.
+For the same reason, the app offers only **Copy prompt** for the prompts it
+gives your coding agent.
+
 Keep `/app/data` on a named volume or bind mount. Without that volume, SQLite
 data is tied to the container filesystem and disappears when the container is
 replaced.

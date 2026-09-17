@@ -5,20 +5,26 @@ import type { Abacus } from "../abacus/index.js";
 import type { CategorizedTransaction } from "../domain/CategorizedTransaction.js";
 import type { Account } from "../domain/Account.js";
 import { parseAccount, UNCATEGORIZED } from "../domain/Account.js";
-import { categorizeViaLLM } from "./llm-categorization.js";
+import { categorizeViaLLM, nothingSentReport } from "./llm-categorization.js";
 import { PROMPT_TEMPLATE } from "./prompt-template.js";
 import {
   classifyWith,
   compileMappings,
   mappingRulesSchema,
 } from "./mapping-rules.js";
-import type { StatementImportError } from "dbu6-shared";
+import type { CategorizationReport, StatementImportError } from "dbu6-shared";
+import type { CategorizationLlm } from "../../llm-engine.js";
 import { ApiImportError } from "../import-errors.js";
 
 export interface CategorizationConfig {
   userConfigDir: string;
   customMappingsFilenames: string[];
-  nuabaseApiKey: string;
+  llm: CategorizationLlm;
+}
+
+export interface ResolvedCategories {
+  categorized: CategorizedTransaction[];
+  report: CategorizationReport;
 }
 
 export class CategorizationConfigError extends ApiImportError {
@@ -151,13 +157,13 @@ function loadCustomMappings(
 /**
  * Full categorization resolution:
  *   1. Apply executable transaction mappings
- *   2. Call LLM for unmapped transactions via Nuabase
- *   3. Combine all mappings
+ *   2. Call the LLM engine for unmapped transactions
+ *   3. Combine all mappings, with the LLM's report
  */
 export async function resolveCategories(
   transactions: Abacus[],
   config: CategorizationConfig,
-): Promise<CategorizedTransaction[]> {
+): Promise<ResolvedCategories> {
   // 1. Apply the authoritative executable mappings before asking the LLM.
   const classifier = await loadTransactionClassifier(config.userConfigDir);
   const { mapped, unmappedIndices } = partitionByClassifier(
@@ -167,6 +173,7 @@ export async function resolveCategories(
 
   // 2. Call LLM for unmapped transactions
   let llmMappings: Record<string, Account> = {};
+  let report = nothingSentReport(config.llm.engine);
   if (unmappedIndices.length > 0) {
     const hledgerAccounts = readRequiredConfigFile(
       config.userConfigDir,
@@ -177,18 +184,25 @@ export async function resolveCategories(
       config.userConfigDir,
     );
 
-    llmMappings = await categorizeViaLLM(transactions, unmappedIndices, {
-      promptTemplate: PROMPT_TEMPLATE,
-      hledgerAccounts,
-      customMappings,
-      nuabaseApiKey: config.nuabaseApiKey,
-    });
+    ({ mappings: llmMappings, report } = await categorizeViaLLM(
+      transactions,
+      unmappedIndices,
+      {
+        promptTemplate: PROMPT_TEMPLATE,
+        hledgerAccounts,
+        customMappings,
+        llm: config.llm,
+      },
+    ));
   }
 
   // 3. Combine all mappings and build result
   const allMappings: Record<string, Account> = { ...mapped, ...llmMappings };
-  return transactions.map((t) => ({
-    transaction: t,
-    account: allMappings[t.narration] ?? UNCATEGORIZED,
-  }));
+  return {
+    categorized: transactions.map((t) => ({
+      transaction: t,
+      account: allMappings[t.narration] ?? UNCATEGORIZED,
+    })),
+    report,
+  };
 }

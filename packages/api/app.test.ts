@@ -32,6 +32,8 @@ describe("mounted app routes", () => {
     expect(paths["/api/reports/income-expenses"]?.get).toBeDefined();
     expect(paths["/api/review/accounts"]?.get).toBeDefined();
     expect(paths["/api/review/accounts/{accountId}"]?.get).toBeDefined();
+    expect(paths["/api/agent-handoff"]?.get).toBeDefined();
+    expect(paths["/api/agent-handoff"]?.post).toBeDefined();
   });
 
   it("no longer publishes the retired statement upload routes", () => {

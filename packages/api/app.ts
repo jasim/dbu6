@@ -14,6 +14,7 @@ import type {
   SapportaEnv,
   TsRestApi,
 } from "@sapporta/server";
+import agentHandoffApi from "./app/agent-handoff.js";
 import classifyDraftTransactionsApi from "./app/classify-draft-transactions.js";
 import homeApi from "./app/home.js";
 import importDraftAbacusApi from "./app/import-draft-abacus.js";
@@ -49,6 +50,7 @@ export function loadApp(app: TsRestApi<SapportaEnv>, _options: LoadAppOptions) {
   mountApi(app, postDraftsToJournalApi);
   mountApi(app, homeApi);
   mountApi(app, reviewApi);
+  mountApi(app, agentHandoffApi);
 }
 
 export const publicApiRoutes =

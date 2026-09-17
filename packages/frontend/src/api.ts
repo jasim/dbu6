@@ -14,6 +14,7 @@
 import { createApiClient } from "@sapporta/shared/client";
 import { getApiBase } from "@sapporta/frontend/platform";
 import {
+  agentHandoffContract,
   draftTransactionsContract,
   homeContract,
   importPresetsContract,
@@ -43,6 +44,10 @@ export const homeApi = createApiClient(homeContract, {
 });
 
 export const reviewApi = createApiClient(reviewContract, {
+  baseUrl: getApiBase,
+});
+
+export const agentHandoffApi = createApiClient(agentHandoffContract, {
   baseUrl: getApiBase,
 });
 

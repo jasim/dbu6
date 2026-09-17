@@ -1,7 +1,7 @@
+import type { CategorizationReport } from "dbu6-shared";
 import type { Abacus } from "./abacus/index.js";
 import type { Account } from "./domain/Account.js";
-import { type Chrono, chronoMap, unsafeAsChrono } from "./domain/Chrono.js";
-import { UNCATEGORIZED } from "./domain/Account.js";
+import { type Chrono, unsafeAsChrono } from "./domain/Chrono.js";
 import { groupByDateAndType } from "./domain/TransactionGroup.js";
 import { fromGroups, format } from "./domain/HledgerJournal.js";
 import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";
@@ -12,7 +12,7 @@ import {
 
 export interface PipelineConfig {
   baseAccount: Account;
-  categorization?: CategorizationConfig;
+  categorization: CategorizationConfig;
 }
 
 export interface PipelineResult {
@@ -20,6 +20,8 @@ export interface PipelineResult {
   /** The categorized transactions before grouping — needed by callers that
    *  persist individual entries (e.g. draft journal creation). */
   categorized: Chrono<CategorizedTransaction>;
+  /** How the LLM fared on what the mapping rules didn't categorize. */
+  categorization: CategorizationReport;
 }
 
 /**
@@ -34,16 +36,19 @@ export async function processStatement(
   transactions: Chrono<Abacus>,
   config: PipelineConfig,
 ): Promise<PipelineResult> {
-  const categorized: Chrono<CategorizedTransaction> = config.categorization
-    ? unsafeAsChrono(
-        await resolveCategories([...transactions], config.categorization),
-      )
-    : chronoMap(transactions, (t) => ({
-        transaction: t,
-        account: UNCATEGORIZED as Account,
-      }));
+  const resolved = await resolveCategories(
+    [...transactions],
+    config.categorization,
+  );
+  const categorized: Chrono<CategorizedTransaction> = unsafeAsChrono(
+    resolved.categorized,
+  );
 
   const groups = groupByDateAndType(categorized);
   const journal = fromGroups(groups, config.baseAccount);
-  return { hledgerJournal: format(journal), categorized };
+  return {
+    hledgerJournal: format(journal),
+    categorized,
+    categorization: resolved.report,
+  };
 }

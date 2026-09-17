@@ -2,6 +2,7 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { abacusImportRequestSchema } from "./abacus.js";
+import { CODING_AGENT_LABEL, codingAgentSchema } from "./coding-agent.js";
 import { dateSpanSchema } from "./date-span.js";
 import { datedBalanceSchema } from "./dated-balance.js";
 import { statementImportErrorSchema } from "./import-errors.js";
@@ -15,6 +16,34 @@ export const sameAccountSkipSchema = z.object({
   account: z.string(),
 });
 
+// Where categorization's LLM runs: the Nuabase gateway, or a coding agent on
+// the server's machine (LLM_ENGINE).
+export const categorizationEngineSchema = z.enum([
+  "nuabase",
+  ...codingAgentSchema.options,
+]);
+export type CategorizationEngine = z.infer<typeof categorizationEngineSchema>;
+
+export const CATEGORIZATION_ENGINE_LABEL = {
+  nuabase: "Nuabase",
+  ...CODING_AGENT_LABEL,
+} as const satisfies Record<CategorizationEngine, string>;
+
+// How the LLM fared on the descriptions the mapping rules didn't categorize.
+// A description is a distinct narration with its direction, sent once however
+// many transactions share it. When the rules map everything, or there is
+// nothing new, `sent_count` is 0.
+export const categorizationReportSchema = z.object({
+  engine: categorizationEngineSchema,
+  // Distinct descriptions that needed the LLM.
+  sent_count: z.number(),
+  // Of those, how many got no answer because a call failed or couldn't run.
+  failed_count: z.number(),
+  // The first failure's message.
+  error: z.string().nullable(),
+});
+export type CategorizationReport = z.infer<typeof categorizationReportSchema>;
+
 export const importSummarySchema = z.object({
   hledger_journal: z.string(),
   transaction_count: z.number(),
@@ -27,6 +56,7 @@ export const importSummarySchema = z.object({
   backfilled_count: z.number(),
   same_account_skips: z.array(sameAccountSkipSchema),
   gpay_enriched_count: z.number().default(0),
+  categorization: categorizationReportSchema,
 });
 
 export const balanceSourceSchema = z.enum([

@@ -12,6 +12,10 @@ import {
   parserLabel,
   plural,
 } from "../../format";
+import {
+  describeCategorizationProblem,
+  type CategorizationProblem,
+} from "../categorization/describeCategorization";
 
 // A labelled fact, for the facts tables. Values are figures (money, dates,
 // counts, codes) set in mono unless marked as words.
@@ -39,6 +43,10 @@ export interface GroupSummary {
     | { tone: "unverified"; text: string; figures: null };
   // "Named 6 UPI payments from Google Pay", or null when none were named.
   gpay: string | null;
+  // Descriptions the LLM couldn't categorize, and why; null when it answered
+  // for all of them, or when nothing new came in (a re-import's rows are
+  // categorized before the ones already in Review are dropped).
+  categorization: CategorizationProblem | null;
   // Collapsed under "Details": where the rows that were not new went (empty
   // when everything was new), then the facts behind the import.
   breakdown: Stat[];
@@ -199,6 +207,10 @@ export function describeGroup(
     gpay:
       enriched > 0
         ? `Named ${plural(enriched, "UPI payment")} from Google Pay`
+        : null,
+    categorization:
+      fresh > 0
+        ? describeCategorizationProblem(group.result.categorization)
         : null,
     breakdown: breakdown(group),
     details: details(group),
