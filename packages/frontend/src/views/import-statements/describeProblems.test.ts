@@ -129,7 +129,7 @@ describe("plan rejections", () => {
     expect(describeBatch({ kind: "failed", failure: error })).toEqual({
       tone: "attention",
       text: "Nothing was imported. 1 of 2 files needs attention below.",
-      next: "Your files are still in the list above. Once this is sorted out, import them again.",
+      next: "There is likely no matching parser for this statement format",
     });
     expect(
       describeFileStatus(resolvedRow, {
