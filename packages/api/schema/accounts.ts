@@ -1,3 +1,4 @@
+import { asc } from "drizzle-orm";
 import {
   sqliteTable,
   integer,
@@ -41,6 +42,9 @@ export const accounts = sapportaTable({
     label: "Accounts",
     rowLabelColumns: ["name"],
     rowScope: "workspaceUserScoped",
+    // The Accounts page shows one indented tree; siblings sort by name.
+    tree: { parentColumn: "parent_id" },
+    defaultSort: asc(accountsTable.name),
     search: { self: ["name"] },
     columns: {
       workspace_id: { visuallyHidden: true },
@@ -58,13 +62,6 @@ export const accounts = sapportaTable({
       },
     },
     rowLinks: [
-      {
-        kind: "table",
-        table: "accounts",
-        bind: { parent_id: "id" },
-        label: "Sub-accounts",
-        icon: "drill-into",
-      },
       {
         kind: "table",
         table: "journal_entries",

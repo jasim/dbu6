@@ -320,3 +320,9 @@ body {
   --sap-grid-row-header-column-width: 48px;
   --sap-grid-nested-row-header-column-width: 36px;
 }
+
+/* The Accounts page's grid (App.tsx): each depth of the account tree steps in
+   this far, more than the preset's 18px. */
+.accounts-grid {
+  --sap-grid-tree-indent: 24px;
+}
