@@ -2,11 +2,10 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   accountKindOf,
   importDraftsContract,
-  type AbacusImportErrorBody,
   type AbacusImportRequest,
   type AbacusImportResult,
+  type StatementImportError,
 } from "dbu6-shared";
-import { loadAccountsByName } from "../modules/accounts/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { importFreeformStatement } from "../workflows/statement-import/index.js";
 import { respondWithImportErrors } from "./import-error-response.js";
@@ -23,14 +22,13 @@ import { requireWorkflowLedger } from "./workflow-auth.js";
 
 type AbacusImportRouteResponse =
   | { status: 200; body: AbacusImportResult }
-  | { status: 400; body: AbacusImportErrorBody }
-  | { status: 422; body: AbacusImportErrorBody };
+  | { status: 400; body: StatementImportError }
+  | { status: 422; body: StatementImportError };
 
 const DEFAULT_SOURCE_NAME = "freeform transactions";
 
 export async function importAbacusStatement(
   request: AbacusImportRequest,
-  accountNames: ReadonlySet<string>,
   ledger: Ledger,
 ): Promise<AbacusImportRouteResponse> {
   const { base_account, is_credit_card, statement } = request;
@@ -43,33 +41,19 @@ export async function importAbacusStatement(
         statement,
         sourceName,
       },
-      accountNames,
       ledger,
     ),
   );
   if (response.status !== 200) return response;
-  const outcome = response.body;
-  switch (outcome.kind) {
-    case "account-not-found":
-      return {
-        status: 422,
-        body: {
-          error: "import_account_not_found",
-          message: `The ledger has no account named ${base_account}.`,
-          hint: "Use the account exactly as the prompt names it.",
-        },
-      };
-    case "imported":
-      return {
-        status: 200,
-        body: {
-          base_account,
-          is_credit_card,
-          file_names: [sourceName],
-          result: outcome.result,
-        },
-      };
-  }
+  return {
+    status: 200,
+    body: {
+      base_account,
+      is_credit_card,
+      file_names: [sourceName],
+      result: response.body,
+    },
+  };
 }
 
 const api = new TsRestApi<SapportaEnv>();
@@ -77,14 +61,8 @@ const api = new TsRestApi<SapportaEnv>();
 api.register(
   "importAbacusStatement",
   importDraftsContract.importAbacusStatement,
-  async ({ c, request }) => {
-    const ledger = requireWorkflowLedger(c);
-    return importAbacusStatement(
-      request.body,
-      new Set(loadAccountsByName(ledger.db, ledger.auth).keys()),
-      ledger,
-    );
-  },
+  async ({ c, request }) =>
+    importAbacusStatement(request.body, requireWorkflowLedger(c)),
 );
 
 export default api;

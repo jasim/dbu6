@@ -9,6 +9,7 @@ import {
 } from "../../modules/values/index.js";
 import {
   categorize,
+  type AccountsByName,
   type CategorizedRow,
   type Categorizer,
 } from "../../modules/categorization/index.js";
@@ -16,10 +17,7 @@ import {
   formatHledger,
   planJournals,
 } from "../../modules/journal-plan/index.js";
-import {
-  loadAccountsByName,
-  loadHledgerAccountNames,
-} from "../../modules/accounts/index.js";
+import { loadHledgerAccountNames } from "../../modules/accounts/index.js";
 import { toDraftRows, persistDrafts } from "../../modules/drafts/index.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 
@@ -32,6 +30,10 @@ export type ImportSummary = Omit<
 
 export interface DraftImportInput {
   baseAccount: Account;
+  // The ledger account `baseAccount` names, and all the ledger's accounts by
+  // name, as `runStatementImport` resolved them.
+  baseAccountId: number;
+  accountsByName: AccountsByName;
   // Keyed and already filtered to what the ledger doesn't hold yet.
   transactions: Chrono<Abacus>;
   // How many rows the statement had before the reconciliation filter.
@@ -52,6 +54,8 @@ export async function runDraftImport(
 ): Promise<ImportSummary> {
   const {
     baseAccount,
+    baseAccountId,
+    accountsByName,
     transactions: newTransactions,
     rawTransactionCount: rawCount,
     categorizer,
@@ -60,8 +64,6 @@ export async function runDraftImport(
     auth,
   } = input;
 
-  const accountsByName = loadAccountsByName(db, auth);
-  const baseAccountId = accountsByName.get(baseAccount)?.id ?? null;
   // With nothing new, this categorizes nothing and formats an empty journal.
   const categorization = await categorize(
     categorizer,

@@ -10,7 +10,10 @@ export {
   type Categorizer,
   type SameAccountSkip,
 } from "./categorize.js";
-export type { CategorizedTransaction } from "./CategorizedTransaction.js";
+export type {
+  AccountsByName,
+  CategorizedTransaction,
+} from "./CategorizedTransaction.js";
 export type {
   CategorizationLlm,
   ListAnswer,

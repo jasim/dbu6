@@ -15,12 +15,14 @@ import {
   StatementPartInvalidError,
   StatementPartUnjoinableError,
 } from "../../modules/statement/index.js";
+import { AccountNotFoundError } from "./statement-import.js";
 
-// Every way a statement import refuses: the errors its modules raise when the
-// statement, the ledger or the user's config won't let it go ahead. Any other
-// error is a fault. Each module owns its errors; this list says which of them
-// end an import.
+// Every way a statement import refuses: the errors its modules, and the
+// import itself, raise when the statement, the ledger or the user's config
+// won't let it go ahead. Any other error is a fault. Each module owns its
+// errors; this list says which of them end an import.
 const IMPORT_REFUSALS = [
+  AccountNotFoundError,
   AbacusJsonParseError,
   BalanceMismatchError,
   SegmentBalanceMismatchError,

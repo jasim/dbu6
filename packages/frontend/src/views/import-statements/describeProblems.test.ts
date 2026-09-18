@@ -499,6 +499,27 @@ describe("account import failures", () => {
     expect(problem.agent?.prompt).toContain("closing_balance_unavailable");
   });
 
+  it("points to Accounts and the preset when the ledger lacks the preset's account", () => {
+    const [problem] = describeProblems(
+      refused(422, {
+        ...PAYLOADS.import_account_not_found,
+        files: [],
+        failed_group: failedGroup,
+      }),
+    );
+    expect(problem).toMatchObject({
+      subject: "Sample Bank",
+      fileNames: ["bank-aug.xls"],
+    });
+    expect(problem.fix).toContain("Sample Bank");
+    expect(problem.actions).toEqual([
+      expect.objectContaining({ kind: "link", to: "/accounts" }),
+    ]);
+    const prompt = problem.agent?.prompt;
+    expect(prompt).toContain("import-presets.json");
+    expect(prompt).toContain("base_account");
+  });
+
   it("gives the codes without a problem of their own one shared problem and a full-payload prompt", () => {
     const codes = [
       "ambiguous_duplicate",
@@ -612,6 +633,7 @@ describe("problem tones", () => {
 
   it("marks what needs setting up as attention", () => {
     for (const code of [
+      "import_account_not_found",
       "opening_balance_unavailable",
       "closing_balance_unavailable",
       "statement_part_unjoinable",
@@ -680,6 +702,11 @@ const PAYLOADS: {
     { error: Code }
   >;
 } = {
+  import_account_not_found: {
+    error: "import_account_not_found",
+    message: "The ledger has no account named Sample Bank.",
+    hint: "Name the account exactly as Accounts lists it, or add it there first.",
+  },
   reconciliation_match_failed: {
     error: "reconciliation_match_failed",
     message: "Statement has no row carrying the asserted balance.",

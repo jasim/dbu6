@@ -193,24 +193,12 @@ export const autoImportErrorSchema = z.union([
   }),
 ]);
 
-// A freeform import refuses with a statement import error, or because the
-// request names an account the ledger doesn't have.
-export const abacusImportErrorSchema = z.discriminatedUnion("error", [
-  ...statementImportErrorSchema.options,
-  z.object({
-    error: z.literal("import_account_not_found"),
-    message: z.string(),
-    hint: z.string(),
-  }),
-]);
-
 export type AutoImportPlanFile = z.infer<typeof autoImportPlanFileSchema>;
 export type AutoImportGroupResult = z.infer<typeof autoImportGroupResultSchema>;
 export type AbacusImportResult = z.infer<typeof abacusImportResultSchema>;
 export type AutoImportResult = z.infer<typeof autoImportResultSchema>;
 export type AutoImportFailedGroup = z.infer<typeof autoImportFailedGroupSchema>;
 export type AutoImportErrorBody = z.infer<typeof autoImportErrorSchema>;
-export type AbacusImportErrorBody = z.infer<typeof abacusImportErrorSchema>;
 export type StatementImportResultBody = z.infer<
   typeof statementImportResultSchema
 >;
@@ -238,9 +226,9 @@ export const importDraftsContract = c.router({
     body: abacusImportRequestSchema,
     responses: {
       200: abacusImportResultSchema,
-      400: abacusImportErrorSchema,
+      400: statementImportErrorSchema,
       403: errorBodySchema,
-      422: abacusImportErrorSchema,
+      422: statementImportErrorSchema,
     },
   }),
 });

@@ -12,10 +12,9 @@ import {
 } from "../../schema/draft-journals.js";
 import { Temporal as TemporalValue } from "@sapporta/shared/temporal";
 import {
-  AmbiguousDuplicateError,
   dayClosings,
   draftOrderBy,
-  findDuplicateCandidates,
+  findDuplicate,
 } from "../reconciliation/index.js";
 import type { LedgerAuth } from "../ledger-sql/index.js";
 
@@ -34,7 +33,7 @@ export type DraftRow = {
   withdrawal: number;
   deposit: number;
   account_id: number | null;
-  base_account_id: number | null;
+  base_account_id: number;
   balance_assertion_base_account: number | null;
   source_reference: string | null;
   source_transaction_key: string | null;
@@ -64,7 +63,7 @@ export interface CategorizedStatementRow {
 
 function toDraftRow(
   { transaction: t, accountId }: CategorizedStatementRow,
-  baseAccountId: number | null,
+  baseAccountId: number,
 ): DraftRow {
   return {
     date: parsePlainDate(t.date),
@@ -83,7 +82,7 @@ function toDraftRow(
 // on the day's last draft (the balance-check rule, in reconciliation).
 export function toDraftRows(
   categorized: Chrono<CategorizedStatementRow>,
-  baseAccountId: number | null,
+  baseAccountId: number,
 ): {
   rows: DraftRow[];
   expectedClosingByDate: Map<string, number>;
@@ -113,7 +112,7 @@ export function persistDrafts(
   db.transaction((tx: any) => {
     const access = auth.rowSecurity.forTable(draftTransactions);
     for (const row of rows) {
-      const candidates = findDuplicateCandidates(
+      const existing = findDuplicate(
         tx,
         {
           databaseDate: row.date,
@@ -128,17 +127,6 @@ export function persistDrafts(
         },
         auth,
       );
-      if (candidates.length > 1) {
-        throw new AmbiguousDuplicateError(
-          row.source_transaction_key,
-          candidates.map((candidate) =>
-            candidate.target === "draft"
-              ? `draft:${candidate.id}`
-              : `journal:${candidate.id}:entry:${candidate.journalEntryId}`,
-          ),
-        );
-      }
-      const existing = candidates[0];
       if (!existing) {
         const values = access.insertValuesSync(tx, row);
         tx.insert(draftTransactionsTable).values(values).run();
@@ -167,23 +155,24 @@ export function persistDrafts(
       }
     }
 
-    placeAssertionsAfterDedupe(
-      tx,
-      rows[0]?.base_account_id ?? null,
-      expectedClosingByDate,
-      auth,
-    );
+    if (rows.length > 0) {
+      placeAssertionsAfterDedupe(
+        tx,
+        rows[0].base_account_id,
+        expectedClosingByDate,
+        auth,
+      );
+    }
   });
   return summary;
 }
 
 function placeAssertionsAfterDedupe(
   tx: any,
-  baseAccountId: number | null,
+  baseAccountId: number,
   expectedClosingByDate: Map<string, number>,
   auth: LedgerAuth,
 ): void {
-  if (baseAccountId === null) return;
   const access = auth.rowSecurity.forTable(draftTransactions);
   for (const [dateText, expected] of expectedClosingByDate) {
     const databaseDate = parsePlainDate(dateText);

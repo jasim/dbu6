@@ -26,9 +26,20 @@ import {
 } from "../../modules/statement/index.js";
 import { newTransactionsSinceReconciliation } from "../../modules/reconciliation/index.js";
 import { lookupLastReconciled } from "../../modules/journals/index.js";
+import { loadAccountsByName } from "../../modules/accounts/index.js";
 import type { Ledger } from "../../modules/ledger-sql/index.js";
 import { runDraftImport, type ImportSummary } from "./draft-import.js";
 import { assignSourceTransactionKeys } from "../../modules/transaction-identity/index.js";
+
+// The import names an account the ledger doesn't have, so its drafts would
+// belong to no account.
+export class AccountNotFoundError extends Error {
+  override readonly name = "AccountNotFoundError";
+
+  constructor(readonly account: string) {
+    super(`The ledger has no account named ${account}.`);
+  }
+}
 
 export type BalanceSource = "statement" | "checkpoint" | "per-row" | "none";
 
@@ -121,6 +132,14 @@ export async function runStatementImport(
   ledger: Ledger,
   sourceNames: readonly string[] = [],
 ): Promise<StatementImportResult> {
+  // The drafts are the account's, so an account the ledger doesn't have
+  // refuses the import before the statement is looked at.
+  const accountsByName = loadAccountsByName(ledger.db, ledger.auth);
+  const baseAccountId = accountsByName.get(opts.baseAccount)?.id;
+  if (baseAccountId === undefined) {
+    throw new AccountNotFoundError(opts.baseAccount);
+  }
+
   // Assemble first, key second. Keys number textually identical rows on one
   // day by occurrence, so two such rows that arrive one per part must be
   // numbered over the assembled sequence rather than collide at occurrence
@@ -239,6 +258,8 @@ export async function runStatementImport(
 
   const summary = await runDraftImport({
     baseAccount: opts.baseAccount,
+    baseAccountId,
+    accountsByName,
     transactions: importable,
     rawTransactionCount: withBalances.length,
     categorizer: opts.categorizer,

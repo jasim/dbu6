@@ -24,6 +24,15 @@ type ImportRouteResponse<T> = { status: 200; body: T } | ImportErrorResponse;
 // A refusal as its status and body.
 export function importErrorResponse(err: ImportRefusal): ImportErrorResponse {
   switch (err.name) {
+    case "AccountNotFoundError":
+      return {
+        status: 422,
+        body: {
+          error: "import_account_not_found",
+          message: err.message,
+          hint: "Name the account exactly as Accounts lists it, or add it there first.",
+        },
+      };
     case "AbacusJsonParseError":
       return {
         status: 400,
