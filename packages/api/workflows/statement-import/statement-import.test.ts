@@ -15,9 +15,7 @@ import {
 import type { Categorizer } from "../../modules/categorization/index.js";
 import { parseAccount } from "../../modules/values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
-import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
-
-const auth = testLedgerAuth();
+import { testImportLedger } from "./test-ledger.js";
 
 describe("pickOpeningBalance", () => {
   it("prefers the statement's own opening over the checkpoint", () => {
@@ -91,7 +89,7 @@ describe("runStatementImport", () => {
   it("requires an effective closing for a credit-card import before writes", async () => {
     const part = stmt(["2026-05-01"], -100, null);
     await expect(
-      runStatementImport([part], options(), stubImportDb(), auth),
+      runStatementImport([part], options(), testImportLedger()),
     ).rejects.toBeInstanceOf(ClosingBalanceUnavailable);
   });
 
@@ -100,8 +98,11 @@ describe("runStatementImport", () => {
     const refusal = runStatementImport(
       [part],
       options(),
-      stubImportDb({ date: "2026-12-31", balance: -999 }),
-      auth,
+      testImportLedger({
+        account: "cc:stanc",
+        date: "2026-12-31",
+        balance: -999,
+      }),
     );
     await expect(refusal).rejects.toBeInstanceOf(BalanceMismatchError);
     // The statement prints no running balances, so a gap is the likely cause.
@@ -114,8 +115,7 @@ describe("runStatementImport", () => {
     const result = await runStatementImport(
       [part],
       options(),
-      stubImportDb({ date: "2026-12-31", balance: 0 }),
-      auth,
+      testImportLedger({ account: "cc:stanc", date: "2026-12-31", balance: 0 }),
     );
     expect(result.balance_metadata).toEqual({
       opening: { extracted: -100, effective: -100, source: "statement" },
@@ -153,28 +153,4 @@ function options(): ImportOptions {
     categorizer: noCategorizer,
     gpay: null,
   };
-}
-
-function stubImportDb(checkpoint?: { date: string; balance: number }): any {
-  let getCount = 0;
-  const chain: any = {
-    select: () => chain,
-    from: () => chain,
-    innerJoin: () => chain,
-    where: () => chain,
-    orderBy: () => chain,
-    limit: () => chain,
-    all: () => [],
-    get: () => {
-      getCount++;
-      return checkpoint && getCount <= 1
-        ? {
-            date: parsePlainDate(checkpoint.date),
-            assertion: checkpoint.balance,
-          }
-        : undefined;
-    },
-    transaction: (run: (tx: any) => unknown) => run(chain),
-  };
-  return chain;
 }

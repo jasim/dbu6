@@ -7,10 +7,10 @@ import {
   type AbacusImportResult,
 } from "dbu6-shared";
 import { loadAccountsByName } from "../modules/accounts/index.js";
-import type { LedgerAuth } from "../modules/ledger-sql/index.js";
+import type { Ledger } from "../modules/ledger-sql/index.js";
 import { importFreeformStatement } from "../workflows/statement-import/index.js";
 import { respondWithImportErrors } from "./import-error-response.js";
-import { requireWorkflowAuth } from "./workflow-auth.js";
+import { requireWorkflowLedger } from "./workflow-auth.js";
 
 // Import of one Abacus statement posted as JSON by a coding agent, for
 // freeform transactions (custom-built-parsers/freeform-transactions-guide.md).
@@ -31,8 +31,7 @@ const DEFAULT_SOURCE_NAME = "freeform transactions";
 export async function importAbacusStatement(
   request: AbacusImportRequest,
   accountNames: ReadonlySet<string>,
-  db: unknown,
-  auth: LedgerAuth,
+  ledger: Ledger,
 ): Promise<AbacusImportRouteResponse> {
   const { base_account, is_credit_card, statement } = request;
   const sourceName = request.source_name ?? DEFAULT_SOURCE_NAME;
@@ -45,8 +44,7 @@ export async function importAbacusStatement(
         sourceName,
       },
       accountNames,
-      db,
-      auth,
+      ledger,
     ),
   );
   if (response.status !== 200) return response;
@@ -80,13 +78,11 @@ api.register(
   "importAbacusStatement",
   importDraftsContract.importAbacusStatement,
   async ({ c, request }) => {
-    const db = c.get("db");
-    const auth = requireWorkflowAuth(c);
+    const ledger = requireWorkflowLedger(c);
     return importAbacusStatement(
       request.body,
-      new Set(loadAccountsByName(db, auth).keys()),
-      db,
-      auth,
+      new Set(loadAccountsByName(ledger.db, ledger.auth).keys()),
+      ledger,
     );
   },
 );

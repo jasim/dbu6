@@ -26,7 +26,7 @@ import {
 } from "../../modules/statement/index.js";
 import { newTransactionsSinceReconciliation } from "../../modules/reconciliation/index.js";
 import { lookupLastReconciled } from "../../modules/journals/index.js";
-import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
+import type { Ledger } from "../../modules/ledger-sql/index.js";
 import { runDraftImport, type ImportSummary } from "./draft-import.js";
 import { assignSourceTransactionKeys } from "../../modules/transaction-identity/index.js";
 
@@ -118,8 +118,7 @@ export function pickClosingBalance(
 export async function runStatementImport(
   parts: AbacusStatement[],
   opts: ImportOptions,
-  db: any,
-  auth: LedgerAuth,
+  ledger: Ledger,
   sourceNames: readonly string[] = [],
 ): Promise<StatementImportResult> {
   // Assemble first, key second. Keys number textually identical rows on one
@@ -144,7 +143,11 @@ export async function runStatementImport(
     );
   }
 
-  const checkpoint = lookupLastReconciled(db, opts.baseAccount, auth);
+  const checkpoint = lookupLastReconciled(
+    ledger.sqlite,
+    ledger.auth,
+    opts.baseAccount,
+  );
   console.log(
     `[statement-import] reconciliation checkpoint for ${opts.baseAccount}: ${
       checkpoint
@@ -240,8 +243,8 @@ export async function runStatementImport(
     rawTransactionCount: withBalances.length,
     categorizer: opts.categorizer,
     logPrefix: "statement-import",
-    db,
-    auth,
+    db: ledger.db,
+    auth: ledger.auth,
   });
 
   console.log(

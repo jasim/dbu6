@@ -13,7 +13,7 @@ import {
   readImportPresets,
   type ImportPreset,
 } from "../modules/statement-sources/index.js";
-import type { LedgerAuth } from "../modules/ledger-sql/index.js";
+import type { Ledger } from "../modules/ledger-sql/index.js";
 import {
   importStatementBatch,
   type BatchImportOutcome,
@@ -27,7 +27,7 @@ import {
   withTempUpload,
   type StagedUploads,
 } from "./upload-tmp.js";
-import { requireWorkflowAuth } from "./workflow-auth.js";
+import { requireWorkflowLedger } from "./workflow-auth.js";
 
 // Automatic statement import: the user uploads statement files, and
 // optionally a Google Pay Takeout, and nothing else.
@@ -184,8 +184,7 @@ export interface AutoImportUploads {
 export async function importStatementsAutomatically(
   uploads: AutoImportUploads,
   presets: readonly ImportPreset[],
-  db: unknown,
-  auth: LedgerAuth,
+  ledger: Ledger,
 ): Promise<AutoImportRouteResponse> {
   const { statements, gpay } = uploads;
   const received = statements
@@ -198,12 +197,12 @@ export async function importStatementsAutomatically(
     `[auto-statement-upload] received ${statements.length} file(s): ${received}${takeout}`,
   );
 
-  if (gpay === null) return importStaged(statements, null, presets, db, auth);
+  if (gpay === null) return importStaged(statements, null, presets, ledger);
   return withTempUpload(
     gpay,
     "gpay-auto-statement-upload",
     ".html",
-    (gpayHtmlPath) => importStaged(statements, gpayHtmlPath, presets, db, auth),
+    (gpayHtmlPath) => importStaged(statements, gpayHtmlPath, presets, ledger),
   );
 }
 
@@ -211,8 +210,7 @@ async function importStaged(
   statements: File[],
   gpayHtmlPath: string | null,
   presets: readonly ImportPreset[],
-  db: unknown,
-  auth: LedgerAuth,
+  ledger: Ledger,
 ): Promise<AutoImportRouteResponse> {
   return withStagedUploads(statements, STAGED_UPLOADS_DIR, async (staged) => {
     const outcome = await importStatementBatch(
@@ -224,8 +222,7 @@ async function importStaged(
         gpayHtmlPath,
         presets,
       },
-      db,
-      auth,
+      ledger,
     );
     // The outcome keys a file by the name it was uploaded under, which is how
     // its staged copy is found again.
@@ -265,7 +262,7 @@ api.register(
   "uploadStatementsAuto",
   importDraftsContract.uploadStatementsAuto,
   async ({ c, files: uploadedFiles }) => {
-    const auth = requireWorkflowAuth(c);
+    const ledger = requireWorkflowLedger(c);
 
     const statements = filesFromField(uploadedFiles, "files");
     if (statements.length === 0) {
@@ -281,8 +278,7 @@ api.register(
     return importStatementsAutomatically(
       { statements, gpay: uploadedFile(uploadedFiles, "gpay") },
       await readImportPresets(),
-      c.get("db"),
-      auth,
+      ledger,
     );
   },
 );

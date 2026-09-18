@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { loadLastReconciled } from "./last-reconciled.js";
+import { loadLastReconciled, lookupLastReconciled } from "./last-reconciled.js";
 import { testLedgerAuth } from "../ledger-sql/testing.js";
 
 describe("Last reconciled query", () => {
@@ -87,5 +87,104 @@ describe("Last reconciled query", () => {
         last_balance: 300,
       },
     ]);
+  });
+});
+
+/*
+ * Checkpoints that tie. Sample Savings (1) asserts on 1 Mar in journal 21 and
+ * on 1 Apr in journal 20, whose id is lower. Sample Card (2) asserts twice in
+ * its one journal, 22. Sample Wallet (3) and (4) share a name: 3's checkpoint
+ * is on 1 May, 4's on 1 Feb.
+ */
+function tiedLedger(): Database.Database {
+  const sqlite = new Database(":memory:");
+  sqlite.exec(`
+    CREATE TABLE accounts (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT
+    );
+    CREATE TABLE journals (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT
+    );
+    CREATE TABLE journal_entries (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
+      account_id INTEGER, account_balance_assertion REAL
+    );
+    CREATE TABLE draft_transactions (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
+    );
+
+    INSERT INTO accounts VALUES
+      (1, 'workspace', 'user', 'assets:bank:sample-savings'),
+      (2, 'workspace', 'user', 'liabilities:credit-cards:sample-card'),
+      (3, 'workspace', 'user', 'assets:sample-wallet'),
+      (4, 'workspace', 'user', 'assets:sample-wallet');
+    INSERT INTO journals VALUES
+      (20, 'workspace', 'user', '2026-04-01'),
+      (21, 'workspace', 'user', '2026-03-01'),
+      (22, 'workspace', 'user', '2026-03-10'),
+      (23, 'workspace', 'user', '2026-05-01'),
+      (24, 'workspace', 'user', '2026-02-01');
+    INSERT INTO journal_entries VALUES
+      (201, 'workspace', 'user', 20, 1, 2000),
+      (202, 'workspace', 'user', 21, 1, 1000),
+      (203, 'workspace', 'user', 22, 2, 300),
+      (204, 'workspace', 'user', 22, 2, 500),
+      (205, 'workspace', 'user', 23, 3, 30),
+      (206, 'workspace', 'user', 24, 4, 40);
+  `);
+  return sqlite;
+}
+
+describe("the last reconciled checkpoint", () => {
+  const auth = testLedgerAuth();
+  const checkpoints = (sqlite: Database.Database) =>
+    loadLastReconciled(sqlite, auth).map((row) => [
+      row.account_id,
+      row.journal_id,
+      row.last_balance,
+    ]);
+
+  it("is in the latest journal, by date and then id, one row per assertion there, in entry order", () => {
+    expect(checkpoints(tiedLedger())).toEqual([
+      [1, 20, 2000],
+      [3, 23, 30],
+      [4, 24, 40],
+      [2, 22, 300],
+      [2, 22, 500],
+    ]);
+  });
+
+  it("is the later assertion when one journal asserts twice", () => {
+    const standing = new Map(
+      checkpoints(tiedLedger()).map(([account, , balance]) => [
+        account,
+        balance,
+      ]),
+    );
+    expect(standing.get(2)).toBe(500);
+    expect(
+      lookupLastReconciled(
+        tiedLedger(),
+        auth,
+        "liabilities:credit-cards:sample-card",
+      ),
+    ).toEqual({ date: "2026-03-10", balance: 500 });
+  });
+
+  it("is found for the accounts with one name, the latest of them for an import", () => {
+    const sqlite = tiedLedger();
+    expect(
+      loadLastReconciled(sqlite, auth, {
+        accountName: "assets:sample-wallet",
+      }).map((row) => row.account_id),
+    ).toEqual([3, 4]);
+    expect(lookupLastReconciled(sqlite, auth, "assets:sample-wallet")).toEqual({
+      date: "2026-05-01",
+      balance: 30,
+    });
+    expect(
+      lookupLastReconciled(sqlite, auth, "assets:bank:sample-savings"),
+    ).toEqual({ date: "2026-04-01", balance: 2000 });
+    expect(lookupLastReconciled(sqlite, auth, "assets:none")).toBeNull();
   });
 });

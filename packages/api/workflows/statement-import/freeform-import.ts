@@ -6,7 +6,7 @@ import {
 import { parseAccount } from "../../modules/values/index.js";
 import { categorizationLlm } from "../../modules/coding-agent/index.js";
 import { loadCategorizer } from "../../modules/categorization/index.js";
-import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
+import type { Ledger } from "../../modules/ledger-sql/index.js";
 import {
   runStatementImport,
   type StatementImportResult,
@@ -42,8 +42,7 @@ export type FreeformImportOutcome =
 export async function importFreeformStatement(
   freeform: FreeformStatement,
   ledgerAccountNames: ReadonlySet<string>,
-  db: unknown,
-  auth: LedgerAuth,
+  ledger: Ledger,
 ): Promise<FreeformImportOutcome> {
   const { baseAccount, accountKind, statement, sourceName } = freeform;
   if (!ledgerAccountNames.has(baseAccount)) {
@@ -64,8 +63,7 @@ export async function importFreeformStatement(
       categorizer: await loadCategorizer({ customMappingsFilenames: [], llm }),
       gpay: null,
     },
-    db,
-    auth,
+    ledger,
     [sourceName],
   );
   return { kind: "imported", result };

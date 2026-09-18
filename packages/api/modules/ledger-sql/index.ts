@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { sql } from "drizzle-orm";
+import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import type { SapportaAuthContext } from "@sapporta/server";
 import { accounts, accountsTable } from "../../schema/accounts.js";
@@ -21,6 +22,16 @@ import {
 
 /** What a ledger store needs of the request's auth: its row security. */
 export type LedgerAuth = Pick<SapportaAuthContext, "rowSecurity">;
+
+/**
+ * What a workflow reads and writes the ledger through: Drizzle for rows, the
+ * SQLite connection for the raw queries below, and the request's auth.
+ */
+export interface Ledger {
+  db: BetterSQLite3Database;
+  sqlite: Database.Database;
+  auth: LedgerAuth;
+}
 
 const dialect = new SQLiteSyncDialect();
 
