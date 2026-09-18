@@ -138,7 +138,7 @@ describe("runStatementImport", () => {
 const noConfig = { ok: false, error: new Error("no config in tests") } as const;
 const noCategorizer: Categorizer = {
   classify: noConfig,
-  prompt: noConfig,
+  customMappings: noConfig,
   llm: {
     agent: null,
     name: "no engine in tests",

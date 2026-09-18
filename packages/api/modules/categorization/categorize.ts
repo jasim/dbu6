@@ -4,6 +4,7 @@ import type { Abacus } from "../statement/index.js";
 import { type Account, UNCATEGORIZED } from "../values/index.js";
 import {
   resolveAccountIdForCategorized,
+  type AccountsByName,
   type CategorizedTransaction,
 } from "./CategorizedTransaction.js";
 import {
@@ -28,9 +29,9 @@ export interface Categorizer {
   // The mapping rules (transaction_mappings.mjs), needed as soon as there is a
   // row.
   classify: ConfigPart<(transaction: Abacus) => Account | null>;
-  // The account list (hledger_accounts.prompt) and the preset's instructions
-  // (custom_mappings_*.prompt), needed once a row is left for the LLM.
-  prompt: ConfigPart<{ hledgerAccounts: string; customMappings: string }>;
+  // The preset's instructions (custom_mappings_*.prompt), needed once a row is
+  // left for the LLM.
+  customMappings: ConfigPart<string>;
   llm: CategorizationLlm;
 }
 
@@ -57,18 +58,20 @@ export interface Categorization {
 }
 
 /**
- * Each row's account: the mapping rules first, the LLM for the rest, then the
- * ledger account the answer names, left out when it is the row's own base
- * account. With the report of how the LLM fared.
+ * Each row's account: the mapping rules first, the LLM for the rest, choosing
+ * from the ledger's accounts, then the ledger account the answer names, left
+ * out when it is the row's own base account. With the report of how the LLM
+ * fared.
  */
 export async function categorize(
   categorizer: Categorizer,
   rows: readonly CategorizationRow[],
-  accountsByName: ReadonlyMap<string, number>,
+  accountsByName: AccountsByName,
 ): Promise<Categorization> {
   const { accounts, report } = await answerAccounts(
     categorizer,
     rows.map((row) => row.transaction),
+    accountsByName,
   );
   const sameAccountSkips: SameAccountSkip[] = [];
   const categorized = rows.map(({ transaction, baseAccountId }, index) => {
@@ -95,6 +98,17 @@ function need<T>(part: ConfigPart<T>): T {
   return part.value;
 }
 
+// The accounts the LLM may answer with, one name per line: the ledger's own,
+// but for Equity (opening balances and the like), which no statement row is
+// categorized to.
+function offeredAccounts(accountsByName: AccountsByName): string {
+  return [...accountsByName]
+    .filter(([, account]) => account.account_type !== "Equity")
+    .map(([name]) => name)
+    .sort()
+    .join("\n");
+}
+
 /**
  * The account each transaction's answer names:
  *   1. the mapping rules;
@@ -104,6 +118,7 @@ function need<T>(part: ConfigPart<T>): T {
 async function answerAccounts(
   categorizer: Categorizer,
   transactions: Abacus[],
+  accountsByName: AccountsByName,
 ): Promise<{ accounts: Account[]; report: CategorizationReport }> {
   const { llm } = categorizer;
   // Nothing to categorize: no config to use, and no LLM to ask. The imports
@@ -126,7 +141,12 @@ async function answerAccounts(
     ({ mappings: llmMappings, report } = await categorizeViaLLM(
       transactions,
       unmappedIndices,
-      { promptTemplate: PROMPT_TEMPLATE, ...need(categorizer.prompt), llm },
+      {
+        promptTemplate: PROMPT_TEMPLATE,
+        hledgerAccounts: offeredAccounts(accountsByName),
+        customMappings: need(categorizer.customMappings),
+        llm,
+      },
     ));
   }
 

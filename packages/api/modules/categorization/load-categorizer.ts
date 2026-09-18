@@ -30,7 +30,6 @@ export class CategorizationConfigError extends Error {
 }
 
 const TRANSACTION_MAPPINGS_FILENAME = "transaction_mappings.mjs";
-const HLEDGER_ACCOUNTS_FILENAME = "hledger_accounts.prompt";
 
 type TransactionClassifier = (transaction: Abacus) => Account | null;
 
@@ -128,16 +127,9 @@ export async function loadCategorizer(
 ): Promise<Categorizer> {
   return {
     classify: await settle(() => loadTransactionClassifier(configDir)),
-    prompt: await settle(() => ({
-      hledgerAccounts: readRequiredConfigFile(
-        configDir,
-        HLEDGER_ACCOUNTS_FILENAME,
-      ),
-      customMappings: loadCustomMappings(
-        settings.customMappingsFilenames,
-        configDir,
-      ),
-    })),
+    customMappings: await settle(() =>
+      loadCustomMappings(settings.customMappingsFilenames, configDir),
+    ),
     llm: settings.llm,
   };
 }

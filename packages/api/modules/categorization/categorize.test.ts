@@ -70,7 +70,6 @@ beforeEach(() => {
       includes: [],
     };`,
   );
-  writeFileSync(join(dir, "hledger_accounts.prompt"), "expenses:food");
   writeFileSync(join(dir, "custom-a.txt"), "MAP A");
   writeFileSync(join(dir, "custom-b.txt"), "MAP B");
   llmMock.mockReset();
@@ -86,10 +85,11 @@ const baseConfig = (): CategorizerSettings => ({
 });
 
 const ACCOUNTS = new Map([
-  ["expenses:food", 11],
-  ["expenses:other", 12],
-  ["assets:bank:sample", 21],
-]);
+  ["expenses:food", { id: 11, account_type: "Expense" }],
+  ["expenses:other", { id: 12, account_type: "Expense" }],
+  ["assets:bank:sample", { id: 21, account_type: "Asset" }],
+  ["equity:opening-balances", { id: 41, account_type: "Equity" }],
+] as const);
 
 // Loads the config in `configDir` and categorizes rows on a statement of an
 // account the ledger doesn't hold.
@@ -144,10 +144,24 @@ describe("categorize", () => {
     expect(unmappedIndices).toEqual([1]);
     expect(llmConfig).toEqual({
       promptTemplate: PROMPT_TEMPLATE,
-      hledgerAccounts: "expenses:food",
+      hledgerAccounts: "assets:bank:sample\nexpenses:food\nexpenses:other",
       customMappings: "MAP A\n\nMAP B",
       llm,
     });
+  });
+
+  it("offers the LLM the ledger's accounts but Equity, by name, and not hledger_accounts.prompt", async () => {
+    writeFileSync(join(dir, "hledger_accounts.prompt"), "expenses:stale");
+    llmMock.mockResolvedValue(answered({}));
+
+    await categorizeRows([withdrawal("MYSTERY")], baseConfig());
+
+    const [, , llmConfig] = llmMock.mock.calls[0];
+    expect(llmConfig.hledgerAccounts.split("\n")).toEqual([
+      "assets:bank:sample",
+      "expenses:food",
+      "expenses:other",
+    ]);
   });
 
   it("ignores missing optional custom mapping files", async () => {
@@ -180,20 +194,6 @@ describe("categorize", () => {
     ).rejects.toThrow(
       /Missing required categorization config file: .*transaction_mappings\.mjs/,
     );
-  });
-
-  it("throws an actionable config error when hledger_accounts.prompt is missing and the LLM is needed", async () => {
-    rmSync(join(dir, "hledger_accounts.prompt"));
-
-    await expect(
-      categorizeRows([withdrawal("MYSTERY")], baseConfig()),
-    ).rejects.toThrow(CategorizationConfigError);
-    await expect(
-      categorizeRows([withdrawal("MYSTERY")], baseConfig()),
-    ).rejects.toThrow(
-      /Missing required categorization config file: .*hledger_accounts\.prompt/,
-    );
-    expect(llmMock).not.toHaveBeenCalled();
   });
 
   it("throws an actionable config error when the mappings export is the wrong shape", async () => {
@@ -284,16 +284,6 @@ describe("categorize", () => {
     } finally {
       rmSync(emptyDir, { recursive: true, force: true });
     }
-  });
-
-  it("needs no hledger_accounts.prompt when the mapping rules categorize everything", async () => {
-    rmSync(join(dir, "hledger_accounts.prompt"));
-
-    const result = await categorizeRows(
-      [withdrawal("STARBUCKS")],
-      baseConfig(),
-    );
-    expect(result.rows.map((r) => r.accountId)).toEqual([11]);
   });
 
   it("gives each answer's ledger account id, and none for an account the ledger doesn't hold", async () => {

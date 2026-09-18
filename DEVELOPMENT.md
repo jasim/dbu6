@@ -193,10 +193,11 @@ data; the matching engine is
 `packages/api/modules/categorization/mapping-rules.ts`.
 
 `loadCategorizer` (`categorization/load-categorizer.ts`) reads this file and the
-prompt files once for each import or reclassification; it is the only code that
-reads them. `categorize` (`categorization/categorize.ts`) applies what it read:
-the rules, then the LLM for the rest, then the ledger account each answer names
-by its exact name in Accounts. A name the ledger doesn't hold, or the
+preset's prompt files once for each import or reclassification; it is the only
+code that reads them. `categorize` (`categorization/categorize.ts`) applies what
+it read: the rules, then the LLM for the rest, choosing from the ledger's
+accounts, then the ledger account each answer names by its exact name in
+Accounts. A name the ledger doesn't hold, or the
 statement's own account, leaves the row uncategorized. A file that is missing
 or broken refuses only once a row needs it, so an import with nothing new
 needs no config.
@@ -209,9 +210,13 @@ optional and limits a rule to `"withdrawal"` or `"deposit"`.
 ### LLM prompts
 
 The categorization prompt template is in
-`packages/api/modules/categorization/prompt-template.ts`. It is filled
-with `hledger_accounts.prompt` and the `custom_mappings_*.prompt` files named
-by the matching entry in `import-presets.json`, which `loadCategorizer` reads.
+`packages/api/modules/categorization/prompt-template.ts`. It is filled with
+the accounts the LLM may answer with and the `custom_mappings_*.prompt` files
+named by the matching entry in `import-presets.json`, which `loadCategorizer`
+reads. `categorize` supplies the accounts: every account in the Accounts table
+(row-scoped) except Equity, one name per line. Notes about what an account is
+for belong in the `custom_mappings_*.prompt` files. An `hledger_accounts.prompt`
+left in `data/user-config/` from before is no longer read.
 `categorization/llm-categorization.ts` is the only LLM call site. It says what
 categorization needs of an LLM (`CategorizationLlm`), sends the descriptions
 the mapping rules didn't categorize, and reports how the calls fared; which

@@ -14,6 +14,8 @@ const accountTypeOptions = [
   "Expense",
 ] as const;
 
+export type AccountType = (typeof accountTypeOptions)[number];
+
 export const accountsTable = sqliteTable("accounts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   workspace_id: text("workspace_id").notNull(),

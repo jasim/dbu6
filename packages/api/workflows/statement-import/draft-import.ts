@@ -58,7 +58,7 @@ export async function runDraftImport(
   } = input;
 
   const accountsByName = loadAccountsByName(db, auth);
-  const baseAccountId = accountsByName.get(baseAccount) ?? null;
+  const baseAccountId = accountsByName.get(baseAccount)?.id ?? null;
   // With nothing new, this categorizes nothing and formats an empty journal.
   const categorization = await categorize(
     categorizer,
