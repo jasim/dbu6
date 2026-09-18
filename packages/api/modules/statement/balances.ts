@@ -1,10 +1,7 @@
 // Ordering and running-balance arithmetic over Abacus rows.
 import type { Abacus, BalancedStatement } from "./Abacus.js";
 import { type Chrono, chronoMap, unsafeAsChrono } from "../values/index.js";
-import {
-  BalanceMismatchError,
-  SegmentBalanceMismatchError,
-} from "./import-errors.js";
+import { BalanceMismatchError, SegmentBalanceMismatchError } from "./errors.js";
 
 // `unordered` is an explicit parser assertion, never something we infer from
 // conflicting transitions. It is for sources that group independent sections
@@ -101,7 +98,7 @@ function deriveOrder(txns: readonly Abacus[]): DateDirection {
       )
       .join("; ");
     throw new Error(
-      `Cannot determine statement order: source rows are non-monotonic by date (${ascendingPairs} ascending and ${descendingPairs} descending transitions). ${minorityDirection === null ? "Date-changing transitions" : "Minority-direction transition(s)"}: ${conflicts}. Expected the parser to hand over rows in a single direction. Pass an explicit \`order\` to normalizeChronological if the parser already knows.`,
+      `Cannot determine statement order: source rows are non-monotonic by date (${ascendingPairs} ascending and ${descendingPairs} descending transitions). ${minorityDirection === null ? "Date-changing transitions" : "Minority-direction transition(s)"}: ${conflicts}. Expected the parser to hand over rows in a single direction.`,
     );
   }
   if (descendingPairs > 0) return "descending";
@@ -132,32 +129,6 @@ export function normalizeChronological(
   return chronological as unknown as Chrono<Abacus>;
 }
 
-export function normalizeExtractedTransactions(
-  transactions: readonly Abacus[],
-): Chrono<Abacus> {
-  const dateOrder = analyzeDateOrder(transactions);
-  const isMixedOrder =
-    dateOrder.ascendingPairs > 0 && dateOrder.descendingPairs > 0;
-
-  // Some statements group otherwise ordered transactions into independent
-  // sections, such as domestic followed by international card activity. When
-  // no row prints a running balance, the ordering between those sections is
-  // not financially observable: date-sorting changes neither the transaction
-  // total nor closing-balance verification. Preserve source order for same-day
-  // ties and explicitly declare the source unordered.
-  //
-  // A printed balance makes row order significant, however. In that case keep
-  // the normal inference path so mixed directions still fail loudly instead
-  // of silently attaching balance checkpoints to a potentially wrong order.
-  const hasPrintedBalances = transactions.some(
-    (transaction) => transaction.balance !== null,
-  );
-  if (isMixedOrder && !hasPrintedBalances) {
-    return normalizeChronological(transactions, "unordered");
-  }
-  return normalizeChronological(transactions);
-}
-
 export const BALANCE_TOLERANCE = 1;
 
 export function synthesizeRunningBalances(
@@ -171,7 +142,7 @@ export function synthesizeRunningBalances(
   if (firstPrintedIdx === -1) {
     if (opening === null) {
       throw new Error(
-        "Opening balance required to synthesize per-row balances. Provide opening_balance in the request, include a recognizable opening balance in the statement text, or ensure a prior reconciliation exists for this base account.",
+        "Opening balance required to synthesize per-row balances: no row prints a running balance.",
       );
     }
     let current = opening;
@@ -218,13 +189,18 @@ export function synthesizeRunningBalances(
 export function verifyClosingBalance(
   txns: Chrono<Abacus>,
   closing: number | null,
-  hint: string | null = null,
+  suspectedGap = false,
 ): void {
   if (closing === null || txns.length === 0) return;
   const final = txns[txns.length - 1].balance;
   if (final === null) return;
   if (Math.abs(final - closing) > BALANCE_TOLERANCE) {
-    throw new BalanceMismatchError(final, closing, BALANCE_TOLERANCE, hint);
+    throw new BalanceMismatchError(
+      final,
+      closing,
+      BALANCE_TOLERANCE,
+      suspectedGap,
+    );
   }
 }
 
@@ -244,23 +220,4 @@ export function verifyDeclaredBalances(statement: BalancedStatement): void {
       BALANCE_TOLERANCE,
     );
   }
-}
-
-export function computeRunningBalances(
-  txns: Chrono<Abacus>,
-  opening: number | null,
-  closing: number | null,
-): Chrono<Abacus> {
-  const noPrintedBalances = txns.every((t) => t.balance === null);
-  if (noPrintedBalances && closing === null) {
-    throw new Error(
-      "Cannot verify statement integrity: statement has no per-row balances and no closing balance. Need one or the other to confirm the parse is correct.",
-    );
-  }
-  const filled = synthesizeRunningBalances(txns, opening);
-  const hint = noPrintedBalances
-    ? "Did the uploaded statements cover every day from the last reconciled transaction onwards, with no gaps? Any missing period — between the last reconciled date and the earliest uploaded statement, or between two uploaded statements — makes the running balance drift from the statement's printed closing. Re-uploading statements that overlap with what's already in the system is fine; duplicate transactions are detected and skipped."
-    : null;
-  verifyClosingBalance(filled, closing, hint);
-  return filled;
 }

@@ -16,7 +16,7 @@ import {
   type StatementAccount,
 } from "dbu6-shared";
 import type { Money, Chrono } from "../values/index.js";
-import { AbacusJsonParseError } from "./import-errors.js";
+import { AbacusJsonParseError } from "./errors.js";
 import { normalizeChronological } from "./balances.js";
 
 // One statement row. Its money moves one way (`Money`), as the schema says.

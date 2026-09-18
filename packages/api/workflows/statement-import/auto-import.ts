@@ -8,9 +8,9 @@ import {
   recognizeStatementFile,
   savedCustomStatementParserPaths,
 } from "../../modules/statement-sources/index.js";
-import { ApiImportError } from "../../modules/statement/index.js";
 import { categorizationLlm } from "../../modules/coding-agent/index.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
+import { isImportRefusal, type ImportRefusal } from "./refusals.js";
 import {
   importOptionsFromPreset,
   runStatementImport,
@@ -59,7 +59,7 @@ export type BatchImportOutcome =
       files: PlannedFile[];
       imported: ImportedGroup[];
       failed: AutoImportGroup;
-      error: ApiImportError;
+      error: ImportRefusal;
     };
 
 export async function importStatementBatch(
@@ -125,7 +125,7 @@ async function importGroups(
       );
       imported.push({ group, result });
     } catch (error) {
-      if (!(error instanceof ApiImportError)) throw error;
+      if (!isImportRefusal(error)) throw error;
       return { kind: "failed", files, imported, failed: group, error };
     }
   }

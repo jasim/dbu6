@@ -10,7 +10,10 @@ export {
   type DuplicateDraftSourceRow,
   type DuplicateJournalEntrySourceRow,
 } from "./duplicate-diagnostics.js";
-export { findDuplicateCandidates } from "./duplicate-store.js";
+export {
+  AmbiguousDuplicateError,
+  findDuplicateCandidates,
+} from "./duplicate-store.js";
 export {
   baseAccountRunningBalanceCtes,
   failingDraftAssertionsSelect,
@@ -18,4 +21,5 @@ export {
 export {
   BALANCE_EPSILON,
   newTransactionsSinceReconciliation,
+  ReconciliationMatchError,
 } from "./since-checkpoint.js";

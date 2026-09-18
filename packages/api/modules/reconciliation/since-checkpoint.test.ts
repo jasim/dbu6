@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { type Abacus, ReconciliationMatchError } from "../statement/index.js";
+import type { Abacus } from "../statement/index.js";
 import { unsafeAsChrono as chrono } from "../values/index.js";
-import { newTransactionsSinceReconciliation } from "./since-checkpoint.js";
+import {
+  newTransactionsSinceReconciliation,
+  ReconciliationMatchError,
+} from "./since-checkpoint.js";
 
 function txn(date: string, balance: number | null, deposit = 100): Abacus {
   return { date, narration: `n-${date}`, withdrawal: 0, deposit, balance };

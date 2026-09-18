@@ -10,11 +10,12 @@ import {
   type AbacusStatement,
 } from "./index.js";
 import {
+  BalanceMismatchError,
   StatementBoundaryMismatchError,
   StatementDisagreementError,
   StatementPartInvalidError,
   StatementPartUnjoinableError,
-} from "./import-errors.js";
+} from "./errors.js";
 import { moneyFromColumns } from "../values/index.js";
 
 // [date, signed amount, printed balance or null, narration?]
@@ -363,10 +364,6 @@ describe("shared days", () => {
       narration: "Coffee Shop Ltd",
       withdrawal: 300,
     });
-    expect(disagreement.toPayload()).toMatchObject({
-      error: "statement_disagreement",
-      date: "2026-06-18",
-    });
   });
 
   it("refuses a middle day the earlier part holds only a prefix of, without waiting for the chain", () => {
@@ -510,7 +507,7 @@ describe("refusals", () => {
     expect(gap.earlierClosing).toBe(1100);
     expect(gap.laterOpening).toBe(1200);
     expect(gap.difference).toBe(100);
-    expect(gap.hint).toBeNull();
+    expect(gap.reason).toBe("gap");
     expect(gap.message).toContain("jan ends at 1100");
     expect(gap.message).toContain("feb starts at 1200");
   });
@@ -523,7 +520,7 @@ describe("refusals", () => {
     );
   });
 
-  it("hints that two card parts with the same dates, rows and edges are one statement twice", () => {
+  it("refuses two card parts with the same dates, rows and edges as one statement twice", () => {
     const cycle = card(-1000, [
       ["2026-07-05", -500, "fee"],
       ["2026-07-20", -200, "shop"],
@@ -535,15 +532,8 @@ describe("refusals", () => {
       error = err;
     }
     expect(error).toBeInstanceOf(StatementBoundaryMismatchError);
-    expect((error as StatementBoundaryMismatchError).hint).toMatch(
-      /same statement uploaded twice/,
-    );
-    expect((error as StatementBoundaryMismatchError).toPayload()).toMatchObject(
-      {
-        error: "statement_boundary_mismatch",
-        reason: "same-statement-twice",
-        hint: expect.any(String),
-      },
+    expect((error as StatementBoundaryMismatchError).reason).toBe(
+      "same-statement-twice",
     );
   });
 
@@ -576,9 +566,6 @@ describe("refusals", () => {
     }
     expect(error).toBeInstanceOf(StatementPartUnjoinableError);
     expect((error as StatementPartUnjoinableError).part).toBe("page-2.pdf");
-    expect((error as StatementPartUnjoinableError).message).toMatch(
-      /combine the pages into one file/,
-    );
   });
 
   it("blames a part that fails its own validation by name", () => {
@@ -592,11 +579,7 @@ describe("refusals", () => {
     } catch (err) {
       const invalid = err as StatementPartInvalidError;
       expect(invalid.part).toBe("bad");
-      expect(invalid.toPayload()).toMatchObject({
-        error: "statement_part_invalid",
-        part: "bad",
-        cause: { error: "balance_mismatch" },
-      });
+      expect(invalid.cause).toBeInstanceOf(BalanceMismatchError);
     }
   });
 });

@@ -2,9 +2,10 @@ import { z } from "zod";
 
 /*
  * The body of a refused statement import, one variant per `error` code. The
- * API's import errors build these (`toPayload`); the Import screen and coding
- * agents read them. Each code's fields are named once, here. `message` is the
- * server's own explanation; `hint`, where a code has one, is advice in words.
+ * API builds these from its errors in one place (app/import-error-response.ts);
+ * the Import screen and coding agents read them. Each code's fields are named
+ * once, here. `message` is the server's own explanation; `hint`, where a code
+ * has one, is advice in words.
  */
 
 export const statementImportErrorSchema = z.discriminatedUnion("error", [

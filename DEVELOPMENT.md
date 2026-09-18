@@ -154,6 +154,10 @@ built, tested and understood without anything above it. Lowest first:
 - A module that declares entry files is imported only through them.
 - A route authorizes, calls one workflow (or a module, for a plain read), and
   translates the result and the errors to HTTP.
+- A module's errors carry domain fields only: no HTTP status, wire body or
+  advice. `workflows/statement-import/refusals.ts` lists the errors that end an
+  import, and `app/import-error-response.ts` alone turns them into a status
+  and a `statementImportErrorSchema` body, hints included.
 - Tests live with the module they test and follow the same rules.
 - Sapporta's guide puts larger workflows in `packages/api/modules/<domain>/`.
   dbu6 keeps them in `workflows/`, a tier of their own, on purpose; don't move

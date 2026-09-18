@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
-import { type Abacus, ApiImportError } from "../statement/index.js";
+import type { Abacus } from "../statement/index.js";
 import type { CategorizedTransaction } from "./CategorizedTransaction.js";
 import { type Account, parseAccount, UNCATEGORIZED } from "../values/index.js";
 import {
@@ -15,7 +15,7 @@ import {
   compileMappings,
   mappingRulesSchema,
 } from "./mapping-rules.js";
-import type { CategorizationReport, StatementImportError } from "dbu6-shared";
+import type { CategorizationReport } from "dbu6-shared";
 
 export interface CategorizationConfig {
   userConfigDir: string;
@@ -28,20 +28,9 @@ export interface ResolvedCategories {
   report: CategorizationReport;
 }
 
-export class CategorizationConfigError extends ApiImportError {
-  readonly status = 400;
-
-  constructor(message: string, options?: { cause?: unknown }) {
-    super(message, options);
-    this.name = "CategorizationConfigError";
-  }
-
-  toPayload(): StatementImportError {
-    return {
-      error: "categorization_config_error",
-      message: this.message,
-    };
-  }
+// A user's categorization config file is missing or can't be used.
+export class CategorizationConfigError extends Error {
+  override readonly name = "CategorizationConfigError";
 }
 
 const TRANSACTION_MAPPINGS_FILENAME = "transaction_mappings.mjs";
@@ -68,9 +57,7 @@ function readRequiredConfigFile(
   } catch (error) {
     if (isMissingFileError(error)) {
       throw new CategorizationConfigError(
-        `Missing required categorization config file: ${filePath}. ` +
-          `Create ${filename} in ${userConfigDir}, or run \`pnpm setup\` to ` +
-          `seed it from user-config.example/.`,
+        `Missing required categorization config file: ${filePath}.`,
         { cause: error },
       );
     }

@@ -345,10 +345,10 @@ The full error payload was:
 
 ${JSON.stringify(refusal, null, 2)}
 
-Please find out what went wrong, starting from the error class in
-packages/api/modules/statement/import-errors.ts and the import pipeline in
-packages/api/workflows/statement-import/, and tell me what the fix is
-before changing the ledger. ${PII_RULE}
+Please find out what went wrong, starting from the error class behind this
+code (packages/api/app/import-error-response.ts translates each one) and the
+import pipeline in packages/api/workflows/statement-import/, and tell me what
+the fix is before changing the ledger. ${PII_RULE}
 
 Once fixed, you may re-run the import yourself or tell me and I will retry.
 

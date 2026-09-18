@@ -48,13 +48,14 @@
 // Everything here is pure over `AbacusStatement` plus the parts' names.
 import type { StatementAccount } from "dbu6-shared";
 import {
-  ApiImportError,
+  BalanceMismatchError,
+  SegmentBalanceMismatchError,
   StatementBoundaryMismatchError,
   StatementDisagreementError,
   StatementPartInvalidError,
   StatementPartUnjoinableError,
   type DisagreeingRow,
-} from "./import-errors.js";
+} from "./errors.js";
 import {
   normalizeIdentityText,
   transactionAmountMinor,
@@ -135,8 +136,10 @@ export function validatePart(part: AbacusStatement, name: string): void {
       }
     }
   } catch (err) {
-    if (err instanceof StatementPartInvalidError) throw err;
-    if (err instanceof ApiImportError) {
+    if (
+      err instanceof BalanceMismatchError ||
+      err instanceof SegmentBalanceMismatchError
+    ) {
       throw new StatementPartInvalidError(name, err.message, err);
     }
     throw err;

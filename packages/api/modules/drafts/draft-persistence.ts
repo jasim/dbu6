@@ -5,10 +5,6 @@ import {
   formatPlainDate,
   parsePlainDate,
 } from "@sapporta/shared/temporal";
-import {
-  AmbiguousDuplicateError,
-  AssertionConflictError,
-} from "../statement/index.js";
 import type { Chrono } from "../values/index.js";
 import {
   resolveAccountIdForCategorized,
@@ -20,6 +16,7 @@ import {
 } from "../../schema/draft-journals.js";
 import { Temporal as TemporalValue } from "@sapporta/shared/temporal";
 import {
+  AmbiguousDuplicateError,
   findDuplicateCandidates,
   BALANCE_EPSILON,
 } from "../reconciliation/index.js";
@@ -46,6 +43,22 @@ export type DraftRow = {
   source_reference: string | null;
   source_transaction_key: string | null;
 };
+
+// A day already holds a balance assertion that differs from the closing the
+// statement validated for it.
+export class AssertionConflictError extends Error {
+  override readonly name = "AssertionConflictError";
+
+  constructor(
+    readonly date: string,
+    readonly existing: number,
+    readonly expected: number,
+  ) {
+    super(
+      `Balance assertion conflict on ${date}: existing assertion ${existing} does not match validated statement close ${expected}.`,
+    );
+  }
+}
 
 export const sameAccountSkipSchema = z.object({
   date: z.string(),

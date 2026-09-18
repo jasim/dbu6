@@ -288,7 +288,15 @@ item.
 
 ### A — Translate errors at the edge
 
-**Status:** todo. **Depends on:** M4. **Runs alongside** B1 and C.
+**Status:** done (2026-09-18). Errors are plain `Error`s with a `name`
+literal, in the modules that raise them; `workflows/statement-import/refusals.ts`
+lists those that end an import, and the translator switches on `name`. Test
+checks of `toPayload()`, `hint` and advice text moved to
+`app/import-error-response.test.ts`, since those left the errors.
+`analyzeDateOrder` stays (`deriveOrder` calls it); the `computeRunningBalances`
+cases now test `synthesizeRunningBalances` and `verifyClosingBalance`. For D:
+the classify routes use `categorizationErrorResponse`.
+**Depends on:** M4. **Runs alongside** B1 and C.
 **Findings:** 1, and the test-only copy.
 
 - **Domain errors only.** Each module throws its own errors, carrying domain
@@ -593,3 +601,10 @@ date and the task.
   make them one.
 - 2026-09-18, M4: `runDraftImport` takes a `logPrefix`, but its one caller
   always passes `"statement-import"`.
+- 2026-09-18, A: `CodingAgentError` (`modules/coding-agent/errors.ts`) still
+  carries an HTTP `status` and `toPayload()` in tier 4, the pattern A removed
+  from the import errors; `app/coding-agent-error-response.ts` would become
+  its translator.
+- 2026-09-18, A: `pnpm format` rewrites files no task touched
+  (`modules/coding-agent/index.ts`, the frontend's `describeBatch.ts` and
+  `describeProblems.ts`), so a task that runs it must revert those.

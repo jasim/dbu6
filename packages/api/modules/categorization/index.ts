@@ -12,4 +12,8 @@ export type {
   ListClient,
   ListRequest,
 } from "./llm-categorization.js";
-export { resolveCategories, type CategorizationConfig } from "./resolve.js";
+export {
+  CategorizationConfigError,
+  resolveCategories,
+  type CategorizationConfig,
+} from "./resolve.js";

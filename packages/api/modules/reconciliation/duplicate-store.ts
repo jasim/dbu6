@@ -38,6 +38,21 @@ export type DuplicateCandidate =
       confidence: number;
     };
 
+// A statement row matches more than one stored draft or journal entry, so
+// which one it duplicates can't be decided automatically.
+export class AmbiguousDuplicateError extends Error {
+  override readonly name = "AmbiguousDuplicateError";
+
+  constructor(
+    readonly sourceKey: string | null,
+    readonly candidateIds: Array<number | string>,
+  ) {
+    super(
+      `Transaction matches multiple existing candidates (${candidateIds.join(", ")}); refusing to choose one automatically.`,
+    );
+  }
+}
+
 function nullable(value: string | null | undefined): string | null {
   return value ?? null;
 }

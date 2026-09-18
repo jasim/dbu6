@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseAbacusJson } from "./index.js";
-import { AbacusJsonParseError } from "./import-errors.js";
+import { AbacusJsonParseError } from "./errors.js";
 
 describe("parseAbacusJson", () => {
   it("rejects malformed JSON", () => {

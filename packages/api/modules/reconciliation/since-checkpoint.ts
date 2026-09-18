@@ -1,8 +1,22 @@
 import type { ReconciledCheckpoint } from "../journals/index.js";
-import { type Abacus, ReconciliationMatchError } from "../statement/index.js";
+import type { Abacus } from "../statement/index.js";
 import { type Chrono, chronoConcat, chronoFilter } from "../values/index.js";
 
 export const BALANCE_EPSILON = 0.005;
+
+// The statement reaches the checkpoint's date but no row on it lands on the
+// checkpoint's balance, and its opening doesn't either, so what is new since
+// the checkpoint can't be told apart from what is already in the ledger.
+export class ReconciliationMatchError extends Error {
+  override readonly name = "ReconciliationMatchError";
+
+  constructor(
+    message: string,
+    readonly checkpoint: { date: string; balance: number },
+  ) {
+    super(message);
+  }
+}
 
 // Date filter is the backbone; balance match (when the statement includes
 // the reconciled row itself) trims the checkpoint row and anything earlier
@@ -47,9 +61,7 @@ export function newTransactionsSinceReconciliation(
   throw new ReconciliationMatchError(
     `Statement has ${onDate.length} row(s) on ${checkpoint.date} but none ` +
       `carry the asserted balance ${checkpoint.balance}, and the statement's ` +
-      `opening does not match it either. Ledger and statement disagree, or ` +
-      `the statement is missing the row that landed on the assertion. ` +
-      `Refusing to import to avoid gaps or duplicates.`,
+      `opening does not match it either.`,
     checkpoint,
   );
 }

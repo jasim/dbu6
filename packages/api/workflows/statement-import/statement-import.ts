@@ -186,10 +186,9 @@ export async function runStatementImport(
     resolvedOpening.value,
   );
 
-  const hint = noPrintedBalances
-    ? "Did the uploaded statements cover every day from the statement opening through its closing, with no gaps? Missing activity makes the calculated balance drift from the statement's printed closing."
-    : null;
-  verifyClosingBalance(withBalances, resolvedClosing.value, hint);
+  // With no printed balances to walk against, a drift at the closing most
+  // likely means a missing period rather than a misread row.
+  verifyClosingBalance(withBalances, resolvedClosing.value, noPrintedBalances);
   console.log(
     `[statement-import] complete statement balance validation passed before reconciliation filtering`,
   );

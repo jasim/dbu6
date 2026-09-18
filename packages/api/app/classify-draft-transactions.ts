@@ -2,8 +2,9 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import { categorizationLlm } from "../modules/coding-agent/index.js";
 import { userConfigDir } from "../user-data.js";
 import { draftTransactionsContract } from "dbu6-shared";
-import { ApiImportError } from "../modules/statement/index.js";
+import { CategorizationConfigError } from "../modules/categorization/index.js";
 import { classifyDraftTransactions } from "../workflows/reclassification.js";
+import { categorizationErrorResponse } from "./import-error-response.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 import { uploadedFile, withTempUpload } from "./upload-tmp.js";
 
@@ -33,8 +34,8 @@ api.register(
         },
       };
     } catch (err) {
-      if (err instanceof ApiImportError && err.status === 400) {
-        return { status: 400, body: err.toPayload() };
+      if (err instanceof CategorizationConfigError) {
+        return categorizationErrorResponse(err);
       }
       throw err;
     }
@@ -79,8 +80,8 @@ api.register(
         },
       };
     } catch (err) {
-      if (err instanceof ApiImportError && err.status === 400) {
-        return { status: 400, body: err.toPayload() };
+      if (err instanceof CategorizationConfigError) {
+        return categorizationErrorResponse(err);
       }
       throw err;
     }

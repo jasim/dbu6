@@ -107,10 +107,7 @@ describe("runStatementImport", () => {
     await expect(refusal).rejects.toBeInstanceOf(BalanceMismatchError);
     // The statement prints no running balances, so a gap is the likely cause.
     const error = await refusal.catch((err: BalanceMismatchError) => err);
-    expect((error as BalanceMismatchError).toPayload()).toMatchObject({
-      error: "balance_mismatch",
-      suspected_gap: true,
-    });
+    expect((error as BalanceMismatchError).suspectedGap).toBe(true);
   });
 
   it("reports balance provenance, the statement period, and the checkpoint", async () => {

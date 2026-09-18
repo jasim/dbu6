@@ -1,16 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { type Chrono, moneyFromColumns } from "../values/index.js";
 import {
-  analyzeDateOrder,
-  computeRunningBalances,
   normalizeChronological,
-  normalizeExtractedTransactions,
+  synthesizeRunningBalances,
+  verifyClosingBalance,
   type Abacus,
 } from "./index.js";
-import {
-  BalanceMismatchError,
-  SegmentBalanceMismatchError,
-} from "./import-errors.js";
+import { analyzeDateOrder } from "./balances.js";
+import { BalanceMismatchError, SegmentBalanceMismatchError } from "./errors.js";
 
 function row(
   date: string,
@@ -176,14 +173,14 @@ describe("analyzeDateOrder", () => {
   });
 });
 
-describe("computeRunningBalances", () => {
+describe("synthesizeRunningBalances", () => {
   it("keeps statement balances when input is already chronological", () => {
     const txns = chrono([
       row("2025-01-01", 1000, 0, 11000),
       row("2025-01-10", 0, 1000, 10000),
       row("2025-01-15", 0, 200, 9800),
     ]);
-    const result = computeRunningBalances(txns, null, 9800);
+    const result = synthesizeRunningBalances(txns, null);
     expect(result.map((t) => [t.date, t.balance])).toEqual([
       ["2025-01-01", 11000],
       ["2025-01-10", 10000],
@@ -196,40 +193,15 @@ describe("computeRunningBalances", () => {
       row("2025-01-01", 1000, 0, 11000),
       row("2025-01-10", 0, 500, 10000),
     ]);
-    expect(() => computeRunningBalances(txns, null, 10000)).toThrow(
+    expect(() => synthesizeRunningBalances(txns, null)).toThrow(
       SegmentBalanceMismatchError,
     );
   });
 
   it("ignores opening when all rows already have balances", () => {
     const txns = chrono([row("2025-01-01", 0, 100, 9900)]);
-    const result = computeRunningBalances(txns, 99999, 9900);
+    const result = synthesizeRunningBalances(txns, 99999);
     expect(result[0].balance).toBe(9900);
-  });
-
-  // The closing check absorbs sub-rupee rounding dust and catches drift past
-  // it — FREEFORM-PARSE-SPEC.md §3.5, "Why tolerance = 1.0": service charges
-  // rounded to paise and GST computed to fractional rupees make hard equality
-  // brittle, while a rupee still catches a real mis-parse. These bracket the
-  // boundary rather than sitting on it, so the exact-one-rupee case stays the
-  // implementation's to define.
-  it("absorbs sub-rupee rounding dust in the closing check", () => {
-    const txns = chrono([row("2025-01-01", 0, 100, 9900.4)]);
-    expect(() => computeRunningBalances(txns, null, 9900)).not.toThrow();
-  });
-
-  it("rejects closing drift past the one-rupee tolerance", () => {
-    const txns = chrono([row("2025-01-01", 0, 100, 9901.5)]);
-    expect(() => computeRunningBalances(txns, null, 9900)).toThrow(
-      BalanceMismatchError,
-    );
-  });
-
-  it("throws BalanceMismatchError when final drifts past tolerance", () => {
-    const txns = chrono([row("2025-01-01", 0, 100, 9800)]);
-    expect(() => computeRunningBalances(txns, null, 9900)).toThrow(
-      BalanceMismatchError,
-    );
   });
 
   it("walks pure-synthesis rows from opening", () => {
@@ -238,31 +210,15 @@ describe("computeRunningBalances", () => {
       row("2025-01-02", 0, 300, null),
       row("2025-01-03", 500, 0, null),
     ]);
-    const result = computeRunningBalances(txns, 10000, 11200);
+    const result = synthesizeRunningBalances(txns, 10000);
     expect(result.map((t) => t.balance)).toEqual([11000, 10700, 11200]);
   });
 
   it("throws when synthesis needs an opening but none is available", () => {
     const txns = chrono([row("2025-01-01", 1000, 0, null)]);
-    expect(() => computeRunningBalances(txns, null, 11000)).toThrow(
+    expect(() => synthesizeRunningBalances(txns, null)).toThrow(
       /Opening balance required/,
     );
-  });
-
-  it("refuses when neither per-row balances nor a closing balance exist", () => {
-    const txns = chrono([row("2025-01-01", 1000, 0, null)]);
-    expect(() => computeRunningBalances(txns, 10000, null)).toThrow(
-      /Cannot verify statement integrity/,
-    );
-  });
-
-  it("allows hybrid mode when closing is null and a checkpoint exists", () => {
-    const txns = chrono([
-      row("2025-01-01", 1000, 0, 11000),
-      row("2025-01-02", 0, 300, null),
-      row("2025-01-03", 500, 0, 11200),
-    ]);
-    expect(() => computeRunningBalances(txns, null, null)).not.toThrow();
   });
 
   it("uses printed checkpoints to fill an interior null row", () => {
@@ -271,7 +227,7 @@ describe("computeRunningBalances", () => {
       row("2025-01-02", 0, 300, null),
       row("2025-01-03", 500, 0, 11200),
     ]);
-    const result = computeRunningBalances(txns, null, 11200);
+    const result = synthesizeRunningBalances(txns, null);
     expect(result.map((t) => t.balance)).toEqual([11000, 10700, 11200]);
   });
 
@@ -280,7 +236,7 @@ describe("computeRunningBalances", () => {
       row("2025-01-01", 1000, 0, null),
       row("2025-01-02", 0, 300, 10700),
     ]);
-    const result = computeRunningBalances(txns, 99999, 10700);
+    const result = synthesizeRunningBalances(txns, 99999);
     expect(result.map((t) => t.balance)).toEqual([11000, 10700]);
   });
 
@@ -290,7 +246,7 @@ describe("computeRunningBalances", () => {
       row("2025-01-02", 1000, 0, null),
       row("2025-01-03", 0, 200, null),
     ]);
-    const result = computeRunningBalances(txns, null, 10800);
+    const result = synthesizeRunningBalances(txns, null);
     expect(result.map((t) => t.balance)).toEqual([10000, 11000, 10800]);
   });
 
@@ -300,52 +256,35 @@ describe("computeRunningBalances", () => {
       row("2025-01-02", 0, 300, null),
       row("2025-01-03", 0, 100, 9999),
     ]);
-    expect(() => computeRunningBalances(txns, null, 9999)).toThrow(
+    expect(() => synthesizeRunningBalances(txns, null)).toThrow(
       SegmentBalanceMismatchError,
     );
   });
 });
 
-describe("normalizeExtractedTransactions", () => {
-  const transaction = (
-    date: string,
-    narration: string,
-    balance: number | null = null,
-  ): Abacus => ({
-    date,
-    narration,
-    withdrawal: 100,
-    deposit: 0,
-    balance,
+describe("verifyClosingBalance", () => {
+  // The closing check absorbs sub-rupee rounding dust and catches drift past
+  // it — FREEFORM-PARSE-SPEC.md §3.5, "Why tolerance = 1.0": service charges
+  // rounded to paise and GST computed to fractional rupees make hard equality
+  // brittle, while a rupee still catches a real mis-parse. These bracket the
+  // boundary rather than sitting on it, so the exact-one-rupee case stays the
+  // implementation's to define.
+  it("absorbs sub-rupee rounding dust in the closing check", () => {
+    const txns = chrono([row("2025-01-01", 0, 100, 9900.4)]);
+    expect(() => verifyClosingBalance(txns, 9900)).not.toThrow();
   });
 
-  it("accepts date-grouped sections when rows have no printed balances", () => {
-    const transactions = [
-      transaction("2026-04-03", "domestic-early"),
-      transaction("2026-04-18", "domestic-late"),
-      transaction("2026-04-10", "international-early"),
-      transaction("2026-04-11", "international-late"),
-    ];
-
-    expect(
-      normalizeExtractedTransactions(transactions).map((t) => t.narration),
-    ).toEqual([
-      "domestic-early",
-      "international-early",
-      "international-late",
-      "domestic-late",
-    ]);
+  it("rejects closing drift past the one-rupee tolerance", () => {
+    const txns = chrono([row("2025-01-01", 0, 100, 9901.5)]);
+    expect(() => verifyClosingBalance(txns, 9900)).toThrow(
+      BalanceMismatchError,
+    );
   });
 
-  it("still rejects mixed ordering when any row has a printed balance", () => {
-    const transactions = [
-      transaction("2026-04-03", "first", 900),
-      transaction("2026-04-18", "second", 800),
-      transaction("2026-04-10", "third", 700),
-    ];
-
-    expect(() => normalizeExtractedTransactions(transactions)).toThrow(
-      /Cannot determine statement order/,
+  it("throws BalanceMismatchError when final drifts past tolerance", () => {
+    const txns = chrono([row("2025-01-01", 0, 100, 9800)]);
+    expect(() => verifyClosingBalance(txns, 9900)).toThrow(
+      BalanceMismatchError,
     );
   });
 });

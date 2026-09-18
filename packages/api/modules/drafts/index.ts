@@ -19,6 +19,7 @@ export {
   type SavedDraft,
 } from "./draft-edits.js";
 export {
+  AssertionConflictError,
   persistDrafts,
   sameAccountSkipSchema,
   toDraftRows,

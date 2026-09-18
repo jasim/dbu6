@@ -1,6 +1,6 @@
 // The statement module: the Abacus type, its wire schema, every
-// transformation over it, and the errors a statement import raises. Import
-// from here rather than from the files.
+// transformation over it, and the statement's own errors. Import from here
+// rather than from the files.
 export {
   abacusStatementFromJson,
   describeStatement,
@@ -11,15 +11,10 @@ export {
 } from "./Abacus.js";
 export {
   BALANCE_TOLERANCE,
-  analyzeDateOrder,
-  computeRunningBalances,
   normalizeChronological,
-  normalizeExtractedTransactions,
   synthesizeRunningBalances,
   verifyClosingBalance,
   verifyDeclaredBalances,
-  type DateOrderAnalysis,
-  type DateTransition,
 } from "./balances.js";
 export {
   ANCHOR_EPSILON,
@@ -30,17 +25,13 @@ export {
 } from "./assemble.js";
 export {
   AbacusJsonParseError,
-  AmbiguousDuplicateError,
-  ApiImportError,
-  AssertionConflictError,
   BalanceMismatchError,
   ClosingBalanceUnavailable,
   OpeningBalanceUnavailable,
-  ReconciliationMatchError,
   SegmentBalanceMismatchError,
   StatementBoundaryMismatchError,
   StatementDisagreementError,
   StatementPartInvalidError,
   StatementPartUnjoinableError,
   type DisagreeingRow,
-} from "./import-errors.js";
+} from "./errors.js";

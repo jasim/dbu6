@@ -15,3 +15,4 @@ export {
   importFreeformStatement,
   type FreeformImportOutcome,
 } from "./freeform-import.js";
+export { isImportRefusal, type ImportRefusal } from "./refusals.js";
