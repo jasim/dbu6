@@ -14,13 +14,13 @@ export interface InsertedJournals {
 }
 
 /**
- * Writes a journal plan to the books: each planned journal and its entries.
- * Runs inside the caller's transaction, so the caller decides what else
- * commits with it.
+ * Writes a journal plan to the books: each planned journal and its entries,
+ * by account id, a signed amount as a debit or a credit, in cents. Runs inside
+ * the caller's transaction, so the caller decides what else commits with it.
  */
 export function insertJournalPlan(
   tx: any,
-  plan: JournalPlan,
+  plan: JournalPlan<number>,
   auth: LedgerAuth,
 ): InsertedJournals {
   const journalAccess = auth.rowSecurity.forTable(journals);
@@ -42,16 +42,14 @@ export function insertJournalPlan(
     const entryValues = insert.entries.map((entry) =>
       entryAccess.insertValuesSync(tx, {
         journal_id: journal.id,
-        account_id: entry.account_id,
-        debit: Number(entry.debit),
-        credit: Number(entry.credit),
+        account_id: entry.account,
+        debit: entry.amount > 0 ? cents(entry.amount) : 0,
+        credit: entry.amount < 0 ? cents(-entry.amount) : 0,
         account_balance_assertion:
-          entry.account_balance_assertion === null
-            ? null
-            : Number(entry.account_balance_assertion),
+          entry.assertion === null ? null : cents(entry.assertion),
         comment: entry.comment,
-        source_reference: entry.source_reference,
-        source_transaction_key: entry.source_transaction_key,
+        source_reference: entry.sourceReference,
+        source_transaction_key: entry.sourceTransactionKey,
       }),
     );
     tx.insert(journalEntriesTable).values(entryValues).run();
@@ -61,4 +59,9 @@ export function insertJournalPlan(
   }
 
   return { journals: journalCount, entries: entryCount };
+}
+
+// Rounded as hledger prints it, so the books hold what the plan renders.
+function cents(value: number): number {
+  return Number(value.toFixed(2));
 }

@@ -1,6 +1,11 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { formatPlainDate } from "@sapporta/shared/temporal";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import {
+  formatHledger,
+  type JournalPlan,
+  type PlannedJournal,
+} from "../journal-plan/index.js";
 import type { LedgerAuth } from "../ledger-sql/index.js";
 import { accountsTable } from "../../schema/accounts.js";
 import {
@@ -25,22 +30,12 @@ type JournalHledgerRow = {
   credit: number;
   assertion: number | null;
   comment: string | null;
+  sourceReference: string | null;
+  sourceTransactionKey: string | null;
 };
 
-type JournalForHledger = {
-  id: number;
-  date: string;
-  description: string;
-  entries: JournalEntryForHledger[];
-};
-
-type JournalEntryForHledger = {
-  account: string;
-  amount: number;
-  assertion: number | null;
-  comment: string | null;
-};
-
+// Posted journals as hledger text, in the order asked for: read back as the
+// plan they were written from and rendered like any other plan.
 export function renderVisibleJournalsAsHledger({
   db,
   auth,
@@ -57,11 +52,11 @@ export function renderVisibleJournalsAsHledger({
 
   const rows = loadJournalHledgerRows({ db, auth, journalIds: ids });
   const order = new Map(ids.map((id, index) => [id, index]));
-  const journalsForHledger = groupRowsIntoJournals(rows, order);
+  const plan = groupRowsIntoPlan(rows, order);
 
   return {
-    hledger_journal: formatJournalsAsHledger(journalsForHledger),
-    journal_count: journalsForHledger.length,
+    hledger_journal: formatHledger(plan),
+    journal_count: plan.length,
   };
 }
 
@@ -88,6 +83,8 @@ function loadJournalHledgerRows({
       credit: journalEntriesTable.credit,
       assertion: journalEntriesTable.account_balance_assertion,
       comment: journalEntriesTable.comment,
+      sourceReference: journalEntriesTable.source_reference,
+      sourceTransactionKey: journalEntriesTable.source_transaction_key,
     })
     .from(journalEntriesTable)
     .innerJoin(
@@ -107,17 +104,16 @@ function loadJournalHledgerRows({
     .all();
 }
 
-function groupRowsIntoJournals(
+function groupRowsIntoPlan(
   rows: readonly JournalHledgerRow[],
   order: ReadonlyMap<number, number>,
-): JournalForHledger[] {
-  const journalsById = new Map<number, JournalForHledger>();
+): JournalPlan<string> {
+  const journalsById = new Map<number, PlannedJournal<string>>();
 
   for (const row of rows) {
     let journal = journalsById.get(row.journalId);
     if (!journal) {
       journal = {
-        id: row.journalId,
         date: formatPlainDate(row.date),
         description: row.description,
         entries: [],
@@ -130,34 +126,15 @@ function groupRowsIntoJournals(
       amount: row.debit - row.credit,
       assertion: row.assertion,
       comment: row.comment,
+      sourceReference: row.sourceReference,
+      sourceTransactionKey: row.sourceTransactionKey,
     });
   }
 
-  return [...journalsById.values()].sort(
-    (a, b) =>
-      (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-      (order.get(b.id) ?? Number.MAX_SAFE_INTEGER),
-  );
-}
-
-export function formatJournalsAsHledger(
-  journalsForHledger: readonly JournalForHledger[],
-): string {
-  return journalsForHledger.map(formatJournalAsHledger).join("\n\n");
-}
-
-function formatJournalAsHledger(journal: JournalForHledger): string {
-  return [
-    `${journal.date} ${journal.description}`,
-    ...journal.entries.map(formatEntryAsHledger),
-  ].join("\n");
-}
-
-function formatEntryAsHledger(entry: JournalEntryForHledger): string {
-  const assertion =
-    entry.assertion === null ? "" : ` = ${entry.assertion.toFixed(2)}`;
-  const comment = entry.comment ? ` ; ${entry.comment}` : "";
-  return `    ${entry.account.padEnd(35)} ${entry.amount.toFixed(2).padStart(10)}${assertion}${comment}`;
+  const position = (id: number) => order.get(id) ?? Number.MAX_SAFE_INTEGER;
+  return [...journalsById.entries()]
+    .sort(([a], [b]) => position(a) - position(b))
+    .map(([, journal]) => journal);
 }
 
 function uniqueIds(ids: readonly number[]): number[] {

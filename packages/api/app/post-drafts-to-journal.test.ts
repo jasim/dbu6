@@ -6,7 +6,9 @@ import { createTestAuthContext } from "@sapporta/server/testing";
 import { accounts } from "../schema/accounts.js";
 import { draftTransactions } from "../schema/draft-journals.js";
 import { journalEntries, journals } from "../schema/journals.js";
+import { renderVisibleJournalsAsHledger } from "../modules/journals/index.js";
 import { postDraftsToJournal } from "./post-drafts-to-journal.js";
+import { renderDraftHledger } from "./render-draft-hledger.js";
 import { incomeExpensesReport } from "./reports/income-expenses.js";
 
 const scope = { workspaceId: "workspace", userId: "user" };
@@ -175,6 +177,38 @@ describe("postDraftsToJournal", () => {
         account_balance_assertion: 1400,
       },
     ]);
+  });
+
+  it("writes the journals the draft preview shows", () => {
+    const { sqlite, posting } = ledger();
+    // A later day of a withdrawal, a deposit and two more withdrawals, whose
+    // last draft asserts the day's closing: 1400 - 50 + 200 - 30 - 20 = 1500.
+    const stamp = "'2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'";
+    sqlite.exec(`
+      INSERT INTO draft_transactions VALUES
+        (203, 'workspace', 'user', '2026-02-05', 'NOPII cafe', 50, 0, 2, 1, NULL, NULL, 'k-203', ${stamp}),
+        (204, 'workspace', 'user', '2026-02-05', 'NOPII refund', 0, 200, 3, 1, NULL, NULL, 'k-204', ${stamp}),
+        (205, 'workspace', 'user', '2026-02-05', 'NOPII bakery', 30, 0, 2, 1, NULL, NULL, 'k-205', ${stamp}),
+        (206, 'workspace', 'user', '2026-02-05', 'NOPII market', 20, 0, 2, 1, 1500, NULL, 'k-206', ${stamp});
+    `);
+
+    const preview = renderDraftHledger(posting.db, 1, auth)?.hledger_journal;
+    expect(preview?.split("\n\n")).toHaveLength(5);
+    expect(postDraftsToJournal(posting, 1)).toMatchObject({ status: 200 });
+
+    const postedIds = (
+      sqlite
+        .prepare(`SELECT id FROM journals WHERE id <> 10 ORDER BY id`)
+        .all() as {
+        id: number;
+      }[]
+    ).map((row) => row.id);
+    const posted = renderVisibleJournalsAsHledger({
+      db: posting.db,
+      auth,
+      journalIds: postedIds,
+    });
+    expect(posted.hledger_journal).toBe(preview);
   });
 });
 

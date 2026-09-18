@@ -5,17 +5,14 @@ export interface TransactionGroup<T extends { transaction: Abacus }> {
   date: string;
   type: "deposit" | "withdrawal";
   transactions: T[];
-  endOfGroupBalance: number | null;
 }
 
 /**
  * Group transactions by date, then split each date group by transaction type.
  *
  * Within each date, a new group starts whenever the type changes. A day with
- * [withdrawal, deposit, withdrawal] produces 3 groups.
- *
- * Input is chronological, so the last transaction in each group is the
- * group's end balance.
+ * [withdrawal, deposit, withdrawal] produces 3 groups. Input is chronological,
+ * so each group's last transaction is the latest.
  */
 export function groupByDateAndType<T extends { transaction: Abacus }>(
   transactions: Chrono<T>,
@@ -42,7 +39,6 @@ export function groupByDateAndType<T extends { transaction: Abacus }>(
         date,
         type,
         transactions: [],
-        endOfGroupBalance: null,
       };
     }
 
@@ -51,12 +47,6 @@ export function groupByDateAndType<T extends { transaction: Abacus }>(
 
   if (currentGroup !== null) {
     groups.push(currentGroup);
-  }
-
-  for (const group of groups) {
-    if (group.transactions.length === 0) continue;
-    const lastTxn = group.transactions[group.transactions.length - 1];
-    group.endOfGroupBalance = lastTxn.transaction.balance;
   }
 
   return groups;

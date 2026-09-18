@@ -4,6 +4,7 @@ import type { Abacus } from "../../modules/statement/index.js";
 import {
   type Account,
   type Chrono,
+  chronoMap,
   unsafeAsChrono,
 } from "../../modules/values/index.js";
 import {
@@ -13,8 +14,7 @@ import {
 } from "../../modules/categorization/index.js";
 import {
   formatHledger,
-  groupByDateAndType,
-  hledgerFromGroups,
+  planJournals,
 } from "../../modules/journal-plan/index.js";
 import { toDraftRows, persistDrafts } from "../../modules/drafts/index.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
@@ -64,8 +64,16 @@ export async function runDraftImport(
   const categorized: Chrono<CategorizedTransaction> = unsafeAsChrono(
     resolved.categorized,
   );
+  // The statement's running balance after every row, so each group asserts
+  // where it ends.
   const hledgerJournal = formatHledger(
-    hledgerFromGroups(groupByDateAndType(categorized), baseAccount),
+    planJournals(
+      chronoMap(categorized, (row) => ({
+        ...row,
+        assertion: row.transaction.balance,
+      })),
+      baseAccount,
+    ),
   );
 
   const {

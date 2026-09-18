@@ -1,95 +1,94 @@
-import type { TransactionGroup } from "./TransactionGroup.js";
+import { groupByDateAndType } from "./TransactionGroup.js";
 import type { Abacus } from "../statement/index.js";
+import type { Chrono } from "../values/index.js";
 
-export interface JournalEntryRow {
-  account_id: number;
-  debit: string;
-  credit: string;
-  account_balance_assertion: string | null;
-  comment: string | null;
-  source_reference: string | null;
-  source_transaction_key: string | null;
+// A statement row on its way into the books. `account` is its counterparty;
+// `assertion` is the base account's balance after this row, which the plan
+// asserts when the row closes its group.
+export interface PlanRow<A> {
+  transaction: Abacus;
+  account: A;
+  assertion: number | null;
 }
 
-export interface JournalInsert {
+// One posting. `account` is whatever the plan's reader needs: an account id
+// to write the journal, a name to render it. `amount` is signed, a debit
+// positive, as hledger prints it.
+export interface PlannedEntry<A> {
+  account: A;
+  amount: number;
+  assertion: number | null;
+  comment: string | null;
+  sourceReference: string | null;
+  sourceTransactionKey: string | null;
+}
+
+export interface PlannedJournal<A> {
   date: string;
   description: string;
-  entries: JournalEntryRow[];
+  entries: PlannedEntry<A>[];
 }
 
-export type JournalPlan = JournalInsert[];
+export type JournalPlan<A> = PlannedJournal<A>[];
 
 /**
- * Build an ordered plan of journal inserts from transaction groups.
- *
- * The shape mirrors HledgerJournal.fromGroups: same grouping, same
- * base-account ordering (counterparty lines first for withdrawals, base
- * account first for deposits), same balance-assertion placement — only the
- * output is row data instead of formatted text.
+ * The journals a base account's statement rows become, in order: one per run
+ * of same-date, same-direction rows. A withdrawal run lists each counterparty
+ * and then the base account's total; a deposit run lists the base account's
+ * total first. The base account's line asserts the run's last row's
+ * `assertion`, and carries no source identity, since it sums several rows.
  */
-export function fromGroups(
-  groups: TransactionGroup<{ transaction: Abacus; accountId: number }>[],
-  baseAccountId: number,
-): JournalPlan {
-  const plan: JournalInsert[] = [];
-
-  for (const group of groups) {
-    if (group.transactions.length === 0) continue;
-
-    const description = group.type === "deposit" ? "Deposits" : "Expenses";
-    const balanceAssertion =
-      group.endOfGroupBalance === null
-        ? null
-        : group.endOfGroupBalance.toFixed(2);
-
-    const baseRow = (debit: string, credit: string): JournalEntryRow => ({
-      account_id: baseAccountId,
-      debit,
-      credit,
-      account_balance_assertion: balanceAssertion,
+export function planJournals<A>(
+  rows: Chrono<PlanRow<A>>,
+  baseAccount: A,
+): JournalPlan<A> {
+  return groupByDateAndType(rows).map((group) => {
+    const last = group.transactions[group.transactions.length - 1];
+    const base = (amount: number): PlannedEntry<A> => ({
+      account: baseAccount,
+      amount,
+      assertion: last.assertion,
       comment: null,
-      source_reference: null,
-      source_transaction_key: null,
+      sourceReference: null,
+      sourceTransactionKey: null,
     });
-
-    const counterpartyRow = (
-      m: { transaction: Abacus; accountId: number },
-      debit: string,
-      credit: string,
-    ): JournalEntryRow => ({
-      account_id: m.accountId,
-      debit,
-      credit,
-      account_balance_assertion: null,
-      comment: m.transaction.narration,
-      source_reference: m.transaction.source_reference ?? null,
-      source_transaction_key: m.transaction.source_transaction_key ?? null,
+    const counterparty = (
+      row: PlanRow<A>,
+      amount: number,
+    ): PlannedEntry<A> => ({
+      account: row.account,
+      amount,
+      assertion: null,
+      comment: row.transaction.narration,
+      sourceReference: row.transaction.source_reference ?? null,
+      sourceTransactionKey: row.transaction.source_transaction_key ?? null,
     });
-
-    const entries: JournalEntryRow[] = [];
 
     if (group.type === "withdrawal") {
       let total = 0;
-      for (const m of group.transactions) {
-        entries.push(
-          counterpartyRow(m, m.transaction.withdrawal.toFixed(2), "0"),
-        );
-        total += m.transaction.withdrawal;
-      }
-      entries.push(baseRow("0", total.toFixed(2)));
-    } else {
-      const total = group.transactions.reduce(
-        (s, m) => s + m.transaction.deposit,
-        0,
-      );
-      entries.push(baseRow(total.toFixed(2), "0"));
-      for (const m of group.transactions) {
-        entries.push(counterpartyRow(m, "0", m.transaction.deposit.toFixed(2)));
-      }
+      const entries = group.transactions.map((row) => {
+        total += row.transaction.withdrawal;
+        return counterparty(row, row.transaction.withdrawal);
+      });
+      return {
+        date: group.date,
+        description: "Expenses",
+        entries: [...entries, base(-total)],
+      };
     }
-
-    plan.push({ date: group.date, description, entries });
-  }
-
-  return plan;
+    const total = group.transactions.reduce(
+      (sum, row) => sum + row.transaction.deposit,
+      0,
+    );
+    return {
+      date: group.date,
+      description: "Deposits",
+      entries: [
+        base(total),
+        ...group.transactions.map((row) =>
+          counterparty(row, -row.transaction.deposit),
+        ),
+      ],
+    };
+  });
 }

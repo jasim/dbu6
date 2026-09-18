@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { Abacus } from "../statement/index.js";
-import { fromGroups } from "./JournalPlan.js";
+import { unsafeAsChrono } from "../values/index.js";
+import { planJournals, type PlanRow } from "./JournalPlan.js";
 
 describe("JournalPlan source identity", () => {
   it("keeps keys on itemized legs and leaves the aggregated base leg keyless", () => {
-    const transaction: { transaction: Abacus; accountId: number } = {
+    const row: PlanRow<number> = {
       transaction: {
         date: "2026-05-07",
         narration: "Merchant",
@@ -14,28 +14,19 @@ describe("JournalPlan source identity", () => {
         source_reference: "issuer-ref",
         source_transaction_key: "stable-key",
       },
-      accountId: 2,
+      account: 2,
+      assertion: -225.5,
     };
-    const [journal] = fromGroups(
-      [
-        {
-          date: "2026-05-07",
-          type: "withdrawal",
-          transactions: [transaction],
-          endOfGroupBalance: -225.5,
-        },
-      ],
-      1,
-    );
+    const [journal] = planJournals(unsafeAsChrono([row]), 1);
     expect(journal.entries[0]).toMatchObject({
-      account_id: 2,
-      source_reference: "issuer-ref",
-      source_transaction_key: "stable-key",
+      account: 2,
+      sourceReference: "issuer-ref",
+      sourceTransactionKey: "stable-key",
     });
     expect(journal.entries[1]).toMatchObject({
-      account_id: 1,
-      source_reference: null,
-      source_transaction_key: null,
+      account: 1,
+      sourceReference: null,
+      sourceTransactionKey: null,
     });
   });
 });

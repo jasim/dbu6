@@ -1,16 +1,11 @@
-// The journal-plan module: statement rows grouped by date and direction, the
-// journal plan built from those groups, and their hledger text. Import from
-// here rather than from the files.
+// The journal-plan module: the journals statement rows become, grouped by
+// date and direction, and their hledger text. Import from here rather than
+// from the files.
 export {
-  groupByDateAndType,
-  type TransactionGroup,
-} from "./TransactionGroup.js";
-export {
-  fromGroups as planFromGroups,
+  planJournals,
   type JournalPlan,
+  type PlannedEntry,
+  type PlannedJournal,
+  type PlanRow,
 } from "./JournalPlan.js";
-export {
-  format as formatHledger,
-  fromGroups as hledgerFromGroups,
-  type HledgerJournal,
-} from "./HledgerJournal.js";
+export { formatHledger } from "./hledger.js";

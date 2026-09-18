@@ -384,7 +384,15 @@ Then:
 
 ### C — One journal plan
 
-**Status:** todo. **Depends on:** M4. **Runs alongside** A and B1.
+**Status:** done (2026-09-19). `planJournals(rows, baseAccount)` groups rows
+of `{ transaction, account, assertion }` into a `JournalPlan<A>` with signed
+numeric amounts; `formatHledger` in `journal-plan/hledger.ts` (was
+`HledgerJournal.ts`) renders it, and journals reads posted journals back as a
+`JournalPlan<string>`. Loaded drafts carry `assertion`, with
+`transaction.balance` null. Output is byte-identical but for an empty
+narration, which no longer prints a trailing ` ; ` in the preview or summary.
+The posted-journal formatter test moved to `journal-plan/hledger.test.ts`.
+**Depends on:** M4. **Runs alongside** A and B1.
 **Findings:** 6, and the balance-field half of 7.
 
 - **One `fromGroups`** in `modules/journal-plan` builds a plan.
@@ -608,3 +616,7 @@ date and the task.
 - 2026-09-18, A: `pnpm format` rewrites files no task touched
   (`modules/coding-agent/index.ts`, the frontend's `describeBatch.ts` and
   `describeProblems.ts`), so a task that runs it must revert those.
+- 2026-09-19, C: for the same rows, the import summary's `hledger_journal`
+  asserts the running balance after every group, while the draft preview and
+  posting assert only each day's closing, on its last draft. C keeps both;
+  B3, which owns that rule, may want the summary to follow it.

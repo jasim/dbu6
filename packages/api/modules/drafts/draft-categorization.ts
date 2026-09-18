@@ -66,7 +66,7 @@ export function loadCategorizedDrafts(
         date: formatPlainDate(d.date),
         narration: d.narration,
         ...moneyFromColumns(d),
-        balance: d.balance_assertion_base_account,
+        balance: null,
         source_reference: d.source_reference,
         source_transaction_key: d.source_transaction_key,
       },
@@ -76,6 +76,7 @@ export function loadCategorizedDrafts(
           : parseAccount(accountNameById.get(d.account_id) ?? UNCATEGORIZED),
       draftId: d.id,
       accountId: d.account_id,
+      assertion: d.balance_assertion_base_account,
     })),
   );
 

@@ -9,10 +9,7 @@ import {
   draftCounts,
   loadDraftStatus,
 } from "../modules/drafts/index.js";
-import {
-  groupByDateAndType,
-  planFromGroups,
-} from "../modules/journal-plan/index.js";
+import { planJournals } from "../modules/journal-plan/index.js";
 import { insertJournalPlan } from "../modules/journals/index.js";
 import type { LedgerAuth, ScopeParams } from "../modules/ledger-sql/index.js";
 
@@ -65,8 +62,16 @@ export function postDrafts(
     throw new Error("Drafts changed while they were being posted.");
   }
 
-  const groups = groupByDateAndType(unsafeAsChrono(categorized));
-  const plan = planFromGroups(groups, baseAccountId);
+  const plan = planJournals(
+    unsafeAsChrono(
+      categorized.map((draft) => ({
+        transaction: draft.transaction,
+        account: draft.accountId,
+        assertion: draft.assertion,
+      })),
+    ),
+    baseAccountId,
+  );
   const inserted = db.transaction((tx: any) => {
     const written = insertJournalPlan(tx, plan, auth);
     deleteAccountDrafts(tx, baseAccountId, auth);
