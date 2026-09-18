@@ -50,6 +50,13 @@ dbu6, or you will see stale type errors.
   frontend (`vite build`).
 - `pnpm start` — run the production server (serves API and SPA on one port).
 - `pnpm typecheck`, `pnpm test`, `pnpm test:watch`, `pnpm format`.
+- `node scripts/move-files.mjs <from> <to> [<from> <to> …] [--dry-run]` — move
+  files or folders inside `packages/api` (paths relative to it) with `git mv`,
+  rewriting every relative import of them and every `vi.mock` path, then
+  formatting the edited files. `--dry-run` prints the edits without making
+  them. Afterwards it lists tests left beside a moved file, and text that still
+  names an old path, such as `layering.test.ts`'s table, the docs and the
+  agent prompts; update those by hand.
 - `pnpm --filter ./packages/api db:generate --name add_table` — generate
   Drizzle SQL migrations from schema changes.
 - `pnpm --filter ./packages/api db:migrate` — apply pending migrations.

@@ -13,13 +13,6 @@
       "dbu6-shared": ["../shared/dist/index.d.ts"]
     }
   },
-  "include": [
-    "*.ts",
-    "app",
-    "bank-importer",
-    "coding-agent",
-    "project-auth",
-    "schema"
-  ],
-  "exclude": ["dist"]
+  "include": ["**/*.ts"],
+  "exclude": ["dist", "node_modules"]
 }

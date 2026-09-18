@@ -81,7 +81,7 @@ go-ahead.
    `scripts/move-files.mjs` (from M0), never by editing imports by hand.
 4. **Behavior stays the same unless your task says otherwise.**
    - The `dbu6-shared` contracts and the HTTP responses don't change, so the
-     frontend needs no edits.
+     frontend needs no edits except its coding-agent prompts (step 6).
    - The existing tests are the proof. Don't change their expectations to make
      them pass; if one truly must change, say why in your status line.
 5. **Stay in scope.** Anything else you notice goes under
@@ -91,6 +91,10 @@ go-ahead.
    - `layering.test.ts` passes, your task's `KNOWN_VIOLATIONS` entries are
      deleted, and every file you moved has its new path in the test's table;
    - DEVELOPMENT.md names the new paths of anything you moved;
+   - what the coding agent reads is still right about what you moved or
+     reshaped: its paths and its account of what lives where (see
+     [Decisions](#decisions)). The move tool's closing list shows where
+     old paths remain;
    - your task's **Status** line says done, in one or two lines, and names
      anything the next task must know.
 7. **Git.**
@@ -115,7 +119,10 @@ go-ahead.
 
 ### M0 — Move tool, and typecheck everything
 
-**Status:** todo. **Depends on:** S1.
+**Status:** done (2026-09-18). Move with `node scripts/move-files.mjs`,
+`--dry-run` first. It doesn't move a file's tests (`x.*.ts`) or update
+`layering.test.ts`, docs, or the frontend agent prompts that name backend
+paths; it lists what's left. `tsconfig.json` now covers every `.ts` file.
 
 Goal: moving a file or folder is one command that also rewrites every import,
 so M1–M4 don't spend their context editing imports.
@@ -498,8 +505,36 @@ move most of them.
 - 2026-09-18: the tier map in DEVELOPMENT.md is approved. Domain workflows
   live in `packages/api/workflows/`, a tier of their own, separate from
   `modules/`. `bank-importer/` and `coding-agent/` become modules.
+- 2026-09-18: every task keeps what the coding agent reads accurate, so the
+  features built on it keep working. When a task moves or reshapes backend
+  code, it updates the paths and the account of what lives where in:
+  - the prompts in `packages/frontend/src/views/import-statements/agentPrompts.ts`
+    and `packages/frontend/src/review/agentPrompts.ts`;
+  - in `custom-built-parsers/`: `README.md`,
+    `import-statement-parser-guide.md`, `shared/abacus.py` and each parser's
+    `fingerprint.md`;
+  - `user-config.example/transaction_mappings.mjs`.
 
 ## Found along the way
 
 Things noticed during a task but outside its scope. Add them here with the
 date and the task.
+
+- 2026-09-18, M0: `a3a9583` ("UI improvement") committed the local Sapporta
+  switch: `link:` paths to `/Users/jasim/…/sapporta` in the three
+  `package.json` files, `pnpm-lock.yaml` and `pnpm-workspace.yaml`.
+  DEVELOPMENT.md says the committed state uses npm.
+- 2026-09-18, M0: on `main` since `a3a9583`, the frontend test
+  `describeProblems.test.ts` › "turns an unrecognised file into a plain card
+  with a parser-building prompt" fails: it expects "The AI agent shows you its
+  plan before it writes one." in the problem's context.
+- 2026-09-18, M0: the frontend's agent prompts
+  (`views/import-statements/agentPrompts.ts`, `review/agentPrompts.ts`) name
+  backend files that M1–M4 move, which would be a frontend edit that "How to
+  work a task" step 4 doesn't expect. So do `custom-built-parsers/README.md`,
+  `import-statement-parser-guide.md` and `shared/abacus.py`. Decided: tasks
+  update them ([Decisions](#decisions)).
+- 2026-09-18, M0: `modules/reconciliation/transaction-identity.test.ts` ("keeps
+  distinct HDFC fee rows…") uses non-round amounts such as `100.25` and `9.09`,
+  against AGENTS.md's fixture rules. M1 must leave the key tests untouched, so
+  fixing it is a separate change.

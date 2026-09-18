@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Abacus } from "../../bank-importer/abacus/index.js";
 import { parseAccount } from "../../bank-importer/domain/Account.js";
 import { unsafeAsChrono } from "../../bank-importer/domain/Chrono.js";
 import { assignSourceTransactionKeys } from "./transaction-identity.js";
@@ -38,7 +39,7 @@ describe("assignSourceTransactionKeys", () => {
 
   it("keeps distinct HDFC fee rows that reuse issuer references", () => {
     const hdfc = parseAccount("cc:hdfc");
-    const rows = unsafeAsChrono([
+    const rows = unsafeAsChrono<Abacus>([
       {
         date: "2026-07-11",
         narration: "1.75% on all DCC Transaction",
