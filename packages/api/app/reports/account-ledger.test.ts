@@ -98,12 +98,11 @@ describe("Account Ledger journal entry query", () => {
 });
 
 describe("Account Ledger result", () => {
-  it("nests ordered journal entries without changing ledger balances", () => {
+  it("lists the journals as its rows, their entries nested in order, under the account's name", () => {
     const result = toAccountLedgerResult(
       {
         id: 1,
         name: "Bank",
-        account_type: "Asset",
         opening_balance: 50,
       },
       [
@@ -160,6 +159,8 @@ describe("Account Ledger result", () => {
     );
 
     expect(() => gridDatasetSchema.parse(result)).not.toThrow();
+    expect(result.label).toBe("Account Ledger: Bank");
+    expect(result.rootLevel).toBe("entries");
     expect(result.levels.entries).toMatchObject({
       childLevels: ["journal_entries"],
       defaultCollapsed: true,
@@ -176,8 +177,7 @@ describe("Account Ledger result", () => {
       "comment",
     ]);
 
-    const account = result.nodes[0]!;
-    const ledgerRows = account.children?.entries ?? [];
+    const ledgerRows = result.nodes;
     expect(ledgerRows.map((row) => row.rowKey)).toEqual([
       "opening:2026-01-01",
       "journal:10",
@@ -218,8 +218,17 @@ describe("Account Ledger result", () => {
 
     // The opening balance counts toward the closing balance but not toward
     // the period's debit and credit totals.
-    expect(account.childFooterRows?.entries?.map((row) => row.columns)).toEqual(
-      [{ description: "Closing balance", debit: 20, credit: 5, balance: 65 }],
-    );
+    expect(result.footerRows?.map((row) => row.columns)).toEqual([
+      { description: "Closing balance", debit: 20, credit: 5, balance: 65 },
+    ]);
+  });
+
+  it("is empty for an account out of scope", () => {
+    const result = toAccountLedgerResult(null, [], [], null);
+
+    expect(() => gridDatasetSchema.parse(result)).not.toThrow();
+    expect(result.label).toBe("Account Ledger");
+    expect(result.nodes).toEqual([]);
+    expect(result.footerRows).toBeUndefined();
   });
 });

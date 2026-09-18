@@ -38,7 +38,6 @@ api.register(
     SELECT
       a.id,
       a.name,
-      a.account_type,
       CASE WHEN @fromDate IS NULL THEN 0
            ELSE COALESCE((
              SELECT SUM(je.debit - je.credit)
@@ -99,7 +98,6 @@ api.register(
 type AccountInfoRow = {
   id: number;
   name: string;
-  account_type: string;
   opening_balance: number;
 };
 
@@ -192,6 +190,11 @@ export function loadAccountLedgerJournalEntries(
   );
 }
 
+/**
+ * The account's journals in the period as the report's rows, each with the
+ * balance it leaves and, collapsed under it, the journal's lines. The label
+ * names the account, for the screen's title; the footer closes the period.
+ */
 export function toAccountLedgerResult(
   account: AccountInfoRow | null,
   rows: AccountLedgerTransactionRow[],
@@ -199,19 +202,10 @@ export function toAccountLedgerResult(
   fromDate: string | null,
 ): GridDataset {
   const levelColumns = {
-    account: [
-      hiddenIdColumn("id", "Account ID"),
-      // Fills the row, so the entries nested under it can use the full width.
-      textColumn("name", "Account Name", {
-        minWidth: 52,
-        links: [openRecordLink("accounts", "id", "Open account")],
-      }),
-      textColumn("account_type", "Account Type", { width: 16 }),
-    ],
     entries: [
       hiddenIdColumn("journal_id", "Journal ID"),
       dateColumn("date", "Date", { width: 15 }),
-      // The text columns give way so the amounts, and the balance footers
+      // The text columns give way so the amounts, and the balance footer
       // under them, stay on screen at laptop widths.
       textColumn("description", "Description", {
         minWidth: 20,
@@ -240,7 +234,32 @@ export function toAccountLedgerResult(
       }),
     ],
   };
-  const openingBalance = Number(account?.opening_balance ?? 0);
+  const levels = {
+    entries: {
+      columns: levelColumns.entries,
+      childLevels: ["journal_entries"],
+      defaultCollapsed: true,
+    },
+    journal_entries: {
+      columns: levelColumns.journal_entries,
+      childLevels: [],
+      rowLinks: [
+        openRecordLink("journal_entries", "entry_id", "Open journal entry"),
+        openRecordLink("accounts", "account_id", "Open account"),
+      ],
+    },
+  };
+  if (account === null) {
+    return {
+      name: "account-ledger",
+      label: "Account Ledger",
+      rootLevel: "entries",
+      levels,
+      nodes: [],
+    };
+  }
+
+  const openingBalance = Number(account.opening_balance);
   let balance = openingBalance;
   const journalEntries = groupJournalEntries(journalEntryRows);
   const entries = rows.map((row) => {
@@ -260,7 +279,7 @@ export function toAccountLedgerResult(
       },
     };
   });
-  const visibleEntries =
+  const opening =
     fromDate !== null && openingBalance !== 0
       ? [
           {
@@ -277,56 +296,28 @@ export function toAccountLedgerResult(
               balance: openingBalance,
             },
           },
-          ...entries,
         ]
-      : entries;
-  const data = account
-    ? [
-        {
-          rowKey: `account:${account.id}`,
-          levelName: "account",
-          columns: account,
-          children: { entries: visibleEntries },
-          childFooterRows: {
-            // One row: the period's debits and credits under their columns,
-            // and the balance they leave. Labelled in Description, as the
-            // opening row is: the first column is a date too narrow for it.
-            entries: [
-              {
-                rowKey: "closing-balance",
-                columns: {
-                  description: "Closing balance",
-                  debit: sum(rows, "debit"),
-                  credit: sum(rows, "credit"),
-                  balance,
-                },
-              },
-            ],
-          },
-        },
-      ]
-    : [];
+      : [];
   return {
     name: "account-ledger",
-    label: "Account Ledger",
-    rootLevel: "account",
-    levels: {
-      account: { columns: levelColumns.account, childLevels: ["entries"] },
-      entries: {
-        columns: levelColumns.entries,
-        childLevels: ["journal_entries"],
-        defaultCollapsed: true,
+    label: `Account Ledger: ${account.name}`,
+    rootLevel: "entries",
+    levels,
+    nodes: [...opening, ...entries],
+    footerRows: [
+      // One row: the period's debits and credits under their columns, and
+      // the balance they leave. Labelled in Description, as the opening row
+      // is: the first column is a date too narrow for it.
+      {
+        rowKey: "closing-balance",
+        columns: {
+          description: "Closing balance",
+          debit: sum(rows, "debit"),
+          credit: sum(rows, "credit"),
+          balance,
+        },
       },
-      journal_entries: {
-        columns: levelColumns.journal_entries,
-        childLevels: [],
-        rowLinks: [
-          openRecordLink("journal_entries", "entry_id", "Open journal entry"),
-          openRecordLink("accounts", "account_id", "Open account"),
-        ],
-      },
-    },
-    nodes: data,
+    ],
   };
 }
 
