@@ -45,8 +45,7 @@ import type { StatementImportResult } from "../workflows/statement-import/index.
 
 const accountNames = new Set(["assets:bank:sample", "liabilities:card:sample"]);
 
-const db = {} as never;
-const auth = {} as never;
+const ledger = {} as never;
 
 function request(
   overrides: Partial<AbacusImportRequest["statement"]> = {},
@@ -166,8 +165,7 @@ describe("importAbacusStatement", () => {
     const response = await importAbacusStatement(
       request({ account: { kind: "card", identifier: "050505XXXXXX0505" } }),
       accountNames,
-      db,
-      auth,
+      ledger,
     );
 
     expect(response).toEqual({
@@ -180,7 +178,7 @@ describe("importAbacusStatement", () => {
       },
     });
     expect(runStatementImport).toHaveBeenCalledTimes(1);
-    const [parts, options, , , sourceNames] = runStatementImport.mock.calls[0];
+    const [parts, options, , sourceNames] = runStatementImport.mock.calls[0];
     expect(options).toMatchObject({
       baseAccount: "liabilities:card:sample",
       accountKind: "card",
@@ -225,12 +223,7 @@ describe("importAbacusStatement", () => {
       ],
     });
 
-    const response = await importAbacusStatement(
-      printed,
-      accountNames,
-      db,
-      auth,
-    );
+    const response = await importAbacusStatement(printed, accountNames, ledger);
 
     expect(response.status).toBe(422);
     expect(response.body).toMatchObject({
@@ -248,19 +241,14 @@ describe("importAbacusStatement", () => {
       { base_account: "assets:bank:sample", is_credit_card: false },
     );
 
-    const response = await importAbacusStatement(
-      unnamed,
-      accountNames,
-      db,
-      auth,
-    );
+    const response = await importAbacusStatement(unnamed, accountNames, ledger);
 
     expect(response.status).toBe(200);
     expect(runStatementImport.mock.calls[0][1]).toMatchObject({
       baseAccount: "assets:bank:sample",
       accountKind: "bank",
     });
-    expect(runStatementImport.mock.calls[0][4]).toEqual([
+    expect(runStatementImport.mock.calls[0][3]).toEqual([
       "freeform transactions",
     ]);
   });
@@ -272,8 +260,7 @@ describe("importAbacusStatement", () => {
         { base_account: "liabilities:card:other", is_credit_card: true },
       ),
       accountNames,
-      db,
-      auth,
+      ledger,
     );
 
     expect(response.status).toBe(422);
@@ -289,8 +276,7 @@ describe("importAbacusStatement", () => {
     const response = await importAbacusStatement(
       request(),
       accountNames,
-      db,
-      auth,
+      ledger,
     );
 
     expect(response.status).toBe(422);
@@ -316,8 +302,7 @@ describe("importAbacusStatement", () => {
         rows: [row("2026-09-03"), row("2026-09-05"), row("2026-09-04")],
       }),
       accountNames,
-      db,
-      auth,
+      ledger,
     );
 
     expect(response.status).toBe(400);

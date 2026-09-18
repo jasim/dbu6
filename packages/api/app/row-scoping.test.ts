@@ -1,5 +1,4 @@
 import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { loadLedgerAccounts } from "../modules/accounts/index.js";
 import { loadDraftStatus } from "../modules/drafts/index.js";
@@ -13,9 +12,9 @@ import { balanceSheetReport } from "./reports/balance-sheet.js";
 import { sectionTotal } from "./reports/section-account-grid.js";
 
 /*
- * Every read of the ledger sees only the request's own rows: the draft
- * status, a report, and the last reconciled checkpoint, through both the
- * scoped raw SQL and Drizzle.
+ * Every read of the ledger sees only the request's own rows: the accounts,
+ * the draft status, a report, and the last reconciled checkpoint, for every
+ * account and for the one an import names.
  */
 
 const SAVINGS = "assets:bank:sample-savings";
@@ -92,7 +91,7 @@ function reads(sqlite: Database.Database, auth: LedgerAuth) {
     drafts: loadDraftStatus(sqlite, auth),
     balanceSheet: balanceSheetReport(sqlite, auth, { asOfDate: "2026-12-31" }),
     checkpoints: loadLastReconciled(sqlite, auth),
-    checkpoint: lookupLastReconciled(drizzle(sqlite), SAVINGS, auth),
+    checkpoint: lookupLastReconciled(sqlite, auth, SAVINGS),
   };
 }
 

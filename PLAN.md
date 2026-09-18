@@ -369,7 +369,22 @@ Then:
 
 ### B2 — One checkpoint query
 
-**Status:** todo. **Depends on:** B1. **Findings:** 5.
+**Status:** done (2026-09-19). `loadLastReconciled(sqlite, auth, {
+accountName? })` (`modules/journals/last-reconciled.ts`) is the one query:
+each account's balance assertions in its latest asserted journal (by date,
+then id), ordered by account name, account id and entry id. The report lists
+its rows, account standing keeps each account's last, and the import's
+`lookupLastReconciled(sqlite, auth, name)` takes the latest across the
+accounts with that name. The import still matches by name, not by id (see
+Decisions). Workflows take a `Ledger` (`{ db, sqlite, auth }`, in
+`modules/ledger-sql`; was posting's `PostingLedger`), which routes get from
+`requireWorkflowLedger(c)`. One edge case differs: when an account's latest
+journal asserts it twice, which only editing journal entries can do, the import
+now takes the later assertion, as Home and Review do; before, it took
+whichever row SQLite read first. The statement-import tests read their
+checkpoint from an in-memory ledger (`test-ledger.ts`) instead of a Drizzle
+stub.
+**Depends on:** B1. **Findings:** 5.
 
 - Keep one query in `modules/journals` for the last reconciled checkpoint:
   for every account, or for one by id.
@@ -622,6 +637,9 @@ move most of them.
   into each `scoped_*` CTE with Drizzle's SQLite dialect (option (a)), inside
   dbu6. Sapporta's docs prescribe guarded base-row CTEs for raw SQL, so no
   Sapporta helper is needed.
+- 2026-09-19, B2: no behavior change. The import keeps finding its checkpoint
+  by account name rather than by id, because names aren't unique and by id
+  would change which checkpoint an import into a shared name uses.
 
 ## Found along the way
 
@@ -681,3 +699,9 @@ date and the task.
 - 2026-09-19, D: `loadCategorizer` loads `transaction_mappings.mjs` with
   `import()`, which Node caches by URL, so an edit to the file may not take
   effect until the server restarts.
+- 2026-09-19, B2: account names aren't unique. An import into a name two
+  accounts share saves its drafts under one of them (`loadAccountsByName`
+  keeps the last) but filters against the latest checkpoint of either, and the
+  last-reconciled report lists an account twice when its last journal asserts
+  it twice. Taking the checkpoint by the drafts' account id, and one row per
+  account, would fix both as a behavior change.

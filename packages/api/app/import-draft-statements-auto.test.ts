@@ -86,8 +86,7 @@ const secondBankPreset: ImportPreset = {
   custom_statement_parser_path: SECOND_BANK_PARSER,
 };
 
-const db = {} as never;
-const auth = {} as never;
+const ledger = {} as never;
 
 async function fixtureFile(parser: string, uploadedAs: string): Promise<File> {
   const extension = uploadedAs.slice(uploadedAs.lastIndexOf("."));
@@ -237,8 +236,7 @@ describe("automatic statement import", () => {
         gpay: null,
       },
       [cardPreset, bankPreset, secondBankPreset],
-      db,
-      auth,
+      ledger,
     );
 
     expect(response.status).toBe(200);
@@ -314,7 +312,7 @@ describe("automatic statement import", () => {
     ).toEqual([[BANK_PARSER], [CARD_PARSER], [SECOND_BANK_PARSER]]);
 
     expect(runStatementImport).toHaveBeenCalledTimes(3);
-    const [statements, options, , , sourceNames] =
+    const [statements, options, , sourceNames] =
       runStatementImport.mock.calls[1];
     expect(options).toMatchObject({
       baseAccount: "liabilities:card:sample",
@@ -343,8 +341,7 @@ describe("automatic statement import", () => {
         gpay: null,
       },
       [bankPreset],
-      db,
-      auth,
+      ledger,
     );
 
     expect(runStatementImport).not.toHaveBeenCalled();
@@ -378,8 +375,7 @@ describe("automatic statement import", () => {
         gpay: null,
       },
       [bankPreset, cardPreset],
-      db,
-      auth,
+      ledger,
     );
 
     expect(runStatementImport).not.toHaveBeenCalled();
@@ -400,8 +396,7 @@ describe("automatic statement import", () => {
     const response = await importStatementsAutomatically(
       { statements: [new File([contents], "sample-notes.csv")], gpay: null },
       [bankPreset],
-      db,
-      auth,
+      ledger,
     );
 
     const [file] = planRejection(response).files;
@@ -429,8 +424,7 @@ describe("automatic statement import", () => {
         gpay: null,
       },
       [bankPreset, cardPreset],
-      db,
-      auth,
+      ledger,
     );
 
     // The failing group keeps the import error's own payload and status.
@@ -466,8 +460,7 @@ describe("automatic statement import", () => {
         ),
       },
       [bankPreset, cardPreset],
-      db,
-      auth,
+      ledger,
     );
 
     expect(response.status).toBe(200);

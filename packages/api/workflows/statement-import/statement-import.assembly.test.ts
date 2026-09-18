@@ -11,9 +11,7 @@ import type { Categorizer } from "../../modules/categorization/index.js";
 import { parseAccount, moneyFromColumns } from "../../modules/values/index.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
 import { runStatementImport, type ImportOptions } from "./statement-import.js";
-import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
-
-const auth = testLedgerAuth();
+import { testImportLedger } from "./test-ledger.js";
 
 // Stub the persistence tail so the test can inspect exactly what reaches it.
 // Everything before it (assembly, key assignment, balance validation and the
@@ -95,27 +93,6 @@ function options(): ImportOptions {
   };
 }
 
-function stubImportDb(checkpoint?: { date: string; balance: number }): any {
-  const chain: any = {
-    select: () => chain,
-    from: () => chain,
-    innerJoin: () => chain,
-    where: () => chain,
-    orderBy: () => chain,
-    limit: () => chain,
-    all: () => [],
-    get: () =>
-      checkpoint
-        ? {
-            date: parsePlainDate(checkpoint.date),
-            assertion: checkpoint.balance,
-          }
-        : undefined,
-    transaction: (run: (tx: any) => unknown) => run(chain),
-  };
-  return chain;
-}
-
 function keysReachingTail(): string[] {
   return draftImportCalls
     .at(-1)!
@@ -144,7 +121,7 @@ describe("runStatementImport over several parts", () => {
   ]);
 
   it("keys textually identical rows from different parts as distinct occurrences", async () => {
-    await runStatementImport([cut, full], options(), stubImportDb(), auth, [
+    await runStatementImport([cut, full], options(), testImportLedger(), [
       "cut",
       "full",
     ]);
@@ -154,7 +131,7 @@ describe("runStatementImport over several parts", () => {
   });
 
   it("keys before the reconciliation filter, so a mid-day checkpoint does not renumber the day", async () => {
-    await runStatementImport([cut, full], options(), stubImportDb(), auth, [
+    await runStatementImport([cut, full], options(), testImportLedger(), [
       "cut",
       "full",
     ]);
@@ -166,8 +143,11 @@ describe("runStatementImport over several parts", () => {
     await runStatementImport(
       [cut, full],
       options(),
-      stubImportDb({ date: "2026-06-18", balance: 850 }),
-      auth,
+      testImportLedger({
+        account: BASE_ACCOUNT,
+        date: "2026-06-18",
+        balance: 850,
+      }),
       ["cut", "full"],
     );
     const filtered = keysReachingTail();
@@ -177,7 +157,7 @@ describe("runStatementImport over several parts", () => {
   it("blames a part that fails its own validation by name", async () => {
     const bad = bank(900, [["2026-06-18", -50, "x"]], { closing: 1 });
     await expect(
-      runStatementImport([cut, bad], options(), stubImportDb(), auth, [
+      runStatementImport([cut, bad], options(), testImportLedger(), [
         "cut.csv",
         "bad.csv",
       ]),
@@ -186,7 +166,7 @@ describe("runStatementImport over several parts", () => {
       part: "bad.csv",
     });
     await expect(
-      runStatementImport([cut, bad], options(), stubImportDb(), auth, [
+      runStatementImport([cut, bad], options(), testImportLedger(), [
         "cut.csv",
         "bad.csv",
       ]),
@@ -209,8 +189,7 @@ describe("runStatementImport over several parts", () => {
     const result = await runStatementImport(
       [last, first, middle],
       options(),
-      stubImportDb(),
-      auth,
+      testImportLedger(),
     );
     expect(result.balance_metadata.opening).toEqual({
       extracted: 1000,
@@ -233,7 +212,7 @@ describe("runStatementImport over several parts", () => {
       closing: 500,
     });
     await expect(
-      runStatementImport([declaredWrong], options(), stubImportDb(), auth),
+      runStatementImport([declaredWrong], options(), testImportLedger()),
     ).rejects.toBeInstanceOf(BalanceMismatchError);
     expect(draftImportCalls).toHaveLength(0);
   });

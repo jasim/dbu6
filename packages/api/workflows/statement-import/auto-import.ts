@@ -10,7 +10,7 @@ import {
 } from "../../modules/statement-sources/index.js";
 import { categorizationLlm } from "../../modules/coding-agent/index.js";
 import { parseGPayHtml, type GPayIndex } from "../../modules/gpay/index.js";
-import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
+import type { Ledger } from "../../modules/ledger-sql/index.js";
 import { isImportRefusal, type ImportRefusal } from "./refusals.js";
 import {
   importOptionsFromPreset,
@@ -66,8 +66,7 @@ export type BatchImportOutcome =
 
 export async function importStatementBatch(
   batch: StatementBatch,
-  db: unknown,
-  auth: LedgerAuth,
+  ledger: Ledger,
 ): Promise<BatchImportOutcome> {
   const recognitions = await recognizeStatements(batch.statements);
   const plan = planAutoImport(recognitions, batch.presets);
@@ -83,7 +82,7 @@ export async function importStatementBatch(
   );
   const gpay =
     batch.gpayHtmlPath === null ? null : parseGPayHtml(batch.gpayHtmlPath);
-  return importGroups(plan.files, plan.groups, gpay, db, auth);
+  return importGroups(plan.files, plan.groups, gpay, ledger);
 }
 
 // Detection is per file so that one unreadable upload annotates its own row
@@ -111,8 +110,7 @@ async function importGroups(
   files: PlannedFile[],
   groups: readonly AutoImportGroup[],
   gpay: GPayIndex | null,
-  db: unknown,
-  auth: LedgerAuth,
+  ledger: Ledger,
 ): Promise<BatchImportOutcome> {
   const imported: ImportedGroup[] = [];
   // One engine for the batch: every group categorizes on the same agent.
@@ -123,8 +121,7 @@ async function importGroups(
       const result = await runStatementImport(
         group.statements.map((one) => one.statement),
         await importOptionsFromPreset(group.preset, gpay, llm),
-        db,
-        auth,
+        ledger,
         group.statements.map((one) => one.file),
       );
       imported.push({ group, result });

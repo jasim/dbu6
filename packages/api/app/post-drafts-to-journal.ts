@@ -4,8 +4,9 @@ import {
   type ServerInferResponses,
 } from "@sapporta/server";
 import { draftTransactionsContract, type PostingBlock } from "dbu6-shared";
-import { postDrafts, type PostingLedger } from "../workflows/posting.js";
-import { requireWorkflowAuth } from "./workflow-auth.js";
+import type { Ledger } from "../modules/ledger-sql/index.js";
+import { postDrafts } from "../workflows/posting.js";
+import { requireWorkflowLedger } from "./workflow-auth.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
@@ -13,9 +14,8 @@ api.register(
   "postDraftsToJournal",
   draftTransactionsContract.postDraftsToJournal,
   async ({ c, request }) => {
-    const auth = requireWorkflowAuth(c);
     return postDraftsToJournal(
-      { db: c.get("db"), sqlite: c.get("sqlite"), auth },
+      requireWorkflowLedger(c),
       request.body.base_account_id,
     );
   },
@@ -30,7 +30,7 @@ type PostingResponse = ServerInferResponses<
 
 /** Posts one account's drafts, answered in the contract's terms. */
 export function postDraftsToJournal(
-  ledger: PostingLedger,
+  ledger: Ledger,
   base_account_id: number,
 ): PostingResponse {
   const outcome = postDrafts(ledger, base_account_id);

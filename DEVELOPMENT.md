@@ -303,8 +303,10 @@ Each endpoint is a trio:
    `requireWorkflowAuth(c)` (`app/workflow-auth.ts`), or `authorizeReport(c,
    name)` for a report, returns the `LedgerAuth` every store takes, and raw
    SQL reads the ledger through `allRows`/`oneRow` (`modules/ledger-sql`),
-   whose `scoped_*` relations hold only that auth's rows. A route that
-   doesn't touch the ledger calls `requireOwner(c)`.
+   whose `scoped_*` relations hold only that auth's rows. A workflow route
+   calls `requireWorkflowLedger(c)` instead, for the `Ledger` a workflow takes:
+   Drizzle, the SQLite connection and that auth. A route that doesn't touch
+   the ledger calls `requireOwner(c)`.
 3. **`packages/frontend/src/api.ts`** — pass the contract to
    `createApiClient(contract, { baseUrl: getApiBase })`. Frontend code calls
    `fooApi.foo()` and gets a fully typed response or throws `ApiError`.
