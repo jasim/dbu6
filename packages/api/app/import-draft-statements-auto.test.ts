@@ -17,6 +17,27 @@ vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
   }),
 }));
 
+// The user's categorization config would be read from data/user-config. Each
+// import gets a stand-in categorizer that says which instructions it was
+// loaded with.
+vi.mock("../modules/categorization/index.js", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../modules/categorization/index.js")
+  >()),
+  loadCategorizer: async (settings: {
+    customMappingsFilenames: readonly string[];
+  }) => ({ customMappingsFilenames: settings.customMappingsFilenames }),
+}));
+
+// The Takeout is parsed for real; the spy records which staged copy was read.
+const { parseGPayHtml } = vi.hoisted(() => ({ parseGPayHtml: vi.fn() }));
+vi.mock("../modules/gpay/index.js", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("../modules/gpay/index.js")>();
+  parseGPayHtml.mockImplementation(original.parseGPayHtml);
+  return { ...original, parseGPayHtml };
+});
+
 const { runStatementImport } = vi.hoisted(() => ({
   runStatementImport: vi.fn(),
 }));
@@ -199,6 +220,7 @@ describe("automatic statement upload route discovery", () => {
 describe("automatic statement import", () => {
   beforeEach(() => {
     runStatementImport.mockReset();
+    parseGPayHtml.mockClear();
   });
 
   it("recognises each upload, groups it by preset, and imports once per account", async () => {
@@ -297,8 +319,8 @@ describe("automatic statement import", () => {
     expect(options).toMatchObject({
       baseAccount: "liabilities:card:sample",
       accountKind: "card",
-      customMappingsFilenames: [],
-      gpayHtmlPath: null,
+      categorizer: { customMappingsFilenames: [] },
+      gpay: null,
     });
     expect(sourceNames).toEqual(["card-jan.xls"]);
     expect(statements).toMatchObject([
@@ -307,7 +329,7 @@ describe("automatic statement import", () => {
     expect(runStatementImport.mock.calls[0][1]).toMatchObject({
       baseAccount: "assets:bank:sample",
       accountKind: "bank",
-      customMappingsFilenames: ["sample_mappings.prompt"],
+      categorizer: { customMappingsFilenames: ["sample_mappings.prompt"] },
     });
   }, 120_000);
 
@@ -449,13 +471,18 @@ describe("automatic statement import", () => {
     );
 
     expect(response.status).toBe(200);
-    const paths = runStatementImport.mock.calls.map(
-      ([, options]) => options.gpayHtmlPath,
+    // The batch parses the staged copy once, and every account's import
+    // gets the same index.
+    expect(parseGPayHtml).toHaveBeenCalledTimes(1);
+    const [path] = parseGPayHtml.mock.calls[0];
+    expect(path).toMatch(/\.html$/);
+    const indexes = runStatementImport.mock.calls.map(
+      ([, options]) => options.gpay,
     );
-    expect(paths).toHaveLength(2);
-    expect(paths[0]).toMatch(/\.html$/);
-    expect(paths[1]).toBe(paths[0]);
+    expect(indexes).toHaveLength(2);
+    expect(indexes[0]).toBe(parseGPayHtml.mock.results[0].value);
+    expect(indexes[1]).toBe(indexes[0]);
     // The staged copy is removed once the batch is done.
-    await expect(access(paths[0])).rejects.toThrow();
+    await expect(access(path)).rejects.toThrow();
   }, 120_000);
 });

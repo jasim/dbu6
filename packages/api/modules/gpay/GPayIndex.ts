@@ -6,6 +6,8 @@ export type GPayIndex = Map<string, string[]>;
 
 const DATE_DELTAS = [0, -1, 1] as const;
 
+// The module's top: the one function that takes a file. A workflow parses the
+// Takeout once and hands the index to everything below it.
 export function parseGPayHtml(path: string): GPayIndex {
   const html = readFileSync(path, "utf-8");
   const idx: GPayIndex = new Map();
@@ -21,18 +23,6 @@ export function parseGPayHtml(path: string): GPayIndex {
 export interface EnrichmentResult {
   enriched: Abacus[];
   matchCount: number;
-}
-
-export interface HtmlEnrichmentResult extends EnrichmentResult {
-  indexSize: number;
-}
-
-export function enrichWithGPayHtml(
-  txns: readonly Abacus[],
-  htmlPath: string,
-): HtmlEnrichmentResult {
-  const idx = parseGPayHtml(htmlPath);
-  return { ...enrichWithGPay(txns, idx), indexSize: idx.size };
 }
 
 export function enrichWithGPay(

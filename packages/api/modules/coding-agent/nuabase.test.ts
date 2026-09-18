@@ -10,7 +10,7 @@ vi.mock("nuabase/local-agent", () => ({
 }));
 vi.mock("nuabase", () => ({ Nua: { direct: vi.fn(), gateway: vi.fn() } }));
 
-import { detectAgents, llmFailureMessage } from "./nuabase.js";
+import { detectAgents, llmFailureMessage, reportedError } from "./nuabase.js";
 
 // As nuabase reports it, with the fields dbu6 doesn't read.
 const CLAUDE = {
@@ -88,5 +88,27 @@ describe("llmFailureMessage", () => {
         "LLM call failed after 3 attempts. Last error: claude: There's an issue with the selected model (sample-050505).",
       ),
     ).toBe("There's an issue with the selected model (sample-050505).");
+  });
+});
+
+describe("reportedError", () => {
+  it("keeps a short message as it is, on one line", () => {
+    expect(reportedError("Not logged in.\n  Run /login")).toBe(
+      "Not logged in. Run /login",
+    );
+  });
+
+  it("reduces an HTML error page to its title", () => {
+    expect(
+      reportedError(
+        "<!DOCTYPE html>\n<html>\n<head>\n  <title>We're sorry, but something went wrong (500)</title>\n  <style>body {}</style></head><body>...</body></html>",
+      ),
+    ).toBe("We're sorry, but something went wrong (500)");
+  });
+
+  it("cuts a long message to 300 characters", () => {
+    const reported = reportedError("x".repeat(1000));
+    expect(reported).toHaveLength(300);
+    expect(reported.endsWith("…")).toBe(true);
   });
 });

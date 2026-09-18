@@ -143,7 +143,7 @@ built, tested and understood without anything above it. Lowest first:
 | 0 | `schema/`, `user-data.ts`, `modules/ledger-sql/` | schema, user-data, ledger-sql | Tables; config paths; row scoping for raw SQL, built from Sapporta's `rowSecurity`, and the auth type every store takes | Domain queries; a hand-written workspace/user filter |
 | 1 | `modules/values/` | values | Money and its direction, amounts in paise, Account, Chrono, the text normalization transaction identity uses | I/O, statements, ledger tables |
 | 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
-| 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into an account; the Google Pay Takeout index and enrichment; transaction groups, the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan | Database access, coding-agent names, route concepts |
+| 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into a ledger account id, the same-account rule included; the Google Pay Takeout index and enrichment; transaction groups, the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan | Database access, coding-agent names, route concepts |
 | 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent | Accounts as the stores and screens look them up; posted journals, writing them from a plan, and the last reconciled checkpoint; matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter; draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status. The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
 | 5 | `workflows/` | statement-import, posting, reclassification | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
 | 6 | `app/`, `app.ts`, `boot.ts` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting | Queries or rules another module needs |
@@ -196,6 +196,15 @@ Deterministic rules, applied before the LLM is consulted. The file is pure
 data; the matching engine is
 `packages/api/modules/categorization/mapping-rules.ts`.
 
+`loadCategorizer` (`categorization/load-categorizer.ts`) reads this file and the
+prompt files once for each import or reclassification; it is the only code that
+reads them. `categorize` (`categorization/categorize.ts`) applies what it read:
+the rules, then the LLM for the rest, then the ledger account each answer names
+by its exact name in Accounts. A name the ledger doesn't hold, or the
+statement's own account, leaves the row uncategorized. A file that is missing
+or broken refuses only once a row needs it, so an import with nothing new
+needs no config.
+
 Narrations are normalized before matching (NFKC, whitespace collapsed, trimmed,
 upper-cased). `exact` wins outright; `includes` are substring rules checked in
 declaration order, so put narrow patterns ahead of broad ones. `direction` is
@@ -206,11 +215,13 @@ optional and limits a rule to `"withdrawal"` or `"deposit"`.
 The categorization prompt template is in
 `packages/api/modules/categorization/prompt-template.ts`. It is filled
 with `hledger_accounts.prompt` and the `custom_mappings_*.prompt` files named
-by the matching entry in `import-presets.json`.
+by the matching entry in `import-presets.json`, which `loadCategorizer` reads.
 `categorization/llm-categorization.ts` is the only LLM call site. It says what
 categorization needs of an LLM (`CategorizationLlm`), sends the descriptions
 the mapping rules didn't categorize, and reports how the calls fared; which
-engine fills that need is `packages/api/modules/coding-agent/`'s business.
+engine fills that need is `packages/api/modules/coding-agent/`'s business. A
+failed call's error arrives fit to show: `coding-agent/nuabase.ts` logs the
+full message and shortens what it returns (`reportedError`).
 
 ### LLM engine
 

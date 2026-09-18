@@ -1,11 +1,16 @@
 // The categorization module: the mapping rules, the prompt, what
-// categorization needs of an LLM, and turning its answer into an account.
-// Import from here rather than from the files.
+// categorization needs of an LLM, and turning its answer into a ledger
+// account. Its top, `loadCategorizer`, reads the user's config; `categorize`
+// applies it. Import from here rather than from the files.
 export {
-  resolveAccountIdForCategorized,
-  type CategorizedTransaction,
-  type ResolvedAccountId,
-} from "./CategorizedTransaction.js";
+  categorize,
+  type Categorization,
+  type CategorizationRow,
+  type CategorizedRow,
+  type Categorizer,
+  type SameAccountSkip,
+} from "./categorize.js";
+export type { CategorizedTransaction } from "./CategorizedTransaction.js";
 export type {
   CategorizationLlm,
   ListAnswer,
@@ -14,6 +19,6 @@ export type {
 } from "./llm-categorization.js";
 export {
   CategorizationConfigError,
-  resolveCategories,
-  type CategorizationConfig,
-} from "./resolve.js";
+  loadCategorizer,
+  type CategorizerSettings,
+} from "./load-categorizer.js";

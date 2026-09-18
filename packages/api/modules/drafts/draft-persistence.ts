@@ -1,15 +1,11 @@
 import { and, desc, eq, isNotNull } from "drizzle-orm";
-import { z } from "zod";
 import {
   Temporal,
   formatPlainDate,
   parsePlainDate,
 } from "@sapporta/shared/temporal";
 import type { Chrono } from "../values/index.js";
-import {
-  resolveAccountIdForCategorized,
-  type CategorizedTransaction,
-} from "../categorization/index.js";
+import type { Abacus } from "../statement/index.js";
 import {
   draftTransactions,
   draftTransactionsTable,
@@ -21,7 +17,6 @@ import {
   BALANCE_EPSILON,
 } from "../reconciliation/index.js";
 import type { LedgerAuth } from "../ledger-sql/index.js";
-import { loadAccountsByName } from "../accounts/index.js";
 
 export interface PersistSummary {
   inserted: number;
@@ -60,25 +55,17 @@ export class AssertionConflictError extends Error {
   }
 }
 
-export const sameAccountSkipSchema = z.object({
-  date: z.string(),
-  narration: z.string(),
-  account: z.string(),
-});
-export type SameAccountSkip = z.infer<typeof sameAccountSkipSchema>;
+// A statement row and the ledger account categorization chose for it.
+export interface CategorizedStatementRow {
+  transaction: Abacus;
+  accountId: number | null;
+}
 
 function toDraftRow(
-  ct: CategorizedTransaction,
-  accountsByName: Map<string, number>,
+  { transaction: t, accountId }: CategorizedStatementRow,
   baseAccountId: number | null,
-): { row: DraftRow; skip: SameAccountSkip | null } {
-  const { transaction: t, account } = ct;
-  const { accountId, sameAccountSkip } = resolveAccountIdForCategorized(
-    account,
-    accountsByName,
-    baseAccountId,
-  );
-  const row: DraftRow = {
+): DraftRow {
+  return {
     date: parsePlainDate(t.date),
     narration: t.narration,
     withdrawal: t.withdrawal,
@@ -89,10 +76,6 @@ function toDraftRow(
     source_reference: t.source_reference ?? null,
     source_transaction_key: t.source_transaction_key ?? null,
   };
-  const skip: SameAccountSkip | null = sameAccountSkip
-    ? { date: t.date, narration: t.narration, account }
-    : null;
-  return { row, skip };
 }
 
 // Only the last row of each date carries a balance assertion. The
@@ -104,29 +87,21 @@ function toDraftRow(
 // multi-file merges), making middle-of-day assertions fail spuriously
 // even when the day's closing is right.
 export function toDraftRows(
-  db: any,
-  baseAccount: string,
-  categorized: Chrono<CategorizedTransaction>,
-  auth?: LedgerAuth,
+  categorized: Chrono<CategorizedStatementRow>,
+  baseAccountId: number | null,
 ): {
   rows: DraftRow[];
-  sameAccountSkips: SameAccountSkip[];
   expectedClosingByDate: Map<string, number>;
 } {
-  const accountsByName = loadAccountsByName(db, auth);
-  const baseAccountId = accountsByName.get(baseAccount) ?? null;
   const rows: DraftRow[] = [];
-  const sameAccountSkips: SameAccountSkip[] = [];
   const expectedClosingByDate = new Map<string, number>();
-  categorized.forEach((ct) => {
-    const { row, skip } = toDraftRow(ct, accountsByName, baseAccountId);
-    rows.push(row);
-    if (skip) sameAccountSkips.push(skip);
-    if (ct.transaction.balance !== null) {
-      expectedClosingByDate.set(ct.transaction.date, ct.transaction.balance);
+  categorized.forEach((row) => {
+    rows.push(toDraftRow(row, baseAccountId));
+    if (row.transaction.balance !== null) {
+      expectedClosingByDate.set(row.transaction.date, row.transaction.balance);
     }
   });
-  return { rows, sameAccountSkips, expectedClosingByDate };
+  return { rows, expectedClosingByDate };
 }
 
 export function persistDrafts(

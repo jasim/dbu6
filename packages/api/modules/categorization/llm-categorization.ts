@@ -19,6 +19,8 @@ export interface ListRequest {
   output: { name: string; schema: z.ZodType<string> };
 }
 
+// A failed call's error is fit to show on a screen as it is: the client keeps
+// the full message for its log.
 export type ListAnswer =
   { ok: true; rows: unknown[] } | { ok: false; error: string };
 
@@ -147,7 +149,7 @@ export function parseLLMResponse(
 }
 
 /**
- * The report when no description needed the LLM. Only resolve.ts builds one:
+ * The report when no description needed the LLM. Only categorize.ts builds one:
  * everything outside categorization is given the report of the run it asked
  * for.
  */
@@ -179,21 +181,6 @@ export function splitIntoCalls<T>(
     calls.push(rows.slice(start, start + maxRowsPerCall));
   }
   return calls;
-}
-
-const MAX_REPORTED_ERROR_LENGTH = 300;
-
-/**
- * Pure: a failure message short enough to show on a screen. An HTML error
- * page (a gateway's 500) is reduced to its title, whitespace is collapsed,
- * and anything past 300 characters is cut. The full message stays in the log.
- */
-export function reportedError(message: string): string {
-  const title = /<title>([^<]*)<\/title>/i.exec(message)?.[1];
-  const text = (title ?? message).replace(/\s+/g, " ").trim();
-  return text.length > MAX_REPORTED_ERROR_LENGTH
-    ? `${text.slice(0, MAX_REPORTED_ERROR_LENGTH - 1)}…`
-    : text;
 }
 
 const ACCOUNT_OUTPUT = { name: "account", schema: z.string() };
@@ -292,7 +279,7 @@ export async function categorizeViaLLM(
       answered.push(...outcome.rows);
     } else {
       report.failed_count += outcome.rowCount;
-      report.error ??= reportedError(outcome.error);
+      report.error ??= outcome.error;
     }
   }
   return { mappings: parseLLMResponse(answered, reverseMap), report };

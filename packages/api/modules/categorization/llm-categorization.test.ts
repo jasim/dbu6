@@ -5,7 +5,6 @@ import {
   buildLLMInput,
   buildLLMRequest,
   parseLLMResponse,
-  reportedError,
   splitIntoCalls,
   type CategorizationLlm,
   type LLMCategorizationConfig,
@@ -226,28 +225,6 @@ describe("splitIntoCalls", () => {
     const calls = splitIntoCalls(rows, 50);
     expect(calls.map((call) => call.length)).toEqual([50, 50, 20]);
     expect(calls.flat()).toEqual(rows);
-  });
-});
-
-describe("reportedError", () => {
-  it("keeps a short message as it is, on one line", () => {
-    expect(reportedError("Not logged in.\n  Run /login")).toBe(
-      "Not logged in. Run /login",
-    );
-  });
-
-  it("reduces an HTML error page to its title", () => {
-    expect(
-      reportedError(
-        "<!DOCTYPE html>\n<html>\n<head>\n  <title>We're sorry, but something went wrong (500)</title>\n  <style>body {}</style></head><body>...</body></html>",
-      ),
-    ).toBe("We're sorry, but something went wrong (500)");
-  });
-
-  it("cuts a long message to 300 characters", () => {
-    const reported = reportedError("x".repeat(1000));
-    expect(reported).toHaveLength(300);
-    expect(reported.endsWith("…")).toBe(true);
   });
 });
 

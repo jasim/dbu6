@@ -5,13 +5,18 @@ import { join } from "path";
 import type { Abacus } from "../statement/index.js";
 import { parseAccount, UNCATEGORIZED } from "../values/index.js";
 
-// Mock the Nuabase-touching module so resolve runs as a pure pipeline.
+// Mock the Nuabase-touching module so categorization runs as a pure pipeline.
 vi.mock("./llm-categorization.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./llm-categorization.js")>()),
   categorizeViaLLM: vi.fn(),
 }));
 
-import { CategorizationConfigError, resolveCategories } from "./resolve.js";
+import {
+  CategorizationConfigError,
+  loadCategorizer,
+  type CategorizerSettings,
+} from "./load-categorizer.js";
+import { categorize } from "./categorize.js";
 import {
   categorizeViaLLM,
   type CategorizationLlm,
@@ -75,22 +80,46 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const baseConfig = () => ({
-  userConfigDir: dir,
+const baseConfig = (): CategorizerSettings => ({
   customMappingsFilenames: ["custom-a.txt", "custom-b.txt"],
   llm,
 });
 
-describe("resolveCategories", () => {
+const ACCOUNTS = new Map([
+  ["expenses:food", 11],
+  ["expenses:other", 12],
+  ["assets:bank:sample", 21],
+]);
+
+// Loads the config in `configDir` and categorizes rows on a statement of an
+// account the ledger doesn't hold.
+async function categorizeRows(
+  txns: Abacus[],
+  settings: CategorizerSettings,
+  configDir = dir,
+) {
+  return categorize(
+    await loadCategorizer(settings, configDir),
+    txns.map((transaction) => ({ transaction, baseAccountId: null })),
+    ACCOUNTS,
+  );
+}
+
+describe("categorize", () => {
   it("uses executable mappings without calling the LLM when all transactions match", async () => {
     llmMock.mockResolvedValue(answered({}));
     const txns = [withdrawal("STARBUCKS")];
-    const result = await resolveCategories(txns, baseConfig());
+    const result = await categorizeRows(txns, baseConfig());
 
     expect(result).toEqual({
-      categorized: [
-        { transaction: txns[0], account: parseAccount("expenses:food") },
+      rows: [
+        {
+          transaction: txns[0],
+          account: parseAccount("expenses:food"),
+          accountId: 11,
+        },
       ],
+      sameAccountSkips: [],
       report: {
         agent: "claude-code",
         sent_count: 0,
@@ -107,11 +136,11 @@ describe("resolveCategories", () => {
     );
     const txns = [withdrawal("STARBUCKS"), withdrawal("MYSTERY")];
 
-    await resolveCategories(txns, baseConfig());
+    await categorizeRows(txns, baseConfig());
 
     expect(llmMock).toHaveBeenCalledTimes(1);
     const [passedTxns, unmappedIndices, llmConfig] = llmMock.mock.calls[0];
-    expect(passedTxns).toBe(txns);
+    expect(passedTxns).toEqual(txns);
     expect(unmappedIndices).toEqual([1]);
     expect(llmConfig).toEqual({
       promptTemplate: PROMPT_TEMPLATE,
@@ -127,7 +156,7 @@ describe("resolveCategories", () => {
     );
     const txns = [withdrawal("MYSTERY")];
 
-    await resolveCategories(txns, {
+    await categorizeRows(txns, {
       ...baseConfig(),
       customMappingsFilenames: [
         "custom-a.txt",
@@ -144,10 +173,10 @@ describe("resolveCategories", () => {
     rmSync(join(dir, "transaction_mappings.mjs"));
 
     await expect(
-      resolveCategories([withdrawal("MYSTERY")], baseConfig()),
+      categorizeRows([withdrawal("MYSTERY")], baseConfig()),
     ).rejects.toThrow(CategorizationConfigError);
     await expect(
-      resolveCategories([withdrawal("MYSTERY")], baseConfig()),
+      categorizeRows([withdrawal("MYSTERY")], baseConfig()),
     ).rejects.toThrow(
       /Missing required categorization config file: .*transaction_mappings\.mjs/,
     );
@@ -157,10 +186,10 @@ describe("resolveCategories", () => {
     rmSync(join(dir, "hledger_accounts.prompt"));
 
     await expect(
-      resolveCategories([withdrawal("MYSTERY")], baseConfig()),
+      categorizeRows([withdrawal("MYSTERY")], baseConfig()),
     ).rejects.toThrow(CategorizationConfigError);
     await expect(
-      resolveCategories([withdrawal("MYSTERY")], baseConfig()),
+      categorizeRows([withdrawal("MYSTERY")], baseConfig()),
     ).rejects.toThrow(
       /Missing required categorization config file: .*hledger_accounts\.prompt/,
     );
@@ -175,10 +204,7 @@ describe("resolveCategories", () => {
     );
 
     await expect(
-      resolveCategories([withdrawal("MYSTERY")], {
-        ...baseConfig(),
-        userConfigDir: badDir,
-      }),
+      categorizeRows([withdrawal("MYSTERY")], baseConfig(), badDir),
     ).rejects.toThrow(/must export a "mappings" object/);
 
     rmSync(badDir, { recursive: true, force: true });
@@ -190,8 +216,8 @@ describe("resolveCategories", () => {
     );
     const txns = [withdrawal("STARBUCKS"), withdrawal("MYSTERY")];
 
-    const result = await resolveCategories(txns, baseConfig());
-    expect(result.categorized.map((r) => r.account)).toEqual([
+    const result = await categorizeRows(txns, baseConfig());
+    expect(result.rows.map((r) => r.account)).toEqual([
       "expenses:food",
       "expenses:other",
     ]);
@@ -202,12 +228,12 @@ describe("resolveCategories", () => {
       answered({}, { sent_count: 1, failed_count: 1, error: "sample failure" }),
     );
 
-    const result = await resolveCategories(
+    const result = await categorizeRows(
       [withdrawal("STARBUCKS"), withdrawal("MYSTERY")],
       baseConfig(),
     );
 
-    expect(result.categorized.map((r) => r.account)).toEqual([
+    expect(result.rows.map((r) => r.account)).toEqual([
       "expenses:food",
       UNCATEGORIZED,
     ]);
@@ -227,8 +253,8 @@ describe("resolveCategories", () => {
       withdrawal("UNKNOWN AT 500", 500),
     ];
 
-    const result = await resolveCategories(txns, baseConfig());
-    expect(result.categorized.map((r) => r.account)).toEqual([
+    const result = await categorizeRows(txns, baseConfig());
+    expect(result.rows.map((r) => r.account)).toEqual([
       UNCATEGORIZED,
       UNCATEGORIZED,
       UNCATEGORIZED,
@@ -237,7 +263,90 @@ describe("resolveCategories", () => {
 
   it("skips the LLM call entirely when there are no unmapped transactions", async () => {
     llmMock.mockResolvedValue(answered({}));
-    await resolveCategories([withdrawal("STARBUCKS")], baseConfig());
+    await categorizeRows([withdrawal("STARBUCKS")], baseConfig());
     expect(llmMock).not.toHaveBeenCalled();
+  });
+
+  it("needs no config file when there is nothing to categorize", async () => {
+    const emptyDir = mkdtempSync(join(tmpdir(), "resolve-test-empty-"));
+    try {
+      const result = await categorizeRows([], baseConfig(), emptyDir);
+      expect(result).toEqual({
+        rows: [],
+        sameAccountSkips: [],
+        report: {
+          agent: "claude-code",
+          sent_count: 0,
+          failed_count: 0,
+          error: null,
+        },
+      });
+    } finally {
+      rmSync(emptyDir, { recursive: true, force: true });
+    }
+  });
+
+  it("needs no hledger_accounts.prompt when the mapping rules categorize everything", async () => {
+    rmSync(join(dir, "hledger_accounts.prompt"));
+
+    const result = await categorizeRows(
+      [withdrawal("STARBUCKS")],
+      baseConfig(),
+    );
+    expect(result.rows.map((r) => r.accountId)).toEqual([11]);
+  });
+
+  it("gives each answer's ledger account id, and none for an account the ledger doesn't hold", async () => {
+    llmMock.mockResolvedValue(
+      answered({
+        MYSTERY: parseAccount("expenses:other"),
+        UNKNOWN: parseAccount("expenses:not-in-ledger"),
+      }),
+    );
+
+    const result = await categorizeRows(
+      [withdrawal("STARBUCKS"), withdrawal("MYSTERY"), withdrawal("UNKNOWN")],
+      baseConfig(),
+    );
+    expect(
+      result.rows.map(({ account, accountId }) => ({ account, accountId })),
+    ).toEqual([
+      { account: "expenses:food", accountId: 11 },
+      { account: "expenses:other", accountId: 12 },
+      { account: "expenses:not-in-ledger", accountId: null },
+    ]);
+  });
+
+  it("leaves a row uncategorized and records a skip when the answer is its own base account", async () => {
+    llmMock.mockResolvedValue(
+      answered({ "to my sample": parseAccount("assets:bank:sample") }),
+    );
+    const onTheBank = withdrawal("to my sample", 1000);
+    const onACard = withdrawal("to my sample", 1000);
+
+    const result = await categorize(
+      await loadCategorizer(baseConfig(), dir),
+      [
+        { transaction: onTheBank, baseAccountId: 21 },
+        { transaction: onACard, baseAccountId: 31 },
+      ],
+      ACCOUNTS,
+    );
+
+    expect(result.rows).toEqual([
+      {
+        transaction: onTheBank,
+        account: "assets:bank:sample",
+        accountId: null,
+      },
+      { transaction: onACard, account: "assets:bank:sample", accountId: 21 },
+    ]);
+    expect(result.sameAccountSkips).toEqual([
+      {
+        date: "2026-01-01",
+        narration: "to my sample",
+        account: "assets:bank:sample",
+      },
+    ]);
   });
 });

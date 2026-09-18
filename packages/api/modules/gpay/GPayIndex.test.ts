@@ -2,12 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import {
-  enrichWithGPay,
-  enrichWithGPayHtml,
-  parseGPayHtml,
-  type GPayIndex,
-} from "./GPayIndex.js";
+import { enrichWithGPay, parseGPayHtml, type GPayIndex } from "./GPayIndex.js";
 import type { Abacus } from "../statement/index.js";
 
 function txn(partial: Partial<Abacus>): Abacus {
@@ -40,11 +35,11 @@ describe("parseGPayHtml", () => {
       expect(idx.get("2026-04-24|1234.50")).toEqual(["Coffee & Snacks"]);
       expect(idx.get("2026-04-25|99.00")).toEqual(["Metro Card"]);
 
-      const result = enrichWithGPayHtml(
+      const result = enrichWithGPay(
         [txn({ withdrawal: 1234.5, narration: "UPI debit" })],
-        file,
+        idx,
       );
-      expect(result.indexSize).toBe(2);
+      expect(idx.size).toBe(2);
       expect(result.matchCount).toBe(1);
       expect(result.enriched[0].narration).toBe("Coffee & Snacks | UPI debit");
     } finally {

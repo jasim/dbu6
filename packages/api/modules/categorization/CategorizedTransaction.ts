@@ -20,7 +20,7 @@ export interface ResolvedAccountId {
 // the caller which nulls came from that silencing vs. plain UNCATEGORIZED.
 export function resolveAccountIdForCategorized(
   account: Account,
-  accountsByName: Map<string, number>,
+  accountsByName: ReadonlyMap<string, number>,
   baseAccountId: number | null,
 ): ResolvedAccountId {
   if (account === UNCATEGORIZED)

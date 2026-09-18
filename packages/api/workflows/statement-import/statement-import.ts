@@ -5,14 +5,17 @@ import {
   type DateSpan,
   type ImportPreset,
 } from "dbu6-shared";
-import { userConfigDir } from "../../user-data.js";
-import type { CategorizationLlm } from "../../modules/categorization/index.js";
+import {
+  loadCategorizer,
+  type CategorizationLlm,
+  type Categorizer,
+} from "../../modules/categorization/index.js";
 import {
   type Account,
   parseAccount,
   unsafeAsChrono,
 } from "../../modules/values/index.js";
-import { enrichWithGPayHtml } from "../../modules/gpay/index.js";
+import { enrichWithGPay, type GPayIndex } from "../../modules/gpay/index.js";
 import {
   assembleStatements,
   synthesizeRunningBalances,
@@ -37,15 +40,16 @@ export interface ResolvedBalance {
 export interface ImportOptions {
   baseAccount: Account;
   accountKind: AccountKind;
-  customMappingsFilenames: string[];
-  // Where categorization runs. The batch and freeform imports resolve it
-  // once, so nothing below them reaches for the process's engine.
-  llm: CategorizationLlm;
-  // Path to a staged Google Pay Takeout HTML export. When set, withdrawals
+  // The user's categorization config, with the preset's instructions, on the
+  // engine the import runs on. The batch and freeform imports load it, so
+  // nothing below them reads the user's files or reaches for the process's
+  // engine.
+  categorizer: Categorizer;
+  // A Google Pay Takeout, parsed once by the batch. When set, withdrawals
   // that survive the reconciliation filter get their narration prefixed with
   // the GPay recipient before categorization. Applied after transaction keys
   // are assigned, so the takeout never changes transaction identity.
-  gpayHtmlPath: string | null;
+  gpay: GPayIndex | null;
 }
 
 export interface StatementImportResult extends ImportSummary {
@@ -211,12 +215,12 @@ export async function runStatementImport(
   // do not consume activities a live row with the same date/amount needs).
   let importable = survivors;
   let gpayEnrichedCount = 0;
-  if (opts.gpayHtmlPath && survivors.length > 0) {
-    const enrichment = enrichWithGPayHtml(survivors, opts.gpayHtmlPath);
+  if (opts.gpay && survivors.length > 0) {
+    const enrichment = enrichWithGPay(survivors, opts.gpay);
     importable = unsafeAsChrono(enrichment.enriched);
     gpayEnrichedCount = enrichment.matchCount;
     console.log(
-      `[statement-import] GPay takeout: ${enrichment.indexSize} (date,amount) keys; enriched ${gpayEnrichedCount} of ${survivors.length} narration(s)`,
+      `[statement-import] GPay takeout: ${opts.gpay.size} (date,amount) keys; enriched ${gpayEnrichedCount} of ${survivors.length} narration(s)`,
     );
   }
 
@@ -234,11 +238,7 @@ export async function runStatementImport(
     baseAccount: opts.baseAccount,
     transactions: importable,
     rawTransactionCount: withBalances.length,
-    categorizationConfig: {
-      userConfigDir: userConfigDir(),
-      customMappingsFilenames: opts.customMappingsFilenames,
-      llm: opts.llm,
-    },
+    categorizer: opts.categorizer,
     logPrefix: "statement-import",
     db,
     auth,
@@ -277,18 +277,21 @@ export async function runStatementImport(
   };
 }
 
-// How a preset decides an import. The Google Pay Takeout is the one choice
-// made per upload rather than per account, so it arrives alongside.
-export function importOptionsFromPreset(
+// How a preset decides an import, its categorization instructions included.
+// The Google Pay Takeout is the one choice made per upload rather than per
+// account, so it arrives alongside.
+export async function importOptionsFromPreset(
   preset: ImportPreset,
-  gpayHtmlPath: string | null,
+  gpay: GPayIndex | null,
   llm: CategorizationLlm,
-): ImportOptions {
+): Promise<ImportOptions> {
   return {
     baseAccount: parseAccount(preset.base_account),
     accountKind: accountKindOf(preset.is_credit_card),
-    customMappingsFilenames: preset.custom_mappings_filenames,
-    gpayHtmlPath,
-    llm,
+    categorizer: await loadCategorizer({
+      customMappingsFilenames: preset.custom_mappings_filenames,
+      llm,
+    }),
+    gpay,
   };
 }

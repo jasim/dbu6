@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   pickOpeningBalance,
   pickClosingBalance,
@@ -12,14 +12,9 @@ import {
   BalanceMismatchError,
   ClosingBalanceUnavailable,
 } from "../../modules/statement/index.js";
-import type { CategorizationLlm } from "../../modules/categorization/index.js";
+import type { Categorizer } from "../../modules/categorization/index.js";
 import { parseAccount } from "../../modules/values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
-
-// runStatementImport resolves the user-config directory before the draft
-// import, and dataPath() refuses to run without a data directory. Nothing here
-// reads files from it.
-vi.stubEnv("SAPPORTA_DATA_DIR", "/nonexistent-sapporta-data-dir");
 
 describe("pickOpeningBalance", () => {
   it("prefers the statement's own opening over the checkpoint", () => {
@@ -133,21 +128,25 @@ describe("runStatementImport", () => {
   });
 });
 
-// Categorization would run the coding agent's CLI; these tests import with an
-// engine that can't call anything.
-const noLlm: CategorizationLlm = {
-  agent: null,
-  name: "no engine in tests",
-  caller: { ready: false, reason: "no engine in tests" },
+// Categorization would read the user's config and run the coding agent's CLI;
+// these tests import with no config and an engine that can't call anything.
+const noConfig = { ok: false, error: new Error("no config in tests") } as const;
+const noCategorizer: Categorizer = {
+  classify: noConfig,
+  prompt: noConfig,
+  llm: {
+    agent: null,
+    name: "no engine in tests",
+    caller: { ready: false, reason: "no engine in tests" },
+  },
 };
 
 function options(): ImportOptions {
   return {
     baseAccount: parseAccount("cc:stanc"),
     accountKind: "card",
-    customMappingsFilenames: [],
-    gpayHtmlPath: null,
-    llm: noLlm,
+    categorizer: noCategorizer,
+    gpay: null,
   };
 }
 

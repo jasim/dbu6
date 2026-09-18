@@ -1,9 +1,9 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 import { draftTransactionsContract } from "dbu6-shared";
 import { createTestAuthContext } from "@sapporta/server/testing";
@@ -21,17 +21,21 @@ const auth = createTestAuthContext({
   userId: "user",
 });
 
-// The mapping rules categorize everything these tests classify, so the LLM is
-// never asked.
+// The engine would detect this machine's coding agents. The mapping rules
+// categorize everything these tests classify, so the LLM is never asked.
 const llm: CategorizationLlm = {
   agent: "claude-code",
   name: "Claude Code",
   caller: { ready: false, reason: "not called in these tests" },
 };
+vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
+  categorizationLlm: async () => llm,
+}));
 
 const tempDirs: string[] = [];
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -40,7 +44,10 @@ afterEach(() => {
 describe("classifyDraftTransactions", () => {
   it("enriches from GPay before categorizing and persists both changes", async () => {
     const { db, sqlite } = setupDatabase();
-    const configDir = makeTempDir("draft-classification-config-");
+    const dataDir = makeTempDir("draft-classification-data-");
+    vi.stubEnv("SAPPORTA_DATA_DIR", dataDir);
+    const configDir = join(dataDir, "user-config");
+    mkdirSync(configDir);
     const gpayDir = makeTempDir("draft-classification-gpay-");
     const gpayPath = join(gpayDir, "My Activities.html");
     writeFileSync(
@@ -60,11 +67,7 @@ describe("classifyDraftTransactions", () => {
       db,
       auth,
       ids: [1],
-      categorizationConfig: {
-        userConfigDir: configDir,
-        customMappingsFilenames: [],
-        llm,
-      },
+      customMappingsFilenames: [],
       gpayHtmlPath: gpayPath,
     });
 
@@ -97,11 +100,7 @@ describe("classifyDraftTransactions", () => {
       db,
       auth,
       ids: [1],
-      categorizationConfig: {
-        userConfigDir: configDir,
-        customMappingsFilenames: [],
-        llm,
-      },
+      customMappingsFilenames: [],
       gpayHtmlPath: gpayPath,
     });
     expect(second.gpayEnrichedCount).toBe(0);

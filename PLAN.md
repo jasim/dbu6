@@ -17,7 +17,7 @@ them depends on the history of the conversation that wrote this.
 
 ```
 S1 → M0 → M1 → M2 → M3 → M4 ─┬─ A ────────────── D ──┐
-                              ├─ B1 → B2 → B3 ────────┼─ F1 → F2
+                              ├─ B1 → B2 → B3 ────────┼─ F1 → F2 → G
                               └─ C ───────────────────┘
 ```
 
@@ -29,6 +29,8 @@ S1 → M0 → M1 → M2 → M3 → M4 ─┬─ A ──────────
   for A, since both change categorization's error. B2 and B3 follow B1 because
   they edit the same SQL.
 - **F1 and F2 close the work.**
+- **G follows the refactor.** It changes what the LLM sees, so it waits until
+  the layering is done.
 
 ### Why no dynamic workflow
 
@@ -417,14 +419,28 @@ The posted-journal formatter test moved to `journal-plan/hledger.test.ts`.
 
 ### D — Categorization owns its answer
 
-**Status:** todo. **Depends on:** A. **Findings:** 8, 9, and the LLM
-interface items.
+**Status:** done (2026-09-19). `loadCategorizer`
+(`categorization/load-categorizer.ts`, was `resolve.ts`) reads the user's files
+into a `Categorizer`; a missing or broken file is kept as its reason and
+refuses only once a row needs it, as before. `categorize` (`categorize.ts`)
+gives each row its answered account and ledger id, the same-account skips, and
+the report; imports and reclassification both call it, and `toDraftRows(rows,
+baseAccountId)` looks nothing up. `ImportOptions` carries `categorizer` and a
+parsed `gpay` index: the batch parses the Takeout once and loads a categorizer
+per preset (`importOptionsFromPreset`, now async). Reclassification gets its
+engine and config itself, so the classify routes only stage the upload.
+`reportedError` is in `coding-agent/nuabase.ts`. For F1, the top files that
+read files are `categorization/load-categorizer.ts` and `gpay/GPayIndex.ts`
+(`parseGPayHtml` is gpay's one function that takes a path). Tests: `resolve.test.ts` is
+`categorize.test.ts`, and the same-account test moved there from
+`draft-persistence.test.ts`; the route tests mock `loadCategorizer` and check
+the categorizer and Takeout index each import gets. The summary's
+`hledger_journal` still shows the answered name where the draft stores no id.
+**Depends on:** A. **Findings:** 8, 9, and the LLM interface items.
 
-**Decision for the owner, at the go-ahead:** should the LLM choose from the
-`accounts` table instead of from `hledger_accounts.prompt`? Today an account
-named in the prompt but missing from the table silently leaves the row
-uncategorized. The change alters what the LLM sees and retires a user-config
-file.
+**Decided at the go-ahead:** the LLM should choose from the `accounts` table
+rather than `hledger_accounts.prompt`, but that changes behavior, so it is
+task G, after the refactor. D keeps the prompt file.
 
 Then:
 - **Two levels in `modules/categorization`.** The top level loads
@@ -464,6 +480,29 @@ A fresh agent, given `LAYERING.md` and `packages/api` but not this plan or the
 earlier review, reviews the backend's layering. Its findings become new tasks
 here or get fixed. If the owner opts in, this can run as a multi-agent
 workflow: a reviewer per tier, then a verifier per finding.
+
+### G — The LLM chooses from the accounts table
+
+**Status:** todo. **Depends on:** F2. A behavior change, kept out of the
+layering work (decided at D).
+
+- **The prompt lists the ledger's accounts** (the `accounts` table, row-scoped)
+  instead of `hledger_accounts.prompt`, so the LLM can only name accounts the
+  ledger holds. Today an account named in the prompt but missing from the
+  table silently leaves the row uncategorized, and the table's other accounts
+  are never offered.
+- **Decide which accounts to offer:** all of them (asset and liability
+  accounts help with transfers and card payments; the same-account rule
+  catches a row's own account) or a subset.
+- **Retire `hledger_accounts.prompt`:** `user-config.example/`, the README
+  ("What you configure"), DEVELOPMENT.md → "LLM prompts", and the
+  `Categorizer`'s `prompt` part. A user's own copy stays in `data/`, unread;
+  notes about accounts belong in `custom_mappings_*.prompt`.
+- **Consider alongside:**
+  - mapping rules that name an account the ledger doesn't hold also leave
+    rows uncategorized without a word;
+  - the import summary's `hledger_journal` shows the answered name where the
+    draft stores no account (an unknown name, or the row's own account).
 
 ## Findings
 
@@ -564,6 +603,9 @@ move most of them.
   draft deletion, and reclassification's draft reads and updates, moved into
   `modules/journals` and `modules/drafts`; the workflows keep the transaction
   boundary.
+- 2026-09-19, D: the LLM will choose from the `accounts` table instead of
+  `hledger_accounts.prompt`, as task G after the refactor, because it changes
+  behavior. D keeps the prompt file and today's behavior.
 
 ## Found along the way
 
@@ -620,3 +662,6 @@ date and the task.
   asserts the running balance after every group, while the draft preview and
   posting assert only each day's closing, on its last draft. C keeps both;
   B3, which owns that rule, may want the summary to follow it.
+- 2026-09-19, D: `loadCategorizer` loads `transaction_mappings.mjs` with
+  `import()`, which Node caches by URL, so an edit to the file may not take
+  effect until the server restarts.

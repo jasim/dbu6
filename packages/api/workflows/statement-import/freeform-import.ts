@@ -5,6 +5,7 @@ import {
 } from "../../modules/statement/index.js";
 import { parseAccount } from "../../modules/values/index.js";
 import { categorizationLlm } from "../../modules/coding-agent/index.js";
+import { loadCategorizer } from "../../modules/categorization/index.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 import {
   runStatementImport,
@@ -60,9 +61,8 @@ export async function importFreeformStatement(
     {
       baseAccount: parseAccount(baseAccount),
       accountKind,
-      customMappingsFilenames: [],
-      gpayHtmlPath: null,
-      llm,
+      categorizer: await loadCategorizer({ customMappingsFilenames: [], llm }),
+      gpay: null,
     },
     db,
     auth,

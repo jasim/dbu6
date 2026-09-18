@@ -8,14 +8,15 @@ import {
   unsafeAsChrono,
 } from "../../modules/values/index.js";
 import {
-  type CategorizationConfig,
-  type CategorizedTransaction,
-  resolveCategories,
+  categorize,
+  type CategorizedRow,
+  type Categorizer,
 } from "../../modules/categorization/index.js";
 import {
   formatHledger,
   planJournals,
 } from "../../modules/journal-plan/index.js";
+import { loadAccountsByName } from "../../modules/accounts/index.js";
 import { toDraftRows, persistDrafts } from "../../modules/drafts/index.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 
@@ -32,7 +33,7 @@ export interface DraftImportInput {
   transactions: Chrono<Abacus>;
   // How many rows the statement had before the reconciliation filter.
   rawTransactionCount: number;
-  categorizationConfig: CategorizationConfig;
+  categorizer: Categorizer;
   logPrefix: string;
   db: any;
   auth?: LedgerAuth;
@@ -50,37 +51,41 @@ export async function runDraftImport(
     baseAccount,
     transactions: newTransactions,
     rawTransactionCount: rawCount,
-    categorizationConfig,
+    categorizer,
     logPrefix,
     db,
     auth,
   } = input;
 
+  const accountsByName = loadAccountsByName(db, auth);
+  const baseAccountId = accountsByName.get(baseAccount) ?? null;
   // With nothing new, this categorizes nothing and formats an empty journal.
-  const resolved = await resolveCategories(
-    [...newTransactions],
-    categorizationConfig,
+  const categorization = await categorize(
+    categorizer,
+    newTransactions.map((transaction) => ({ transaction, baseAccountId })),
+    accountsByName,
   );
-  const categorized: Chrono<CategorizedTransaction> = unsafeAsChrono(
-    resolved.categorized,
+  const categorized: Chrono<CategorizedRow> = unsafeAsChrono(
+    categorization.rows,
   );
+  const { sameAccountSkips } = categorization;
   // The statement's running balance after every row, so each group asserts
-  // where it ends.
+  // where it ends. Each row shows the account its answer named.
   const hledgerJournal = formatHledger(
     planJournals(
-      chronoMap(categorized, (row) => ({
-        ...row,
-        assertion: row.transaction.balance,
+      chronoMap(categorized, ({ transaction, account }) => ({
+        transaction,
+        account,
+        assertion: transaction.balance,
       })),
       baseAccount,
     ),
   );
 
-  const {
-    rows: draftRows,
-    sameAccountSkips,
-    expectedClosingByDate,
-  } = toDraftRows(db, baseAccount, categorized, auth);
+  const { rows: draftRows, expectedClosingByDate } = toDraftRows(
+    categorized,
+    baseAccountId,
+  );
   const persisted = persistDrafts(db, draftRows, expectedClosingByDate, auth);
   console.log(
     `[${logPrefix}] persisted: ${persisted.inserted} inserted, ${persisted.duplicates} duplicates, ${persisted.backfilled} backfilled`,
@@ -104,6 +109,6 @@ export async function runDraftImport(
     same_account_skips: sameAccountSkips,
     // Categorization runs before the duplicates are dropped, so a report is
     // only about this import when it created drafts.
-    categorization: persisted.inserted > 0 ? resolved.report : null,
+    categorization: persisted.inserted > 0 ? categorization.report : null,
   };
 }

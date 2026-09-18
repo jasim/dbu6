@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { parseAccount, unsafeAsChrono } from "../values/index.js";
+import { unsafeAsChrono } from "../values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 import { accounts, accountsTable } from "../../schema/accounts.js";
 import {
@@ -20,6 +20,11 @@ import type { Abacus } from "../statement/index.js";
 import { AmbiguousDuplicateError } from "../reconciliation/index.js";
 import { AssertionConflictError } from "./draft-persistence.js";
 
+// The accounts setup() inserts.
+const BASE_ACCOUNT_ID = 1;
+const SOFTWARE_ACCOUNT_ID = 2;
+const OFFICE_ACCOUNT_ID = 3;
+
 const auth = createTestAuthContext({
   tables: [accounts, draftTransactions, journals, journalEntries],
   workspaceId: "workspace",
@@ -30,12 +35,12 @@ describe("draft persistence reconciliation", () => {
   it("reimport after category change reuses the keyed draft and preserves user category", () => {
     const { db, sqlite } = setup();
     const transaction = tx("stable-key");
-    const first = draftRows(db, transaction, "expenses:software");
+    const first = draftRows(transaction, SOFTWARE_ACCOUNT_ID);
     expect(
       persistDrafts(db, first.rows, first.expectedClosingByDate, auth),
     ).toMatchObject({ inserted: 1, duplicates: 0 });
 
-    const second = draftRows(db, transaction, "expenses:office");
+    const second = draftRows(transaction, OFFICE_ACCOUNT_ID);
     expect(
       persistDrafts(db, second.rows, second.expectedClosingByDate, auth),
     ).toMatchObject({
@@ -89,7 +94,7 @@ describe("draft persistence reconciliation", () => {
       ])
       .run();
 
-    const rows = draftRows(db, tx("posted-key"), "expenses:software");
+    const rows = draftRows(tx("posted-key"), SOFTWARE_ACCOUNT_ID);
     expect(
       persistDrafts(db, rows.rows, rows.expectedClosingByDate, auth),
     ).toMatchObject({
@@ -112,15 +117,12 @@ describe("draft persistence reconciliation", () => {
       deposit: 0,
       balance: -235.5,
     };
-    const categorized = unsafeAsChrono([
-      { transaction: first, account: parseAccount("expenses:software") },
-      { transaction: second, account: parseAccount("expenses:office") },
-    ]);
     const prepared = toDraftRows(
-      db,
-      parseAccount("cc:stanc"),
-      categorized,
-      auth,
+      unsafeAsChrono([
+        { transaction: first, accountId: SOFTWARE_ACCOUNT_ID },
+        { transaction: second, accountId: OFFICE_ACCOUNT_ID },
+      ]),
+      BASE_ACCOUNT_ID,
     );
     persistDrafts(db, prepared.rows, prepared.expectedClosingByDate, auth);
 
@@ -143,7 +145,7 @@ describe("draft persistence reconciliation", () => {
       accountId: 2,
       assertion: 999,
     });
-    const prepared = draftRows(db, tx("new-key"), "expenses:office");
+    const prepared = draftRows(tx("new-key"), OFFICE_ACCOUNT_ID);
     expect(() =>
       persistDrafts(db, prepared.rows, prepared.expectedClosingByDate, auth),
     ).toThrow(AssertionConflictError);
@@ -164,7 +166,7 @@ describe("draft persistence reconciliation", () => {
       accountId: 3,
       assertion: null,
     });
-    const prepared = draftRows(db, tx("new-key"), "expenses:office");
+    const prepared = draftRows(tx("new-key"), OFFICE_ACCOUNT_ID);
     expect(() =>
       persistDrafts(db, prepared.rows, prepared.expectedClosingByDate, auth),
     ).toThrow(AmbiguousDuplicateError);
@@ -186,12 +188,10 @@ function tx(sourceKey: string): Abacus {
   };
 }
 
-function draftRows(db: any, transaction: Abacus, category: string) {
+function draftRows(transaction: Abacus, accountId: number) {
   return toDraftRows(
-    db,
-    parseAccount("cc:stanc"),
-    unsafeAsChrono([{ transaction, account: parseAccount(category) }]),
-    auth,
+    unsafeAsChrono([{ transaction, accountId }]),
+    BASE_ACCOUNT_ID,
   );
 }
 
@@ -271,9 +271,9 @@ function setup() {
   const db = drizzle(sqlite);
   db.insert(accountsTable)
     .values([
-      scopedAccount(1, "cc:stanc", "Liability"),
-      scopedAccount(2, "expenses:software", "Expense"),
-      scopedAccount(3, "expenses:office", "Expense"),
+      scopedAccount(BASE_ACCOUNT_ID, "cc:stanc", "Liability"),
+      scopedAccount(SOFTWARE_ACCOUNT_ID, "expenses:software", "Expense"),
+      scopedAccount(OFFICE_ACCOUNT_ID, "expenses:office", "Expense"),
     ])
     .run();
   return { db, sqlite };

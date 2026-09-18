@@ -1,6 +1,4 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
-import { categorizationLlm } from "../modules/coding-agent/index.js";
-import { userConfigDir } from "../user-data.js";
 import { draftTransactionsContract } from "dbu6-shared";
 import { CategorizationConfigError } from "../modules/categorization/index.js";
 import { classifyDraftTransactions } from "../workflows/reclassification.js";
@@ -20,11 +18,7 @@ api.register(
         db: c.get("db"),
         auth,
         ids,
-        categorizationConfig: {
-          userConfigDir: userConfigDir(),
-          customMappingsFilenames: custom_mappings_filenames ?? [],
-          llm: await categorizationLlm(),
-        },
+        customMappingsFilenames: custom_mappings_filenames ?? [],
       });
       return {
         status: 200,
@@ -53,7 +47,6 @@ api.register(
     }
 
     try {
-      const llm = await categorizationLlm();
       const result = await withTempUpload(
         gpay,
         "gpay-reclassify",
@@ -63,11 +56,7 @@ api.register(
             db: c.get("db"),
             auth,
             ids: request.body.ids,
-            categorizationConfig: {
-              userConfigDir: userConfigDir(),
-              customMappingsFilenames: request.body.custom_mappings_filenames,
-              llm,
-            },
+            customMappingsFilenames: request.body.custom_mappings_filenames,
             gpayHtmlPath,
           }),
       );

@@ -21,11 +21,10 @@ export {
 export {
   AssertionConflictError,
   persistDrafts,
-  sameAccountSkipSchema,
   toDraftRows,
+  type CategorizedStatementRow,
   type DraftRow,
   type PersistSummary,
-  type SameAccountSkip,
 } from "./draft-persistence.js";
 export {
   draftCounts,

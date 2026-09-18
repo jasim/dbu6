@@ -9,6 +9,7 @@ import {
   savedCustomStatementParserPaths,
 } from "../../modules/statement-sources/index.js";
 import { categorizationLlm } from "../../modules/coding-agent/index.js";
+import { parseGPayHtml, type GPayIndex } from "../../modules/gpay/index.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 import { isImportRefusal, type ImportRefusal } from "./refusals.js";
 import {
@@ -23,6 +24,7 @@ import {
 //   per file: savedCustomStatementParserPaths(ext)
 //             recognizeStatementFile(candidates, path)
 //     -> planAutoImport(recognitions, presets)   pure: groups, or a rejection
+//     -> parseGPayHtml(takeout), once
 //     -> per group: runStatementImport(statements, importOptionsFromPreset)
 //
 // The Takeout names UPI recipients in every account the batch imports.
@@ -79,7 +81,9 @@ export async function importStatementBatch(
       )
       .join("; ")}`,
   );
-  return importGroups(plan.files, plan.groups, batch.gpayHtmlPath, db, auth);
+  const gpay =
+    batch.gpayHtmlPath === null ? null : parseGPayHtml(batch.gpayHtmlPath);
+  return importGroups(plan.files, plan.groups, gpay, db, auth);
 }
 
 // Detection is per file so that one unreadable upload annotates its own row
@@ -106,7 +110,7 @@ async function recognizeStatements(
 async function importGroups(
   files: PlannedFile[],
   groups: readonly AutoImportGroup[],
-  gpayHtmlPath: string | null,
+  gpay: GPayIndex | null,
   db: unknown,
   auth: LedgerAuth,
 ): Promise<BatchImportOutcome> {
@@ -118,7 +122,7 @@ async function importGroups(
     try {
       const result = await runStatementImport(
         group.statements.map((one) => one.statement),
-        importOptionsFromPreset(group.preset, gpayHtmlPath, llm),
+        await importOptionsFromPreset(group.preset, gpay, llm),
         db,
         auth,
         group.statements.map((one) => one.file),

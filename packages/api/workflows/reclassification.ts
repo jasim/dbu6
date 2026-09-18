@@ -1,13 +1,13 @@
 import { formatPlainDate } from "@sapporta/shared/temporal";
 import type { CategorizationReport } from "dbu6-shared";
 import type { Abacus } from "../modules/statement/index.js";
-import { enrichWithGPayHtml } from "../modules/gpay/index.js";
+import { enrichWithGPay, parseGPayHtml } from "../modules/gpay/index.js";
 import { moneyFromColumns } from "../modules/values/index.js";
 import {
-  resolveCategories,
-  type CategorizationConfig,
-  resolveAccountIdForCategorized,
+  categorize,
+  loadCategorizer,
 } from "../modules/categorization/index.js";
+import { categorizationLlm } from "../modules/coding-agent/index.js";
 import { loadAccountsByName } from "../modules/accounts/index.js";
 import {
   loadDraftsById,
@@ -29,14 +29,20 @@ export interface DraftClassificationResult {
   categorization: CategorizationReport;
 }
 
+// Categorize drafts again, as an import categorizes its rows, optionally
+// after naming their Google Pay recipients from a staged Takeout.
 export async function classifyDraftTransactions(input: {
   db: any;
   auth: LedgerAuth;
   ids: number[];
-  categorizationConfig: CategorizationConfig;
+  customMappingsFilenames: readonly string[];
   gpayHtmlPath?: string;
 }): Promise<DraftClassificationResult> {
-  const { db, auth, ids, categorizationConfig, gpayHtmlPath } = input;
+  const { db, auth, ids, customMappingsFilenames, gpayHtmlPath } = input;
+  const categorizer = await loadCategorizer({
+    customMappingsFilenames,
+    llm: await categorizationLlm(),
+  });
   const drafts = loadDraftsById(db, ids, auth);
 
   const sourceTransactions: Abacus[] = drafts.map((draft) => ({
@@ -46,25 +52,25 @@ export async function classifyDraftTransactions(input: {
     balance: null,
   }));
   const enrichment = gpayHtmlPath
-    ? enrichWithGPayHtml(sourceTransactions, gpayHtmlPath)
-    : { enriched: sourceTransactions, matchCount: 0, indexSize: 0 };
-  const { categorized, report } = await resolveCategories(
-    enrichment.enriched,
-    categorizationConfig,
-  );
+    ? enrichWithGPay(sourceTransactions, parseGPayHtml(gpayHtmlPath))
+    : { enriched: sourceTransactions, matchCount: 0 };
 
   const accountsByName = loadAccountsByName(db, auth);
+  const { rows, report } = await categorize(
+    categorizer,
+    drafts.map((draft, index) => ({
+      transaction: enrichment.enriched[index],
+      baseAccountId: draft.base_account_id,
+    })),
+    accountsByName,
+  );
   const accountNameById = new Map<number, string>();
   for (const [name, id] of accountsByName) accountNameById.set(id, name);
 
   const reclassified: ReclassifiedDraft[] = drafts.map((draft, index) => ({
     id: draft.id,
-    narration: enrichment.enriched[index].narration,
-    accountId: resolveAccountIdForCategorized(
-      categorized[index].account,
-      accountsByName,
-      draft.base_account_id,
-    ).accountId,
+    narration: rows[index].transaction.narration,
+    accountId: rows[index].accountId,
   }));
   saveReclassifiedDrafts(db, reclassified, auth);
 

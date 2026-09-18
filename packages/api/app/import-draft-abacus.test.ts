@@ -14,6 +14,18 @@ vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
   }),
 }));
 
+// The user's categorization config would be read from data/user-config. Each
+// import gets a stand-in categorizer that says which instructions it was
+// loaded with.
+vi.mock("../modules/categorization/index.js", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../modules/categorization/index.js")
+  >()),
+  loadCategorizer: async (settings: {
+    customMappingsFilenames: readonly string[];
+  }) => ({ customMappingsFilenames: settings.customMappingsFilenames }),
+}));
+
 const { runStatementImport } = vi.hoisted(() => ({
   runStatementImport: vi.fn(),
 }));
@@ -172,8 +184,8 @@ describe("importAbacusStatement", () => {
     expect(options).toMatchObject({
       baseAccount: "liabilities:card:sample",
       accountKind: "card",
-      customMappingsFilenames: [],
-      gpayHtmlPath: null,
+      categorizer: { customMappingsFilenames: [] },
+      gpay: null,
     });
     expect(sourceNames).toEqual(["sample-card-2026-09"]);
     expect(parts).toHaveLength(1);

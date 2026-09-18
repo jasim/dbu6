@@ -194,22 +194,43 @@ function listClient(
           ...(model === undefined ? {} : { model }),
         });
       } catch (error) {
-        return {
-          ok: false,
-          error: llmFailureMessage(
+        return failedList(
+          llmFailureMessage(
             error instanceof Error ? error.message : String(error),
           ),
-        };
+        );
       }
       const parsed = listAnswerSchema.safeParse(answered);
       if (!parsed.success) {
-        return { ok: false, error: unexpectedShape(parsed.error) };
+        return failedList(unexpectedShape(parsed.error));
       }
       return parsed.data.success
         ? { ok: true, rows: parsed.data.data }
-        : { ok: false, error: llmFailureMessage(String(parsed.data.error)) };
+        : failedList(llmFailureMessage(String(parsed.data.error)));
     },
   };
+}
+
+// A failed call: the full message goes to the log, and the answer carries the
+// part fit to show.
+function failedList(message: string): ListAnswer {
+  console.error("[nuabase] list call failed:", message);
+  return { ok: false, error: reportedError(message) };
+}
+
+const MAX_REPORTED_ERROR_LENGTH = 300;
+
+/**
+ * Pure: a failure message short enough to show on a screen. An HTML error
+ * page (a gateway's 500) is reduced to its title, whitespace is collapsed,
+ * and anything past 300 characters is cut.
+ */
+export function reportedError(message: string): string {
+  const title = /<title>([^<]*)<\/title>/i.exec(message)?.[1];
+  const text = (title ?? message).replace(/\s+/g, " ").trim();
+  return text.length > MAX_REPORTED_ERROR_LENGTH
+    ? `${text.slice(0, MAX_REPORTED_ERROR_LENGTH - 1)}…`
+    : text;
 }
 
 function unexpectedShape(error: z.ZodError): string {
