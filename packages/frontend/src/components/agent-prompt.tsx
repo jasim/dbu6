@@ -10,8 +10,9 @@ import { Button } from "./ui/button";
 
 /**
  * The one panel for every prompt the app hands to the user's coding agent
- * (Import, freeform import, Review). It is violet, and nothing else in the
- * app is, so an AI-assisted prompt is recognisable before it is read.
+ * (freeform import, Review; Import's problems take its buttons alone,
+ * `AgentActions`). It is violet, and nothing else in the app is, so an
+ * AI-assisted prompt is recognisable before it is read.
  *
  * It gives the user as little to read as it can: the `title`, and buttons
  * that say what they do. `afterwards` is for once the agent has the prompt,
@@ -38,6 +39,44 @@ export function AgentPrompt({
   /** What the user does once the agent has the prompt. */
   afterwards?: ReactNode;
 }) {
+  return (
+    <section className="rounded-card border border-assist-border bg-assist-bg px-5 py-[18px] sm:px-6">
+      <p className="flex items-center gap-1.5 text-label uppercase text-assist-ink">
+        <Sparkles aria-hidden="true" className="size-[15px]" />
+        AI assisted
+      </p>
+      <h3 className="mt-1.5 text-subheading text-foreground [overflow-wrap:anywhere]">
+        {title}
+      </h3>
+      <div className="mt-3">
+        <AgentActions prompt={prompt} afterwards={afterwards} />
+      </div>
+      <div className="mt-2">
+        <Disclosure tone="assist" summary="Preview the prompt">
+          <PromptText prompt={prompt} />
+        </Disclosure>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The panel's buttons and what follows them. `standalone`, they stand
+ * without the panel, where the text around them already says what the prompt
+ * is for and a violet box would be one box too many: the violet button takes
+ * the panel's sparkle, and Copy prompt goes quiet beside it. The prompt
+ * itself is then shown elsewhere, with `PromptText`.
+ */
+export function AgentActions({
+  prompt,
+  afterwards,
+  standalone = false,
+}: {
+  prompt: string;
+  /** What the user does once the agent has the prompt. */
+  afterwards?: ReactNode;
+  standalone?: boolean;
+}) {
   const availability = useQuery(agentHandoffAvailabilityQuery).data;
   // The button shows only where the server can start an agent; copying is
   // offered everywhere, and on its own is the whole of the panel's advice.
@@ -54,15 +93,8 @@ export function AgentPrompt({
   const acted = copied === text || (asked && handoff.isSuccess);
 
   return (
-    <section className="rounded-card border border-assist-border bg-assist-bg px-5 py-[18px] sm:px-6">
-      <p className="flex items-center gap-1.5 text-label uppercase text-assist-ink">
-        <Sparkles aria-hidden="true" className="size-[15px]" />
-        AI assisted
-      </p>
-      <h3 className="mt-1.5 text-subheading text-foreground [overflow-wrap:anywhere]">
-        {title}
-      </h3>
-      <div className="mt-3 flex flex-wrap items-center gap-2.5">
+    <div>
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
         {handsOff && (
           <Button
             type="button"
@@ -71,13 +103,20 @@ export function AgentPrompt({
             disabled={handoff.isPending}
             onClick={() => handoff.mutate(text)}
           >
-            <SquareTerminal />
+            {standalone ? <Sparkles /> : <SquareTerminal />}
             {availability.mode === "terminal"
               ? `Open in ${CODING_AGENTS[availability.agent].label}`
               : `Command for ${CODING_AGENTS[availability.agent].label}`}
           </Button>
         )}
-        <CopyButton text={text} label="Copy prompt" onCopied={setCopied} />
+        <CopyButton
+          text={text}
+          label="Copy prompt"
+          // Beside the violet button, copying is the lesser way; alone, it
+          // keeps its outline.
+          quiet={standalone && handsOff}
+          onCopied={setCopied}
+        />
       </div>
       {!handsOff && (
         <p className="mt-2 text-meta text-ink-meta">
@@ -95,14 +134,16 @@ export function AgentPrompt({
           <div className="mt-3 text-body text-ink-soft">{afterwards}</div>
         )}
       </div>
-      <div className="mt-2">
-        <Disclosure tone="assist" summary="Preview the prompt">
-          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control border border-assist-border bg-card p-3 font-mono text-meta">
-            {text}
-          </pre>
-        </Disclosure>
-      </div>
-    </section>
+    </div>
+  );
+}
+
+/** The prompt as the agent gets it, with the plan-first rule on top. */
+export function PromptText({ prompt }: { prompt: string }) {
+  return (
+    <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control border border-assist-border bg-card p-3 font-mono text-meta">
+      {planFirst(prompt)}
+    </pre>
   );
 }
 
@@ -148,10 +189,13 @@ function Command({ command }: { command: string }) {
 function CopyButton({
   text,
   label,
+  quiet = false,
   onCopied,
 }: {
   text: string;
   label: string;
+  /** A link-like button in the panel's violet, instead of an outline. */
+  quiet?: boolean;
   onCopied?: (text: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -163,8 +207,9 @@ function CopyButton({
   return (
     <Button
       type="button"
-      variant="outline"
+      variant={quiet ? "ghost" : "outline"}
       size="sm"
+      className={quiet ? "text-assist-ink" : undefined}
       onClick={() => {
         void navigator.clipboard.writeText(text).then(() => {
           setCopied(true);

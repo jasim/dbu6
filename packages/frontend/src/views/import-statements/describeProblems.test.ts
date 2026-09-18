@@ -5,13 +5,22 @@ import type {
   StatementImportError,
   StatementImportErrorCode,
 } from "dbu6-shared";
-import { describeBatch, describeFileStatus } from "./describeBatch";
+import {
+  describeBatch,
+  describeFileStatus,
+  describeStatement,
+} from "./describeBatch";
 import {
   describeProblems,
   FREEFORM_IMPORT_ROUTE,
+  placeProblems,
   problemTone,
 } from "./describeProblems";
-import { readImportResponse, type ImportFailure } from "./outcome";
+import {
+  plannedFiles,
+  readImportResponse,
+  type ImportFailure,
+} from "./outcome";
 
 const BANK_PARSER = "custom-built-parsers/hdfc-bank-xls/parser.py";
 
@@ -99,26 +108,24 @@ describe("plan rejections", () => {
     const [problem] = describeProblems(error);
     expect(describeProblems(error)).toHaveLength(1);
     expect(problem.subject).toBe("notes.txt");
-    expect(problem.caption).toBeNull();
-    expect(problem.verdict).toBe("The app can't read this file yet.");
+    expect(problem.title).toBe("Statement format is new and unrecognized");
+    expect(problem.fix).toBe("Create a parser for this format.");
+    expect(problem.context).toContain(
+      "We do not have a parser for this specific format.",
+    );
     expect(problem.facts).toEqual([
       {
-        label: "Readers tried",
+        label: "Parsers tried",
         value: "none fit this file type",
         face: "words",
       },
     ]);
-    expect(problem.why).toContain("none matches this file");
     expect(problem.tone).toBe("attention");
+    // Removing the file is the × on the row the problem sits under.
     expect(problem.actions).toEqual([
       {
-        kind: "remove-files",
-        label: "Remove this file and import the rest",
-        fileNames: ["notes.txt"],
-      },
-      {
         kind: "link",
-        label: "Import them freeform instead",
+        label: "Import freeform instead",
         to: FREEFORM_IMPORT_ROUTE,
       },
     ]);
@@ -139,8 +146,8 @@ describe("plan rejections", () => {
 
     expect(describeBatch({ kind: "failed", failure: error })).toEqual({
       tone: "attention",
-      text: "Nothing was imported. 1 of 2 files needs attention below.",
-      next: "There is likely no matching parser for this statement format",
+      text: "Nothing was imported. 1 of 2 files needs a fix.",
+      next: null,
     });
     expect(
       describeFileStatus(resolvedRow, {
@@ -156,7 +163,8 @@ describe("plan rejections", () => {
         importedFiles: new Set(),
         failed: null,
       }),
-    ).toEqual({ tone: "attention", text: "Not recognised, see below" });
+    ).toEqual({ tone: "attention", text: "Format not recognized" });
+    expect(describeStatement(unrecognized)).toBeNull();
   });
 
   it("names the readers that were tried", () => {
@@ -176,7 +184,7 @@ describe("plan rejections", () => {
     );
     const [problem] = describeProblems(error);
     expect(problem.facts).toEqual([
-      { label: "Readers tried", value: "hdfc-cc-csv, stanc-bank-csv" },
+      { label: "Parsers tried", value: "hdfc-cc-csv, stanc-bank-csv" },
     ]);
     expect(problem.agent?.prompt).toContain(
       "custom-built-parsers/hdfc-cc-csv/parser.py",
@@ -203,20 +211,49 @@ describe("plan rejections", () => {
     );
     const [problem] = describeProblems(error);
     expect(problem.subject).toBe("HDFC Bank Cards Division");
-    expect(problem.caption).toBe("card-aug.xls · card ending 0505");
-    expect(problem.verdict).toBe(
-      "No account is set up to receive this statement.",
+    expect(problem.title).toBe("No account set up for this statement");
+    expect(problem.fix).toBe("Set up the account for these transactions.");
+    expect(problem.context).toContain(
+      "You only need to set this up once per account.",
     );
-    expect(problem.facts).toEqual([
-      { label: "Statement is for", value: "card ending 0505" },
-      { label: "Reader", value: "hdfc-cc-xls" },
-    ]);
+    expect(problem.facts).toEqual([{ label: "Parser", value: "hdfc-cc-xls" }]);
+    // The file's row, which the problem sits under, says what it was read as.
+    const [row] = plannedFiles({ kind: "failed", failure: error });
+    expect(describeStatement(row)).toBe(
+      "HDFC Bank Cards Division statement, card ending 0505",
+    );
     expect(problem.agent?.prompt).toContain(
       "statement_account_identifier to 050505XXXXXX0505",
     );
     expect(problem.agent?.prompt).toContain(
       `-F "files=@${staged("card-aug.xls")}"`,
     );
+  });
+
+  it("says only that nothing was imported when the one file dropped is the problem", () => {
+    const error = refused(
+      422,
+      planRejection([
+        {
+          status: "unresolved",
+          file_name: "bank-aug.xls",
+          saved_path: staged("bank-aug.xls"),
+          parser_path: BANK_PARSER,
+          account: { kind: "bank", identifier: "05050505050505" },
+          institution: "HDFC BANK Ltd.",
+          reason: "no_preset_for_parser",
+          message: `No import preset uses ${BANK_PARSER}, which parsed bank-aug.xls.`,
+          candidate_preset_names: [],
+        },
+      ]),
+    );
+    expect(describeBatch({ kind: "failed", failure: error })).toEqual({
+      tone: "attention",
+      text: "Nothing was imported.",
+      next: null,
+    });
+    const [problem] = describeProblems(error);
+    expect(problem.actions).toEqual([]);
   });
 
   it("tells a mismatched account apart from a mistaken drop", () => {
@@ -239,19 +276,15 @@ describe("plan rejections", () => {
     );
     const [problem] = describeProblems(error);
     expect(problem.subject).toBe("HDFC BANK Ltd.");
-    expect(problem.caption).toBe("other.xls · account ending 0099");
-    expect(problem.verdict).toBe(
-      "This statement is for a different account than the one set up.",
-    );
+    expect(problem.title).toBe("Statement is for a different account");
+    expect(problem.fix).toBe("Set up this account, or remove the file.");
     expect(problem.facts).toEqual([
-      { label: "Statement is for", value: "account ending 0099" },
       {
         label: "Set up for these statements",
         value: "Sample Bank",
         face: "words",
       },
     ]);
-    expect(problem.actions[0]).toMatchObject({ kind: "remove-files" });
     expect(problem.agent?.prompt).toContain("050505000099");
   });
 });
@@ -279,16 +312,18 @@ describe("account import failures", () => {
     });
     const [problem] = describeProblems(error);
     expect(problem.subject).toBe("Sample Bank");
-    expect(problem.caption).toBe("bank-aug.xls");
-    expect(problem.verdict).toBe(
-      "The transactions don't add up to the closing balance the statement prints.",
+    expect(problem.title).toBe(
+      "Transactions don't add up to the closing balance",
     );
+    expect(problem.fix).toBe("Find the misread row.");
     expect(problem.facts).toEqual([
       { label: "Opening plus every transaction", value: "₹2,400.00" },
       { label: "Closing the statement prints", value: "₹2,500.00" },
       { label: "Difference", value: "₹100.00" },
     ]);
-    expect(problem.why).toContain("one row was read wrongly");
+    // The difference reads in the context too, without opening Details.
+    expect(problem.context).toContain("The transactions end ₹100.00 away");
+    expect(problem.context).toContain("the parser misread one row");
     expect(problem.agent?.prompt).toContain(
       "into Sample Bank (assets:bank:sample)",
     );
@@ -306,16 +341,20 @@ describe("account import failures", () => {
     expect(problem.tone).toBe("problem");
     expect(describeBatch({ kind: "failed", failure: error })).toMatchObject({
       tone: "problem",
-      text: "Nothing was imported. Sample Bank failed, see below.",
+      text: "Nothing was imported.",
     });
     expect(
       describeFileStatus(resolvedRow, {
         importedFiles: new Set(),
-        failed: { files: new Set(["bank-aug.xls"]), tone: problem.tone },
+        failed: {
+          files: new Set(["bank-aug.xls"]),
+          tone: problem.tone,
+          host: null,
+        },
       }),
     ).toEqual({
       tone: "problem",
-      text: "HDFC BANK Ltd. statement, account ending 0505 → Sample Bank · Not imported, see below",
+      text: "HDFC BANK Ltd. statement, account ending 0505 → Sample Bank · Not imported",
     });
   });
 
@@ -328,8 +367,10 @@ describe("account import failures", () => {
         failed_group: failedGroup,
       }),
     );
-    expect(problem.why).toContain("there is a gap");
-    expect(problem.steps).toHaveLength(1);
+    expect(problem.fix).toBe("Add the missing statement.");
+    expect(problem.context).toContain(
+      "some days between the statements are missing",
+    );
   });
 
   it("offers to remove a duplicate upload without an agent", () => {
@@ -350,18 +391,58 @@ describe("account import failures", () => {
       },
     });
     const [problem] = describeProblems(error);
-    expect(problem.verdict).toBe(
-      "bank-aug-copy.xls looks like the same statement as bank-aug.xls.",
+    expect(problem.title).toBe("Same statement uploaded twice");
+    expect(problem.fix).toBe("Remove the duplicate.");
+    expect(problem.context).toBe(
+      "bank-aug-copy.xls covers the same dates and balances as bank-aug.xls, so one of them is a duplicate download.",
     );
     expect(problem.facts).toEqual([]);
     expect(problem.agent).toBeNull();
     expect(problem.actions).toEqual([
       {
         kind: "remove-files",
-        label: "Remove bank-aug-copy.xls and import again",
+        label: "Remove bank-aug-copy.xls",
         fileNames: ["bank-aug-copy.xls"],
       },
     ]);
+  });
+
+  it("puts a problem under the last of its files in the list, and points its other files there", () => {
+    const [problem] = describeProblems(
+      refused(422, {
+        ...PAYLOADS.balance_mismatch,
+        files: [resolvedRow],
+        failed_group: {
+          ...failedGroup,
+          file_names: ["bank-aug.xls", "bank-aug-copy.xls"],
+        },
+      }),
+    );
+    const placed = placeProblems(
+      [problem],
+      ["bank-aug-copy.xls", "notes.txt", "bank-aug.xls"],
+    );
+    expect([...placed.under.keys()]).toEqual(["bank-aug.xls"]);
+    expect(placed.apart).toEqual([]);
+    expect(
+      describeFileStatus(
+        { ...resolvedRow, file_name: "bank-aug-copy.xls" },
+        {
+          importedFiles: new Set(),
+          failed: {
+            files: new Set(problem.fileNames),
+            tone: problem.tone,
+            host: "bank-aug.xls",
+          },
+        },
+      ).text,
+    ).toBe(
+      "HDFC BANK Ltd. statement, account ending 0505 → Sample Bank · Not imported, see bank-aug.xls",
+    );
+
+    // A problem none of whose files is in the list stands apart.
+    const [lost] = describeProblems({ kind: "network", message: "offline" });
+    expect(placeProblems([lost], ["bank-aug.xls"]).apart).toEqual([lost]);
   });
 
   it("describes a gap between statements and lets the user import the earlier one alone", () => {
@@ -381,9 +462,10 @@ describe("account import failures", () => {
       },
     });
     const [problem] = describeProblems(error);
-    expect(problem.verdict).toBe(
-      "There is a gap between bank-jul.xls and bank-sep.xls.",
+    expect(problem.title).toBe(
+      "Statements missing between bank-jul.xls and bank-sep.xls",
     );
+    expect(problem.fix).toBe("Add the statement for the missing period.");
     expect(problem.facts).toEqual([
       { label: "bank-jul.xls ends at", value: "₹2,500.00" },
       { label: "bank-sep.xls begins at", value: "₹4,000.00" },
@@ -392,7 +474,7 @@ describe("account import failures", () => {
     expect(problem.actions).toEqual([
       {
         kind: "keep-only-files",
-        label: "Import bank-jul.xls on its own",
+        label: "Keep only bank-jul.xls",
         fileNames: ["bank-jul.xls"],
       },
     ]);
@@ -410,13 +492,11 @@ describe("account import failures", () => {
       failed_group: failedGroup,
     });
     const [problem] = describeProblems(error);
-    expect(problem.verdict).toBe(
-      "The statement doesn't line up with your books.",
+    expect(problem.title).toBe("Statement doesn't match your books");
+    // It reads whole without Details: the balance and day are in it.
+    expect(problem.context).toContain(
+      "Your books were last confirmed at ₹2,500.00 on 31 Aug 2026",
     );
-    expect(problem.facts).toEqual([
-      { label: "Books last confirmed on", value: "31 Aug 2026" },
-      { label: "Confirmed balance", value: "₹2,500.00" },
-    ]);
     expect(problem.agent?.prompt).toContain(
       "balance assertion for assets:bank:sample",
     );
@@ -438,15 +518,13 @@ describe("account import failures", () => {
     });
     expect(describeBatch({ kind: "failed", failure: error })).toEqual({
       tone: "attention",
-      text: "Sample Bank was imported. Sample Card failed, see below.",
-      next: "bank-aug.xls has been taken out of the list above. Fix the problem below and import the rest.",
+      text: "Sample Bank was imported. Sample Card wasn't.",
+      next: "bank-aug.xls is done and off the list, so importing again sends only the rest.",
     });
     const [problem] = describeProblems(error);
     expect(problem.subject).toBe("Sample Card");
-    expect(problem.caption).toBe("card-aug.xls");
-    expect(problem.verdict).toBe(
-      "The app needs the closing balance for this card.",
-    );
+    expect(problem.fileNames).toEqual(["card-aug.xls"]);
+    expect(problem.title).toBe("Card's amount owed not found");
     expect(problem.actions).toEqual([]);
     expect(problem.agent?.prompt).toContain("emit it as `closing`");
   });
@@ -460,10 +538,8 @@ describe("account import failures", () => {
       }),
     );
     expect(problem.subject).toBe("Sample Bank");
-    expect(problem.verdict).toBe(
-      "The import stopped with an unexpected error.",
-    );
-    expect(problem.why).toBe(PAYLOADS.ambiguous_duplicate.message);
+    expect(problem.title).toBe("Import stopped with an unexpected error");
+    expect(problem.context).toContain(PAYLOADS.ambiguous_duplicate.message);
     expect(problem.agent?.prompt).toContain('"error": "ambiguous_duplicate"');
   });
 
@@ -476,9 +552,7 @@ describe("account import failures", () => {
     });
     expect(error.kind).toBe("unexpected");
     const [problem] = describeProblems(error);
-    expect(problem.verdict).toBe(
-      "The import stopped with an unexpected error.",
-    );
+    expect(problem.title).toBe("Unexpected reply from the server");
     expect(problem.agent).toBeNull();
     expect(problem.technical).toContain('"error": "something_new"');
     expect(describeBatch({ kind: "failed", failure: error }).text).toBe(
@@ -488,14 +562,14 @@ describe("account import failures", () => {
 
   it("explains a lost connection and a missing permission without an agent", () => {
     expect(
-      describeProblems(refused(403, { error: "Forbidden" }))[0].verdict,
-    ).toBe("You don't have permission to import.");
+      describeProblems(refused(403, { error: "Forbidden" }))[0].title,
+    ).toBe("No permission to import");
     const [problem] = describeProblems({
       kind: "network",
       message: "Failed to fetch",
     });
     expect(problem.subject).toBe("Connection");
-    expect(problem.verdict).toBe("The files could not be sent.");
+    expect(problem.title).toBe("Files couldn't be sent");
     expect(problem.agent).toBeNull();
   });
 });
@@ -628,7 +702,7 @@ describe("problem tones", () => {
         },
       }),
     );
-    expect(problem.why).toContain("one row was read wrongly");
+    expect(problem.context).toContain("the parser misread one row");
     expect(problem.agent?.prompt).toContain("error balance_mismatch.");
   });
 });

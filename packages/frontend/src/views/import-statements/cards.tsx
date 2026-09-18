@@ -1,8 +1,8 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { AutoImportGroupResult, AutoImportPlanFile } from "dbu6-shared";
 import { cn } from "@sapporta/ui/cn";
-import { AgentPrompt } from "../../components/agent-prompt";
+import { AgentActions, PromptText } from "../../components/agent-prompt";
 import { Disclosure } from "../../components/disclosure";
 import { Button } from "../../components/ui/button";
 import {
@@ -10,20 +10,23 @@ import {
   statusTextClass,
   type StatusTone,
 } from "../../components/status-chip";
+import { joinNames } from "../../format";
 import { describeGroup, type Stat } from "./describeGroup";
 import type { Problem, ProblemAction } from "./describeProblems";
 
-// The glyph that says a status line's tone in shape as well as colour.
+// The glyph that marks a done line in shape as well as colour. A problem
+// needs no mark: its words say it, and a "!" in running text only shouts.
 const GLYPH: Record<StatusTone, string | null> = {
   ok: "✓",
-  attention: "!",
-  problem: "!",
+  attention: null,
+  problem: null,
   waiting: null,
 };
 
 /**
- * A status set in words, in its tone, with the tone's glyph first. A
- * `className` colour recolours the words and leaves the glyph in its tone.
+ * A status set in words, in its tone, with the tone's glyph first when it
+ * has one. A `className` colour recolours the words and leaves the glyph in
+ * its tone.
  */
 export function OutcomeLine({
   tone,
@@ -191,10 +194,112 @@ function ResultRow({
   );
 }
 
-// One thing that stopped the import: whose statement, what went wrong, the
-// numbers behind it, the likely cause, what the user can do, and the prompt
-// for their coding agent.
-export function ProblemCard({
+/**
+ * One thing that stopped the import, under the file it concerns: what's
+ * wrong, what to do, why, and the fix. The numbers behind it, the prompt
+ * and the server's words fold under Details, for whoever wants them. The
+ * file row above is its header, so it says nothing of the file itself.
+ */
+export function ProblemDetail({
+  problem,
+  onAction,
+}: {
+  problem: Problem;
+  onAction: (action: ProblemAction) => void;
+}) {
+  // With an agent to hand the fix to, the app's own actions are the lesser
+  // ways out, beside Details; without one, they are the fix.
+  const { agent } = problem;
+  const fixes = agent ? [] : problem.actions;
+  const asides = agent ? problem.actions : [];
+  const details =
+    problem.facts.length > 0 || agent !== null || problem.technical !== null;
+  return (
+    <div>
+      {problem.fileNames.length > 1 && (
+        <p className="mb-1 text-meta text-ink-meta [overflow-wrap:anywhere]">
+          {problem.subject} · {joinNames(problem.fileNames)}
+        </p>
+      )}
+      <h3 className="text-subheading text-foreground [overflow-wrap:anywhere]">
+        {problem.title}
+      </h3>
+      {problem.fix && (
+        <p className="mt-3 text-body font-medium text-foreground [overflow-wrap:anywhere]">
+          {problem.fix}
+        </p>
+      )}
+      {problem.context && (
+        <p
+          className={cn(
+            "text-body text-ink-soft [overflow-wrap:anywhere]",
+            problem.fix ? "mt-1" : "mt-3",
+          )}
+        >
+          {problem.context}
+        </p>
+      )}
+      {agent ? (
+        <div className="mt-4">
+          <AgentActions
+            standalone
+            prompt={agent.prompt}
+            afterwards={agent.afterwards}
+          />
+        </div>
+      ) : (
+        fixes.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2.5">
+            {fixes.map((action) => (
+              <ActionButton
+                key={action.label}
+                action={action}
+                variant="outline"
+                onAction={onAction}
+              />
+            ))}
+          </div>
+        )
+      )}
+      {details ? (
+        <div className="mt-2">
+          <Disclosure
+            summary="Details"
+            aside={
+              asides.length > 0 ? (
+                <div className="flex flex-wrap gap-x-3">
+                  {asides.map((action) => (
+                    <ActionButton
+                      key={action.label}
+                      action={action}
+                      variant="ghost"
+                      onAction={onAction}
+                    />
+                  ))}
+                </div>
+              ) : undefined
+            }
+          >
+            <DetailList rows={problem.facts} technical={problem.technical} />
+            {agent && (
+              <Disclosure tone="assist" summary="Show the prompt">
+                <PromptText prompt={agent.prompt} />
+              </Disclosure>
+            )}
+          </Disclosure>
+        </div>
+      ) : (
+        <div className="pb-3" />
+      )}
+    </div>
+  );
+}
+
+/**
+ * A problem that concerns no file in the list, such as a lost connection:
+ * the same body, under a muted header naming what it's about.
+ */
+export function ProblemApart({
   problem,
   onAction,
 }: {
@@ -202,78 +307,80 @@ export function ProblemCard({
   onAction: (action: ProblemAction) => void;
 }) {
   return (
-    <section
-      className={cn(
-        "rounded-card border bg-card px-5 pb-3 pt-5 shadow-card sm:px-6",
-        problem.tone === "problem"
-          ? "border-destructive/40"
-          : "border-attention-border",
-      )}
-    >
-      <Subject
-        title={problem.subject}
-        caption={problem.caption}
-        status={<StatusChip tone={problem.tone}>Not imported</StatusChip>}
-      />
-      <p className="mt-4 text-subheading text-foreground [overflow-wrap:anywhere]">
-        {problem.verdict}
+    <section className="overflow-hidden rounded-card border border-sap-border bg-card">
+      <p className="bg-tile-bg px-4 py-3 text-[16.5px] font-semibold text-foreground sm:px-5">
+        {problem.subject}
       </p>
-      {problem.facts.length > 0 && (
-        <div className="mt-4">
-          <FactTable rows={problem.facts} />
-        </div>
-      )}
-      <div className="mt-4 space-y-2 text-body text-ink-soft [overflow-wrap:anywhere]">
-        <p>{problem.why}</p>
-        {problem.steps.map((step) => (
-          <p key={step}>{step}</p>
-        ))}
-      </div>
-      {problem.actions.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2.5">
-          {problem.actions.map((action) =>
-            action.kind === "link" ? (
-              <Button
-                key={action.label}
-                render={<Link to={action.to} />}
-                nativeButton={false}
-                variant="outline"
-                size="sm"
-              >
-                {action.label}
-              </Button>
-            ) : (
-              <Button
-                key={action.label}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onAction(action)}
-              >
-                {action.label}
-              </Button>
-            ),
-          )}
-        </div>
-      )}
-      {problem.agent && (
-        <div className="mt-4">
-          <AgentPrompt
-            title={problem.agent.title}
-            prompt={problem.agent.prompt}
-            afterwards={problem.agent.afterwards}
-          />
-        </div>
-      )}
-      <div className="mt-3">
-        {problem.technical && (
-          <Disclosure summary="Technical details">
-            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-control bg-muted p-3 font-mono text-meta">
-              {problem.technical}
-            </pre>
-          </Disclosure>
-        )}
+      <div className="px-4 pb-1 pt-4 sm:px-5">
+        <ProblemDetail problem={problem} onAction={onAction} />
       </div>
     </section>
+  );
+}
+
+function ActionButton({
+  action,
+  variant,
+  onAction,
+}: {
+  action: ProblemAction;
+  variant: "outline" | "ghost";
+  onAction: (action: ProblemAction) => void;
+}) {
+  return action.kind === "link" ? (
+    <Button
+      render={<Link to={action.to} />}
+      nativeButton={false}
+      variant={variant}
+      size="sm"
+    >
+      {action.label}
+    </Button>
+  ) : (
+    <Button
+      type="button"
+      variant={variant}
+      size="sm"
+      onClick={() => onAction(action)}
+    >
+      {action.label}
+    </Button>
+  );
+}
+
+// Label and value side by side, without a box: they sit under Details, where
+// the card's border is enough. The server's words come last, as it sent them.
+function DetailList({
+  rows,
+  technical,
+}: {
+  rows: Stat[];
+  technical: string | null;
+}) {
+  if (rows.length === 0 && technical === null) return null;
+  return (
+    <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-row sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-y-2">
+      {rows.map((row) => (
+        <Fragment key={row.label}>
+          <dt className="text-ink-meta">{row.label}</dt>
+          <dd
+            className={cn(
+              "mb-1.5 min-w-0 text-foreground [overflow-wrap:anywhere] sm:mb-0",
+              row.face !== "words" && "tnum font-mono",
+            )}
+          >
+            {row.value}
+          </dd>
+        </Fragment>
+      ))}
+      {technical !== null && (
+        <>
+          <dt className="text-ink-meta">Server</dt>
+          <dd className="min-w-0 whitespace-pre-wrap font-mono text-meta text-ink-soft [overflow-wrap:anywhere]">
+            {technical}
+          </dd>
+        </>
+      )}
+    </dl>
   );
 }

@@ -99,13 +99,16 @@ export function Dropzone({
   );
 }
 
-// The file type in a small tile. A dashed tile stands for a file not chosen.
+// The file type in a small tile. A dashed tile stands for a file not chosen;
+// on a flagged row's grey, the tile turns white.
 function TypeTile({
   label,
   chosen = true,
+  onGrey = false,
 }: {
   label: string;
   chosen?: boolean;
+  onGrey?: boolean;
 }) {
   return (
     <span
@@ -113,7 +116,7 @@ function TypeTile({
       className={cn(
         "flex size-[38px] shrink-0 items-center justify-center rounded-[10px] font-mono text-[11px] font-semibold",
         chosen
-          ? "bg-tile-bg text-ink-soft"
+          ? cn(onGrey ? "bg-card" : "bg-tile-bg", "text-ink-soft")
           : "border border-dashed border-waiting-marker bg-waiting-bg text-ink-meta",
       )}
     >
@@ -148,51 +151,65 @@ function RemoveButton({
 
 const ROW = "flex items-center gap-3.5 px-4 py-3 sm:gap-[18px] sm:px-5";
 
-/** A chosen file: its type, name and size, and what became of it. */
+/**
+ * A chosen file: its type, name and size, and what became of it. A file with
+ * a problem is `flagged`: its row turns into a muted header, and the problem
+ * (`children`) sits under it.
+ */
 export function FileRow({
   file,
   status,
   note,
+  flagged = false,
   disabled,
   onRemove,
+  children,
 }: {
   file: File;
   /** The outcome line, once the server has looked at the file. */
   status?: FileStatus | null;
   /** A quiet line saying what the file is for, when the list doesn't. */
   note?: ReactNode;
+  flagged?: boolean;
   disabled: boolean;
   /** Absent once the import is done: the list is then a record. */
   onRemove?: () => void;
+  children?: ReactNode;
 }) {
   return (
-    <li className={ROW}>
-      <TypeTile label={fileTypeLabel(file.name)} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-3">
-          <span
-            title={file.name}
-            className="min-w-0 flex-1 truncate text-[16.5px] font-semibold text-foreground"
-          >
-            {file.name}
-          </span>
-          <span className="tnum shrink-0 font-mono text-meta text-ink-meta">
-            {formatFileSize(file.size)}
-          </span>
+    <li>
+      <div className={cn(ROW, flagged && "bg-tile-bg")}>
+        <TypeTile label={fileTypeLabel(file.name)} onGrey={flagged} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-3">
+            <span
+              title={file.name}
+              className="min-w-0 flex-1 truncate text-[16.5px] font-semibold text-foreground"
+            >
+              {file.name}
+            </span>
+            <span className="tnum shrink-0 font-mono text-meta text-ink-meta">
+              {formatFileSize(file.size)}
+            </span>
+          </div>
+          {note && <p className="mt-0.5 text-meta text-ink-meta">{note}</p>}
+          {status && (
+            <OutcomeLine tone={status.tone} className="mt-0.5 text-meta">
+              {status.text}
+            </OutcomeLine>
+          )}
         </div>
-        {note && <p className="mt-0.5 text-meta text-ink-meta">{note}</p>}
-        {status && (
-          <OutcomeLine tone={status.tone} className="mt-0.5 text-meta">
-            {status.text}
-          </OutcomeLine>
+        {onRemove && (
+          <RemoveButton
+            fileName={file.name}
+            disabled={disabled}
+            onRemove={onRemove}
+          />
         )}
       </div>
-      {onRemove && (
-        <RemoveButton
-          fileName={file.name}
-          disabled={disabled}
-          onRemove={onRemove}
-        />
+      {/* Aligned with the file name, except on a narrow screen. */}
+      {children && (
+        <div className="px-4 pb-1 pt-4 sm:pl-[76px] sm:pr-5">{children}</div>
       )}
     </li>
   );

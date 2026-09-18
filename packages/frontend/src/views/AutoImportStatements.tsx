@@ -9,18 +9,21 @@ import { plural } from "../format";
 import { REVIEW_ROUTE } from "../review/routes";
 import {
   OutcomeLine,
-  ProblemCard,
+  ProblemApart,
+  ProblemDetail,
   ResultsCard,
 } from "./import-statements/cards";
 import {
   describeBatch,
   describeFileStatus,
+  describeStatement,
   newTransactionCount,
   type BatchSummary,
 } from "./import-statements/describeBatch";
 import {
   describeProblems,
   FREEFORM_IMPORT_ROUTE,
+  placeProblems,
   problemTone,
   type ProblemAction,
 } from "./import-statements/describeProblems";
@@ -127,14 +130,21 @@ export function AutoImportStatements() {
   );
   const groups = outcome ? importedGroups(outcome) : [];
   const importedFiles = new Set(groups.flatMap((group) => group.file_names));
+  // Each problem sits under the last of its files in the list, so the list
+  // is the one place that says what became of every file.
+  const placed = placeProblems(
+    failure ? describeProblems(failure) : [],
+    files.map((file) => file.name),
+  );
   const failed =
     failure?.kind === "account-refused"
       ? {
           files: new Set(failure.refusal.failed_group.file_names),
           tone: problemTone(failure),
+          // The failed account's one problem, for its other files to point to.
+          host: [...placed.under.keys()][0] ?? null,
         }
       : null;
-  const problems = failure ? describeProblems(failure) : [];
 
   return (
     <Screen
@@ -164,12 +174,16 @@ export function AutoImportStatements() {
       )}
 
       <section className="mt-8">
-        {files.length > 0 && (
+        {(files.length > 0 || failure) && (
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-subheading text-foreground">
-              {plural(files.length, "statement")}
-            </h2>
-            {!imported && (
+            {outcome && failure ? (
+              <Summary batch={describeBatch(outcome)} />
+            ) : (
+              <h2 className="text-subheading text-foreground">
+                {plural(files.length, "statement")}
+              </h2>
+            )}
+            {!imported && files.length > 0 && (
               <Button
                 type="button"
                 variant="ghost"
@@ -182,21 +196,37 @@ export function AutoImportStatements() {
             )}
           </div>
         )}
-        <ul className="divide-y divide-line-inner rounded-card border border-sap-border bg-card">
+        <ul className="divide-y divide-line-inner overflow-hidden rounded-card border border-sap-border bg-card">
           {files.map((file) => {
             const row = annotations.get(file.name);
+            const here = placed.under.get(file.name) ?? [];
+            const flagged = here.length > 0;
             return (
               <FileRow
                 key={fileKey(file)}
                 file={file}
+                flagged={flagged}
+                note={flagged && row ? describeStatement(row) : null}
                 status={
-                  row
+                  row && !flagged
                     ? describeFileStatus(row, { importedFiles, failed })
                     : null
                 }
                 disabled={loading}
                 onRemove={imported ? undefined : () => removeFile(file)}
-              />
+              >
+                {flagged && (
+                  <div className="space-y-8">
+                    {here.map((problem) => (
+                      <ProblemDetail
+                        key={problem.key}
+                        problem={problem}
+                        onAction={handleProblemAction}
+                      />
+                    ))}
+                  </div>
+                )}
+              </FileRow>
             );
           })}
           {!imported && (
@@ -208,6 +238,17 @@ export function AutoImportStatements() {
             />
           )}
         </ul>
+        {placed.apart.length > 0 && (
+          <div className="mt-4 space-y-4">
+            {placed.apart.map((problem) => (
+              <ProblemApart
+                key={problem.key}
+                problem={problem}
+                onAction={handleProblemAction}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       <div className="mt-6">
@@ -225,26 +266,20 @@ export function AutoImportStatements() {
         )}
       </div>
 
-      {outcome && (
+      {outcome && imported && (
         <div className="mt-10 space-y-5">
           <Summary batch={describeBatch(outcome)} />
-          {problems.map((problem) => (
-            <ProblemCard
-              key={problem.key}
-              problem={problem}
-              onAction={handleProblemAction}
-            />
-          ))}
           {groups.length > 0 && (
-            <div className="space-y-3">
-              {failure && (
-                <h2 className="text-subheading text-foreground">
-                  Imported before the failure
-                </h2>
-              )}
-              <ResultsCard groups={groups} sources={planned} />
-            </div>
+            <ResultsCard groups={groups} sources={planned} />
           )}
+        </div>
+      )}
+      {failure && groups.length > 0 && (
+        <div className="mt-10 space-y-3">
+          <h2 className="text-subheading text-foreground">
+            Imported before the failure
+          </h2>
+          <ResultsCard groups={groups} sources={planned} />
         </div>
       )}
     </Screen>
@@ -309,12 +344,13 @@ function DoneActions({
   );
 }
 
-// The sentence that says what happened. A problem colours it in its tone;
-// a success or an import with nothing new stays in ink.
+// The sentence that says what happened: over the list when the import
+// stopped, under the button when it went through. A problem colours it in its
+// tone; a success or an import with nothing new stays in ink.
 function Summary({ batch }: { batch: BatchSummary }) {
   const quiet = batch.tone === "ok" || batch.tone === "waiting";
   return (
-    <div role="status" className="space-y-1">
+    <div role="status" className="min-w-0 space-y-1">
       <OutcomeLine
         tone={batch.tone}
         className={cn("text-subheading", quiet && "text-foreground")}
