@@ -80,7 +80,15 @@ export const appProtectedRoutes = (
   <>
     {/* The everyday screens. Until Step 6 rebuilds each one, its route shows
         today's screen, so the sidebar already points where it will. */}
-    <Route path="accounts" element={<TablePage tableName="accounts" />} />
+    <Route
+      path="accounts"
+      element={
+        <TablePage
+          tableName="accounts"
+          gridOptions={{ gridClassName: "accounts-grid" }}
+        />
+      }
+    />
     <Route path="import" element={<AutoImportStatements />} />
     <Route path="review" element={<ReviewAccounts />} />
     <Route path="review/:accountId" element={<ReviewAccount />}>
