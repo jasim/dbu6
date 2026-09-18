@@ -107,7 +107,7 @@ they must contain the same port.
 ## Project layout
 
 ```
-packages/api/            backend — boot.ts, app.ts, schema/, app/, bank-importer/, modules/
+packages/api/            backend — schema/, modules/, workflows/, app/ (see Backend layering)
 packages/frontend/       SPA — Vite + React, imports @sapporta/frontend and @sapporta/ui CSS
 packages/shared/         ts-rest contracts + types shared by backend and frontend
 custom-built-parsers/    saved Python parsers for known statement layouts
@@ -116,20 +116,45 @@ data/                    gitignored — the SQLite database and user config
 scripts/                 dev runner, first-run setup, sample data, dist cleanup
 ```
 
-Inside `packages/api`:
+### Backend layering
 
-- `app/` — ts-rest route handlers: statement import, draft categorization,
-  posting drafts, hledger rendering, and `app/reports/` for each report.
-- `bank-importer/` — the import pipeline. `statement-recognition.ts` runs the
-  saved parsers under `custom-built-parsers/` to turn uploads into Abacus
-  statements (`parsers/` holds their tests), `abacus/` assembles statements and
-  reconciles running balances, `statement-import.ts` validates one account's
-  statement and hands the new rows to the drafts tail, `categorization/` holds
-  the rule engine and the LLM classifier, and `domain/` holds the value types
-  (Money, Account, Chrono, JournalPlan, and so on).
-- `modules/` — journals (hledger formatting), reconciliation (duplicate
-  detection, running balances, transaction identity), draft-transactions.
-- `schema/` — Drizzle tables for accounts, draft journals, and journals.
+`packages/api` is layered in tiers. A file imports only from its own module, from
+a lower tier, or from a same-tier module it sits above, so each tier can be
+built, tested and understood without anything above it. Lowest first:
+
+| Tier | Where | Modules | Owns | Must not contain |
+| --- | --- | --- | --- | --- |
+| 0 | `schema/`, `user-data.ts`, `modules/ledger-sql/` | schema, user-data, ledger-sql | Tables; config paths; row scoping for raw SQL, built from Sapporta's `rowSecurity`, and the auth type every store takes | Domain queries; a hand-written workspace/user filter |
+| 1 | `modules/values/` | values | Money and its direction, amounts in paise, Account, Chrono, the text normalization transaction identity uses | I/O, statements, ledger tables |
+| 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
+| 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into an account; the Google Pay Takeout index and enrichment; transaction groups, the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan | Database access, coding-agent names, route concepts |
+| 4 | `modules/` | journals < reconciliation < drafts; coding-agent | Posted journals and the last reconciled checkpoint; matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter; draft rows: saving, placing balance assertions, loading, status. The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
+| 5 | `workflows/` | statement-import, posting, reclassification | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
+| 6 | `app/`, `app.ts`, `boot.ts` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting | Queries or rules another module needs |
+
+- Only tier 4 orders its modules (journals < reconciliation < drafts). Tier 3
+  modules never import each other, and neither do workflows: a step two of
+  them need moves down into a module.
+- A module that declares entry files is imported only through them.
+- A route authorizes, calls one workflow (or a module, for a plain read), and
+  translates the result and the errors to HTTP.
+- Tests live with the module they test and follow the same rules.
+- Sapporta's guide puts larger workflows in `packages/api/modules/<domain>/`.
+  dbu6 keeps them in `workflows/`, a tier of their own, on purpose; don't move
+  them into `modules/`.
+
+`packages/api/layering.test.ts` enforces this. Its table says which module
+every file belongs to, so a new file needs a place in it, and the imports that
+break the rules today are listed there with the [PLAN.md](./PLAN.md) task that
+removes them. That list only shrinks.
+
+The backend is being moved into this shape ([PLAN.md](./PLAN.md)). Until it
+is, code also sits in the older folders: `bank-importer/` (the import
+pipeline, categorization, and the value types in `domain/`), `coding-agent/`,
+`modules/journals/`, `modules/reconciliation/`,
+`modules/draft-transactions/`, and the draft queries in `app/draft-status.ts`
+and `app/draft-categorization.ts`. The test's table maps each of them to its
+module.
 
 `packages/shared/` is a workspace package (`dbu6-shared`). Both
 `packages/api/` and `packages/frontend/src/` depend on it; it depends on
@@ -236,7 +261,9 @@ Each endpoint is a trio:
    (which `packages/shared/src/index.ts` barrels through).
 2. **`packages/api/app/foo.ts`** — `api.register("foo", contract.foo, handler)`,
    default-exported. Mount it in `packages/api/app.ts`'s `loadApp()` with
-   `app.route("/", fooApi)`; it's served under `/api`.
+   `app.route("/", fooApi)`; it's served under `/api`. Keep the handler thin:
+   it calls one workflow or module and translates the result to HTTP (see
+   [Backend layering](#backend-layering)).
 3. **`packages/frontend/src/api.ts`** — pass the contract to
    `createApiClient(contract, { baseUrl: getApiBase })`. Frontend code calls
    `fooApi.foo()` and gets a fully typed response or throws `ApiError`.
