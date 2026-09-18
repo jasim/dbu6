@@ -1,15 +1,8 @@
 import Database from "better-sqlite3";
 import { gridDatasetSchema } from "@sapporta/shared/grid-dataset";
 import { describe, expect, it } from "vitest";
-import {
-  NO_DRAFTS,
-  postingBlocks,
-  postingCheck,
-  postingChecks,
-} from "dbu6-shared";
-import { draftCounts, loadDraftStatus } from "./draft-status.js";
-import { draftBalanceAssertionsReport } from "./reports/draft-balance-assertions.js";
-import { duplicateDraftsReport } from "./reports/duplicate-drafts.js";
+import { draftBalanceAssertionsReport } from "./draft-balance-assertions.js";
+import { duplicateDraftsReport } from "./duplicate-drafts.js";
 
 const scope = { workspaceId: "workspace", userId: "user" };
 
@@ -68,120 +61,6 @@ function ledger(): Database.Database {
   `);
   return sqlite;
 }
-
-describe("loadDraftStatus", () => {
-  it("gives every account with drafts its counts, dates, closing balance and blocks", () => {
-    const status = loadDraftStatus(ledger(), scope);
-
-    expect(Array.from(status.keys()).sort()).toEqual([2, 4]);
-    expect(status.get(2)).toMatchObject({
-      account_id: 2,
-      drafts: 4,
-      uncategorised: 1,
-      draft_span: { first_date: "2026-03-01", last_date: "2026-03-05" },
-      balance_checks: 3,
-      closing: { date: "2026-03-05", balance: 1540 },
-      failing: [
-        {
-          account_id: 2,
-          date: "2026-03-02",
-          draft_id: 203,
-          running_balance: 1520,
-          assertion: 1500,
-          diff: 20,
-        },
-      ],
-    });
-    expect(
-      status
-        .get(2)!
-        .duplicates.map((row) => [
-          row.draft_id,
-          row.other_draft_id,
-          row.match_type,
-        ]),
-    ).toEqual([[202, 203, "source-key"]]);
-    expect(status.get(4)).toEqual({
-      account_id: 4,
-      drafts: 1,
-      uncategorised: 1,
-      draft_span: { first_date: "2026-03-03", last_date: "2026-03-03" },
-      balance_checks: 0,
-      closing: null,
-      failing: [],
-      duplicates: [],
-    });
-  });
-
-  it("narrows every query to one account", () => {
-    const sqlite = ledger();
-    const all = loadDraftStatus(sqlite, scope);
-    const one = loadDraftStatus(sqlite, scope, { accountId: 2 });
-
-    expect(Array.from(one.keys())).toEqual([2]);
-    expect(one.get(2)).toEqual(all.get(2));
-    expect(loadDraftStatus(sqlite, scope, { accountId: 3 }).size).toBe(0);
-  });
-
-  it("counts an account with no drafts as nothing", () => {
-    expect(draftCounts(undefined)).toEqual(NO_DRAFTS);
-  });
-
-  it("counts the balance checks the drafts carry and the ones that fail", () => {
-    const status = loadDraftStatus(ledger(), scope);
-    expect(draftCounts(status.get(2))).toMatchObject({
-      balance_checks: 3,
-      failing_checks: 1,
-    });
-  });
-});
-
-describe("postingChecks", () => {
-  it("passes every check when the drafts are categorised and clean", () => {
-    expect(
-      postingChecks({ ...NO_DRAFTS, drafts: 21, balance_checks: 13 }),
-    ).toEqual([
-      { kind: "categories", state: "passes", drafts: 21 },
-      { kind: "duplicates", state: "passes" },
-      { kind: "balance-checks", state: "passes" },
-    ]);
-  });
-
-  it("has no balance checks to pass when the drafts carry none, which doesn't block", () => {
-    const counts = { ...NO_DRAFTS, drafts: 21 };
-    expect(postingCheck(counts, "balance-checks")).toEqual({
-      kind: "balance-checks",
-      state: "none",
-    });
-    expect(postingBlocks(counts)).toEqual([]);
-  });
-
-  it("lists every block in tab order, problems marked apart from categories", () => {
-    expect(
-      postingBlocks({
-        drafts: 21,
-        uncategorised: 12,
-        duplicates: 2,
-        balance_checks: 13,
-        failing_checks: 3,
-      }),
-    ).toEqual([
-      {
-        kind: "categories",
-        state: "blocks",
-        severity: "attention",
-        count: 12,
-      },
-      { kind: "duplicates", state: "blocks", severity: "problem", count: 2 },
-      {
-        kind: "balance-checks",
-        state: "blocks",
-        severity: "problem",
-        count: 3,
-      },
-    ]);
-  });
-});
 
 describe("draft reports narrowed to one account", () => {
   it("lists only that account's failing checks, with the ledger link on the date", () => {

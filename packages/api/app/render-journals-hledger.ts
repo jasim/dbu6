@@ -1,6 +1,6 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import { journalsContract } from "dbu6-shared";
-import { renderVisibleJournalsAsHledger } from "../modules/journals/hledger.js";
+import { renderVisibleJournalsAsHledger } from "../modules/journals/index.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
 const api = new TsRestApi<SapportaEnv>();

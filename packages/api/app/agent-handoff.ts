@@ -3,7 +3,7 @@ import { agentHandoffContract } from "dbu6-shared";
 import {
   agentHandoffAvailability,
   handOffPrompt,
-} from "../coding-agent/handoff.js";
+} from "../modules/coding-agent/index.js";
 import { respondWithHandoffErrors } from "./coding-agent-error-response.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 

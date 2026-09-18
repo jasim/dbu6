@@ -11,10 +11,10 @@ import {
   verifyDeclaredBalances,
 } from "../modules/statement/index.js";
 import { parseAccount } from "../modules/values/index.js";
-import { loadAccountsByName } from "../bank-importer/draft-persistence.js";
+import { loadAccountsByName } from "../modules/accounts/index.js";
 import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import { runStatementImport } from "../bank-importer/statement-import.js";
-import { categorizationLlm } from "../coding-agent/categorization-llm.js";
+import { categorizationLlm } from "../modules/coding-agent/index.js";
 import { respondWithImportErrors } from "./import-error-response.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 

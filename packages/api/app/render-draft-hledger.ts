@@ -5,7 +5,7 @@ import {
   groupByDateAndType,
   hledgerFromGroups,
 } from "../modules/journal-plan/index.js";
-import { loadCategorizedDrafts } from "./draft-categorization.js";
+import { loadCategorizedDrafts } from "../modules/drafts/index.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
 const api = new TsRestApi<SapportaEnv>();

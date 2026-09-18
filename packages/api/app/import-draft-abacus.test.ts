@@ -6,7 +6,7 @@ import type { AbacusImportRequest } from "dbu6-shared";
 // database.
 // The engine would detect this machine's coding agents; the import itself is
 // stubbed, so nothing categorizes here.
-vi.mock("../coding-agent/categorization-llm.js", () => ({
+vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
   categorizationLlm: async () => ({
     agent: null,
     name: "no engine in tests",

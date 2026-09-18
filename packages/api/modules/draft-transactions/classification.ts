@@ -9,7 +9,7 @@ import {
   type CategorizationConfig,
   resolveAccountIdForCategorized,
 } from "../categorization/index.js";
-import { loadAccountsByName } from "../../bank-importer/draft-persistence.js";
+import { loadAccountsByName } from "../accounts/index.js";
 import type { LedgerAuth } from "../ledger-sql/index.js";
 import {
   draftTransactions,

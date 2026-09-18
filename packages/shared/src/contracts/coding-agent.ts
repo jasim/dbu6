@@ -8,7 +8,8 @@ import { initContract } from "@sapporta/rest-core";
  * setting; until the user picks, it is the first one installed.
  *
  * What the screens say about an agent is here; how the server runs one —
- * its models and its session options — is in packages/api/coding-agent/.
+ * its models and its session options — is in
+ * packages/api/modules/coding-agent/.
  */
 
 export const codingAgentSchema = z.enum(["claude-code", "codex"]);

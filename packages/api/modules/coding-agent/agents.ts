@@ -7,7 +7,7 @@ import {
   type AgentModel,
   type CodingAgent,
 } from "dbu6-shared";
-import { userConfigPath } from "../user-data.js";
+import { userConfigPath } from "../../user-data.js";
 import {
   detectAgents,
   type DetectedAgent,

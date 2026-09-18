@@ -11,7 +11,7 @@ import {
   loadAccountStandings,
   type AccountStanding,
 } from "./account-standing.js";
-import { draftCounts } from "./draft-status.js";
+import { draftCounts } from "../modules/drafts/index.js";
 import type { ScopeParams } from "../modules/ledger-sql/index.js";
 import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
 

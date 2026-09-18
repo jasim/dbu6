@@ -99,25 +99,39 @@ const MODULES: readonly Module[] = [
   },
 
   // Tier 4: ledger storage, lowest first, and the coding agent beside it.
-  { name: "journals", tier: 4, files: ["modules/journals/"] },
+  {
+    name: "accounts",
+    tier: 4,
+    files: ["modules/accounts/"],
+    entries: ["modules/accounts/index.ts"],
+  },
+  {
+    name: "journals",
+    tier: 4,
+    files: ["modules/journals/"],
+    above: ["accounts"],
+    entries: ["modules/journals/index.ts"],
+  },
   {
     name: "reconciliation",
     tier: 4,
     files: ["modules/reconciliation/"],
-    above: ["journals"],
+    above: ["accounts", "journals"],
+    entries: ["modules/reconciliation/index.ts"],
   },
   {
     name: "drafts",
     tier: 4,
-    files: [
-      "bank-importer/draft-persistence",
-      "bank-importer/domain/DraftCategorizedTransaction",
-      "app/draft-categorization",
-      "app/draft-status",
-    ],
-    above: ["journals", "reconciliation"],
+    files: ["modules/drafts/"],
+    above: ["accounts", "journals", "reconciliation"],
+    entries: ["modules/drafts/index.ts"],
   },
-  { name: "coding-agent", tier: 4, files: ["coding-agent/"] },
+  {
+    name: "coding-agent",
+    tier: 4,
+    files: ["modules/coding-agent/"],
+    entries: ["modules/coding-agent/index.ts"],
+  },
 
   // Tier 5: domain workflows. They never import each other.
   {
@@ -156,25 +170,7 @@ const MODULES: readonly Module[] = [
 
 // Imports that break the rules today, each removed by the PLAN.md task named.
 const KNOWN_VIOLATIONS: readonly { from: string; to: string; task: string }[] =
-  [
-    // Tests in the wrong module: toDraftRows is tested with the statement,
-    // and the draft reports are tested with draft status.
-    {
-      from: "modules/statement/Abacus.test.ts",
-      to: "bank-importer/draft-persistence.ts",
-      task: "M3",
-    },
-    {
-      from: "app/draft-status.test.ts",
-      to: "app/reports/draft-balance-assertions.ts",
-      task: "M3",
-    },
-    {
-      from: "app/draft-status.test.ts",
-      to: "app/reports/duplicate-drafts.ts",
-      task: "M3",
-    },
-  ];
+  [];
 
 const API_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SKIPPED_DIRECTORIES = new Set(["node_modules", "dist", "migrations"]);

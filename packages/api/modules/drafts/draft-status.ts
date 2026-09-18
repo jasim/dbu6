@@ -12,16 +12,10 @@ import {
   type DuplicateDiagnostic,
   type DuplicateDraftSourceRow,
   type DuplicateJournalEntrySourceRow,
-} from "../modules/reconciliation/duplicate-diagnostics.js";
-import {
   baseAccountRunningBalanceCtes,
   failingDraftAssertionsSelect,
-} from "../modules/reconciliation/running-balance.js";
-import {
-  allRows,
-  type ScopeParams,
-  ledgerCtes,
-} from "../modules/ledger-sql/index.js";
+} from "../reconciliation/index.js";
+import { allRows, type ScopeParams, ledgerCtes } from "../ledger-sql/index.js";
 
 /*
  * What an account's drafts hold (PLAN.md §11 P3). Home, Review, the posting

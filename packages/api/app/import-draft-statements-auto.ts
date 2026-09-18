@@ -24,7 +24,7 @@ import {
   runStatementImport,
   type StatementImportResult,
 } from "../bank-importer/statement-import.js";
-import { categorizationLlm } from "../coding-agent/categorization-llm.js";
+import { categorizationLlm } from "../modules/coding-agent/index.js";
 import { respondWithImportErrors } from "./import-error-response.js";
 import {
   filesFromField,

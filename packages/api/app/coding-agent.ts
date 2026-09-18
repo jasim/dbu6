@@ -4,7 +4,7 @@ import {
   chooseCodingAgent,
   codingAgentSettings,
   recheckCodingAgentModels,
-} from "../coding-agent/settings.js";
+} from "../modules/coding-agent/index.js";
 import { respondWithCodingAgentErrors } from "./coding-agent-error-response.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 

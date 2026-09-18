@@ -8,7 +8,7 @@ import {
   toDraftRows,
   persistDrafts,
   sameAccountSkipSchema,
-} from "./draft-persistence.js";
+} from "../modules/drafts/index.js";
 import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 
 // What an import did, as the contract states it (dbu6-shared). Everything

@@ -28,11 +28,12 @@ import {
   TsRestApi,
   type SapportaEnv,
 } from "@sapporta/server";
-import { loadApp } from "./app.js";
-import { publicApiRoutes } from "./app.js";
+import { loadApp, publicApiRoutes } from "./app.js";
 import { buildAbility } from "./authz/ability.js";
-import { startCodingAgent } from "./coding-agent/models.js";
-import { llmEngineSetting } from "./coding-agent/categorization-llm.js";
+import {
+  startCodingAgent,
+  llmEngineSetting,
+} from "./modules/coding-agent/index.js";
 import { resolveRequestDataAuthority } from "./authz/request-data-authority.js";
 import { createSapportaMailer } from "./mailer.js";
 import { createProjectAuth, readProjectAuthEnv } from "./project-auth/index.js";

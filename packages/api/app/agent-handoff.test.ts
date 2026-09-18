@@ -11,7 +11,7 @@ const { agentHandoffAvailability, handOffPrompt } = vi.hoisted(() => ({
   agentHandoffAvailability: vi.fn(),
   handOffPrompt: vi.fn(),
 }));
-vi.mock("../coding-agent/handoff.js", () => ({
+vi.mock("../modules/coding-agent/handoff.js", () => ({
   agentHandoffAvailability,
   handOffPrompt,
 }));
@@ -19,7 +19,7 @@ vi.mock("../coding-agent/handoff.js", () => ({
 import {
   NoCodingAgentError,
   TerminalOpenFailedError,
-} from "../coding-agent/errors.js";
+} from "../modules/coding-agent/index.js";
 import api from "./agent-handoff.js";
 
 const HANDOFF = {

@@ -1,26 +1,26 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { parseAccount, unsafeAsChrono } from "../modules/values/index.js";
+import { parseAccount, unsafeAsChrono } from "../values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
-import { accounts, accountsTable } from "../schema/accounts.js";
+import { accounts, accountsTable } from "../../schema/accounts.js";
 import {
   draftTransactions,
   draftTransactionsTable,
-} from "../schema/draft-journals.js";
+} from "../../schema/draft-journals.js";
 import {
   journalEntries,
   journalEntriesTable,
   journals,
   journalsTable,
-} from "../schema/journals.js";
+} from "../../schema/journals.js";
 import { persistDrafts, toDraftRows } from "./draft-persistence.js";
 import { createTestAuthContext } from "@sapporta/server/testing";
 import {
   AmbiguousDuplicateError,
   AssertionConflictError,
   type Abacus,
-} from "../modules/statement/index.js";
+} from "../statement/index.js";
 
 const auth = createTestAuthContext({
   tables: [accounts, draftTransactions, journals, journalEntries],

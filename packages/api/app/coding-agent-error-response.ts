@@ -1,4 +1,4 @@
-import { CodingAgentError } from "../coding-agent/errors.js";
+import { CodingAgentError } from "../modules/coding-agent/index.js";
 
 /*
  * A coding-agent operation as a route response: its result on success, and a

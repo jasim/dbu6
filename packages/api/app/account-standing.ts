@@ -1,13 +1,13 @@
 import type Database from "better-sqlite3";
 import type { DatedBalance, ImportPreset } from "dbu6-shared";
 import { accountLabel, type AccountLabel } from "./account-names.js";
-import { loadDraftStatus, type DraftAccountStatus } from "./draft-status.js";
-import { loadLastReconciled } from "./reports/last-reconciled.js";
 import {
-  allRows,
-  type ScopeParams,
-  ledgerCtes,
-} from "../modules/ledger-sql/index.js";
+  loadDraftStatus,
+  type DraftAccountStatus,
+} from "../modules/drafts/index.js";
+import { loadLastReconciled } from "../modules/journals/index.js";
+import type { ScopeParams } from "../modules/ledger-sql/index.js";
+import { loadLedgerAccounts } from "../modules/accounts/index.js";
 
 /*
  * Where each ledger account stands (PLAN.md §11 P1, P3): what the everyday
@@ -16,13 +16,6 @@ import {
  * name, kind and checkpoint read the same on both.
  */
 
-/** An account in scope, as the accounts table holds it. */
-export type LedgerAccount = {
-  id: number;
-  name: string;
-  account_type: string | null;
-};
-
 export interface AccountStanding extends AccountLabel {
   account_id: number;
   path: string;
@@ -30,17 +23,6 @@ export interface AccountStanding extends AccountLabel {
   checkpoint: DatedBalance | null;
   /** What waits in its drafts; undefined when it has none. */
   drafts: DraftAccountStatus | undefined;
-}
-
-export function loadLedgerAccounts(
-  sqlite: Database.Database,
-  scope: ScopeParams,
-): LedgerAccount[] {
-  return allRows<LedgerAccount>(
-    sqlite,
-    `${ledgerCtes} SELECT id, name, account_type FROM scoped_accounts`,
-    scope,
-  );
 }
 
 /** Every account in scope, by id. */

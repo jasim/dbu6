@@ -144,13 +144,13 @@ built, tested and understood without anything above it. Lowest first:
 | 1 | `modules/values/` | values | Money and its direction, amounts in paise, Account, Chrono, the text normalization transaction identity uses | I/O, statements, ledger tables |
 | 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
 | 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into an account; the Google Pay Takeout index and enrichment; transaction groups, the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan | Database access, coding-agent names, route concepts |
-| 4 | `modules/` | journals < reconciliation < drafts; coding-agent | Posted journals and the last reconciled checkpoint; matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter; draft rows: saving, placing balance assertions, loading, status. The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
+| 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent | Accounts as the stores and screens look them up; posted journals and the last reconciled checkpoint; matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter; draft rows: saving, placing balance assertions, loading, status. The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
 | 5 | `workflows/` | statement-import, posting, reclassification | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
 | 6 | `app/`, `app.ts`, `boot.ts` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting | Queries or rules another module needs |
 
-- Only tier 4 orders its modules (journals < reconciliation < drafts). Tier 3
-  modules never import each other, and neither do workflows: a step two of
-  them need moves down into a module.
+- Only tier 4 orders its modules (accounts < journals < reconciliation <
+  drafts). Tier 3 modules never import each other, and neither do workflows: a
+  step two of them need moves down into a module.
 - A module that declares entry files is imported only through them.
 - A route authorizes, calls one workflow (or a module, for a plain read), and
   translates the result and the errors to HTTP.
@@ -164,16 +164,15 @@ every file belongs to, so a new file needs a place in it, and the imports that
 break the rules today are listed there with the [PLAN.md](./PLAN.md) task that
 removes them. That list only shrinks.
 
-The backend is being moved into this shape ([PLAN.md](./PLAN.md)). Tiers 0–3
+The backend is being moved into this shape ([PLAN.md](./PLAN.md)). Tiers 0–4
 are in place, each module in `modules/<name>/` and imported through its
-`index.ts`: `ledger-sql`, `values`, `statement`, and in tier 3
+`index.ts`: `ledger-sql`, `values`, `statement`; in tier 3
 `transaction-identity`, `categorization`, `gpay`, `journal-plan` and
-`statement-sources`. Until the rest is, code also sits in the older folders:
-`bank-importer/` (the statement import, draft persistence, and in `domain/`
-the draft-categorized-transaction type), `coding-agent/`, `modules/journals/`,
-`modules/reconciliation/`, `modules/draft-transactions/`, and the draft
-queries in `app/draft-status.ts` and `app/draft-categorization.ts`. The test's
-table maps each of them to its module.
+`statement-sources`; and in tier 4 `accounts`, `journals`, `reconciliation`,
+`drafts` and `coding-agent`. Until the workflows are, code also sits in the
+older folders: `bank-importer/` (the statement import) and
+`modules/draft-transactions/` (reclassification). The test's table maps each
+of them to its module.
 
 `packages/shared/` is a workspace package (`dbu6-shared`). Both
 `packages/api/` and `packages/frontend/src/` depend on it; it depends on
@@ -208,7 +207,7 @@ by the matching entry in `import-presets.json`.
 `categorization/llm-categorization.ts` is the only LLM call site. It says what
 categorization needs of an LLM (`CategorizationLlm`), sends the descriptions
 the mapping rules didn't categorize, and reports how the calls fared; which
-engine fills that need is `packages/api/coding-agent/`'s business.
+engine fills that need is `packages/api/modules/coding-agent/`'s business.
 
 ### LLM engine
 
@@ -218,7 +217,9 @@ chosen on the **Settings** screen; until then dbu6 uses the first installed,
 Claude Code first. The choice is saved in `data/user-config/settings.json`, and
 the agent's executable must be on the server's `PATH`.
 
-Everything the server does with an agent is in `packages/api/coding-agent/`:
+Everything the server does with an agent is in
+`packages/api/modules/coding-agent/`, which the rest of the backend imports
+through its `index.ts`:
 
 | Module | What it holds |
 | --- | --- |

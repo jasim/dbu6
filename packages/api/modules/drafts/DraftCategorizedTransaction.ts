@@ -1,4 +1,4 @@
-import type { CategorizedTransaction } from "../../modules/categorization/index.js";
+import type { CategorizedTransaction } from "../categorization/index.js";
 
 export interface DraftCategorizedTransaction extends CategorizedTransaction {
   draftId: number;

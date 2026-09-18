@@ -212,8 +212,13 @@ modifiers (Found along the way).
 
 ### M3 — Tier 4 and the coding agent
 
-**Status:** todo. **Depends on:** M2. **Findings:** 3, 4, and the
-co-location half of 5.
+**Status:** done (2026-09-18). Tier 4 is in `modules/accounts/`, `journals/`,
+`reconciliation/`, `drafts/` and `coding-agent/`, each imported through its
+`index.ts`, and `KNOWN_VIOLATIONS` is empty. For M4: the checkpoint lookup is
+in journals, the since-checkpoint filter in `reconciliation/since-checkpoint.ts`,
+and two app tests mock `modules/coding-agent/categorization-llm.js`, which the
+index re-exports.
+**Depends on:** M2. **Findings:** 3, 4, and the co-location half of 5.
 
 - **Decision for the owner, at the go-ahead:** add an `accounts` module at the
   bottom of tier 4 (accounts < journals < reconciliation < drafts) for the
@@ -530,6 +535,9 @@ move most of them.
     `import-statement-parser-guide.md`, `shared/abacus.py` and each parser's
     `fingerprint.md`;
   - `user-config.example/transaction_mappings.mjs`.
+- 2026-09-18, M3: tier 4 gains `accounts` at its bottom (accounts < journals
+  < reconciliation < drafts) for the account lookups, and every tier-4 module
+  declares its `index.ts` as its entry.
 
 ## Found along the way
 
@@ -561,3 +569,11 @@ date and the task.
   `import { type accountKindOf, AccountKind }`. The tool's own merge isn't at
   fault, and it reports the resulting errors, which are quick to fix by hand.
   The tool could rewrite such imports itself.
+- 2026-09-18, M3: `custom-built-parsers/federal-bank-xls/fingerprint.md` and
+  `hdfc-bank-xls/fingerprint.md` name `packages/api/bank-importer/parsers/`
+  `federal-bank.ts` and `hdfc-bank.ts`, which don't exist.
+- 2026-09-18, M3: `--symbols` has two more quirks. The file it creates imports
+  other modules' files directly rather than through their `index.ts` (and
+  `formatPlainDate` from `@sapporta/shared` rather than
+  `@sapporta/shared/temporal`), and a file's leading comment travels with the
+  first declaration moved out of it. Both are quick to fix by hand.

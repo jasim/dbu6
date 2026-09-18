@@ -6,43 +6,25 @@ import {
   parsePlainDate,
 } from "@sapporta/shared/temporal";
 import {
-  type Abacus,
   AmbiguousDuplicateError,
   AssertionConflictError,
-  ReconciliationMatchError,
-} from "../modules/statement/index.js";
-import {
-  type Chrono,
-  chronoConcat,
-  chronoFilter,
-} from "../modules/values/index.js";
+} from "../statement/index.js";
+import type { Chrono } from "../values/index.js";
 import {
   resolveAccountIdForCategorized,
   type CategorizedTransaction,
-} from "../modules/categorization/index.js";
-import { accounts, accountsTable } from "../schema/accounts.js";
+} from "../categorization/index.js";
 import {
   draftTransactions,
   draftTransactionsTable,
-} from "../schema/draft-journals.js";
-import {
-  journalEntries,
-  journalEntriesTable,
-  journals,
-  journalsTable,
-} from "../schema/journals.js";
+} from "../../schema/draft-journals.js";
 import { Temporal as TemporalValue } from "@sapporta/shared/temporal";
-import { findDuplicateCandidates } from "../modules/reconciliation/duplicate-store.js";
-import type { LedgerAuth } from "../modules/ledger-sql/index.js";
-
-export const BALANCE_EPSILON = 0.005;
-
-export interface ReconciledCheckpoint {
-  date: string;
-  balance: number;
-}
-
-export { ReconciliationMatchError } from "../modules/statement/index.js";
+import {
+  findDuplicateCandidates,
+  BALANCE_EPSILON,
+} from "../reconciliation/index.js";
+import type { LedgerAuth } from "../ledger-sql/index.js";
+import { loadAccountsByName } from "../accounts/index.js";
 
 export interface PersistSummary {
   inserted: number;
@@ -98,115 +80,6 @@ function toDraftRow(
     ? { date: t.date, narration: t.narration, account }
     : null;
   return { row, skip };
-}
-
-export function lookupLastReconciled(
-  db: any,
-  accountName: string,
-  auth?: LedgerAuth,
-): ReconciledCheckpoint | null {
-  const accountAccess = auth?.rowSecurity.forTable(accounts);
-  const journalAccess = auth?.rowSecurity.forTable(journals);
-  const entryAccess = auth?.rowSecurity.forTable(journalEntries);
-  const where = and(
-    accountAccess
-      ? accountAccess.ownedRows(eq(accountsTable.name, accountName))
-      : eq(accountsTable.name, accountName),
-    entryAccess
-      ? entryAccess.ownedRows(
-          isNotNull(journalEntriesTable.account_balance_assertion),
-        )
-      : isNotNull(journalEntriesTable.account_balance_assertion),
-    journalAccess ? journalAccess.ownedRows() : undefined,
-  );
-  const assertion = db
-    .select({
-      date: journalsTable.date,
-      assertion: journalEntriesTable.account_balance_assertion,
-    })
-    .from(journalEntriesTable)
-    .innerJoin(
-      journalsTable,
-      eq(journalsTable.id, journalEntriesTable.journal_id),
-    )
-    .innerJoin(
-      accountsTable,
-      eq(accountsTable.id, journalEntriesTable.account_id),
-    )
-    .where(where)
-    .orderBy(desc(journalsTable.date), desc(journalsTable.id))
-    .limit(1)
-    .get();
-  if (assertion?.assertion == null) return null;
-  return {
-    date: formatPlainDate(assertion.date),
-    balance: assertion.assertion,
-  };
-}
-
-// Date filter is the backbone; balance match (when the statement includes
-// the reconciled row itself) trims the checkpoint row and anything earlier
-// that day so we don't re-import it. `statementOpening` is the opening the
-// statement prints; when it equals the checkpoint, the whole checkpoint day
-// is new.
-export function newTransactionsSinceReconciliation(
-  transactions: Chrono<Abacus>,
-  checkpoint: ReconciledCheckpoint | null,
-  statementOpening: number | null = null,
-): Chrono<Abacus> {
-  if (!checkpoint) return transactions;
-  const afterDate = chronoFilter(transactions, (t) => t.date > checkpoint.date);
-  const onDate = chronoFilter(transactions, (t) => t.date === checkpoint.date);
-  if (onDate.length === 0) return afterDate;
-
-  const openingMatches =
-    statementOpening !== null &&
-    Math.abs(statementOpening - checkpoint.balance) < BALANCE_EPSILON;
-
-  let anchor = -1;
-  let sawNullBalance = false;
-  for (let i = 0; i < onDate.length; i++) {
-    const b = onDate[i].balance;
-    if (b === null) {
-      sawNullBalance = true;
-      continue;
-    }
-    if (Math.abs(b - checkpoint.balance) < BALANCE_EPSILON) anchor = i;
-  }
-
-  if (anchor >= 0) return chronoConcat(onDate.slice(anchor + 1), afterDate);
-  if (openingMatches) return chronoConcat(onDate, afterDate);
-
-  if (sawNullBalance) {
-    throw new ReconciliationMatchError(
-      `Statement row on ${checkpoint.date} has no running balance; ` +
-        `balance-assertion reconciliation requires per-row balances.`,
-      checkpoint,
-    );
-  }
-  throw new ReconciliationMatchError(
-    `Statement has ${onDate.length} row(s) on ${checkpoint.date} but none ` +
-      `carry the asserted balance ${checkpoint.balance}, and the statement's ` +
-      `opening does not match it either. Ledger and statement disagree, or ` +
-      `the statement is missing the row that landed on the assertion. ` +
-      `Refusing to import to avoid gaps or duplicates.`,
-    checkpoint,
-  );
-}
-
-export function loadAccountsByName(
-  db: any,
-  auth?: LedgerAuth,
-): Map<string, number> {
-  const access = auth?.rowSecurity.forTable(accounts);
-  return new Map(
-    db
-      .select()
-      .from(accountsTable)
-      .where(access ? access.ownedRows() : undefined)
-      .all()
-      .map((a: any) => [a.name, a.id]),
-  );
 }
 
 // Only the last row of each date carries a balance assertion. The

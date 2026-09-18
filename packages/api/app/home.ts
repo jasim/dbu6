@@ -11,7 +11,7 @@ import {
 import { readImportPresets } from "../modules/statement-sources/index.js";
 import { accountLabel, importablePaths } from "./account-names.js";
 import { loadAccountStandings } from "./account-standing.js";
-import { draftCounts } from "./draft-status.js";
+import { draftCounts } from "../modules/drafts/index.js";
 import {
   allRows,
   type ScopeParams,

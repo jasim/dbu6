@@ -2,8 +2,8 @@ import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
-import type { DuplicateDiagnostic } from "../../modules/reconciliation/duplicate-diagnostics.js";
-import { findDraftDuplicates } from "../draft-status.js";
+import type { DuplicateDiagnostic } from "../../modules/reconciliation/index.js";
+import { findDraftDuplicates } from "../../modules/drafts/index.js";
 import {
   authorizeReport,
   dateColumn,

@@ -12,10 +12,9 @@ import {
   textColumn,
 } from "./shared.js";
 import {
-  allRows,
-  type ScopeParams,
-  ledgerCtes,
-} from "../../modules/ledger-sql/index.js";
+  loadLastReconciled,
+  type LastReconciledRow,
+} from "../../modules/journals/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
@@ -25,45 +24,6 @@ api.register("lastReconciled", reportsContract.lastReconciled, ({ c }) => {
 
   return { status: 200, body: toLastReconciledResult(rows) };
 });
-
-export type LastReconciledRow = {
-  account_id: number;
-  journal_id: number;
-  account_name: string;
-  last_reconciled_date: string;
-  last_balance: number;
-};
-
-export function loadLastReconciled(
-  sqlite: Parameters<typeof allRows>[0],
-  scope: ScopeParams,
-): LastReconciledRow[] {
-  return allRows<LastReconciledRow>(
-    sqlite,
-    `${ledgerCtes}
-    SELECT
-      a.id AS account_id,
-      j.id AS journal_id,
-      a.name AS account_name,
-      j.date AS last_reconciled_date,
-      je.account_balance_assertion AS last_balance
-    FROM scoped_accounts a
-    JOIN scoped_journal_entries je ON je.account_id = a.id
-    JOIN scoped_journals j ON j.id = je.journal_id
-    WHERE je.account_balance_assertion IS NOT NULL
-      AND j.id = (
-        SELECT je2.journal_id
-        FROM scoped_journal_entries je2
-        JOIN scoped_journals j2 ON j2.id = je2.journal_id
-        WHERE je2.account_id = a.id
-          AND je2.account_balance_assertion IS NOT NULL
-        ORDER BY j2.date DESC, j2.id DESC
-        LIMIT 1
-      )
-    ORDER BY a.name`,
-    scope,
-  );
-}
 
 function toLastReconciledResult(rows: LastReconciledRow[]): GridDataset {
   const levelColumns = {
