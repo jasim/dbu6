@@ -8,7 +8,7 @@ import {
   sectionAccountResult,
   sectionFooterRow,
   sectionTotal,
-  type SectionAccountRow,
+  type SectionAccount,
 } from "./section-account-grid.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -24,26 +24,28 @@ api.register("balanceSheet", reportsContract.balanceSheet, ({ c, request }) => {
 });
 
 /**
- * Every asset, liability and equity account with entries of its own up to the
- * date, parents included, since an entry can sit on a parent account.
+ * Every asset, liability and equity account down the account tree, with its
+ * balance up to the date: its own entries and everything below it. An
+ * account without entries is kept at 0, so the tree keeps its parents.
  */
 export function balanceSheetReport(
   sqlite: Database.Database,
   auth: LedgerAuth,
   query: { asOfDate: string },
 ): GridDataset {
-  const rows = allRows<SectionAccountRow>(
+  const accounts = allRows<SectionAccount>(
     sqlite,
     auth,
     `
     SELECT
-      a.account_type AS section,
       a.id AS account_id,
       a.name,
+      a.parent_id,
+      a.account_type,
       CASE WHEN a.account_type IN ('Liability', 'Equity')
            THEN COALESCE(SUM(je.credit), 0) - COALESCE(SUM(je.debit), 0)
            ELSE COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0)
-      END AS balance
+      END AS amount
     FROM scoped_accounts a
     LEFT JOIN (
       SELECT je.account_id, je.debit, je.credit
@@ -52,21 +54,19 @@ export function balanceSheetReport(
       WHERE j.date <= @asOfDate
     ) je ON je.account_id = a.id
     WHERE a.account_type IN ('Asset', 'Liability', 'Equity')
-    GROUP BY a.account_type, a.id, a.name
-    HAVING COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0) != 0
-    ORDER BY a.account_type, a.name`,
+    GROUP BY a.id, a.name, a.parent_id, a.account_type`,
     query,
   );
-  return toBalanceSheetResult(rows);
+  return toBalanceSheetResult(accounts);
 }
 
-function toBalanceSheetResult(rows: SectionAccountRow[]): GridDataset {
+function toBalanceSheetResult(accounts: SectionAccount[]): GridDataset {
   const sections = ["Asset", "Liability", "Equity"];
   const result = sectionAccountResult({
     name: "balance-sheet",
     label: "Balance Sheet",
     sections,
-    rows,
+    accounts,
   });
   const assets = sectionTotal(result.nodes, "Asset");
   const liabilities = sectionTotal(result.nodes, "Liability");
