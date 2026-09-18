@@ -59,7 +59,7 @@ function detail(account: Partial<ReviewAccountDetail["account"]> = {}) {
   return {
     account: {
       account_id: 5,
-      path: "assets:bank:sample-savings",
+      path: "Sample Savings",
       name: "Sample Savings",
       kind: "bank",
       drafts: 23,

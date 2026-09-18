@@ -17,7 +17,7 @@ import { sectionTotal } from "./reports/section-account-grid.js";
  * account and for the one an import names.
  */
 
-const SAVINGS = "assets:bank:sample-savings";
+const SAVINGS = "Sample Savings";
 
 /*
  * The user's ledger: Sample Savings (1) opened at 1,000 with a balance
@@ -46,8 +46,8 @@ function ledger(): Database.Database {
 
     INSERT INTO accounts VALUES
       (1, 'workspace', 'user', '${SAVINGS}', NULL, 'Asset'),
-      (2, 'workspace', 'user', 'income:salary', NULL, 'Revenue'),
-      (3, 'workspace', 'user', 'expenses:groceries', NULL, 'Expense');
+      (2, 'workspace', 'user', 'Salary', NULL, 'Revenue'),
+      (3, 'workspace', 'user', 'Groceries', NULL, 'Expense');
     INSERT INTO journals VALUES (10, 'workspace', 'user', '2026-01-10', 'Opening');
     INSERT INTO journal_entries VALUES
       (101, 'workspace', 'user', 10, 1, 1000, 0, 1000, NULL, NULL, NULL),
@@ -69,7 +69,7 @@ function addOtherRows(sqlite: Database.Database): void {
   sqlite.exec(`
     INSERT INTO accounts VALUES
       (11, 'workspace', 'other-user', '${SAVINGS}', NULL, 'Asset'),
-      (12, 'workspace', 'other-user', 'income:salary', NULL, 'Revenue'),
+      (12, 'workspace', 'other-user', 'Salary', NULL, 'Revenue'),
       (21, 'other-workspace', 'user', '${SAVINGS}', NULL, 'Asset');
     INSERT INTO journals VALUES
       (20, 'workspace', 'other-user', '2026-01-20', 'NOPII opening'),

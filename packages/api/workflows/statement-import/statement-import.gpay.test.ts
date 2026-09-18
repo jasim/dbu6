@@ -43,7 +43,7 @@ vi.mock("./draft-import.js", () => ({
   },
 }));
 
-const BASE_ACCOUNT = parseAccount("assets:bank:federal");
+const BASE_ACCOUNT = parseAccount("Federal Bank");
 
 // A Federal-style statement: printed per-row balances, verbatim narrations,
 // bank references on the UPI rows (reference-keyed identity) and none on the

@@ -4,7 +4,7 @@ import { parseAccount, unsafeAsChrono } from "../values/index.js";
 import { assignSourceTransactionKeys } from "./transaction-identity.js";
 
 describe("assignSourceTransactionKeys", () => {
-  const base = parseAccount("cc:stanc");
+  const base = parseAccount("StanC Credit Card");
 
   it("prefers a stable issuer reference", () => {
     const [first] = assignSourceTransactionKeys(
@@ -37,7 +37,7 @@ describe("assignSourceTransactionKeys", () => {
   });
 
   it("keeps distinct HDFC fee rows that reuse issuer references", () => {
-    const hdfc = parseAccount("cc:hdfc");
+    const hdfc = parseAccount("HDFC Credit Card");
     const rows = unsafeAsChrono<Abacus>([
       {
         date: "2026-07-11",

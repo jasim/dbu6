@@ -32,8 +32,8 @@ const batchedCaller = {
 const config: LLMCategorizationConfig = {
   promptTemplate:
     "Categorize using these accounts:\n{accounts}\nCustom mappings:\n{custom_mapping}",
-  accounts: "expenses:food\nexpenses:travel",
-  customMappings: "STARBUCKS -> expenses:food",
+  accounts: "Food\nTravel",
+  customMappings: "STARBUCKS -> Food",
   llm: engine(),
 };
 
@@ -63,8 +63,8 @@ beforeEach(() => {
 describe("buildPrompt", () => {
   it("substitutes both placeholders", () => {
     expect(buildPrompt(config)).toBe(
-      "Categorize using these accounts:\nexpenses:food\nexpenses:travel\n" +
-        "Custom mappings:\nSTARBUCKS -> expenses:food",
+      "Categorize using these accounts:\nFood\nTravel\n" +
+        "Custom mappings:\nSTARBUCKS -> Food",
     );
   });
 
@@ -149,8 +149,8 @@ describe("buildLLMRequest", () => {
     const req = buildLLMRequest(txns, [0, 1], config);
 
     expect(req.prompt).toBe(
-      "Categorize using these accounts:\nexpenses:food\nexpenses:travel\n" +
-        "Custom mappings:\nSTARBUCKS -> expenses:food",
+      "Categorize using these accounts:\nFood\nTravel\n" +
+        "Custom mappings:\nSTARBUCKS -> Food",
     );
     expect(req.rows).toEqual([
       { id: "txn-0", text: "Expense: STARBUCKS" },
@@ -166,7 +166,7 @@ describe("buildLLMRequest", () => {
     const req = buildLLMRequest([withdrawal("X")], [], config);
     expect(req.rows).toEqual([]);
     expect(req.reverseMap).toEqual({});
-    expect(req.prompt).toContain("expenses:food"); // prompt still built
+    expect(req.prompt).toContain("Food"); // prompt still built
   });
 });
 
@@ -179,15 +179,15 @@ describe("parseLLMResponse", () => {
   it("maps every original narration for a row to its account", () => {
     const result = parseLLMResponse(
       [
-        { id: "txn-0", account: "expenses:food" },
-        { id: "txn-1", account: "expenses:shopping" },
+        { id: "txn-0", account: "Food" },
+        { id: "txn-1", account: "Shopping" },
       ],
       reverseMap,
     );
     expect(result).toEqual({
-      STARBUCKS: "expenses:food",
-      "STARBUCKS DUPLICATE": "expenses:food",
-      AMAZON: "expenses:shopping",
+      STARBUCKS: "Food",
+      "STARBUCKS DUPLICATE": "Food",
+      AMAZON: "Shopping",
     });
   });
 
@@ -204,7 +204,7 @@ describe("parseLLMResponse", () => {
 
   it("skips rows whose id is not in the reverse map", () => {
     const result = parseLLMResponse(
-      [{ id: "txn-unknown", account: "expenses:food" }],
+      [{ id: "txn-unknown", account: "Food" }],
       reverseMap,
     );
     expect(result).toEqual({});
@@ -238,14 +238,15 @@ describe("categorizeViaLLM", () => {
     vi.restoreAllMocks();
   });
 
-  // Answers each row of a call with an account named after its text.
+  // Answers each row of a call with an account named after its text:
+  // "SHOP119" is "Account SHOP119".
   function answerEveryRow() {
     listMock.mockImplementation(
       async (request: { rows: { id: string; text: string }[] }) => ({
         ok: true,
         rows: request.rows.map((row) => ({
           id: row.id,
-          account: `expenses:${row.text.slice("Expense: ".length).toLowerCase()}`,
+          account: `Account ${row.text.slice("Expense: ".length)}`,
         })),
       }),
     );
@@ -255,7 +256,7 @@ describe("categorizeViaLLM", () => {
     listMock.mockResolvedValueOnce({
       ok: true,
       rows: [
-        { id: "txn-0", account: "expenses:food" },
+        { id: "txn-0", account: "Food" },
         { id: "txn-1", account: "" },
       ],
     });
@@ -268,7 +269,7 @@ describe("categorizeViaLLM", () => {
     const result = await categorizeViaLLM(txns, [0, 1], config);
 
     expect(result.mappings).toEqual({
-      "STARBUCKS 123": "expenses:food",
+      "STARBUCKS 123": "Food",
     });
     expect(listMock).toHaveBeenCalledTimes(1);
     expect(listMock.mock.calls[0][0].rows).toEqual([
@@ -282,8 +283,8 @@ describe("categorizeViaLLM", () => {
     listMock.mockResolvedValueOnce({
       ok: true,
       rows: [
-        { id: "txn-0", account: "expenses:food" },
-        { id: "txn-1", account: "expenses:travel" },
+        { id: "txn-0", account: "Food" },
+        { id: "txn-1", account: "Travel" },
       ],
     });
 
@@ -296,8 +297,8 @@ describe("categorizeViaLLM", () => {
 
     expect(result).toEqual({
       mappings: {
-        "STARBUCKS 123": "expenses:food",
-        "UBER 456": "expenses:travel",
+        "STARBUCKS 123": "Food",
+        "UBER 456": "Travel",
       },
       report: {
         agent: "claude-code",
@@ -376,7 +377,7 @@ describe("categorizeViaLLM", () => {
       50, 50, 20,
     ]);
     expect(Object.keys(result.mappings)).toHaveLength(120);
-    expect(result.mappings.SHOP119).toBe("expenses:shop119");
+    expect(result.mappings.SHOP119).toBe("Account SHOP119");
     expect(result.report).toEqual({
       agent: "claude-code",
       sent_count: 120,
@@ -392,7 +393,7 @@ describe("categorizeViaLLM", () => {
         ok: true,
         rows: request.rows.map((row) => ({
           id: row.id,
-          account: "expenses:first",
+          account: "First Expense",
         })),
       }),
     );
@@ -414,9 +415,9 @@ describe("categorizeViaLLM", () => {
       failed_count: 50,
       error: "claude-code timed out",
     });
-    expect(result.mappings.SHOP0).toBe("expenses:first");
+    expect(result.mappings.SHOP0).toBe("First Expense");
     expect(result.mappings.SHOP50).toBeUndefined();
-    expect(result.mappings.SHOP100).toBe("expenses:shop100");
+    expect(result.mappings.SHOP100).toBe("Account SHOP100");
     expect(Object.keys(result.mappings)).toHaveLength(70);
   });
 });

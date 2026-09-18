@@ -15,7 +15,7 @@ describe("shared draft running-balance query", () => {
       CREATE TABLE journals (id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT, description TEXT);
       CREATE TABLE journal_entries (id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER, account_id INTEGER, debit REAL, credit REAL, account_balance_assertion REAL);
       CREATE TABLE draft_transactions (id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT, base_account_id INTEGER, deposit REAL, withdrawal REAL, balance_assertion_base_account REAL);
-      INSERT INTO accounts VALUES (1, 'workspace', 'user', 'assets:bank');
+      INSERT INTO accounts VALUES (1, 'workspace', 'user', 'Bank');
       INSERT INTO journals VALUES (1, 'workspace', 'user', '2026-05-07', 'Opening');
       INSERT INTO journal_entries VALUES (1, 'workspace', 'user', 1, 1, 100, 0, NULL);
       INSERT INTO draft_transactions VALUES (9, 'workspace', 'user', '2026-05-07', 1, 50, 0, 140);

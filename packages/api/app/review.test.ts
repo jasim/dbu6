@@ -33,12 +33,12 @@ function ledger(): Database.Database {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'liabilities:credit-cards:sample-card', NULL, 'Liability'),
-      (2, 'workspace', 'user', 'assets:bank:sample-savings', NULL, 'Asset'),
-      (3, 'workspace', 'user', 'expenses:groceries', NULL, 'Expense'),
-      (4, 'workspace', 'user', 'liabilities:loans:sample-loan', NULL, 'Liability'),
-      (5, 'workspace', 'other-user', 'assets:bank:other-050505', NULL, 'Asset'),
-      (6, 'workspace', 'user', 'assets:cash', NULL, 'Asset');
+      (1, 'workspace', 'user', 'Sample Card', NULL, 'Liability'),
+      (2, 'workspace', 'user', 'Sample Savings', NULL, 'Asset'),
+      (3, 'workspace', 'user', 'Groceries', NULL, 'Expense'),
+      (4, 'workspace', 'user', 'Sample Loan', NULL, 'Liability'),
+      (5, 'workspace', 'other-user', 'Other Bank 050505', NULL, 'Asset'),
+      (6, 'workspace', 'user', 'Cash', NULL, 'Asset');
 
     INSERT INTO journals VALUES (10, 'workspace', 'user', '2026-02-10', 'Opening');
     INSERT INTO journal_entries VALUES
@@ -58,13 +58,13 @@ function ledger(): Database.Database {
 
 const presets = [
   {
-    name: "Sample Savings",
-    base_account: "assets:bank:sample-savings",
+    name: "Sample Savings Statement",
+    base_account: "Sample Savings",
     custom_mappings_filenames: [],
   },
   {
-    name: "Sample Card",
-    base_account: "liabilities:credit-cards:sample-card",
+    name: "Sample Card Statement",
+    base_account: "Sample Card",
     custom_mappings_filenames: [],
     is_credit_card: true,
   },
@@ -74,21 +74,9 @@ describe("listReviewAccounts", () => {
   it("lists only the accounts with drafts, named from presets or their own name, by name", () => {
     expect(listReviewAccounts(ledger(), auth, presets)).toEqual([
       {
-        account_id: 4,
-        path: "liabilities:loans:sample-loan",
-        name: "liabilities:loans:sample-loan",
-        kind: "card",
-        drafts: 1,
-        uncategorised: 0,
-        duplicates: 0,
-        balance_checks: 0,
-        failing_checks: 0,
-        draft_span: { first_date: "2026-03-05", last_date: "2026-03-05" },
-      },
-      {
         account_id: 1,
-        path: "liabilities:credit-cards:sample-card",
-        name: "Sample Card",
+        path: "Sample Card",
+        name: "Sample Card Statement",
         kind: "card",
         drafts: 1,
         uncategorised: 0,
@@ -98,9 +86,21 @@ describe("listReviewAccounts", () => {
         draft_span: { first_date: "2026-03-04", last_date: "2026-03-04" },
       },
       {
+        account_id: 4,
+        path: "Sample Loan",
+        name: "Sample Loan",
+        kind: "card",
+        drafts: 1,
+        uncategorised: 0,
+        duplicates: 0,
+        balance_checks: 0,
+        failing_checks: 0,
+        draft_span: { first_date: "2026-03-05", last_date: "2026-03-05" },
+      },
+      {
         account_id: 2,
-        path: "assets:bank:sample-savings",
-        name: "Sample Savings",
+        path: "Sample Savings",
+        name: "Sample Savings Statement",
         kind: "bank",
         drafts: 3,
         uncategorised: 1,
@@ -120,7 +120,7 @@ describe("loadReviewAccount", () => {
     expect(detail).toMatchObject({
       account: {
         account_id: 2,
-        name: "Sample Savings",
+        name: "Sample Savings Statement",
         drafts: 3,
         balance_checks: 2,
       },
@@ -136,8 +136,8 @@ describe("loadReviewAccount", () => {
         },
       ],
       other_accounts: [
-        { account_id: 4, name: "liabilities:loans:sample-loan", drafts: 1 },
-        { account_id: 1, name: "Sample Card", drafts: 1 },
+        { account_id: 1, name: "Sample Card Statement", drafts: 1 },
+        { account_id: 4, name: "Sample Loan", drafts: 1 },
       ],
     });
     expect(detail?.duplicates).toEqual([
@@ -154,8 +154,8 @@ describe("loadReviewAccount", () => {
         amount: 40,
         narration: "NOPII grocer",
         other_narration: "NOPII grocer",
-        draft_category: "expenses:groceries",
-        matched_category: "expenses:groceries",
+        draft_category: "Groceries",
+        matched_category: "Groceries",
       },
     ]);
   });
@@ -166,8 +166,8 @@ describe("loadReviewAccount", () => {
     expect(detail).toEqual({
       account: {
         account_id: 6,
-        path: "assets:cash",
-        name: "assets:cash",
+        path: "Cash",
+        name: "Cash",
         kind: "bank",
         drafts: 0,
         uncategorised: 0,
@@ -181,9 +181,9 @@ describe("loadReviewAccount", () => {
       failing: [],
       duplicates: [],
       other_accounts: [
-        { account_id: 4, name: "liabilities:loans:sample-loan", drafts: 1 },
-        { account_id: 1, name: "Sample Card", drafts: 1 },
-        { account_id: 2, name: "Sample Savings", drafts: 3 },
+        { account_id: 1, name: "Sample Card Statement", drafts: 1 },
+        { account_id: 4, name: "Sample Loan", drafts: 1 },
+        { account_id: 2, name: "Sample Savings Statement", drafts: 3 },
       ],
     });
   });

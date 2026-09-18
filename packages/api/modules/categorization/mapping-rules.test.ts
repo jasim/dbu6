@@ -11,20 +11,20 @@ import {
 
 const RULES: MappingRules = {
   exact: {
-    "Corner Fuels": "expenses:vehicle",
-    "ACME SUPERMARKET": "expenses:grocery",
-    "sample-grocer@okaxis": "expenses:grocery",
-    "x@psp": "expenses:misc",
+    "Corner Fuels": "Vehicle",
+    "ACME SUPERMARKET": "Groceries",
+    "sample-grocer@okaxis": "Groceries",
+    "x@psp": "Miscellaneous",
   },
   includes: [
     {
-      account: "cc:example",
+      account: "Example Credit Card",
       direction: "withdrawal",
       values: ["CARD PAYMENT TO CARD 4000123412341234"],
     },
-    { account: "expenses:fuel", direction: "withdrawal", values: ["FUELS"] },
+    { account: "Fuel", direction: "withdrawal", values: ["FUELS"] },
     {
-      account: "income:credit-interest",
+      account: "Credit Interest",
       direction: "deposit",
       values: ["INTEREST PAID"],
     },
@@ -61,21 +61,21 @@ describe("normalize", () => {
 
 describe("classifyWith", () => {
   it("prefers an exact mapping over a broader includes mapping", () => {
-    expect(classify("Corner Fuels")).toBe("expenses:vehicle");
+    expect(classify("Corner Fuels")).toBe("Vehicle");
   });
 
   it("matches normalized contains rules", () => {
     expect(classify("  card payment to card   4000123412341234  ")).toBe(
-      "cc:example",
+      "Example Credit Card",
     );
   });
 
   it("falls through to the broader includes rule", () => {
-    expect(classify("HIGHWAY FUELS PVT LTD")).toBe("expenses:fuel");
+    expect(classify("HIGHWAY FUELS PVT LTD")).toBe("Fuel");
   });
 
   it("honors direction", () => {
-    expect(classify("Interest Paid", "deposit")).toBe("income:credit-interest");
+    expect(classify("Interest Paid", "deposit")).toBe("Credit Interest");
     expect(classify("Interest Paid", "withdrawal")).toBeNull();
   });
 
@@ -87,24 +87,24 @@ describe("classifyWith", () => {
     // Federal: slash-delimited. HDFC: hyphen-delimited. GPay enrichment:
     // recipient prefix. All keep the VPA intact between delimiters.
     expect(classify("UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505")).toBe(
-      "expenses:grocery",
+      "Groceries",
     );
     expect(
       classify(
         "UPI-SAMPLE GROCER-sample-grocer@okaxis-FDRL0050505-050505000001-sample",
       ),
-    ).toBe("expenses:grocery");
+    ).toBe("Groceries");
     expect(
       classify(
         "Sample Grocer | UPIOUT/050505000001/sample-grocer@okaxis/UPI/0505",
       ),
-    ).toBe("expenses:grocery");
-    expect(classify("sample-grocer@okaxis")).toBe("expenses:grocery");
+    ).toBe("Groceries");
+    expect(classify("sample-grocer@okaxis")).toBe("Groceries");
   });
 
   it("requires the embedded VPA to be delimited, not a fragment of a longer one", () => {
     expect(classify("UPIOUT/050505000001/x@psp/UPI/0000")).toBe(
-      "expenses:misc",
+      "Miscellaneous",
     );
     expect(classify("UPIOUT/050505000001/ax@psp/UPI/0000")).toBeNull();
     expect(classify("UPIOUT/050505000001/x@psp.example/UPI/0000")).toBeNull();
@@ -114,8 +114,8 @@ describe("classifyWith", () => {
   it("prefers a whole-narration exact match over an embedded VPA match", () => {
     const rules: MappingRules = {
       exact: {
-        "UPIOUT/050505000001/x@psp/UPI/0000": "expenses:special",
-        "x@psp": "expenses:misc",
+        "UPIOUT/050505000001/x@psp/UPI/0000": "Special",
+        "x@psp": "Miscellaneous",
       },
       includes: [],
     };
@@ -124,7 +124,7 @@ describe("classifyWith", () => {
         compileMappings(rules),
         transaction("UPIOUT/050505000001/x@psp/UPI/0000"),
       ),
-    ).toBe("expenses:special");
+    ).toBe("Special");
   });
 });
 
@@ -133,8 +133,8 @@ describe("compileMappings", () => {
     expect(() =>
       compileMappings({
         exact: {
-          "acme supermarket": "expenses:grocery",
-          "ACME  SUPERMARKET": "expenses:food",
+          "acme supermarket": "Groceries",
+          "ACME  SUPERMARKET": "Food",
         },
         includes: [],
       }),
@@ -145,8 +145,8 @@ describe("compileMappings", () => {
     expect(() =>
       compileMappings({
         exact: {
-          "acme supermarket": "expenses:grocery",
-          "ACME  SUPERMARKET": "expenses:grocery",
+          "acme supermarket": "Groceries",
+          "ACME  SUPERMARKET": "Groceries",
         },
         includes: [],
       }),
@@ -166,7 +166,7 @@ describe("mappingRulesSchema", () => {
     expect(
       mappingRulesSchema.safeParse({
         exact: {},
-        includes: [{ account: "expenses:food", values: [] }],
+        includes: [{ account: "Food", values: [] }],
       }).success,
     ).toBe(false);
   });
@@ -175,9 +175,7 @@ describe("mappingRulesSchema", () => {
     expect(
       mappingRulesSchema.safeParse({
         exact: {},
-        includes: [
-          { account: "expenses:food", direction: "refund", values: ["X"] },
-        ],
+        includes: [{ account: "Food", direction: "refund", values: ["X"] }],
       }).success,
     ).toBe(false);
   });

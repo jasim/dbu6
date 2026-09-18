@@ -15,7 +15,7 @@ function preset(
   overrides: Partial<ImportPreset> & { name: string },
 ): ImportPreset {
   return {
-    base_account: `assets:bank:${overrides.name.toLowerCase()}`,
+    base_account: `Sample ${overrides.name}`,
     custom_mappings_filenames: [],
     ...overrides,
   };
@@ -27,14 +27,14 @@ const bank = preset({
 });
 const cardA = preset({
   name: "Card A",
-  base_account: "cc:sample-a",
+  base_account: "Sample Card A",
   is_credit_card: true,
   custom_statement_parser_path: CARD_PARSER,
   statement_account_identifier: "050505XXXXXX0505",
 });
 const cardB = preset({
   name: "Card B",
-  base_account: "cc:sample-b",
+  base_account: "Sample Card B",
   is_credit_card: true,
   custom_statement_parser_path: CARD_PARSER,
   statement_account_identifier: "050505XXXXXX0506",
@@ -238,7 +238,7 @@ describe("planAutoImport", () => {
   it("keeps presets with the same name apart", () => {
     const twin = preset({
       name: "Card A",
-      base_account: "cc:sample-twin",
+      base_account: "Sample Twin Card",
       is_credit_card: true,
       custom_statement_parser_path: CARD_PARSER,
       statement_account_identifier: "050505XXXXXX0506",
@@ -253,8 +253,8 @@ describe("planAutoImport", () => {
 
     if (!plan.ok) throw new Error("expected an importable plan");
     expect(plan.groups.map((group) => group.preset.base_account)).toEqual([
-      "cc:sample-a",
-      "cc:sample-twin",
+      "Sample Card A",
+      "Sample Twin Card",
     ]);
   });
 });

@@ -38,12 +38,12 @@ describe("Last reconciled query", () => {
       );
 
       INSERT INTO accounts VALUES
-        (1, 'workspace', 'user', 'liabilities:credit-cards:sample-card', NULL),
-        (2, 'workspace', 'user', 'assets:bank:sample-savings', NULL),
-        (3, 'workspace', 'user', 'expenses:groceries', NULL),
-        (4, 'workspace', 'user', 'assets:cash', NULL),
-        (5, 'workspace', 'other-user', 'assets:bank:other-user', NULL),
-        (6, 'other-workspace', 'user', 'assets:bank:other-workspace', NULL);
+        (1, 'workspace', 'user', 'Sample Card', NULL),
+        (2, 'workspace', 'user', 'Sample Savings', NULL),
+        (3, 'workspace', 'user', 'Groceries', NULL),
+        (4, 'workspace', 'user', 'Cash', NULL),
+        (5, 'workspace', 'other-user', 'Other User Bank', NULL),
+        (6, 'other-workspace', 'user', 'Other Workspace Bank', NULL);
 
       INSERT INTO journals VALUES
         (10, 'workspace', 'user', '2026-01-10', 'Older savings assertion'),
@@ -73,18 +73,18 @@ describe("Last reconciled query", () => {
 
     expect(rows).toEqual([
       {
-        account_id: 2,
-        journal_id: 11,
-        account_name: "assets:bank:sample-savings",
-        last_reconciled_date: "2026-02-10",
-        last_balance: 1500,
-      },
-      {
         account_id: 1,
         journal_id: 14,
-        account_name: "liabilities:credit-cards:sample-card",
+        account_name: "Sample Card",
         last_reconciled_date: "2026-02-20",
         last_balance: 300,
+      },
+      {
+        account_id: 2,
+        journal_id: 11,
+        account_name: "Sample Savings",
+        last_reconciled_date: "2026-02-10",
+        last_balance: 1500,
       },
     ]);
   });
@@ -114,10 +114,10 @@ function tiedLedger(): Database.Database {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'assets:bank:sample-savings'),
-      (2, 'workspace', 'user', 'liabilities:credit-cards:sample-card'),
-      (3, 'workspace', 'user', 'assets:sample-wallet'),
-      (4, 'workspace', 'user', 'assets:sample-purse');
+      (1, 'workspace', 'user', 'Sample Savings'),
+      (2, 'workspace', 'user', 'Sample Card'),
+      (3, 'workspace', 'user', 'Sample Wallet'),
+      (4, 'workspace', 'user', 'Sample Purse');
     INSERT INTO journals VALUES
       (20, 'workspace', 'user', '2026-04-01'),
       (21, 'workspace', 'user', '2026-03-01'),
@@ -146,11 +146,11 @@ describe("the last reconciled checkpoint", () => {
 
   it("is in the latest journal, by date and then id, one row per assertion there, in entry order", () => {
     expect(checkpoints(tiedLedger())).toEqual([
-      [1, 20, 2000],
-      [4, 24, 40],
-      [3, 23, 30],
       [2, 22, 300],
       [2, 22, 500],
+      [4, 24, 40],
+      [1, 20, 2000],
+      [3, 23, 30],
     ]);
   });
 
@@ -162,33 +162,31 @@ describe("the last reconciled checkpoint", () => {
       ]),
     );
     expect(standing.get(2)).toBe(500);
-    expect(
-      lookupLastReconciled(
-        tiedLedger(),
-        auth,
-        "liabilities:credit-cards:sample-card",
-      ),
-    ).toEqual({ date: "2026-03-10", balance: 500 });
+    expect(lookupLastReconciled(tiedLedger(), auth, "Sample Card")).toEqual({
+      date: "2026-03-10",
+      balance: 500,
+    });
   });
 
   it("is found for the account with a name, for an import", () => {
     const sqlite = tiedLedger();
     expect(
       loadLastReconciled(sqlite, auth, {
-        accountName: "assets:sample-wallet",
+        accountName: "Sample Wallet",
       }).map((row) => row.account_id),
     ).toEqual([3]);
-    expect(lookupLastReconciled(sqlite, auth, "assets:sample-wallet")).toEqual({
+    expect(lookupLastReconciled(sqlite, auth, "Sample Wallet")).toEqual({
       date: "2026-05-01",
       balance: 30,
     });
-    expect(lookupLastReconciled(sqlite, auth, "assets:sample-purse")).toEqual({
+    expect(lookupLastReconciled(sqlite, auth, "Sample Purse")).toEqual({
       date: "2026-02-01",
       balance: 40,
     });
-    expect(
-      lookupLastReconciled(sqlite, auth, "assets:bank:sample-savings"),
-    ).toEqual({ date: "2026-04-01", balance: 2000 });
-    expect(lookupLastReconciled(sqlite, auth, "assets:none")).toBeNull();
+    expect(lookupLastReconciled(sqlite, auth, "Sample Savings")).toEqual({
+      date: "2026-04-01",
+      balance: 2000,
+    });
+    expect(lookupLastReconciled(sqlite, auth, "Missing Account")).toBeNull();
   });
 });

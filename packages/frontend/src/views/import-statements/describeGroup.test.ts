@@ -8,7 +8,7 @@ function group(
 ): AutoImportGroupResult {
   return {
     preset_name: "Sample Bank",
-    base_account: "assets:bank:sample",
+    base_account: "Sample Bank",
     is_credit_card: false,
     file_names: ["Acct_Statement_050505_09092026.xls"],
     ...extra,
@@ -76,7 +76,7 @@ describe("describeGroup", () => {
     expect(summary.categorization).toBeNull();
     expect(summary.breakdown).toEqual([]);
     expect(summary.details).toEqual([
-      { label: "Ledger account", value: "assets:bank:sample" },
+      { label: "Ledger account", value: "Sample Bank" },
       {
         label: "Read with",
         value:

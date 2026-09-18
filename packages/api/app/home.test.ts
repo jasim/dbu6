@@ -27,12 +27,12 @@ function ledger(): Database.Database {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'liabilities:credit-cards:sample-card', NULL, 'Liability'),
-      (2, 'workspace', 'user', 'assets:bank:sample-savings', NULL, 'Asset'),
-      (3, 'workspace', 'user', 'expenses:groceries', NULL, 'Expense'),
-      (4, 'workspace', 'user', 'assets:bank:no-preset', NULL, 'Asset'),
-      (5, 'workspace', 'other-user', 'assets:bank:sample-savings', NULL, 'Asset'),
-      (6, 'workspace', 'user', 'liabilities:loans:sample-loan', NULL, 'Liability');
+      (1, 'workspace', 'user', 'Sample Card', NULL, 'Liability'),
+      (2, 'workspace', 'user', 'Sample Savings', NULL, 'Asset'),
+      (3, 'workspace', 'user', 'Groceries', NULL, 'Expense'),
+      (4, 'workspace', 'user', 'No Preset Bank', NULL, 'Asset'),
+      (5, 'workspace', 'other-user', 'Sample Savings', NULL, 'Asset'),
+      (6, 'workspace', 'user', 'Sample Loan', NULL, 'Liability');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-10', 'Opening'),
@@ -52,19 +52,19 @@ function ledger(): Database.Database {
 
 const presets = [
   {
-    name: "Sample Savings",
-    base_account: "assets:bank:sample-savings",
+    name: "Sample Savings Statement",
+    base_account: "Sample Savings",
     custom_mappings_filenames: [],
   },
   {
-    name: "Sample Card",
-    base_account: "liabilities:credit-cards:sample-card",
+    name: "Sample Card Statement",
+    base_account: "Sample Card",
     custom_mappings_filenames: [],
     is_credit_card: true,
   },
   {
     name: "Not Yet Added",
-    base_account: "assets:bank:missing-050505",
+    base_account: "Missing Bank 050505",
     custom_mappings_filenames: [],
   },
 ];
@@ -88,15 +88,15 @@ describe("Home summary", () => {
     expect(summary.accounts).toEqual([
       {
         in_ledger: false,
-        path: "assets:bank:missing-050505",
+        path: "Missing Bank 050505",
         name: "Not Yet Added",
         kind: "bank",
       },
       {
         in_ledger: true,
         account_id: 2,
-        path: "assets:bank:sample-savings",
-        name: "Sample Savings",
+        path: "Sample Savings",
+        name: "Sample Savings Statement",
         kind: "bank",
         checkpoint: { date: "2026-02-10", balance: 1500 },
         drafts: 3,
@@ -108,8 +108,8 @@ describe("Home summary", () => {
       {
         in_ledger: true,
         account_id: 1,
-        path: "liabilities:credit-cards:sample-card",
-        name: "Sample Card",
+        path: "Sample Card",
+        name: "Sample Card Statement",
         kind: "card",
         checkpoint: { date: "2026-02-20", balance: 300 },
         drafts: 0,
@@ -135,14 +135,19 @@ describe("Home summary", () => {
     // type decides, on Home as on Review.
     const summary = loadHomeSummary(ledger(), auth, [
       {
-        name: "Sample Loan",
-        base_account: "liabilities:loans:sample-loan",
+        name: "Sample Loan Statement",
+        base_account: "Sample Loan",
         custom_mappings_filenames: [],
       },
     ]);
 
     expect(summary.accounts).toMatchObject([
-      { in_ledger: true, name: "Sample Loan", kind: "card", checkpoint: null },
+      {
+        in_ledger: true,
+        name: "Sample Loan Statement",
+        kind: "card",
+        checkpoint: null,
+      },
     ]);
   });
 
@@ -157,8 +162,8 @@ describe("Home summary", () => {
     expect(
       summary.accounts.map((a) => [a.name, a.in_ledger && a.checkpoint]),
     ).toEqual([
-      ["Sample Card", null],
-      ["Sample Savings", null],
+      ["Sample Card Statement", null],
+      ["Sample Savings Statement", null],
     ]);
   });
 

@@ -52,7 +52,7 @@ function importedGroup(
 ): AutoImportGroupResult {
   return {
     preset_name: "Sample Bank",
-    base_account: "assets:bank:sample",
+    base_account: "Sample Bank",
     is_credit_card: false,
     file_names: ["bank-aug.xls"],
     ...extra,
@@ -295,7 +295,7 @@ describe("plan rejections", () => {
 describe("account import failures", () => {
   const failedGroup = {
     preset_name: "Sample Bank",
-    base_account: "assets:bank:sample",
+    base_account: "Sample Bank",
     is_credit_card: false,
     file_names: ["bank-aug.xls"],
   };
@@ -328,9 +328,7 @@ describe("account import failures", () => {
     expect(problem.context).toContain("The transactions end ₹100.00 away");
     expect(problem.context).toContain("the parser misread one row");
     expect(problem.agent?.goal).toBe("Find the misread row");
-    expect(problem.agent?.prompt).toContain(
-      "into Sample Bank (assets:bank:sample)",
-    );
+    expect(problem.agent?.prompt).toContain("into Sample Bank (Sample Bank)");
     expect(problem.agent?.prompt).toContain(BANK_PARSER);
     expect(problem.agent?.prompt).toContain("difference 100");
     expect(problem.agent?.prompt).toContain("import-draft/statements/auto");
@@ -504,7 +502,7 @@ describe("account import failures", () => {
     );
     expect(problem.agent?.goal).toBe("Compare with your books");
     expect(problem.agent?.prompt).toContain(
-      "balance assertion for assets:bank:sample",
+      "balance assertion for Sample Bank",
     );
   });
 
@@ -515,7 +513,7 @@ describe("account import failures", () => {
       files: [resolvedRow],
       failed_group: {
         preset_name: "Sample Card",
-        base_account: "liabilities:card:sample",
+        base_account: "Sample Card",
         is_credit_card: true,
         file_names: ["card-aug.xls"],
       },
@@ -585,7 +583,7 @@ describe("account import failures", () => {
 describe("problem tones", () => {
   const failedGroup = {
     preset_name: "Sample Bank",
-    base_account: "assets:bank:sample",
+    base_account: "Sample Bank",
     is_credit_card: false,
     file_names: ["bank-aug.xls"],
   };

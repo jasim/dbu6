@@ -9,7 +9,7 @@ import {
 import { formatHledger, hledgerAccountNames } from "./hledger.js";
 import { planJournals, type PlanRow } from "./JournalPlan.js";
 
-const BASE = parseAccount("assets:bank:sample-savings");
+const BASE = parseAccount("Sample Savings");
 
 // A statement row as the import summary plans it: it asserts its running
 // balance.
@@ -42,21 +42,21 @@ describe("hledger text of a plan", () => {
         "2026-02-01",
         { withdrawal: 100 },
         "NOPII grocer",
-        parseAccount("expenses:groceries"),
+        parseAccount("Groceries"),
         900,
       ),
       row(
         "2026-02-01",
         { withdrawal: 50 },
         "NOPII cafe",
-        parseAccount("expenses:dining"),
+        parseAccount("Eating Out"),
         850,
       ),
       row(
         "2026-02-01",
         { deposit: 500 },
         "NOPII salary",
-        parseAccount("income:salary"),
+        parseAccount("Salary"),
         1350,
       ),
       row("2026-02-01", { withdrawal: 30 }, "NOPII shop", UNCATEGORIZED, 1320),
@@ -64,21 +64,21 @@ describe("hledger text of a plan", () => {
         "2026-02-02",
         { deposit: 200 },
         "NOPII refund",
-        parseAccount("income:refunds"),
+        parseAccount("Refunds"),
         null,
       ),
       row(
         "2026-02-02",
         { deposit: 100 },
         "NOPII interest",
-        parseAccount("income:interest"),
+        parseAccount("Interest"),
         null,
       ),
       row(
         "2026-02-03",
         { withdrawal: 1000 },
         "NOPII plumber",
-        parseAccount("expenses:household:maintenance:plumbing-repairs"),
+        parseAccount("Plumbing Repairs"),
         620,
       ),
     ]);
@@ -86,26 +86,26 @@ describe("hledger text of a plan", () => {
     expect(formatHledger(planJournals(rows, BASE), new Map())).toBe(
       [
         "2026-02-01 Expenses",
-        "    expenses:groceries                      100.00 ; NOPII grocer",
-        "    expenses:dining                          50.00 ; NOPII cafe",
-        "    assets:bank:sample-savings             -150.00 = 850.00",
+        "    Groceries                               100.00 ; NOPII grocer",
+        "    Eating Out                               50.00 ; NOPII cafe",
+        "    Sample Savings                         -150.00 = 850.00",
         "",
         "2026-02-01 Deposits",
-        "    assets:bank:sample-savings              500.00 = 1350.00",
-        "    income:salary                          -500.00 ; NOPII salary",
+        "    Sample Savings                          500.00 = 1350.00",
+        "    Salary                                 -500.00 ; NOPII salary",
         "",
         "2026-02-01 Expenses",
         "    UNCATEGORIZED                            30.00 ; NOPII shop",
-        "    assets:bank:sample-savings              -30.00 = 1320.00",
+        "    Sample Savings                          -30.00 = 1320.00",
         "",
         "2026-02-02 Deposits",
-        "    assets:bank:sample-savings              300.00",
-        "    income:refunds                         -200.00 ; NOPII refund",
-        "    income:interest                        -100.00 ; NOPII interest",
+        "    Sample Savings                          300.00",
+        "    Refunds                                -200.00 ; NOPII refund",
+        "    Interest                               -100.00 ; NOPII interest",
         "",
         "2026-02-03 Expenses",
-        "    expenses:household:maintenance:plumbing-repairs     1000.00 ; NOPII plumber",
-        "    assets:bank:sample-savings            -1000.00 = 620.00",
+        "    Plumbing Repairs                       1000.00 ; NOPII plumber",
+        "    Sample Savings                        -1000.00 = 620.00",
       ].join("\n"),
     );
   });
@@ -125,13 +125,13 @@ describe("hledger text of a plan", () => {
           entries: [
             {
               ...entry,
-              account: "expenses:food",
+              account: "Food",
               amount: 125.5,
               comment: "Lunch",
             },
             {
               ...entry,
-              account: "assets:bank",
+              account: "Bank",
               amount: -125.5,
               assertion: 999.25,
             },
@@ -140,7 +140,7 @@ describe("hledger text of a plan", () => {
         {
           date: "2026-07-10",
           description: "Deposits",
-          entries: [{ ...entry, account: "assets:bank", amount: 2000 }],
+          entries: [{ ...entry, account: "Bank", amount: 2000 }],
         },
       ],
       new Map(),
@@ -149,11 +149,11 @@ describe("hledger text of a plan", () => {
     expect(output).toBe(
       [
         "2026-07-09 Expenses",
-        "    expenses:food                           125.50 ; Lunch",
-        "    assets:bank                            -125.50 = 999.25",
+        "    Food                                    125.50 ; Lunch",
+        "    Bank                                   -125.50 = 999.25",
         "",
         "2026-07-10 Deposits",
-        "    assets:bank                            2000.00",
+        "    Bank                                   2000.00",
       ].join("\n"),
     );
   });

@@ -9,7 +9,7 @@ function preset(
   overrides: Partial<ImportPreset> & { name: string },
 ): ImportPreset {
   return {
-    base_account: `assets:bank:${overrides.name.toLowerCase()}`,
+    base_account: `Sample ${overrides.name}`,
     custom_mappings_filenames: [],
     ...overrides,
   };
@@ -21,14 +21,14 @@ const bank = preset({
 });
 const primaryCard = preset({
   name: "Card A",
-  base_account: "cc:sample-a",
+  base_account: "Sample Card A",
   is_credit_card: true,
   custom_statement_parser_path: CARD_PARSER,
   statement_account_identifier: "050505XXXXXX0505",
 });
 const secondCard = preset({
   name: "Card B",
-  base_account: "cc:sample-b",
+  base_account: "Sample Card B",
   is_credit_card: true,
   custom_statement_parser_path: CARD_PARSER,
   statement_account_identifier: "050505XXXXXX0506",
@@ -136,7 +136,7 @@ describe("resolveImportPreset", () => {
   it("cannot match a preset without an identifier when the parser is shared", () => {
     const unlabeled = preset({
       name: "Card C",
-      base_account: "cc:sample-c",
+      base_account: "Sample Card C",
       custom_statement_parser_path: CARD_PARSER,
     });
     expect(
@@ -155,7 +155,7 @@ describe("importPresetSchema", () => {
   it("accepts only a canonical statement account identifier", () => {
     const base = {
       name: "HDFC CC XLS",
-      base_account: "cc:hdfc",
+      base_account: "HDFC Credit Card",
       custom_mappings_filenames: [],
       is_credit_card: true,
       custom_statement_parser_path: CARD_PARSER,
