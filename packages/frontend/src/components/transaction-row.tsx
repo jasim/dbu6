@@ -14,8 +14,8 @@ export interface Transaction {
   raw: string;
   amount: number;
   direction: Direction;
-  /** The category's account path and hue, or nothing while it still needs one. */
-  category?: { path: string; hue: CategoryHueKey };
+  /** The category's account name and hue, or nothing while it still needs one. */
+  category?: { name: string; hue: CategoryHueKey };
 }
 
 /**
@@ -60,7 +60,7 @@ export function TransactionRow({
       <span>
         {transaction.category ? (
           <CategoryLabel
-            path={transaction.category.path}
+            name={transaction.category.name}
             hue={transaction.category.hue}
           />
         ) : (

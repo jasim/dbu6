@@ -46,13 +46,13 @@ describe("accountLabel", () => {
     ).toEqual({ name: "Sample Savings", kind: "bank" });
   });
 
-  it("falls back to the readable last segment when no single preset names it", () => {
+  it("keeps the account's own name when no single preset names it", () => {
     expect(accountLabel("assets:bank:sample", "Asset", presets)).toEqual({
-      name: "Sample",
+      name: "assets:bank:sample",
       kind: "card",
     });
     expect(accountLabel("assets:bank:no-preset_050505", "Asset", [])).toEqual({
-      name: "No preset 050505",
+      name: "assets:bank:no-preset_050505",
       kind: "bank",
     });
   });
@@ -60,7 +60,7 @@ describe("accountLabel", () => {
   it("reads a Liability without a card preset as a card", () => {
     expect(
       accountLabel("liabilities:loans:sample-loan", "Liability", presets),
-    ).toEqual({ name: "Sample loan", kind: "card" });
+    ).toEqual({ name: "liabilities:loans:sample-loan", kind: "card" });
   });
 
   it("reads an account the ledger doesn't have as a bank unless a preset says card", () => {

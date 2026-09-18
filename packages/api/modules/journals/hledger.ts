@@ -6,6 +6,7 @@ import {
   type JournalPlan,
   type PlannedJournal,
 } from "../journal-plan/index.js";
+import { loadHledgerAccountNames } from "../accounts/index.js";
 import type { LedgerAuth } from "../ledger-sql/index.js";
 import { accountsTable } from "../../schema/accounts.js";
 import {
@@ -55,7 +56,7 @@ export function renderVisibleJournalsAsHledger({
   const plan = groupRowsIntoPlan(rows, order);
 
   return {
-    hledger_journal: formatHledger(plan),
+    hledger_journal: formatHledger(plan, loadHledgerAccountNames(db, auth)),
     journal_count: plan.length,
   };
 }

@@ -1,7 +1,6 @@
 import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
-  accountPathName,
   reportsContract,
   type IncomeExpenses,
   type IncomeExpensesAccount,
@@ -89,8 +88,7 @@ function section(
 function wireNode(node: AccountNode<AccountAmount>): IncomeExpensesAccount {
   return {
     account_id: node.account.account_id,
-    path: node.account.name,
-    name: accountPathName(node.account.name),
+    name: node.account.name,
     own: node.own,
     total: node.total,
     children: node.children.map(wireNode),

@@ -663,6 +663,12 @@ move most of them.
 - 2026-09-19, F1: the layering test is removed rather than tightened; it had
   outlived its usefulness. DEVELOPMENT.md → "Backend layering" describes the
   tiers without a test behind it.
+- 2026-09-19, outside the plan: accounts are named in plain words ("Dining
+  Out"), not hledger paths, and a name is unique in a user's books (migration
+  0005). Each type has one top account in the sample data. The Expense
+  breakdown and Income and Expenses list the top-level accounts of a type
+  with their sub-accounts showing; the hledger export builds the colon path
+  from `parent_id`.
 
 ## Found along the way
 
@@ -727,4 +733,9 @@ date and the task.
   keeps the last) but filters against the latest checkpoint of either, and the
   last-reconciled report lists an account twice when its last journal asserts
   it twice. Taking the checkpoint by the drafts' account id, and one row per
-  account, would fix both as a behavior change.
+  account, would fix both as a behavior change. (Names are unique since
+  migration 0005, which settles the first; the second stands.)
+- 2026-09-19, outside the plan: `db:generate` fails with "Vitest cannot be
+  imported in a CommonJS module", because `drizzle.config.ts` globs
+  `./schema/**/*.ts` and so loads `schema/accounts.test.ts`. Moving the test
+  aside while generating works; the glob could leave tests out.

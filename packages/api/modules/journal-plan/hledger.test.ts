@@ -6,7 +6,7 @@ import {
   unsafeAsChrono,
   type Account,
 } from "../values/index.js";
-import { formatHledger } from "./hledger.js";
+import { formatHledger, hledgerAccountNames } from "./hledger.js";
 import { planJournals, type PlanRow } from "./JournalPlan.js";
 
 const BASE = parseAccount("assets:bank:sample-savings");
@@ -83,7 +83,7 @@ describe("hledger text of a plan", () => {
       ),
     ]);
 
-    expect(formatHledger(planJournals(rows, BASE))).toBe(
+    expect(formatHledger(planJournals(rows, BASE), new Map())).toBe(
       [
         "2026-02-01 Expenses",
         "    expenses:groceries                      100.00 ; NOPII grocer",
@@ -104,7 +104,7 @@ describe("hledger text of a plan", () => {
         "    income:interest                        -100.00 ; NOPII interest",
         "",
         "2026-02-03 Expenses",
-        "    expenses:household:maintenance:plumbing-repairs    1000.00 ; NOPII plumber",
+        "    expenses:household:maintenance:plumbing-repairs     1000.00 ; NOPII plumber",
         "    assets:bank:sample-savings            -1000.00 = 620.00",
       ].join("\n"),
     );
@@ -117,31 +117,34 @@ describe("hledger text of a plan", () => {
       sourceReference: null,
       sourceTransactionKey: null,
     };
-    const output = formatHledger([
-      {
-        date: "2026-07-09",
-        description: "Expenses",
-        entries: [
-          {
-            ...entry,
-            account: "expenses:food",
-            amount: 125.5,
-            comment: "Lunch",
-          },
-          {
-            ...entry,
-            account: "assets:bank",
-            amount: -125.5,
-            assertion: 999.25,
-          },
-        ],
-      },
-      {
-        date: "2026-07-10",
-        description: "Deposits",
-        entries: [{ ...entry, account: "assets:bank", amount: 2000 }],
-      },
-    ]);
+    const output = formatHledger(
+      [
+        {
+          date: "2026-07-09",
+          description: "Expenses",
+          entries: [
+            {
+              ...entry,
+              account: "expenses:food",
+              amount: 125.5,
+              comment: "Lunch",
+            },
+            {
+              ...entry,
+              account: "assets:bank",
+              amount: -125.5,
+              assertion: 999.25,
+            },
+          ],
+        },
+        {
+          date: "2026-07-10",
+          description: "Deposits",
+          entries: [{ ...entry, account: "assets:bank", amount: 2000 }],
+        },
+      ],
+      new Map(),
+    );
 
     expect(output).toBe(
       [
@@ -153,5 +156,59 @@ describe("hledger text of a plan", () => {
         "    assets:bank                            2000.00",
       ].join("\n"),
     );
+  });
+
+  it("writes each account by its path down the account tree", () => {
+    const hledgerNames = hledgerAccountNames([
+      { id: 1, name: "Expenses", parent_id: null },
+      { id: 2, name: "Food", parent_id: 1 },
+      { id: 3, name: "Dining Out", parent_id: 2 },
+      { id: 4, name: "Assets", parent_id: null },
+      { id: 5, name: "Bank", parent_id: 4 },
+      { id: 6, name: "Sample Bank With A Long Account Name", parent_id: 5 },
+    ]);
+    const entry = {
+      assertion: null,
+      comment: null,
+      sourceReference: null,
+      sourceTransactionKey: null,
+    };
+    const output = formatHledger(
+      [
+        {
+          date: "2026-07-09",
+          description: "Expenses",
+          entries: [
+            { ...entry, account: "Dining Out", amount: 150000 },
+            {
+              ...entry,
+              account: "Sample Bank With A Long Account Name",
+              amount: -150000,
+            },
+            { ...entry, account: "Not In The Ledger", amount: 0 },
+          ],
+        },
+      ],
+      hledgerNames,
+    );
+
+    expect(output).toBe(
+      [
+        "2026-07-09 Expenses",
+        "    Expenses:Food:Dining Out             150000.00",
+        // Two spaces end a name, however long, before a ten-character amount.
+        "    Assets:Bank:Sample Bank With A Long Account Name  -150000.00",
+        "    Not In The Ledger                         0.00",
+      ].join("\n"),
+    );
+  });
+
+  it("throws on a parent loop", () => {
+    expect(() =>
+      hledgerAccountNames([
+        { id: 1, name: "Food", parent_id: 2 },
+        { id: 2, name: "Dining Out", parent_id: 1 },
+      ]),
+    ).toThrow("parent_id loops through account 1");
   });
 });

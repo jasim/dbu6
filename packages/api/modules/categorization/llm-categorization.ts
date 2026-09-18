@@ -50,7 +50,7 @@ export interface CategorizationLlm {
 export interface LLMCategorizationConfig {
   promptTemplate: string;
   // The account names the LLM may answer with, one per line.
-  hledgerAccounts: string;
+  accounts: string;
   customMappings: string;
   llm: CategorizationLlm;
 }
@@ -71,7 +71,7 @@ export interface LLMResponseRow {
  */
 export function buildPrompt(config: LLMCategorizationConfig): string {
   return config.promptTemplate
-    .replace("{hledger_accounts}", config.hledgerAccounts)
+    .replace("{accounts}", config.accounts)
     .replace("{custom_mapping}", config.customMappings);
 }
 

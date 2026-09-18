@@ -21,9 +21,10 @@ import {
 
 /*
  * Spending and Income as the account tree (PLAN.md §11 P4): the section's
- * top accounts, each opening to its children one level at a time. A row's
- * total is everything on the account and below it, so it matches the
- * account's history, which "›" opens for the page's dates.
+ * top accounts, such as "Expenses", open on their children, and each child
+ * opens one level at a time. A row's total is everything on the account and
+ * below it, so it matches the account's history, which "›" opens for the
+ * page's dates.
  */
 
 const TITLES: Record<Section, string> = {
@@ -43,16 +44,20 @@ export function AccountSection({
   total: number;
   accounts: readonly IncomeExpensesAccount[];
   dates: DateSpan;
-  /** The accounts whose rows are open. */
-  open: ReadonlySet<number>;
+  /**
+   * The accounts whose rows are open. Null until a row is opened or closed,
+   * which leaves the top rows open, so one level below them shows.
+   */
+  open: ReadonlySet<number> | null;
   onOpenChange: (open: ReadonlySet<number>) => void;
 }) {
+  const shown = open ?? new Set(accounts.map((account) => account.account_id));
   const toggle = (accountId: number) => {
-    const next = new Set(open);
+    const next = new Set(shown);
     if (!next.delete(accountId)) next.add(accountId);
     onOpenChange(next);
   };
-  const anyOpen = someOpen(accounts, open);
+  const anyOpen = someOpen(accounts, shown);
   return (
     <SectionCard
       section={section}
@@ -90,7 +95,7 @@ export function AccountSection({
             depth={0}
             parentHue="other"
             dates={dates}
-            open={open}
+            open={shown}
             onToggle={toggle}
           />
         ))}
@@ -154,7 +159,7 @@ function AccountRow({
   open: ReadonlySet<number>;
   onToggle: (accountId: number) => void;
 }) {
-  const hue = accountHue(account.path, parentHue);
+  const hue = accountHue(account.name, parentHue);
   const hasChildren = account.children.length > 0;
   const isOpen = hasChildren && open.has(account.account_id);
   const body = (
@@ -162,7 +167,6 @@ function AccountRow({
       section={section}
       sectionTotal={sectionTotal}
       name={account.name}
-      path={account.path}
       amount={account.total}
       hue={hue}
       strong={depth === 0}
@@ -246,7 +250,6 @@ function AccountRow({
                   section={section}
                   sectionTotal={sectionTotal}
                   name={`${account.name}, not in a sub-account`}
-                  path={account.path}
                   amount={account.own}
                   hue={hue}
                   strong={false}
@@ -264,7 +267,6 @@ function RowBody({
   section,
   sectionTotal,
   name,
-  path,
   amount,
   hue,
   strong,
@@ -272,7 +274,6 @@ function RowBody({
   section: Section;
   sectionTotal: number;
   name: string;
-  path: string;
   amount: number;
   hue: CategoryHueKey;
   strong: boolean;
@@ -287,7 +288,7 @@ function RowBody({
       />
       <span className="min-w-0 flex-1">
         <span
-          title={path}
+          title={name}
           className={cn(
             "block truncate text-row text-foreground",
             strong ? "font-semibold" : "font-normal",

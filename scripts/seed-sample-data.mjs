@@ -34,86 +34,77 @@ const TIME_ZONE = "Asia/Kolkata";
 
 // ── Accounts ──────────────────────────────────────────────────────────────
 
-const HDFC = "assets:bank:hdfc-savings";
-const SBI = "assets:bank:sbi-savings";
-const CASH = "assets:cash";
-const HCC = "liabilities:credit-cards:hdfc-millennia";
-const ICC = "liabilities:credit-cards:icici-amazon-pay";
-const CAR_LOAN = "liabilities:loans:hdfc-car-loan";
-const RECEIVABLES = "assets:receivables:friends";
+const HDFC = "HDFC Bank";
+const SBI = "SBI Bank";
+const CASH = "Cash";
+const HCC = "HDFC Millennia";
+const ICC = "ICICI Amazon Pay";
+const CAR_LOAN = "HDFC Car Loan";
+const RECEIVABLES = "Friends";
 
 /** Accounts with a statement: they get balance assertions, as a posted import does. */
 const STATEMENT_ACCOUNTS = [HDFC, SBI, HCC, ICC];
 
 /**
- * The account tree: top accounts by account type, each account mapped to the
- * accounts under it. Each account's parent and type come from where it sits
- * here, never from its name. There is no `assets` or `expenses` account at the
- * top, because reports group accounts by the top of their branch (`branchTops`
- * in packages/api/app/account-tree.ts), so these top accounts are the groups
- * they show. Postings may sit on any account, parents included.
+ * The account tree, by account type: each type has one top account, and every
+ * other account sits under it. Each account's parent and type come from where
+ * it sits here, never from its name. Names are plain words and unique, as the
+ * accounts table requires. Postings may sit on any account, parents included.
  */
 const ACCOUNT_TREE = {
   Asset: {
-    "assets:bank": { [HDFC]: {}, [SBI]: {} },
-    [CASH]: {},
-    "assets:receivables": { [RECEIVABLES]: {} },
-    "assets:investments": {
-      "assets:investments:epf": {},
-      "assets:investments:ppf": {},
-      "assets:investments:nps": {},
-      "assets:investments:mutual-funds": {
-        "assets:investments:mutual-funds:parag-parikh-flexi-cap": {},
-        "assets:investments:mutual-funds:uti-nifty-50-index": {},
+    Assets: {
+      Bank: { [HDFC]: {}, [SBI]: {} },
+      [CASH]: {},
+      Receivables: { [RECEIVABLES]: {} },
+      Investments: {
+        EPF: {},
+        PPF: {},
+        NPS: {},
+        "Mutual Funds": { "Parag Parikh Flexi Cap": {}, "UTI Nifty 50 Index": {} },
+        Stocks: { Zerodha: {} },
+        Gold: {},
       },
-      "assets:investments:stocks": { "assets:investments:stocks:zerodha": {} },
-      "assets:investments:gold": {},
+      Deposits: { "HDFC Fixed Deposit": {} },
     },
-    "assets:deposits": { "assets:deposits:hdfc-fixed-deposit": {} },
   },
   Liability: {
-    "liabilities:credit-cards": { [HCC]: {}, [ICC]: {} },
-    "liabilities:loans": { [CAR_LOAN]: {} },
+    Liabilities: {
+      "Credit Cards": { [HCC]: {}, [ICC]: {} },
+      Loans: { [CAR_LOAN]: {} },
+    },
   },
   Equity: {
-    "equity:opening-balances": {},
+    Equity: { "Opening Balances": {} },
   },
   Revenue: {
-    "income:salary": { "income:salary:gross-pay": {}, "income:salary:employer-pf": {}, "income:salary:performance-bonus": {} },
-    "income:interest": { "income:interest:savings": {}, "income:interest:fixed-deposit": {}, "income:interest:epf": {}, "income:interest:ppf": {} },
-    "income:dividends": { "income:dividends:stocks": {} },
-    "income:rewards": { "income:rewards:card-cashback": {} },
+    Income: {
+      Salary: { "Gross Pay": {}, "Employer PF": {}, "Performance Bonus": {} },
+      Interest: { "Savings Interest": {}, "Fixed Deposit Interest": {}, "EPF Interest": {}, "PPF Interest": {} },
+      Dividends: { "Stock Dividends": {} },
+      Rewards: { "Card Cashback": {} },
+    },
   },
   Expense: {
-    "expenses:housing": { "expenses:housing:rent": {}, "expenses:housing:house-help": {}, "expenses:housing:repairs-maintenance": {} },
-    "expenses:utilities": {
-      "expenses:utilities:electricity": {},
-      "expenses:utilities:water": {},
-      "expenses:utilities:cooking-gas": {},
-      "expenses:utilities:internet": {},
-      "expenses:utilities:mobile": {},
+    Expenses: {
+      Housing: { Rent: {}, "House Help": {}, "Repairs & Maintenance": {} },
+      Utilities: { Electricity: {}, Water: {}, "Cooking Gas": {}, Internet: {}, Mobile: {} },
+      Food: { Groceries: {}, "Milk & Dairy": {}, "Dining Out": {}, "Food Delivery": {} },
+      Transport: { Fuel: {}, "Cabs & Autos": {}, Metro: {}, "Car Maintenance": {}, "Tolls & Parking": {} },
+      Insurance: { "Term Life Insurance": {}, "Health Insurance": {}, "Parents' Health Insurance": {}, "Car Insurance": {} },
+      Health: { Medicines: {}, "Doctor & Lab": {}, Fitness: {} },
+      Personal: { Grooming: {}, Clothing: {} },
+      Shopping: { Household: {}, Electronics: {}, Furniture: {} },
+      Subscriptions: { Streaming: {}, Software: {} },
+      Entertainment: { Movies: {}, Outings: {} },
+      Travel: { "Travel Tickets": {}, "Hotels & Stays": {}, "Local Travel": {} },
+      Children: { "School Fees": {}, "Kids' Activities": {}, "Books & Toys": {} },
+      Family: { "Parents' Support": {}, Gifts: {}, Festivals: {} },
+      Giving: { Donations: {} },
+      Education: { "Courses & Books": {} },
+      Taxes: { "Income Tax": {}, "Professional Tax": {} },
+      Finance: { "Loan Interest": {}, "Bank Charges": {} },
     },
-    "expenses:food": { "expenses:food:groceries": {}, "expenses:food:milk-dairy": {}, "expenses:food:dining-out": {}, "expenses:food:food-delivery": {} },
-    "expenses:transport": {
-      "expenses:transport:fuel": {},
-      "expenses:transport:cabs-autos": {},
-      "expenses:transport:metro": {},
-      "expenses:transport:car-maintenance": {},
-      "expenses:transport:tolls-parking": {},
-    },
-    "expenses:insurance": { "expenses:insurance:term-life": {}, "expenses:insurance:health": {}, "expenses:insurance:parents-health": {}, "expenses:insurance:car": {} },
-    "expenses:health": { "expenses:health:medicines": {}, "expenses:health:doctor-lab": {}, "expenses:health:fitness": {} },
-    "expenses:personal": { "expenses:personal:grooming": {}, "expenses:personal:clothing": {} },
-    "expenses:shopping": { "expenses:shopping:household": {}, "expenses:shopping:electronics": {}, "expenses:shopping:furniture": {} },
-    "expenses:subscriptions": { "expenses:subscriptions:streaming": {}, "expenses:subscriptions:software": {} },
-    "expenses:entertainment": { "expenses:entertainment:movies": {}, "expenses:entertainment:outings": {} },
-    "expenses:travel": { "expenses:travel:tickets": {}, "expenses:travel:stays": {}, "expenses:travel:local": {} },
-    "expenses:child": { "expenses:child:school-fees": {}, "expenses:child:activities": {}, "expenses:child:books-toys": {} },
-    "expenses:family": { "expenses:family:parents-support": {}, "expenses:family:gifts": {}, "expenses:family:festivals": {} },
-    "expenses:giving": { "expenses:giving:donations": {} },
-    "expenses:education": { "expenses:education:courses-books": {} },
-    "expenses:taxes": { "expenses:taxes:income-tax": {}, "expenses:taxes:professional-tax": {} },
-    "expenses:finance": { "expenses:finance:loan-interest": {}, "expenses:finance:bank-charges": {} },
   },
 };
 
@@ -243,20 +234,20 @@ export function buildLedger(asOf) {
   function openingBalances() {
     const balances = [
       [HDFC, 350000], [SBI, 65000], [CASH, 3500],
-      ["assets:investments:epf", 640000],
-      ["assets:investments:ppf", 210000],
-      ["assets:investments:nps", 125000],
-      ["assets:investments:mutual-funds:parag-parikh-flexi-cap", 340000],
-      ["assets:investments:mutual-funds:uti-nifty-50-index", 220000],
-      ["assets:investments:stocks:zerodha", 160000],
-      ["assets:investments:gold", 45000],
-      ["assets:deposits:hdfc-fixed-deposit", 150000],
+      ["EPF", 640000],
+      ["PPF", 210000],
+      ["NPS", 125000],
+      ["Parag Parikh Flexi Cap", 340000],
+      ["UTI Nifty 50 Index", 220000],
+      ["Zerodha", 160000],
+      ["Gold", 45000],
+      ["HDFC Fixed Deposit", 150000],
       [HCC, -21400], [ICC, -7850], [CAR_LOAN, -420000],
     ];
     const equity = balances.reduce((sum, [, rupees]) => sum + rupees, 0);
     txn(year.openingDate, "Opening balances", [
       ...balances.map(([account, rupees]) => [account, rupees, "Opening balance"]),
-      ["equity:opening-balances", -equity],
+      ["Opening Balances", -equity],
     ], { prio: 0 });
   }
 
@@ -277,22 +268,22 @@ export function buildLedger(asOf) {
     const professionalTax = m === 2 ? 300 : 200;
     txn(D(lastWorkingDay(y, m)), `Salary — ${label}`, [
       [HDFC, gross - pf - tds - professionalTax],
-      ["assets:investments:epf", pf * 2, "Employee and employer PF contribution"],
-      ["expenses:taxes:income-tax", tds, "TDS on salary"],
-      ["expenses:taxes:professional-tax", professionalTax, "Professional tax"],
-      ["income:salary:gross-pay", -gross, "Gross pay"],
-      ["income:salary:employer-pf", -pf, "Employer PF contribution"],
+      ["EPF", pf * 2, "Employee and employer PF contribution"],
+      ["Income Tax", tds, "TDS on salary"],
+      ["Professional Tax", professionalTax, "Professional tax"],
+      ["Gross Pay", -gross, "Gross pay"],
+      ["Employer PF", -pf, "Employer PF contribution"],
     ], { prio: 1, narration: `NEFT CR-SAMPLE TECHNOLOGIES PVT LTD-SALARY ${mon}` });
 
     // Housing, run from the SBI household account
-    pay(D(2), HDFC, "expenses:housing:rent", appraised ? 33600 : 32000, `Rent — ${label}`, `UPI/RENT ${mon}/landlord.sample@okhdfcbank`);
+    pay(D(2), HDFC, "Rent", appraised ? 33600 : 32000, `Rent — ${label}`, `UPI/RENT ${mon}/landlord.sample@okhdfcbank`);
     txn(D(3), "Transfer to SBI household account", [[SBI, 27500, "IMPS/SELF TRANSFER/HDFC SAVINGS"], [HDFC, -27500]]);
-    pay(D(5), SBI, "expenses:housing:house-help", 3500, "Maid salary", "UPI/HOUSE HELP/maid.sample@oksbi");
-    pay(D(5), SBI, "expenses:housing:house-help", 5500, "Cook salary", "UPI/COOK/cook.sample@oksbi");
-    pay(D(1), SBI, "expenses:food:milk-dairy", amount(2200, 2700), "Milk subscription recharge", "UPI/COUNTRY DELIGHT/countrydelight@ybl");
-    if (m % 2 === 1) pay(D(12), SBI, "expenses:utilities:water", amount(420, 560), "BWSSB water bill", "UPI/BWSSB/bwssb@sbi");
-    pay(D(4), SBI, "expenses:family:parents-support", 10000, "Monthly support to parents", "UPI/PARENTS/parents.sample@oksbi");
-    txn(D(10), "PPF contribution", [["assets:investments:ppf", 5000, "TRANSFER TO PPF ACCOUNT"], [SBI, -5000]]);
+    pay(D(5), SBI, "House Help", 3500, "Maid salary", "UPI/HOUSE HELP/maid.sample@oksbi");
+    pay(D(5), SBI, "House Help", 5500, "Cook salary", "UPI/COOK/cook.sample@oksbi");
+    pay(D(1), SBI, "Milk & Dairy", amount(2200, 2700), "Milk subscription recharge", "UPI/COUNTRY DELIGHT/countrydelight@ybl");
+    if (m % 2 === 1) pay(D(12), SBI, "Water", amount(420, 560), "BWSSB water bill", "UPI/BWSSB/bwssb@sbi");
+    pay(D(4), SBI, "Parents' Support", 10000, "Monthly support to parents", "UPI/PARENTS/parents.sample@oksbi");
+    txn(D(10), "PPF contribution", [["PPF", 5000, "TRANSFER TO PPF ACCOUNT"], [SBI, -5000]]);
 
     // Car loan EMI: interest on the outstanding principal at 9% a year.
     const emi = 14500;
@@ -300,152 +291,152 @@ export function buildLedger(asOf) {
     carLoanOutstanding -= emi - interest;
     txn(D(5), `Car loan EMI — ${label}`, [
       [CAR_LOAN, emi - interest, "EMI principal"],
-      ["expenses:finance:loan-interest", interest, "EMI interest"],
+      ["Loan Interest", interest, "EMI interest"],
       [HDFC, -emi],
     ], { narration: "ACH D- HDFC BANK CAR LOAN EMI" });
 
     // Investments
     const flexiCapSip = appraised ? 11000 : 10000;
     const indexSip = appraised ? 7000 : 6000;
-    txn(D(7), "SIP — Parag Parikh Flexi Cap", [["assets:investments:mutual-funds:parag-parikh-flexi-cap", flexiCapSip, "ACH D- PPFAS MUTUAL FUND SIP"], [HDFC, -flexiCapSip]]);
-    txn(D(7), "SIP — UTI Nifty 50 Index", [["assets:investments:mutual-funds:uti-nifty-50-index", indexSip, "ACH D- UTI MUTUAL FUND SIP"], [HDFC, -indexSip]]);
-    txn(D(15), "NPS Tier I contribution", [["assets:investments:nps", 4000, "NPS TRUST CONTRIBUTION"], [HDFC, -4000]]);
+    txn(D(7), "SIP — Parag Parikh Flexi Cap", [["Parag Parikh Flexi Cap", flexiCapSip, "ACH D- PPFAS MUTUAL FUND SIP"], [HDFC, -flexiCapSip]]);
+    txn(D(7), "SIP — UTI Nifty 50 Index", [["UTI Nifty 50 Index", indexSip, "ACH D- UTI MUTUAL FUND SIP"], [HDFC, -indexSip]]);
+    txn(D(15), "NPS Tier I contribution", [["NPS", 4000, "NPS TRUST CONTRIBUTION"], [HDFC, -4000]]);
 
     // Child
-    if (quarterEnd) pay(D(5), HDFC, "expenses:child:school-fees", 24000, "Preschool quarterly fees", "NEFT/SAMPLE PRESCHOOL/QUARTERLY FEES");
-    pay(D(8), HDFC, "expenses:child:activities", 2500, "Swimming and art classes", "UPI/KIDS ACTIVITY CENTRE/kidsclub.sample@okicici");
+    if (quarterEnd) pay(D(5), HDFC, "School Fees", 24000, "Preschool quarterly fees", "NEFT/SAMPLE PRESCHOOL/QUARTERLY FEES");
+    pay(D(8), HDFC, "Kids' Activities", 2500, "Swimming and art classes", "UPI/KIDS ACTIVITY CENTRE/kidsclub.sample@okicici");
 
     // Utilities and subscriptions on the HDFC card
     const summer = [3, 4, 5].includes(m);
-    pay(D(7), HCC, "expenses:utilities:electricity", summer ? amount(2300, 3100) : amount(1150, 1650), "BESCOM electricity bill", "BBPS BESCOM BANGALORE");
-    pay(D(18), HCC, "expenses:utilities:internet", 1200, "ACT Fibernet", "ACT FIBERNET BANGALORE");
-    pay(D(22), HCC, "expenses:utilities:mobile", 1050, "Airtel postpaid family plan", "AIRTEL POSTPAID");
-    pay(D(9), HCC, "expenses:subscriptions:streaming", 650, "Netflix", "NETFLIX.COM");
-    pay(D(15), HCC, "expenses:subscriptions:streaming", 180, "Spotify", "SPOTIFY INDIA");
-    pay(D(20), HCC, "expenses:subscriptions:streaming", 300, "YouTube Premium family", "GOOGLE YOUTUBE PREMIUM");
-    pay(D(24), HCC, "expenses:subscriptions:software", 2000, "ChatGPT Plus", "OPENAI CHATGPT SUBSCR");
-    if (quarterEnd) pay(D(6), HCC, "expenses:health:fitness", 7500, "cult.fit quarterly membership", "CULTFIT CUREFIT HEALTHCARE");
+    pay(D(7), HCC, "Electricity", summer ? amount(2300, 3100) : amount(1150, 1650), "BESCOM electricity bill", "BBPS BESCOM BANGALORE");
+    pay(D(18), HCC, "Internet", 1200, "ACT Fibernet", "ACT FIBERNET BANGALORE");
+    pay(D(22), HCC, "Mobile", 1050, "Airtel postpaid family plan", "AIRTEL POSTPAID");
+    pay(D(9), HCC, "Streaming", 650, "Netflix", "NETFLIX.COM");
+    pay(D(15), HCC, "Streaming", 180, "Spotify", "SPOTIFY INDIA");
+    pay(D(20), HCC, "Streaming", 300, "YouTube Premium family", "GOOGLE YOUTUBE PREMIUM");
+    pay(D(24), HCC, "Software", 2000, "ChatGPT Plus", "OPENAI CHATGPT SUBSCR");
+    if (quarterEnd) pay(D(6), HCC, "Fitness", 7500, "cult.fit quarterly membership", "CULTFIT CUREFIT HEALTHCARE");
 
     // Groceries: a big weekend shop on the card, quick commerce on UPI, and
     // vegetables in cash.
     const weekends = weekendDays(y, m);
     for (let i = 0; i < weekends.length; i += 2) {
       const store = pick(["BIGBASKET", "DMART READY", "DMART AVENUE SUPERMARTS", "MORE RETAIL"]);
-      pay(D(weekends[i]), HCC, "expenses:food:groceries", amount(1500, 3000), `Groceries — ${store.split(" ")[0]}`, store);
-      pay(D(weekends[i]), CASH, "expenses:food:groceries", amount(250, 600), "Vegetables and fruits", "Cash — vegetable market");
+      pay(D(weekends[i]), HCC, "Groceries", amount(1500, 3000), `Groceries — ${store.split(" ")[0]}`, store);
+      pay(D(weekends[i]), CASH, "Groceries", amount(250, 600), "Vegetables and fruits", "Cash — vegetable market");
     }
     for (const d of randomDays(y, m, int(5, 8))) {
       const [name, vpa] = pick([["ZEPTO", "zepto@ybl"], ["BLINKIT", "blinkit@hdfcbank"], ["SWIGGY INSTAMART", "swiggy@icici"]]);
-      pay(D(d), HDFC, "expenses:food:groceries", amount(180, 900), `Quick commerce — ${name}`, `UPI/${name}/${vpa}`);
+      pay(D(d), HDFC, "Groceries", amount(180, 900), `Quick commerce — ${name}`, `UPI/${name}/${vpa}`);
     }
 
     // Eating
     for (const d of randomDays(y, m, int(6, 9))) {
       const [name, vpa] = pick([["Swiggy", "swiggy@icici"], ["Zomato", "zomato@hdfcbank"]]);
-      pay(D(d), HDFC, "expenses:food:food-delivery", amount(220, 780), `${name} order`, `UPI/${name.toUpperCase()}/${vpa}`);
+      pay(D(d), HDFC, "Food Delivery", amount(220, 780), `${name} order`, `UPI/${name.toUpperCase()}/${vpa}`);
     }
     for (const d of randomDays(y, m, int(2, 3))) {
       const place = pick(["SAMPLE DARSHINI", "SAMPLE BIRYANI HOUSE", "SAMPLE BREWPUB", "SAMPLE COFFEE ROASTERS", "SAMPLE UDUPI RESTAURANT", "SAMPLE PIZZERIA"]);
-      pay(D(d), HCC, "expenses:food:dining-out", amount(600, 2800), "Dining out", place);
+      pay(D(d), HCC, "Dining Out", amount(600, 2800), "Dining out", place);
     }
 
     // Getting around
     for (const d of randomDays(y, m, int(2, 3))) {
-      pay(D(d), HCC, "expenses:transport:fuel", amount(1400, 2400), "Fuel", pick(["HPCL FUEL STATION", "BPCL FUEL STATION", "IOCL FUEL STATION", "SHELL INDIA"]));
+      pay(D(d), HCC, "Fuel", amount(1400, 2400), "Fuel", pick(["HPCL FUEL STATION", "BPCL FUEL STATION", "IOCL FUEL STATION", "SHELL INDIA"]));
     }
     for (const d of randomDays(y, m, int(4, 8))) {
       const [name, vpa] = pick([["Uber", "uber@axisbank"], ["Ola", "olacabs@ybl"], ["Rapido", "rapido@ybl"]]);
-      pay(D(d), HDFC, "expenses:transport:cabs-autos", amount(90, 650), `${name} ride`, `UPI/${name.toUpperCase()}/${vpa}`);
+      pay(D(d), HDFC, "Cabs & Autos", amount(90, 650), `${name} ride`, `UPI/${name.toUpperCase()}/${vpa}`);
     }
-    for (const d of randomDays(y, m, int(1, 3))) pay(D(d), CASH, "expenses:transport:cabs-autos", amount(60, 200), "Auto rickshaw", "Cash — auto");
-    pay(D(11), HDFC, "expenses:transport:metro", 500, "Namma Metro card recharge", "UPI/BMRCL/bmrcl@axisbank");
-    pay(D(13), HDFC, "expenses:transport:car-maintenance", 600, "Car wash", "UPI/CAR WASH/carwash.sample@paytm");
-    if (m % 2 === 1) pay(D(16), HDFC, "expenses:transport:tolls-parking", 1000, "FASTag recharge", "UPI/FASTAG RECHARGE/netc.fastag@hdfcbank");
-    if (chance(0.6)) pay(D(int(1, 28)), CASH, "expenses:transport:tolls-parking", amount(40, 120), "Parking", "Cash — parking");
+    for (const d of randomDays(y, m, int(1, 3))) pay(D(d), CASH, "Cabs & Autos", amount(60, 200), "Auto rickshaw", "Cash — auto");
+    pay(D(11), HDFC, "Metro", 500, "Namma Metro card recharge", "UPI/BMRCL/bmrcl@axisbank");
+    pay(D(13), HDFC, "Car Maintenance", 600, "Car wash", "UPI/CAR WASH/carwash.sample@paytm");
+    if (m % 2 === 1) pay(D(16), HDFC, "Tolls & Parking", 1000, "FASTag recharge", "UPI/FASTAG RECHARGE/netc.fastag@hdfcbank");
+    if (chance(0.6)) pay(D(int(1, 28)), CASH, "Tolls & Parking", amount(40, 120), "Parking", "Cash — parking");
 
     // Health and personal care
     for (const d of randomDays(y, m, int(1, 2))) {
       const [name, vpa] = pick([["APOLLO PHARMACY", "apollopharmacy@icici"], ["MEDPLUS", "medplus@ybl"]]);
-      pay(D(d), HDFC, "expenses:health:medicines", amount(250, 1300), "Pharmacy", `UPI/${name}/${vpa}`);
+      pay(D(d), HDFC, "Medicines", amount(250, 1300), "Pharmacy", `UPI/${name}/${vpa}`);
     }
-    if (m % 3 === 1) pay(D(int(3, 25)), HDFC, "expenses:health:doctor-lab", 800, "Doctor consultation", "UPI/SAMPLE CLINIC/clinic.sample@okaxis");
-    for (const d of randomDays(y, m, int(1, 2))) pay(D(d), HDFC, "expenses:personal:grooming", amount(300, 1400), "Salon", "UPI/SAMPLE SALON/salon.sample@okaxis");
+    if (m % 3 === 1) pay(D(int(3, 25)), HDFC, "Doctor & Lab", 800, "Doctor consultation", "UPI/SAMPLE CLINIC/clinic.sample@okaxis");
+    for (const d of randomDays(y, m, int(1, 2))) pay(D(d), HDFC, "Grooming", amount(300, 1400), "Salon", "UPI/SAMPLE SALON/salon.sample@okaxis");
 
     // Shopping on the Amazon Pay card
-    for (const d of randomDays(y, m, int(1, 2))) pay(D(d), ICC, "expenses:shopping:household", amount(300, 2200), "Amazon — household", "AMAZON PAY INDIA");
-    for (const d of randomDays(y, m, int(0, 1))) pay(D(d), ICC, "expenses:child:books-toys", amount(300, 1500), "Kids books and toys", pick(["AMAZON PAY INDIA", "FIRSTCRY BRAINBEES"]));
-    if (chance(0.4)) pay(D(int(1, 28)), ICC, "expenses:personal:clothing", amount(900, 3800), "Clothing", pick(["MYNTRA DESIGNS", "AJIO RELIANCE RETAIL"]));
+    for (const d of randomDays(y, m, int(1, 2))) pay(D(d), ICC, "Household", amount(300, 2200), "Amazon — household", "AMAZON PAY INDIA");
+    for (const d of randomDays(y, m, int(0, 1))) pay(D(d), ICC, "Books & Toys", amount(300, 1500), "Kids books and toys", pick(["AMAZON PAY INDIA", "FIRSTCRY BRAINBEES"]));
+    if (chance(0.4)) pay(D(int(1, 28)), ICC, "Clothing", amount(900, 3800), "Clothing", pick(["MYNTRA DESIGNS", "AJIO RELIANCE RETAIL"]));
 
     // Leisure
-    for (const d of randomDays(y, m, int(0, 2))) pay(D(d), HCC, "expenses:entertainment:movies", amount(650, 1300), "Movie tickets", pick(["BOOKMYSHOW", "PVR INOX"]));
-    if (chance(0.5)) pay(D(int(1, 28)), CASH, "expenses:giving:donations", pick([100, 200, 500]), "Temple offering", "Cash — temple");
+    for (const d of randomDays(y, m, int(0, 2))) pay(D(d), HCC, "Movies", amount(650, 1300), "Movie tickets", pick(["BOOKMYSHOW", "PVR INOX"]));
+    if (chance(0.5)) pay(D(int(1, 28)), CASH, "Donations", pick([100, 200, 500]), "Temple offering", "Cash — temple");
 
     // Card rewards and quarterly savings interest
-    receive(D(25), HCC, "income:rewards:card-cashback", amount(250, 750), "HDFC card cashback", "CASHBACK CREDIT");
-    receive(D(20), ICC, "income:rewards:card-cashback", amount(120, 450), "Amazon Pay card cashback", "AMAZON PAY CASHBACK");
+    receive(D(25), HCC, "Card Cashback", amount(250, 750), "HDFC card cashback", "CASHBACK CREDIT");
+    receive(D(20), ICC, "Card Cashback", amount(120, 450), "Amazon Pay card cashback", "AMAZON PAY CASHBACK");
     if (quarterEnd) {
-      receive(D(31), HDFC, "income:interest:savings", amount(1900, 2800), "Savings interest", "CREDIT INTEREST CAPITALISED");
-      receive(D(31), SBI, "income:interest:savings", amount(380, 560), "Savings interest", "INTEREST CREDIT");
+      receive(D(31), HDFC, "Savings Interest", amount(1900, 2800), "Savings interest", "CREDIT INTEREST CAPITALISED");
+      receive(D(31), SBI, "Savings Interest", amount(380, 560), "Savings interest", "INTEREST CREDIT");
     }
   }
 
   function yearlyEvents() {
     // A cooking gas cylinder every six weeks.
     for (let date = addDays(year.openingDate, 14); date <= year.lastPostedDate; date = addDays(date, 42)) {
-      pay(date, SBI, "expenses:utilities:cooking-gas", 900, "LPG cylinder refill", "UPI/INDANE GAS/indane@sbi");
+      pay(date, SBI, "Cooking Gas", 900, "LPG cylinder refill", "UPI/INDANE GAS/indane@sbi");
     }
 
     // Spending that mixes a parent account's sub-accounts, or fits none of
     // them, sits on the parent account itself.
-    pay(on(9, 13), HDFC, "expenses:food", 450, "Bakery — bread, cake and snacks", "UPI/SAMPLE BAKERY/bakery.sample@okaxis");
-    pay(on(12, 6), HCC, "expenses:food", 1500, "Snacks and drinks for a house party", "SAMPLE SUPERMARKET");
-    pay(on(3, 7), CASH, "expenses:food", 400, "Sweets and savouries", "Cash — sweet shop");
-    pay(on(6, 19), HDFC, "expenses:food", 1000, "Office cafeteria card top-up", "UPI/SAMPLE CAFETERIA/cafeteria.sample@okicici");
-    pay(on(11, 8), ICC, "expenses:shopping", 2600, "Amazon order — kitchenware and a desk lamp", "AMAZON PAY INDIA");
+    pay(on(9, 13), HDFC, "Food", 450, "Bakery — bread, cake and snacks", "UPI/SAMPLE BAKERY/bakery.sample@okaxis");
+    pay(on(12, 6), HCC, "Food", 1500, "Snacks and drinks for a house party", "SAMPLE SUPERMARKET");
+    pay(on(3, 7), CASH, "Food", 400, "Sweets and savouries", "Cash — sweet shop");
+    pay(on(6, 19), HDFC, "Food", 1000, "Office cafeteria card top-up", "UPI/SAMPLE CAFETERIA/cafeteria.sample@okicici");
+    pay(on(11, 8), ICC, "Shopping", 2600, "Amazon order — kitchenware and a desk lamp", "AMAZON PAY INDIA");
 
     // September
-    pay(on(9, 18), HCC, "expenses:travel:tickets", 6800, "Train tickets home for Diwali", "IRCTC E-TICKETING");
+    pay(on(9, 18), HCC, "Travel Tickets", 6800, "Train tickets home for Diwali", "IRCTC E-TICKETING");
     txn(on(9, 21), "Group dinner, split with friends", [
-      ["expenses:food:dining-out", 1600, "Own share"],
+      ["Dining Out", 1600, "Own share"],
       [RECEIVABLES, 4800, "Friends' share"],
       [HCC, -6400],
     ]);
     receive(on(9, 23), HDFC, RECEIVABLES, 4800, "Friends settle dinner split", "UPI/SPLITWISE SETTLE UP");
 
     // October: Dussehra, the festival sale, Diwali
-    pay(on(10, 1), CASH, "expenses:family:festivals", 1200, "Dussehra pooja items", "Cash — pooja store");
-    pay(on(10, 3), ICC, "expenses:shopping:electronics", 43000, "New smartphone (festival sale)", "AMAZON PAY INDIA");
-    pay(on(10, 8), HCC, "expenses:travel:tickets", 24600, "Flights to Goa", "INDIGO INTERGLOBE AVIATION");
-    pay(on(10, 11), HCC, "expenses:transport:car-maintenance", 6800, "Car periodic service", "SAMPLE MOTORS SERVICE CENTRE");
-    pay(on(10, 12), ICC, "expenses:personal:clothing", 14500, "Diwali clothes", "MYNTRA DESIGNS");
-    pay(on(10, 15), SBI, "expenses:housing:house-help", 3500, "Diwali bonus — maid", "UPI/HOUSE HELP/maid.sample@oksbi");
-    pay(on(10, 15), SBI, "expenses:housing:house-help", 5500, "Diwali bonus — cook", "UPI/COOK/cook.sample@oksbi");
-    pay(on(10, 17), HDFC, "expenses:travel:local", 650, "Cab to railway station", "UPI/UBER/uber@axisbank");
-    txn(on(10, 18), "Dhanteras gold coin", [["assets:investments:gold", 25000, "POS SAMPLE JEWELLERS"], [HDFC, -25000]]);
-    pay(on(10, 19), HCC, "expenses:family:gifts", 6800, "Diwali sweets and gifts", "SAMPLE SWEETS AND GIFTS");
-    pay(on(10, 20), CASH, "expenses:family:festivals", 2800, "Diyas, lights, and decorations", "Cash — Diwali market");
-    pay(on(10, 23), HDFC, "expenses:travel:local", 600, "Cab home from station", "UPI/OLA/olacabs@ybl");
-    txn(on(10, 28), "Funds added to Zerodha", [["assets:investments:stocks:zerodha", 25000, "NEFT/ZERODHA BROKING LTD"], [HDFC, -25000]]);
+    pay(on(10, 1), CASH, "Festivals", 1200, "Dussehra pooja items", "Cash — pooja store");
+    pay(on(10, 3), ICC, "Electronics", 43000, "New smartphone (festival sale)", "AMAZON PAY INDIA");
+    pay(on(10, 8), HCC, "Travel Tickets", 24600, "Flights to Goa", "INDIGO INTERGLOBE AVIATION");
+    pay(on(10, 11), HCC, "Car Maintenance", 6800, "Car periodic service", "SAMPLE MOTORS SERVICE CENTRE");
+    pay(on(10, 12), ICC, "Clothing", 14500, "Diwali clothes", "MYNTRA DESIGNS");
+    pay(on(10, 15), SBI, "House Help", 3500, "Diwali bonus — maid", "UPI/HOUSE HELP/maid.sample@oksbi");
+    pay(on(10, 15), SBI, "House Help", 5500, "Diwali bonus — cook", "UPI/COOK/cook.sample@oksbi");
+    pay(on(10, 17), HDFC, "Local Travel", 650, "Cab to railway station", "UPI/UBER/uber@axisbank");
+    txn(on(10, 18), "Dhanteras gold coin", [["Gold", 25000, "POS SAMPLE JEWELLERS"], [HDFC, -25000]]);
+    pay(on(10, 19), HCC, "Gifts", 6800, "Diwali sweets and gifts", "SAMPLE SWEETS AND GIFTS");
+    pay(on(10, 20), CASH, "Festivals", 2800, "Diyas, lights, and decorations", "Cash — Diwali market");
+    pay(on(10, 23), HDFC, "Local Travel", 600, "Cab home from station", "UPI/OLA/olacabs@ybl");
+    txn(on(10, 28), "Funds added to Zerodha", [["Zerodha", 25000, "NEFT/ZERODHA BROKING LTD"], [HDFC, -25000]]);
 
     // November
-    receive(on(11, 6), HDFC, "income:dividends:stocks", 1150, "Infosys interim dividend", "ACH C- INFOSYS LTD INT DIV");
-    pay(on(11, 12), HCC, "expenses:insurance:health", 26400, "Family floater health insurance", "SAMPLE HEALTH INSURANCE PREMIUM");
-    pay(on(11, 15), HCC, "expenses:travel:stays", 31500, "Goa resort booking", "SAMPLE GOA BEACH RESORT");
-    pay(on(11, 16), HDFC, "expenses:health:doctor-lab", 3200, "Child vaccination", "UPI/SAMPLE CHILDRENS CLINIC/clinic.sample@okaxis");
-    pay(on(11, 22), HCC, "expenses:education:courses-books", 550, "Udemy course", "UDEMY");
-    pay(on(11, 23), HDFC, "expenses:family:gifts", 5000, "Wedding gift", "UPI/WEDDING GIFT/cousin.sample@okicici");
-    pay(on(11, 28), ICC, "expenses:shopping:electronics", 11500, "Air purifier", "AMAZON PAY INDIA");
+    receive(on(11, 6), HDFC, "Stock Dividends", 1150, "Infosys interim dividend", "ACH C- INFOSYS LTD INT DIV");
+    pay(on(11, 12), HCC, "Health Insurance", 26400, "Family floater health insurance", "SAMPLE HEALTH INSURANCE PREMIUM");
+    pay(on(11, 15), HCC, "Hotels & Stays", 31500, "Goa resort booking", "SAMPLE GOA BEACH RESORT");
+    pay(on(11, 16), HDFC, "Doctor & Lab", 3200, "Child vaccination", "UPI/SAMPLE CHILDRENS CLINIC/clinic.sample@okaxis");
+    pay(on(11, 22), HCC, "Courses & Books", 550, "Udemy course", "UDEMY");
+    pay(on(11, 23), HDFC, "Gifts", 5000, "Wedding gift", "UPI/WEDDING GIFT/cousin.sample@okicici");
+    pay(on(11, 28), ICC, "Electronics", 11500, "Air purifier", "AMAZON PAY INDIA");
 
     // December: an outing, Christmas, the Goa trip
-    pay(on(12, 14), HCC, "expenses:entertainment:outings", 5000, "Wonderla day out", "WONDERLA HOLIDAYS");
-    pay(on(12, 25), HCC, "expenses:family:gifts", 1850, "Christmas cake and gifts", "SAMPLE BAKERY");
-    pay(on(12, 26), HDFC, "expenses:travel:local", 1150, "Cab to airport", "UPI/UBER/uber@axisbank");
-    pay(on(12, 27), CASH, "expenses:travel:local", 2400, "Scooter rental in Goa", "Cash — scooter rental");
-    pay(on(12, 27), HCC, "expenses:food:dining-out", 2850, "Dinner in Goa", "SAMPLE GOA SHACK");
-    pay(on(12, 28), HCC, "expenses:travel:local", 3500, "Water sports in Goa", "SAMPLE WATER SPORTS");
-    pay(on(12, 28), CASH, "expenses:food:dining-out", 1600, "Beach shack lunch", "Cash — beach shack");
-    pay(on(12, 29), HCC, "expenses:food:dining-out", 3400, "Dinner in Goa", "SAMPLE GOA RESTAURANT");
-    pay(on(12, 30), HDFC, "expenses:travel:local", 1100, "Cab home from airport", "UPI/OLA/olacabs@ybl");
+    pay(on(12, 14), HCC, "Outings", 5000, "Wonderla day out", "WONDERLA HOLIDAYS");
+    pay(on(12, 25), HCC, "Gifts", 1850, "Christmas cake and gifts", "SAMPLE BAKERY");
+    pay(on(12, 26), HDFC, "Local Travel", 1150, "Cab to airport", "UPI/UBER/uber@axisbank");
+    pay(on(12, 27), CASH, "Local Travel", 2400, "Scooter rental in Goa", "Cash — scooter rental");
+    pay(on(12, 27), HCC, "Dining Out", 2850, "Dinner in Goa", "SAMPLE GOA SHACK");
+    pay(on(12, 28), HCC, "Local Travel", 3500, "Water sports in Goa", "SAMPLE WATER SPORTS");
+    pay(on(12, 28), CASH, "Dining Out", 1600, "Beach shack lunch", "Cash — beach shack");
+    pay(on(12, 29), HCC, "Dining Out", 3400, "Dinner in Goa", "SAMPLE GOA RESTAURANT");
+    pay(on(12, 30), HDFC, "Local Travel", 1100, "Cab home from airport", "UPI/OLA/olacabs@ybl");
 
     // January, including a loan to a friend, repaid two months later if that
     // is still within the seeded year
@@ -453,86 +444,86 @@ export function buildLedger(asOf) {
     txn(loanDate, "Loan to a friend", [[RECEIVABLES, 10000, "UPI/LOAN TO FRIEND/friend.sample@okaxis"], [HDFC, -10000]]);
     const repaidOn = ymd(...addMonths(...yearMonth(loanDate), 2), 12);
     if (repaidOn <= year.lastPostedDate) receive(repaidOn, HDFC, RECEIVABLES, 10000, "Friend repays loan", "UPI/LOAN REPAYMENT/friend.sample@okaxis");
-    pay(on(1, 14), CASH, "expenses:family:festivals", 1400, "Sankranti festival", "Cash — festival market");
-    pay(on(1, 18), HDFC, "expenses:insurance:term-life", 16850, "Term life insurance premium", "ACH D- SAMPLE LIFE INSURANCE PREMIUM");
-    pay(on(1, 19), ICC, "expenses:personal:clothing", 4200, "End-of-season sale", "AJIO RELIANCE RETAIL");
-    pay(on(1, 24), HCC, "expenses:shopping:furniture", 15000, "Study table and chair", "IKEA INDIA");
-    pay(on(1, 25), HDFC, "expenses:family:gifts", 11000, "Wedding gift", "UPI/WEDDING GIFT/friend.sample@okhdfcbank");
+    pay(on(1, 14), CASH, "Festivals", 1400, "Sankranti festival", "Cash — festival market");
+    pay(on(1, 18), HDFC, "Term Life Insurance", 16850, "Term life insurance premium", "ACH D- SAMPLE LIFE INSURANCE PREMIUM");
+    pay(on(1, 19), ICC, "Clothing", 4200, "End-of-season sale", "AJIO RELIANCE RETAIL");
+    pay(on(1, 24), HCC, "Furniture", 15000, "Study table and chair", "IKEA INDIA");
+    pay(on(1, 25), HDFC, "Gifts", 11000, "Wedding gift", "UPI/WEDDING GIFT/friend.sample@okhdfcbank");
 
     // February
-    txn(on(2, 3), "Funds added to Zerodha", [["assets:investments:stocks:zerodha", 20000, "NEFT/ZERODHA BROKING LTD"], [HDFC, -20000]]);
-    pay(on(2, 8), HCC, "expenses:insurance:car", 17900, "Car insurance renewal", "SAMPLE GENERAL INSURANCE");
-    pay(on(2, 10), ICC, "expenses:subscriptions:streaming", 1500, "Amazon Prime annual", "AMAZON PRIME");
-    pay(on(2, 14), HDFC, "expenses:family:gifts", 5000, "Wedding gift", "UPI/WEDDING GIFT/colleague.sample@okicici");
-    pay(on(2, 14), HCC, "expenses:food:dining-out", 3800, "Valentine's Day dinner", "SAMPLE FINE DINING");
-    receive(on(2, 20), HDFC, "income:dividends:stocks", 1000, "Coal India interim dividend", "ACH C- COAL INDIA LTD DIV");
-    pay(on(2, 21), HCC, "expenses:health:doctor-lab", 4200, "Annual health check-up", "SAMPLE DIAGNOSTICS");
-    pay(on(2, 26), HCC, "expenses:education:courses-books", 4100, "Coursera specialisation", "COURSERA");
+    txn(on(2, 3), "Funds added to Zerodha", [["Zerodha", 20000, "NEFT/ZERODHA BROKING LTD"], [HDFC, -20000]]);
+    pay(on(2, 8), HCC, "Car Insurance", 17900, "Car insurance renewal", "SAMPLE GENERAL INSURANCE");
+    pay(on(2, 10), ICC, "Streaming", 1500, "Amazon Prime annual", "AMAZON PRIME");
+    pay(on(2, 14), HDFC, "Gifts", 5000, "Wedding gift", "UPI/WEDDING GIFT/colleague.sample@okicici");
+    pay(on(2, 14), HCC, "Dining Out", 3800, "Valentine's Day dinner", "SAMPLE FINE DINING");
+    receive(on(2, 20), HDFC, "Stock Dividends", 1000, "Coal India interim dividend", "ACH C- COAL INDIA LTD DIV");
+    pay(on(2, 21), HCC, "Doctor & Lab", 4200, "Annual health check-up", "SAMPLE DIAGNOSTICS");
+    pay(on(2, 26), HCC, "Courses & Books", 4100, "Coursera specialisation", "COURSERA");
 
     // March: the opening FD matures, parents' insurance, financial year end
-    pay(on(3, 14), HCC, "expenses:subscriptions:streaming", 1500, "JioHotstar annual", "JIOHOTSTAR");
+    pay(on(3, 14), HCC, "Streaming", 1500, "JioHotstar annual", "JIOHOTSTAR");
     txn(on(3, 16), "Fixed deposit matured", [
       [HDFC, 160800],
-      ["assets:deposits:hdfc-fixed-deposit", -150000, "FD maturity principal"],
-      ["income:interest:fixed-deposit", -10800, "FD interest"],
+      ["HDFC Fixed Deposit", -150000, "FD maturity principal"],
+      ["Fixed Deposit Interest", -10800, "FD interest"],
     ], { narration: "FD MATURITY PROCEEDS" });
-    pay(on(3, 19), HCC, "expenses:family:festivals", 2600, "Ugadi festival shopping", "SAMPLE SUPERMARKET");
-    pay(on(3, 20), HDFC, "expenses:insurance:parents-health", 42500, "Parents' senior citizen health insurance", "NEFT/SAMPLE HEALTH INSURANCE");
-    pay(on(3, 24), HCC, "expenses:giving:donations", 5000, "Donation to education charity", "SAMPLE CHARITY FOUNDATION");
-    pay(on(3, 28), CASH, "expenses:transport:car-maintenance", 150, "Pollution check certificate", "Cash — PUC centre");
+    pay(on(3, 19), HCC, "Festivals", 2600, "Ugadi festival shopping", "SAMPLE SUPERMARKET");
+    pay(on(3, 20), HDFC, "Parents' Health Insurance", 42500, "Parents' senior citizen health insurance", "NEFT/SAMPLE HEALTH INSURANCE");
+    pay(on(3, 24), HCC, "Donations", 5000, "Donation to education charity", "SAMPLE CHARITY FOUNDATION");
+    pay(on(3, 28), CASH, "Car Maintenance", 150, "Pollution check certificate", "Cash — PUC centre");
     const ppfInterestDate = on(3, 31);
-    receive(ppfInterestDate, "assets:investments:ppf", "income:interest:ppf", 17000, `PPF interest for ${fyLabel(financialYear(...yearMonth(ppfInterestDate)))}`, "PPF INTEREST CREDIT");
+    receive(ppfInterestDate, "PPF", "PPF Interest", 17000, `PPF interest for ${fyLabel(financialYear(...yearMonth(ppfInterestDate)))}`, "PPF INTEREST CREDIT");
 
     // April
-    pay(on(4, 11), HCC, "expenses:transport:car-maintenance", 14200, "Car service and new battery", "SAMPLE MOTORS SERVICE CENTRE");
-    pay(on(4, 15), HDFC, "expenses:finance:bank-charges", 600, "Debit card annual fee", "DEBIT CARD ANNUAL FEE INCL GST");
-    txn(on(4, 19), "Akshaya Tritiya digital gold", [["assets:investments:gold", 15000, "UPI/DIGITAL GOLD/digigold.sample@ybl"], [HDFC, -15000]]);
-    pay(on(4, 25), HDFC, "expenses:housing:repairs-maintenance", 1800, "AC servicing", "UPI/URBAN COMPANY/urbancompany@icici");
+    pay(on(4, 11), HCC, "Car Maintenance", 14200, "Car service and new battery", "SAMPLE MOTORS SERVICE CENTRE");
+    pay(on(4, 15), HDFC, "Bank Charges", 600, "Debit card annual fee", "DEBIT CARD ANNUAL FEE INCL GST");
+    txn(on(4, 19), "Akshaya Tritiya digital gold", [["Gold", 15000, "UPI/DIGITAL GOLD/digigold.sample@ybl"], [HDFC, -15000]]);
+    pay(on(4, 25), HDFC, "Repairs & Maintenance", 1800, "AC servicing", "UPI/URBAN COMPANY/urbancompany@icici");
 
     // May: summer trip to Coorg
-    pay(on(5, 2), CASH, "expenses:housing:repairs-maintenance", 650, "Plumber", "Cash — plumber");
-    pay(on(5, 8), HDFC, "expenses:travel:stays", 16500, "Coorg homestay booking", "UPI/SAMPLE COORG HOMESTAY/homestay.sample@okaxis");
-    pay(on(5, 15), HCC, "expenses:transport:fuel", 2900, "Fuel for Coorg trip", "HPCL FUEL STATION");
-    pay(on(5, 16), HCC, "expenses:food:dining-out", 1850, "Lunch on the road", "SAMPLE HIGHWAY RESTAURANT");
-    pay(on(5, 16), CASH, "expenses:travel:local", 1800, "Coffee estate tour", "Cash — estate tour");
-    pay(on(5, 17), HCC, "expenses:food:dining-out", 2350, "Dinner in Madikeri", "SAMPLE MADIKERI RESTAURANT");
-    pay(on(5, 17), CASH, "expenses:family:gifts", 1450, "Coffee and spices to take home", "Cash — spice shop");
-    pay(on(5, 29), HDFC, "expenses:child:activities", 6500, "Summer camp", "UPI/SAMPLE SUMMER CAMP/camp.sample@okicici");
+    pay(on(5, 2), CASH, "Repairs & Maintenance", 650, "Plumber", "Cash — plumber");
+    pay(on(5, 8), HDFC, "Hotels & Stays", 16500, "Coorg homestay booking", "UPI/SAMPLE COORG HOMESTAY/homestay.sample@okaxis");
+    pay(on(5, 15), HCC, "Fuel", 2900, "Fuel for Coorg trip", "HPCL FUEL STATION");
+    pay(on(5, 16), HCC, "Dining Out", 1850, "Lunch on the road", "SAMPLE HIGHWAY RESTAURANT");
+    pay(on(5, 16), CASH, "Local Travel", 1800, "Coffee estate tour", "Cash — estate tour");
+    pay(on(5, 17), HCC, "Dining Out", 2350, "Dinner in Madikeri", "SAMPLE MADIKERI RESTAURANT");
+    pay(on(5, 17), CASH, "Gifts", 1450, "Coffee and spices to take home", "Cash — spice shop");
+    pay(on(5, 29), HDFC, "Kids' Activities", 6500, "Summer camp", "UPI/SAMPLE SUMMER CAMP/camp.sample@okicici");
 
     // June: the school year starts, and the bonus for the last financial year
-    pay(on(6, 5), HDFC, "expenses:child:school-fees", 18500, "Annual fees and books", "NEFT/SAMPLE PRESCHOOL/ANNUAL FEES");
-    receive(on(6, 10), HDFC, "income:dividends:stocks", 1400, "Infosys final dividend", "ACH C- INFOSYS LTD FIN DIV");
-    pay(on(6, 12), ICC, "expenses:child:books-toys", 4650, "School uniforms and books", "AMAZON PAY INDIA");
-    receive(on(6, 26), HDFC, "income:dividends:stocks", 800, "ITC dividend", "ACH C- ITC LTD DIV");
+    pay(on(6, 5), HDFC, "School Fees", 18500, "Annual fees and books", "NEFT/SAMPLE PRESCHOOL/ANNUAL FEES");
+    receive(on(6, 10), HDFC, "Stock Dividends", 1400, "Infosys final dividend", "ACH C- INFOSYS LTD FIN DIV");
+    pay(on(6, 12), ICC, "Books & Toys", 4650, "School uniforms and books", "AMAZON PAY INDIA");
+    receive(on(6, 26), HDFC, "Stock Dividends", 800, "ITC dividend", "ACH C- ITC LTD DIV");
     const juneYear = yearMonth(on(6, 1))[0];
     const bonusGross = 250000;
     const bonusTds = 78000;
     txn(ymd(juneYear, 6, lastWorkingDay(juneYear, 6)), `Performance bonus for ${fyLabel(financialYear(juneYear, 6) - 1)}`, [
       [HDFC, bonusGross - bonusTds],
-      ["expenses:taxes:income-tax", bonusTds, "TDS on bonus"],
-      ["income:salary:performance-bonus", -bonusGross, "Performance bonus"],
+      ["Income Tax", bonusTds, "TDS on bonus"],
+      ["Performance Bonus", -bonusGross, "Performance bonus"],
     ], { prio: 1, narration: "NEFT CR-SAMPLE TECHNOLOGIES PVT LTD-BONUS" });
 
     // July
-    txn(on(7, 3), "Funds added to Zerodha", [["assets:investments:stocks:zerodha", 30000, "NEFT/ZERODHA BROKING LTD"], [HDFC, -30000]]);
-    pay(on(7, 11), HCC, "expenses:health:doctor-lab", 6500, "Dental treatment", "SAMPLE DENTAL CLINIC");
-    pay(on(7, 18), ICC, "expenses:personal:clothing", 3900, "End-of-season sale", "MYNTRA DESIGNS");
-    receive(on(7, 20), HDFC, "income:dividends:stocks", 600, "HDFC Bank dividend", "ACH C- HDFC BANK LTD DIV");
+    txn(on(7, 3), "Funds added to Zerodha", [["Zerodha", 30000, "NEFT/ZERODHA BROKING LTD"], [HDFC, -30000]]);
+    pay(on(7, 11), HCC, "Doctor & Lab", 6500, "Dental treatment", "SAMPLE DENTAL CLINIC");
+    pay(on(7, 18), ICC, "Clothing", 3900, "End-of-season sale", "MYNTRA DESIGNS");
+    receive(on(7, 20), HDFC, "Stock Dividends", 600, "HDFC Bank dividend", "ACH C- HDFC BANK LTD DIV");
 
     // August: last financial year's tax refund and EPF interest, a weekend
     // trip with friends. The refund's interest fits no sub-account of
-    // income:interest, so it sits on that account itself.
+    // Interest, so it sits on that account itself.
     const lastFinancialYear = fyLabel(financialYear(...yearMonth(on(8, 1))) - 1);
     txn(on(8, 14), `Income tax refund for ${lastFinancialYear}`, [
       [HDFC, 8200],
-      ["expenses:taxes:income-tax", -7800, "Refund"],
-      ["income:interest", -400, "Interest on the refund"],
+      ["Income Tax", -7800, "Refund"],
+      ["Interest", -400, "Interest on the refund"],
     ], { narration: "NEFT CR-CPC INCOME TAX REFUND" });
-    pay(on(8, 22), HCC, "expenses:transport:car-maintenance", 5900, "Car periodic service", "SAMPLE MOTORS SERVICE CENTRE");
-    receive(on(8, 25), "assets:investments:epf", "income:interest:epf", 58600, `EPF interest for ${lastFinancialYear}`, "EPFO INTEREST CREDIT");
-    pay(on(8, 27), ICC, "expenses:family:gifts", 2500, "Raksha Bandhan gift", "AMAZON PAY INDIA");
+    pay(on(8, 22), HCC, "Car Maintenance", 5900, "Car periodic service", "SAMPLE MOTORS SERVICE CENTRE");
+    receive(on(8, 25), "EPF", "EPF Interest", 58600, `EPF interest for ${lastFinancialYear}`, "EPFO INTEREST CREDIT");
+    pay(on(8, 27), ICC, "Gifts", 2500, "Raksha Bandhan gift", "AMAZON PAY INDIA");
     txn(on(8, 28), "Weekend villa with friends, split", [
-      ["expenses:travel:stays", 4500, "Own share"],
+      ["Hotels & Stays", 4500, "Own share"],
       [RECEIVABLES, 13500, "Friends' share"],
       [HCC, -18000],
     ]);
@@ -544,7 +535,7 @@ export function buildLedger(asOf) {
     const day = (d) => ymd(year.asOfYear, year.asOfMonth, Math.min(d, Number(asOf.slice(8))));
     // The counterpart accounts only balance the transaction; the drafts are
     // left uncategorized.
-    pay(day(6), HDFC, "expenses:food:groceries", 750, "Unrecognised UPI payment", "UPI/SAMPLE KIRANA STORE/paytmqr.sample@paytm", { uncategorized: true });
+    pay(day(6), HDFC, "Groceries", 750, "Unrecognised UPI payment", "UPI/SAMPLE KIRANA STORE/paytmqr.sample@paytm", { uncategorized: true });
     receive(day(9), HDFC, RECEIVABLES, 2000, "Unrecognised IMPS credit", "IMPS CR/SAMPLE SENDER", { uncategorized: true });
   }
 
@@ -583,8 +574,8 @@ export function buildLedger(asOf) {
    */
   function investSurplus() {
     const sweeps = [
-      [on(4, 8), "Lump sum — UTI Nifty 50 Index", "assets:investments:mutual-funds:uti-nifty-50-index", "UPI/UTI MUTUAL FUND LUMPSUM/utimf@hdfcbank"],
-      [on(7, 2), "Fixed deposit booked", "assets:deposits:hdfc-fixed-deposit", "FD BOOKING 12 MONTHS"],
+      [on(4, 8), "Lump sum — UTI Nifty 50 Index", "UTI Nifty 50 Index", "UPI/UTI MUTUAL FUND LUMPSUM/utimf@hdfcbank"],
+      [on(7, 2), "Fixed deposit booked", "HDFC Fixed Deposit", "FD BOOKING 12 MONTHS"],
     ].sort(([a], [b]) => a.localeCompare(b));
     for (const [date, description, account, narration] of sweeps) {
       const surplus = Math.floor((balanceOf(HDFC, date) / 100 - 350000) / 10000) * 10000;
@@ -785,7 +776,7 @@ function printSummary({ year, posted, drafts, closing, lowest }) {
   console.log(`  ${ACCOUNTS.length} accounts, ${posted.length} journals, ${posted.reduce((n, e) => n + e.postings.length, 0)} entries, ${drafts.length} drafts`);
   console.log(`  Income ${inr(-total("Revenue"))}, expenses ${inr(total("Expense"))}`);
   console.log(`  Closing balances on ${year.lastPostedDate}:`);
-  for (const account of [HDFC, SBI, CASH, HCC, ICC, CAR_LOAN, "assets:deposits:hdfc-fixed-deposit"]) {
+  for (const account of [HDFC, SBI, CASH, HCC, ICC, CAR_LOAN, "HDFC Fixed Deposit"]) {
     console.log(`    ${account.padEnd(42)} ${inr(closing.get(account)).padStart(12)}   (lowest ${inr(lowest.get(account))})`);
   }
 }

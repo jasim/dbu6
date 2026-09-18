@@ -1,12 +1,12 @@
 [
   {
     "name": "Example Bank",
-    "base_account": "assets:bank:example",
+    "base_account": "Example Bank",
     "custom_mappings_filenames": ["custom_mappings_default.prompt"]
   },
   {
     "name": "Example Credit Card",
-    "base_account": "cc:example",
+    "base_account": "Example Credit Card",
     "custom_mappings_filenames": ["custom_mappings_default.prompt"],
     "is_credit_card": true
   }

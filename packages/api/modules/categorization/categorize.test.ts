@@ -144,7 +144,7 @@ describe("categorize", () => {
     expect(unmappedIndices).toEqual([1]);
     expect(llmConfig).toEqual({
       promptTemplate: PROMPT_TEMPLATE,
-      hledgerAccounts: "assets:bank:sample\nexpenses:food\nexpenses:other",
+      accounts: "assets:bank:sample\nexpenses:food\nexpenses:other",
       customMappings: "MAP A\n\nMAP B",
       llm,
     });
@@ -157,7 +157,7 @@ describe("categorize", () => {
     await categorizeRows([withdrawal("MYSTERY")], baseConfig());
 
     const [, , llmConfig] = llmMock.mock.calls[0];
-    expect(llmConfig.hledgerAccounts.split("\n")).toEqual([
+    expect(llmConfig.accounts.split("\n")).toEqual([
       "assets:bank:sample",
       "expenses:food",
       "expenses:other",

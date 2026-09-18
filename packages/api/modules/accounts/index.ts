@@ -3,6 +3,7 @@
 // rather than from the file.
 export {
   loadAccountsByName,
+  loadHledgerAccountNames,
   loadLedgerAccounts,
   type LedgerAccount,
 } from "./accounts.js";

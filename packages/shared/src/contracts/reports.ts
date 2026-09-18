@@ -37,7 +37,6 @@ const incomeExpensesQuery = z
 
 type IncomeExpensesAccountShape = {
   account_id: number;
-  path: string;
   name: string;
   own: number;
   total: number;
@@ -53,12 +52,10 @@ type IncomeExpensesAccountShape = {
 export const incomeExpensesAccountSchema: z.ZodType<IncomeExpensesAccountShape> =
   z.object({
     account_id: z.number(),
-    // The ledger path; the screens show `name` and keep this for tooltips.
-    path: z.string(),
     name: z.string(),
     own: z.number(),
     total: z.number(),
-    // Ranked by total, largest first, then by path. Subtrees without
+    // Ranked by total, largest first, then by name. Subtrees without
     // amounts in the period are left out.
     get children() {
       return z.array(incomeExpensesAccountSchema);

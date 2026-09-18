@@ -2,6 +2,7 @@ import { asc } from "drizzle-orm";
 import {
   sqliteTable,
   integer,
+  uniqueIndex,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 import { sapportaTable, select, text, timestamp } from "@sapporta/server/table";
@@ -17,24 +18,37 @@ const accountTypeOptions = [
 
 export type AccountType = (typeof accountTypeOptions)[number];
 
-export const accountsTable = sqliteTable("accounts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  workspace_id: text("workspace_id").notNull(),
-  scoped_to_user_id: text("scoped_to_user_id").notNull(),
-  name: text("name").notNull(),
-  // Triggers (migrations/0004_account_tree_rules.sql) keep the parent in the
-  // same workspace, user and account type, and refuse a loop.
-  parent_id: integer("parent_id").references(
-    (): AnySQLiteColumn => accountsTable.id,
-  ),
-  account_type: select("account_type", accountTypeOptions).notNull(),
-  created_at: timestamp("created_at")
-    .$defaultFn(() => Temporal.Now.instant())
-    .notNull(),
-  updated_at: timestamp("updated_at")
-    .$defaultFn(() => Temporal.Now.instant())
-    .notNull(),
-});
+export const accountsTable = sqliteTable(
+  "accounts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    workspace_id: text("workspace_id").notNull(),
+    scoped_to_user_id: text("scoped_to_user_id").notNull(),
+    // A plain name, such as "Dining Out", without its parents'. Mapping
+    // rules, import presets and the LLM name an account by it, so it is
+    // unique in a user's books.
+    name: text("name").notNull(),
+    // Triggers (migrations/0004_account_tree_rules.sql) keep the parent in the
+    // same workspace, user and account type, and refuse a loop.
+    parent_id: integer("parent_id").references(
+      (): AnySQLiteColumn => accountsTable.id,
+    ),
+    account_type: select("account_type", accountTypeOptions).notNull(),
+    created_at: timestamp("created_at")
+      .$defaultFn(() => Temporal.Now.instant())
+      .notNull(),
+    updated_at: timestamp("updated_at")
+      .$defaultFn(() => Temporal.Now.instant())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("accounts_name_unique").on(
+      table.workspace_id,
+      table.scoped_to_user_id,
+      table.name,
+    ),
+  ],
+);
 
 export const accounts = sapportaTable({
   drizzle: accountsTable,

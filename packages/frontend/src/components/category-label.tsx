@@ -1,28 +1,25 @@
 import type { ComponentProps } from "react";
-import { accountPathName } from "dbu6-shared";
 import { cn } from "@sapporta/ui/cn";
 import { categoryHueColor, type CategoryHueKey } from "./category";
 
 /**
  * A category as the everyday screens show it: a dot in its hue, then the
- * friendly name. The colon path goes only into the tooltip and the
- * accessible name.
+ * account's name.
  */
 export function CategoryLabel({
-  path,
+  name,
   hue,
   className,
 }: {
-  /** The account path, such as `expenses:food:food-delivery`. */
-  path: string;
+  /** The account's name, such as "Food Delivery". */
+  name: string;
   /** Its colour through the account tree (`accountHue`). */
   hue: CategoryHueKey;
   className?: string;
 }) {
   return (
     <span
-      title={path}
-      aria-label={`${accountPathName(path)} (${path})`}
+      title={name}
       className={cn(
         "inline-flex items-center gap-2 rounded-full border border-sap-border bg-category-bg py-[5px] pl-[10px] pr-[13px] text-[15px] text-foreground",
         className,
@@ -33,7 +30,7 @@ export function CategoryLabel({
         className="size-[9px] shrink-0 rounded-full"
         style={{ background: categoryHueColor(hue) }}
       />
-      {accountPathName(path)}
+      {name}
     </span>
   );
 }

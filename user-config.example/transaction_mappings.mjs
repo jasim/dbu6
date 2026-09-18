@@ -11,34 +11,34 @@ export const mappings = {
   // is a UPI VPA (`payee@psp`) also matches when that VPA appears inside a
   // longer narration, e.g. `UPIOUT/<ref>/payee@psp/UPI/0000`.
   exact: {
-    "ACME SUPERMARKET": "expenses:grocery",
-    "The Corner Cafe": "expenses:food",
-    "CITY TRANSIT AUTHORITY": "expenses:travel",
-    "billing@example-isp": "expenses:home:internet",
+    "ACME SUPERMARKET": "Groceries",
+    "The Corner Cafe": "Food",
+    "CITY TRANSIT AUTHORITY": "Travel",
+    "billing@example-isp": "Internet",
   },
 
   // Substring matches, checked in this order after exact misses. Keep narrower
   // patterns ahead of broader category patterns.
   //
-  //   account   - the account to assign
+  //   account   - the account to assign, by its name in the Accounts table
   //   values    - substrings to look for in the narration
   //   direction - optional, "withdrawal" or "deposit"; omit to match both
   includes: [
     {
-      account: "expenses:home:electricity",
+      account: "Electricity",
       values: ["CITY POWER", "ELECTRIC UTILITY"],
     },
     {
-      account: "expenses:grocery",
+      account: "Groceries",
       values: ["SUPERMARKET", "GROCERS"],
     },
     {
-      account: "expenses:atm",
+      account: "Cash",
       direction: "withdrawal",
       values: ["TO ATM", "ATM WITHDRAWAL"],
     },
     {
-      account: "income:credit-interest",
+      account: "Interest",
       direction: "deposit",
       values: ["INTEREST PAID"],
     },

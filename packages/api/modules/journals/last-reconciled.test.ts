@@ -93,8 +93,8 @@ describe("Last reconciled query", () => {
 /*
  * Checkpoints that tie. Sample Savings (1) asserts on 1 Mar in journal 21 and
  * on 1 Apr in journal 20, whose id is lower. Sample Card (2) asserts twice in
- * its one journal, 22. Sample Wallet (3) and (4) share a name: 3's checkpoint
- * is on 1 May, 4's on 1 Feb.
+ * its one journal, 22. Sample Wallet (3) has its checkpoint on 1 May, Sample
+ * Purse (4) on 1 Feb.
  */
 function tiedLedger(): Database.Database {
   const sqlite = new Database(":memory:");
@@ -117,7 +117,7 @@ function tiedLedger(): Database.Database {
       (1, 'workspace', 'user', 'assets:bank:sample-savings'),
       (2, 'workspace', 'user', 'liabilities:credit-cards:sample-card'),
       (3, 'workspace', 'user', 'assets:sample-wallet'),
-      (4, 'workspace', 'user', 'assets:sample-wallet');
+      (4, 'workspace', 'user', 'assets:sample-purse');
     INSERT INTO journals VALUES
       (20, 'workspace', 'user', '2026-04-01'),
       (21, 'workspace', 'user', '2026-03-01'),
@@ -147,8 +147,8 @@ describe("the last reconciled checkpoint", () => {
   it("is in the latest journal, by date and then id, one row per assertion there, in entry order", () => {
     expect(checkpoints(tiedLedger())).toEqual([
       [1, 20, 2000],
-      [3, 23, 30],
       [4, 24, 40],
+      [3, 23, 30],
       [2, 22, 300],
       [2, 22, 500],
     ]);
@@ -171,16 +171,20 @@ describe("the last reconciled checkpoint", () => {
     ).toEqual({ date: "2026-03-10", balance: 500 });
   });
 
-  it("is found for the accounts with one name, the latest of them for an import", () => {
+  it("is found for the account with a name, for an import", () => {
     const sqlite = tiedLedger();
     expect(
       loadLastReconciled(sqlite, auth, {
         accountName: "assets:sample-wallet",
       }).map((row) => row.account_id),
-    ).toEqual([3, 4]);
+    ).toEqual([3]);
     expect(lookupLastReconciled(sqlite, auth, "assets:sample-wallet")).toEqual({
       date: "2026-05-01",
       balance: 30,
+    });
+    expect(lookupLastReconciled(sqlite, auth, "assets:sample-purse")).toEqual({
+      date: "2026-02-01",
+      balance: 40,
     });
     expect(
       lookupLastReconciled(sqlite, auth, "assets:bank:sample-savings"),

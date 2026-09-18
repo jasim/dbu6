@@ -31,8 +31,8 @@ const batchedCaller = {
 
 const config: LLMCategorizationConfig = {
   promptTemplate:
-    "Categorize using these accounts:\n{hledger_accounts}\nCustom mappings:\n{custom_mapping}",
-  hledgerAccounts: "expenses:food\nexpenses:travel",
+    "Categorize using these accounts:\n{accounts}\nCustom mappings:\n{custom_mapping}",
+  accounts: "expenses:food\nexpenses:travel",
   customMappings: "STARBUCKS -> expenses:food",
   llm: engine(),
 };
