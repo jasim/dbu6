@@ -46,9 +46,9 @@ function ledger() {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'assets:bank:sample-savings', NULL, 'Asset', ${stamp}),
-      (2, 'workspace', 'user', 'expenses:groceries', NULL, 'Expense', ${stamp}),
-      (3, 'workspace', 'user', 'income:salary', NULL, 'Revenue', ${stamp});
+      (1, 'workspace', 'user', 'Sample Savings', NULL, 'Asset', ${stamp}),
+      (2, 'workspace', 'user', 'Groceries', NULL, 'Expense', ${stamp}),
+      (3, 'workspace', 'user', 'Salary', NULL, 'Revenue', ${stamp});
 
     INSERT INTO journals VALUES (10, 'workspace', 'user', '2026-01-10', 'Opening', ${stamp});
     INSERT INTO journal_entries VALUES
@@ -124,7 +124,7 @@ describe("postDraftsToJournal", () => {
     expect(postDraftsToJournal(posting, 1)).toEqual({
       status: 200,
       body: {
-        base_account: "assets:bank:sample-savings",
+        base_account: "Sample Savings",
         journals_created: 2,
         entries_created: 4,
         drafts_posted: 2,
@@ -243,22 +243,22 @@ function treeLedger() {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'expenses:food', NULL, 'Expense', ${stamp}),
-      (2, 'workspace', 'user', 'expenses:food:groceries', 1, 'Expense', ${stamp}),
-      (3, 'workspace', 'user', 'expenses:food:dining', 1, 'Expense', ${stamp}),
-      (4, 'workspace', 'user', 'expenses:food:dining:restaurants', 3, 'Expense', ${stamp}),
-      (5, 'workspace', 'user', 'expenses:food:dining:restaurants:tips', 4, 'Expense', ${stamp}),
-      (6, 'workspace', 'user', 'expenses:rent', NULL, 'Expense', ${stamp}),
-      (7, 'workspace', 'user', 'expenses:travel', NULL, 'Expense', ${stamp}),
-      (8, 'workspace', 'user', 'expenses:travel:flights', 7, 'Expense', ${stamp}),
-      (9, 'workspace', 'user', 'expenses:transport', NULL, 'Expense', ${stamp}),
-      (10, 'workspace', 'user', 'expenses:food:snacks', 9, 'Expense', ${stamp}),
-      (11, 'workspace', 'user', 'expenses:unused', NULL, 'Expense', ${stamp}),
-      (12, 'workspace', 'user', 'expenses:unused:sub', 11, 'Expense', ${stamp}),
-      (13, 'workspace', 'user', 'income:salary', NULL, 'Revenue', ${stamp}),
-      (14, 'workspace', 'user', 'income:salary:bonus', 13, 'Revenue', ${stamp}),
-      (15, 'workspace', 'user', 'assets:bank', NULL, 'Asset', ${stamp}),
-      (16, 'workspace', 'user', 'assets:bank:sample-savings', 15, 'Asset', ${stamp});
+      (1, 'workspace', 'user', 'Food', NULL, 'Expense', ${stamp}),
+      (2, 'workspace', 'user', 'Groceries', 1, 'Expense', ${stamp}),
+      (3, 'workspace', 'user', 'Dining', 1, 'Expense', ${stamp}),
+      (4, 'workspace', 'user', 'Restaurants', 3, 'Expense', ${stamp}),
+      (5, 'workspace', 'user', 'Tips', 4, 'Expense', ${stamp}),
+      (6, 'workspace', 'user', 'Rent', NULL, 'Expense', ${stamp}),
+      (7, 'workspace', 'user', 'Travel', NULL, 'Expense', ${stamp}),
+      (8, 'workspace', 'user', 'Flights', 7, 'Expense', ${stamp}),
+      (9, 'workspace', 'user', 'Transport', NULL, 'Expense', ${stamp}),
+      (10, 'workspace', 'user', 'Snacks', 9, 'Expense', ${stamp}),
+      (11, 'workspace', 'user', 'Unused', NULL, 'Expense', ${stamp}),
+      (12, 'workspace', 'user', 'Sub', 11, 'Expense', ${stamp}),
+      (13, 'workspace', 'user', 'Salary', NULL, 'Revenue', ${stamp}),
+      (14, 'workspace', 'user', 'Bonus', 13, 'Revenue', ${stamp}),
+      (15, 'workspace', 'user', 'Bank', NULL, 'Asset', ${stamp}),
+      (16, 'workspace', 'user', 'Sample Savings', 15, 'Asset', ${stamp});
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-01', 'Salary', ${stamp}),

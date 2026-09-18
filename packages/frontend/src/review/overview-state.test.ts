@@ -9,7 +9,7 @@ function detail(
   return {
     account: {
       account_id: 2,
-      path: "assets:bank:sample-savings",
+      path: "Sample Savings",
       name: "Sample Savings",
       kind: "bank",
       drafts: 21,

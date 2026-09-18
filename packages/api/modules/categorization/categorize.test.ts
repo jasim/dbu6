@@ -66,7 +66,7 @@ beforeEach(() => {
   writeFileSync(
     join(dir, "transaction_mappings.mjs"),
     `export const mappings = {
-      exact: { STARBUCKS: "expenses:food" },
+      exact: { STARBUCKS: "Food" },
       includes: [],
     };`,
   );
@@ -85,10 +85,10 @@ const baseConfig = (): CategorizerSettings => ({
 });
 
 const ACCOUNTS = new Map([
-  ["expenses:food", { id: 11, account_type: "Expense" }],
-  ["expenses:other", { id: 12, account_type: "Expense" }],
-  ["assets:bank:sample", { id: 21, account_type: "Asset" }],
-  ["equity:opening-balances", { id: 41, account_type: "Equity" }],
+  ["Food", { id: 11, account_type: "Expense" }],
+  ["Other Expenses", { id: 12, account_type: "Expense" }],
+  ["Sample Bank", { id: 21, account_type: "Asset" }],
+  ["Opening Balances", { id: 41, account_type: "Equity" }],
 ] as const);
 
 // Loads the config in `configDir` and categorizes rows on a statement of an
@@ -115,7 +115,7 @@ describe("categorize", () => {
       rows: [
         {
           transaction: txns[0],
-          account: parseAccount("expenses:food"),
+          account: parseAccount("Food"),
           accountId: 11,
         },
       ],
@@ -132,7 +132,7 @@ describe("categorize", () => {
 
   it("calls the LLM with merged custom mappings, prompt context, and unmapped indices", async () => {
     llmMock.mockResolvedValue(
-      answered({ MYSTERY: parseAccount("expenses:other") }),
+      answered({ MYSTERY: parseAccount("Other Expenses") }),
     );
     const txns = [withdrawal("STARBUCKS"), withdrawal("MYSTERY")];
 
@@ -144,29 +144,29 @@ describe("categorize", () => {
     expect(unmappedIndices).toEqual([1]);
     expect(llmConfig).toEqual({
       promptTemplate: PROMPT_TEMPLATE,
-      accounts: "assets:bank:sample\nexpenses:food\nexpenses:other",
+      accounts: "Food\nOther Expenses\nSample Bank",
       customMappings: "MAP A\n\nMAP B",
       llm,
     });
   });
 
   it("offers the LLM the ledger's accounts but Equity, by name, and not hledger_accounts.prompt", async () => {
-    writeFileSync(join(dir, "hledger_accounts.prompt"), "expenses:stale");
+    writeFileSync(join(dir, "hledger_accounts.prompt"), "Stale Account");
     llmMock.mockResolvedValue(answered({}));
 
     await categorizeRows([withdrawal("MYSTERY")], baseConfig());
 
     const [, , llmConfig] = llmMock.mock.calls[0];
     expect(llmConfig.accounts.split("\n")).toEqual([
-      "assets:bank:sample",
-      "expenses:food",
-      "expenses:other",
+      "Food",
+      "Other Expenses",
+      "Sample Bank",
     ]);
   });
 
   it("ignores missing optional custom mapping files", async () => {
     llmMock.mockResolvedValue(
-      answered({ MYSTERY: parseAccount("expenses:other") }),
+      answered({ MYSTERY: parseAccount("Other Expenses") }),
     );
     const txns = [withdrawal("MYSTERY")];
 
@@ -212,14 +212,14 @@ describe("categorize", () => {
 
   it("merges executable + LLM mappings into the final categorized list", async () => {
     llmMock.mockResolvedValue(
-      answered({ MYSTERY: parseAccount("expenses:other") }),
+      answered({ MYSTERY: parseAccount("Other Expenses") }),
     );
     const txns = [withdrawal("STARBUCKS"), withdrawal("MYSTERY")];
 
     const result = await categorizeRows(txns, baseConfig());
     expect(result.rows.map((r) => r.account)).toEqual([
-      "expenses:food",
-      "expenses:other",
+      "Food",
+      "Other Expenses",
     ]);
   });
 
@@ -233,10 +233,7 @@ describe("categorize", () => {
       baseConfig(),
     );
 
-    expect(result.rows.map((r) => r.account)).toEqual([
-      "expenses:food",
-      UNCATEGORIZED,
-    ]);
+    expect(result.rows.map((r) => r.account)).toEqual(["Food", UNCATEGORIZED]);
     expect(result.report).toEqual({
       agent: "claude-code",
       sent_count: 1,
@@ -289,8 +286,8 @@ describe("categorize", () => {
   it("gives each answer's ledger account id, and none for an account the ledger doesn't hold", async () => {
     llmMock.mockResolvedValue(
       answered({
-        MYSTERY: parseAccount("expenses:other"),
-        UNKNOWN: parseAccount("expenses:not-in-ledger"),
+        MYSTERY: parseAccount("Other Expenses"),
+        UNKNOWN: parseAccount("Not In Ledger"),
       }),
     );
 
@@ -301,15 +298,15 @@ describe("categorize", () => {
     expect(
       result.rows.map(({ account, accountId }) => ({ account, accountId })),
     ).toEqual([
-      { account: "expenses:food", accountId: 11 },
-      { account: "expenses:other", accountId: 12 },
-      { account: "expenses:not-in-ledger", accountId: null },
+      { account: "Food", accountId: 11 },
+      { account: "Other Expenses", accountId: 12 },
+      { account: "Not In Ledger", accountId: null },
     ]);
   });
 
   it("leaves a row uncategorized and records a skip when the answer is its own base account", async () => {
     llmMock.mockResolvedValue(
-      answered({ "to my sample": parseAccount("assets:bank:sample") }),
+      answered({ "to my sample": parseAccount("Sample Bank") }),
     );
     const onTheBank = withdrawal("to my sample", 1000);
     const onACard = withdrawal("to my sample", 1000);
@@ -326,16 +323,16 @@ describe("categorize", () => {
     expect(result.rows).toEqual([
       {
         transaction: onTheBank,
-        account: "assets:bank:sample",
+        account: "Sample Bank",
         accountId: null,
       },
-      { transaction: onACard, account: "assets:bank:sample", accountId: 21 },
+      { transaction: onACard, account: "Sample Bank", accountId: 21 },
     ]);
     expect(result.sameAccountSkips).toEqual([
       {
         date: "2026-01-01",
         narration: "to my sample",
-        account: "assets:bank:sample",
+        account: "Sample Bank",
       },
     ]);
   });

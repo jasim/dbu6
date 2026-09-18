@@ -259,9 +259,9 @@ function setup() {
   const db = drizzle(sqlite);
   db.insert(accountsTable)
     .values([
-      scopedAccount(BASE_ACCOUNT_ID, "cc:stanc", "Liability"),
-      scopedAccount(SOFTWARE_ACCOUNT_ID, "expenses:software", "Expense"),
-      scopedAccount(OFFICE_ACCOUNT_ID, "expenses:office", "Expense"),
+      scopedAccount(BASE_ACCOUNT_ID, "StanC Credit Card", "Liability"),
+      scopedAccount(SOFTWARE_ACCOUNT_ID, "Software", "Expense"),
+      scopedAccount(OFFICE_ACCOUNT_ID, "Office", "Expense"),
     ])
     .run();
   return { db, sqlite };

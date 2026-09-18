@@ -41,7 +41,7 @@ vi.mock("./draft-import.js", () => ({
   },
 }));
 
-const BASE_ACCOUNT = parseAccount("assets:bank:sample");
+const BASE_ACCOUNT = parseAccount("Sample Bank");
 
 // A bank part: every row prints its running balance, walked from `opening`.
 function bank(

@@ -17,8 +17,8 @@ const draft = (
   base_account_id: 10,
   source_reference: null,
   source_transaction_key: null,
-  base_account: "cc:stanc",
-  draft_category: "expenses:software",
+  base_account: "StanC Credit Card",
+  draft_category: "Software",
   ...overrides,
 });
 
@@ -30,7 +30,7 @@ describe("findDuplicateDiagnostics", () => {
         draft({
           draft_id: 2,
           account_id: 3,
-          draft_category: "expenses:office",
+          draft_category: "Office",
         }),
       ],
       [],
@@ -41,8 +41,8 @@ describe("findDuplicateDiagnostics", () => {
       match_type: "legacy-draft",
       draft_id: 1,
       other_draft_id: 2,
-      draft_category: "expenses:software",
-      matched_category: "expenses:office",
+      draft_category: "Software",
+      matched_category: "Office",
     });
   });
 
@@ -59,7 +59,7 @@ describe("findDuplicateDiagnostics", () => {
         comment: "Merchant",
         source_reference: null,
         source_transaction_key: null,
-        account: "expenses:software",
+        account: "Software",
       },
       {
         journal_id: 20,
@@ -72,7 +72,7 @@ describe("findDuplicateDiagnostics", () => {
         comment: "Other",
         source_reference: null,
         source_transaction_key: null,
-        account: "expenses:office",
+        account: "Office",
       },
       {
         journal_id: 20,
@@ -85,7 +85,7 @@ describe("findDuplicateDiagnostics", () => {
         comment: null,
         source_reference: null,
         source_transaction_key: null,
-        account: "cc:stanc",
+        account: "StanC Credit Card",
       },
     ];
     expect(findDuplicateDiagnostics([draft()], entries)[0]).toMatchObject({

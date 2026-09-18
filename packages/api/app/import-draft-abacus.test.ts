@@ -43,14 +43,14 @@ import api, { importAbacusStatement } from "./import-draft-abacus.js";
 import { BalanceMismatchError } from "../modules/statement/index.js";
 import type { StatementImportResult } from "../workflows/statement-import/index.js";
 
-const accountNames = new Set(["assets:bank:sample", "liabilities:card:sample"]);
+const accountNames = new Set(["Sample Bank", "Sample Card"]);
 
 const ledger = {} as never;
 
 function request(
   overrides: Partial<AbacusImportRequest["statement"]> = {},
   account: Pick<AbacusImportRequest, "base_account" | "is_credit_card"> = {
-    base_account: "liabilities:card:sample",
+    base_account: "Sample Card",
     is_credit_card: true,
   },
 ): AbacusImportRequest {
@@ -171,7 +171,7 @@ describe("importAbacusStatement", () => {
     expect(response).toEqual({
       status: 200,
       body: {
-        base_account: "liabilities:card:sample",
+        base_account: "Sample Card",
         is_credit_card: true,
         file_names: ["sample-card-2026-09"],
         result: imported(2),
@@ -180,7 +180,7 @@ describe("importAbacusStatement", () => {
     expect(runStatementImport).toHaveBeenCalledTimes(1);
     const [parts, options, , sourceNames] = runStatementImport.mock.calls[0];
     expect(options).toMatchObject({
-      baseAccount: "liabilities:card:sample",
+      baseAccount: "Sample Card",
       accountKind: "card",
       categorizer: { customMappingsFilenames: [] },
       gpay: null,
@@ -238,14 +238,14 @@ describe("importAbacusStatement", () => {
     runStatementImport.mockResolvedValue(imported(2));
     const { source_name: _name, ...unnamed } = request(
       {},
-      { base_account: "assets:bank:sample", is_credit_card: false },
+      { base_account: "Sample Bank", is_credit_card: false },
     );
 
     const response = await importAbacusStatement(unnamed, accountNames, ledger);
 
     expect(response.status).toBe(200);
     expect(runStatementImport.mock.calls[0][1]).toMatchObject({
-      baseAccount: "assets:bank:sample",
+      baseAccount: "Sample Bank",
       accountKind: "bank",
     });
     expect(runStatementImport.mock.calls[0][3]).toEqual([
@@ -255,10 +255,7 @@ describe("importAbacusStatement", () => {
 
   it("rejects an account the ledger does not have", async () => {
     const response = await importAbacusStatement(
-      request(
-        {},
-        { base_account: "liabilities:card:other", is_credit_card: true },
-      ),
+      request({}, { base_account: "Other Card", is_credit_card: true }),
       accountNames,
       ledger,
     );

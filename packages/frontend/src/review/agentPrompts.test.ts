@@ -24,8 +24,8 @@ function duplicate(draft_id: number): ReviewDuplicate {
     amount: 12000,
     narration: "NOPII CARD PAYMENT",
     other_narration: "NOPII payment received",
-    draft_category: "liabilities:credit-cards:sample-card",
-    matched_category: "liabilities:credit-cards:sample-card",
+    draft_category: "Sample Card",
+    matched_category: "Sample Card",
   };
 }
 
@@ -43,7 +43,7 @@ function detail(overrides: Partial<ReviewAccountDetail>): ReviewAccountDetail {
   return {
     account: {
       account_id: 7,
-      path: "assets:bank:sample-savings",
+      path: "Sample Savings",
       name: "Sample Savings",
       kind: "bank",
       drafts: 21,
@@ -68,7 +68,7 @@ describe("duplicatesPrompt", () => {
 
     expect(prompt).toContain("/review/7/duplicates");
     expect(prompt).toContain(
-      "The account is Sample Savings: ledger account assets:bank:sample-savings, account id\n7.",
+      "The account is Sample Savings: ledger account Sample Savings, account id\n7.",
     );
     expect(prompt).toContain(
       "It has 21 drafts dated 2026-09-01 to 2026-09-13 waiting in Review.",
@@ -80,7 +80,7 @@ describe("duplicatesPrompt", () => {
       "$SAPPORTA_API_URL/api/reports/duplicate-drafts?base_account_id=7",
     );
     expect(prompt).toContain(
-      '- 2026-09-05 · withdrawal 12000.00 · draft 812 "NOPII CARD PAYMENT" (liabilities:credit-cards:sample-card) · matched journal 31, entry 1204 "NOPII payment received" (liabilities:credit-cards:sample-card) · base-account-payment, confidence 80%',
+      '- 2026-09-05 · withdrawal 12000.00 · draft 812 "NOPII CARD PAYMENT" (Sample Card) · matched journal 31, entry 1204 "NOPII payment received" (Sample Card) · base-account-payment, confidence 80%',
     );
     expect(prompt).toContain("journal-transaction-matcher.ts");
     expect(prompt).toContain("without first telling me exactly");

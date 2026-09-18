@@ -13,7 +13,7 @@ function account(
   return {
     in_ledger: true,
     account_id: 2,
-    path: "assets:bank:sample-savings",
+    path: "Sample Savings",
     name: "Sample Savings",
     kind: "bank",
     checkpoint: { date: "2026-08-31", balance: 250000 },
@@ -28,7 +28,7 @@ function account(
 
 const missing: HomeAccount = {
   in_ledger: false,
-  path: "assets:bank:missing-050505",
+  path: "Missing Bank 050505",
   name: "Not Yet Added",
   kind: "bank",
 };
@@ -74,7 +74,7 @@ describe("homeState", () => {
         account({ checkpoint: null }),
         account({
           account_id: 1,
-          path: "liabilities:cards:sample-card",
+          path: "Sample Card",
           name: "Sample Card",
           kind: "card",
           checkpoint: null,
@@ -126,7 +126,7 @@ describe("homeState", () => {
         account({ drafts: 21, uncategorised: 12 }),
         account({
           account_id: 1,
-          path: "liabilities:cards:sample-card",
+          path: "Sample Card",
           name: "Sample Card",
           kind: "card",
           drafts: 4,

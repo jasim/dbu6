@@ -23,14 +23,14 @@ function books(): Database.Database {
     INSERT INTO accounts
       (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
     VALUES
-      (1, 'workspace', 'user', 'expenses:food', NULL, 'Expense', '', ''),
-      (2, 'workspace', 'user', 'expenses:food:groceries', 1, 'Expense', '', ''),
-      (3, 'workspace', 'user', 'expenses:food:dining', 1, 'Expense', '', ''),
-      (4, 'workspace', 'user', 'expenses:food:dining:restaurants', 3, 'Expense', '', ''),
-      (5, 'workspace', 'user', 'expenses:rent', NULL, 'Expense', '', ''),
-      (6, 'workspace', 'user', 'income:salary', NULL, 'Revenue', '', ''),
-      (7, 'other-workspace', 'user', 'expenses:food', NULL, 'Expense', '', ''),
-      (8, 'workspace', 'other-user', 'expenses:food', NULL, 'Expense', '', '');
+      (1, 'workspace', 'user', 'Food', NULL, 'Expense', '', ''),
+      (2, 'workspace', 'user', 'Groceries', 1, 'Expense', '', ''),
+      (3, 'workspace', 'user', 'Dining', 1, 'Expense', '', ''),
+      (4, 'workspace', 'user', 'Restaurants', 3, 'Expense', '', ''),
+      (5, 'workspace', 'user', 'Rent', NULL, 'Expense', '', ''),
+      (6, 'workspace', 'user', 'Salary', NULL, 'Revenue', '', ''),
+      (7, 'other-workspace', 'user', 'Food', NULL, 'Expense', '', ''),
+      (8, 'workspace', 'other-user', 'Food', NULL, 'Expense', '', '');
   `);
   return sqlite;
 }
@@ -39,7 +39,7 @@ function insertUnder(parentId: number, overrides = "'workspace', 'user'") {
   return `
     INSERT INTO accounts
       (workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
-    VALUES (${overrides}, 'expenses:sample', ${parentId}, 'Expense', '', '')`;
+    VALUES (${overrides}, 'Sample Expense', ${parentId}, 'Expense', '', '')`;
 }
 
 const parentRule =
@@ -107,7 +107,7 @@ describe("accounts.parent_id", () => {
       sqlite.exec(`
         INSERT INTO accounts
           (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
-        VALUES (9, 'workspace', 'user', 'expenses:sample', 9, 'Expense', '', '')`),
+        VALUES (9, 'workspace', 'user', 'Sample Expense', 9, 'Expense', '', '')`),
     ).toThrow(loopRule);
   });
 
@@ -137,7 +137,7 @@ describe("accounts.name", () => {
       sqlite.exec(`
         INSERT INTO accounts
           (workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
-        VALUES ('${workspace}', '${user}', 'expenses:rent', NULL, 'Expense', '', '')`);
+        VALUES ('${workspace}', '${user}', 'Rent', NULL, 'Expense', '', '')`);
 
     expect(() => insert("workspace", "user")).toThrow(
       "UNIQUE constraint failed: accounts.workspace_id, accounts.scoped_to_user_id, accounts.name",

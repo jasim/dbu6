@@ -47,7 +47,7 @@ describe("classifyDraftTransactions", () => {
       join(configDir, "transaction_mappings.mjs"),
       `export const mappings = {
         exact: {},
-        includes: [{ account: "expenses:coffee", values: ["COFFEE SHOP |"] }],
+        includes: [{ account: "Coffee", values: ["COFFEE SHOP |"] }],
       };`,
     );
     writeFileSync(
@@ -70,7 +70,7 @@ describe("classifyDraftTransactions", () => {
           id: 1,
           narration: "Coffee Shop | UPI debit",
           account_id: 2,
-          account_name: "expenses:coffee",
+          account_name: "Coffee",
         },
       ],
       gpayEnrichedCount: 1,
@@ -142,8 +142,8 @@ function setupDatabase() {
   const db = drizzle(sqlite);
   db.insert(accountsTable)
     .values([
-      scopedAccount(1, "assets:bank:federal", "Asset"),
-      scopedAccount(2, "expenses:coffee", "Expense"),
+      scopedAccount(1, "Federal Bank", "Asset"),
+      scopedAccount(2, "Coffee", "Expense"),
     ])
     .run();
   db.insert(draftTransactionsTable)

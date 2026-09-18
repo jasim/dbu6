@@ -40,11 +40,11 @@ function ledger(): Database.Database {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'income:salary', NULL, 'Revenue'),
-      (2, 'workspace', 'user', 'assets:bank:sample-savings', NULL, 'Asset'),
-      (3, 'workspace', 'user', 'expenses:groceries', NULL, 'Expense'),
-      (4, 'workspace', 'user', 'assets:bank:no-preset', NULL, 'Asset'),
-      (5, 'workspace', 'other-user', 'assets:bank:sample-savings', NULL, 'Asset');
+      (1, 'workspace', 'user', 'Salary', NULL, 'Revenue'),
+      (2, 'workspace', 'user', 'Sample Savings', NULL, 'Asset'),
+      (3, 'workspace', 'user', 'Groceries', NULL, 'Expense'),
+      (4, 'workspace', 'user', 'No Preset Bank', NULL, 'Asset'),
+      (5, 'workspace', 'other-user', 'Sample Savings', NULL, 'Asset');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-10', 'Opening'),

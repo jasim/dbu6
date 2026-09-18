@@ -99,7 +99,7 @@ describe("runStatementImport", () => {
       [part],
       options(),
       testImportLedger({
-        account: "cc:stanc",
+        account: "StanC Credit Card",
         date: "2026-12-31",
         balance: -999,
       }),
@@ -115,7 +115,11 @@ describe("runStatementImport", () => {
     const result = await runStatementImport(
       [part],
       options(),
-      testImportLedger({ account: "cc:stanc", date: "2026-12-31", balance: 0 }),
+      testImportLedger({
+        account: "StanC Credit Card",
+        date: "2026-12-31",
+        balance: 0,
+      }),
     );
     expect(result.balance_metadata).toEqual({
       opening: { extracted: -100, effective: -100, source: "statement" },
@@ -148,7 +152,7 @@ const noCategorizer: Categorizer = {
 
 function options(): ImportOptions {
   return {
-    baseAccount: parseAccount("cc:stanc"),
+    baseAccount: parseAccount("StanC Credit Card"),
     accountKind: "card",
     categorizer: noCategorizer,
     gpay: null,

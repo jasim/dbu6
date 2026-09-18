@@ -64,7 +64,7 @@ const SECOND_BANK_PARSER = "custom-built-parsers/federal-bank-xls/parser.py";
 
 const bankPreset: ImportPreset = {
   name: "Sample Bank",
-  base_account: "assets:bank:sample",
+  base_account: "Sample Bank",
   custom_mappings_filenames: ["sample_mappings.prompt"],
   custom_statement_parser_path: BANK_PARSER,
   statement_account_identifier: "05050505050505",
@@ -72,7 +72,7 @@ const bankPreset: ImportPreset = {
 
 const cardPreset: ImportPreset = {
   name: "Sample Card",
-  base_account: "liabilities:card:sample",
+  base_account: "Sample Card",
   is_credit_card: true,
   custom_mappings_filenames: [],
   custom_statement_parser_path: CARD_PARSER,
@@ -81,7 +81,7 @@ const cardPreset: ImportPreset = {
 
 const secondBankPreset: ImportPreset = {
   name: "Sample Second Bank",
-  base_account: "assets:bank:sample-second",
+  base_account: "Sample Second Bank",
   custom_mappings_filenames: [],
   custom_statement_parser_path: SECOND_BANK_PARSER,
 };
@@ -291,19 +291,9 @@ describe("automatic statement import", () => {
         group.file_names,
       ]),
     ).toEqual([
-      [
-        "Sample Bank",
-        "assets:bank:sample",
-        false,
-        ["bank-jan.xls", "bank-feb.xls"],
-      ],
-      ["Sample Card", "liabilities:card:sample", true, ["card-jan.xls"]],
-      [
-        "Sample Second Bank",
-        "assets:bank:sample-second",
-        false,
-        ["second-jan.xls"],
-      ],
+      ["Sample Bank", "Sample Bank", false, ["bank-jan.xls", "bank-feb.xls"]],
+      ["Sample Card", "Sample Card", true, ["card-jan.xls"]],
+      ["Sample Second Bank", "Sample Second Bank", false, ["second-jan.xls"]],
     ]);
     expect(
       response.body.groups.map(
@@ -315,7 +305,7 @@ describe("automatic statement import", () => {
     const [statements, options, , sourceNames] =
       runStatementImport.mock.calls[1];
     expect(options).toMatchObject({
-      baseAccount: "liabilities:card:sample",
+      baseAccount: "Sample Card",
       accountKind: "card",
       categorizer: { customMappingsFilenames: [] },
       gpay: null,
@@ -325,7 +315,7 @@ describe("automatic statement import", () => {
       { account: { kind: "card", identifier: "050505XXXXXX0505" } },
     ]);
     expect(runStatementImport.mock.calls[0][1]).toMatchObject({
-      baseAccount: "assets:bank:sample",
+      baseAccount: "Sample Bank",
       accountKind: "bank",
       categorizer: { customMappingsFilenames: ["sample_mappings.prompt"] },
     });
@@ -438,7 +428,7 @@ describe("automatic statement import", () => {
     expect(body.partial_import).toContain("Sample Card");
     expect(body.failed_group).toEqual({
       preset_name: "Sample Card",
-      base_account: "liabilities:card:sample",
+      base_account: "Sample Card",
       is_credit_card: true,
       file_names: ["card-jan.xls"],
     });

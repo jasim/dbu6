@@ -38,12 +38,12 @@ function ledger(): Database.Database {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'expenses:food', NULL, 'Expense'),
-      (2, 'workspace', 'user', 'expenses:food:groceries', 1, 'Expense'),
-      (3, 'workspace', 'user', 'expenses:shopping', NULL, 'Expense'),
-      (4, 'workspace', 'user', 'expenses:travel', NULL, 'Expense'),
-      (5, 'workspace', 'user', 'income:salary', NULL, 'Revenue'),
-      (6, 'workspace', 'user', 'assets:bank:sample-savings', NULL, 'Asset');
+      (1, 'workspace', 'user', 'Food', NULL, 'Expense'),
+      (2, 'workspace', 'user', 'Groceries', 1, 'Expense'),
+      (3, 'workspace', 'user', 'Shopping', NULL, 'Expense'),
+      (4, 'workspace', 'user', 'Travel', NULL, 'Expense'),
+      (5, 'workspace', 'user', 'Salary', NULL, 'Revenue'),
+      (6, 'workspace', 'user', 'Sample Savings', NULL, 'Asset');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-01', 'Salary'),
@@ -81,11 +81,11 @@ describe("account amounts", () => {
     expect(
       amounts.map((row) => [row.name, row.account_type, row.amount]),
     ).toEqual([
-      ["expenses:food", "Expense", 500],
-      ["expenses:food:groceries", "Expense", 5000],
-      ["expenses:shopping", "Expense", -500],
-      ["expenses:travel", "Expense", 0],
-      ["income:salary", "Revenue", 100000],
+      ["Food", "Expense", 500],
+      ["Groceries", "Expense", 5000],
+      ["Salary", "Revenue", 100000],
+      ["Shopping", "Expense", -500],
+      ["Travel", "Expense", 0],
     ]);
   });
 
@@ -97,10 +97,10 @@ describe("account amounts", () => {
     });
 
     expect(amounts.map((row) => [row.name, row.amount])).toEqual([
-      ["expenses:food", 0],
-      ["expenses:food:groceries", 3000],
-      ["expenses:shopping", -1500],
-      ["expenses:travel", 0],
+      ["Food", 0],
+      ["Groceries", 3000],
+      ["Shopping", -1500],
+      ["Travel", 0],
     ]);
   });
 
@@ -139,19 +139,15 @@ describe("the grids read the amounts", () => {
     });
     expect(
       result.nodes[1]?.children?.accounts?.map((row) => row.columns.name),
-    ).toEqual([
-      "expenses:food",
-      "expenses:food:groceries",
-      "expenses:shopping",
-    ]);
+    ).toEqual(["Food", "Groceries", "Shopping"]);
   });
 
   it("spending breakdown totals the same spending by branch", () => {
     const result = expenseBreakdownReport(ledger(), auth, allTime);
 
     expect(rootTotals(result, "top_name", "top_total")).toEqual({
-      "expenses:food": 5500,
-      "expenses:shopping": -500,
+      Food: 5500,
+      Shopping: -500,
     });
     expect(result.footerRows?.[0]?.columns.top_total).toBe(5000);
   });
