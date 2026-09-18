@@ -55,9 +55,8 @@ dbu6, or you will see stale type errors.
   it. Each form merges imports that end up naming one module twice, formats
   the edited files, and reports the TypeScript errors left in them;
   `--dry-run` prints the edits and those errors without making them.
-  Afterwards it lists text that still names what moved, such as
-  `layering.test.ts`'s table, the docs and the agent prompts; update those by
-  hand.
+  Afterwards it lists text that still names what moved, such as the docs and
+  the agent prompts; update those by hand.
   - `<from> <to> [<from> <to> …]` moves files or folders with `git mv`, and
     rewrites every `vi.mock` path too. It also lists tests left beside a moved
     file.
@@ -162,11 +161,6 @@ built, tested and understood without anything above it. Lowest first:
 - Sapporta's guide puts larger workflows in `packages/api/modules/<domain>/`.
   dbu6 keeps them in `workflows/`, a tier of their own, on purpose; don't move
   them into `modules/`.
-
-`packages/api/layering.test.ts` enforces this. Its table says which module
-every file belongs to, so a new file needs a place in it, and the imports that
-break the rules today are listed there with the [PLAN.md](./PLAN.md) task that
-removes them. That list only shrinks.
 
 Every file is in its tier ([PLAN.md](./PLAN.md) reshapes what remains). Each
 module in `modules/<name>/` is imported through its `index.ts`: `ledger-sql`,

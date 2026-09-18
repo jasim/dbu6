@@ -4,9 +4,8 @@
 [DEVELOPMENT.md → Backend layering](./DEVELOPMENT.md#backend-layering): value
 types and statement arithmetic at the bottom, ledger storage above them, the
 domain workflows in `workflows/`, and routes and reports in `app/` on top.
-`packages/api/layering.test.ts` enforces the tiers. Its `KNOWN_VIOLATIONS` list
-holds every import that breaks them today, tagged with the task below that
-removes it.
+`packages/api/layering.test.ts` enforced the tiers while the moves ran; F1
+removed it.
 
 This plan grew out of a layering review (summarised under
 [Findings](#findings)) and is meant to be worked through in many separate
@@ -92,8 +91,6 @@ go-ahead.
    [Found along the way](#found-along-the-way), not into your diff.
 6. **Done when:**
    - `pnpm typecheck` and `pnpm test` pass;
-   - `layering.test.ts` passes, your task's `KNOWN_VIOLATIONS` entries are
-     deleted, and every file you moved has its new path in the test's table;
    - DEVELOPMENT.md names the new paths of anything you moved;
    - what the coding agent reads is still right about what you moved or
      reshaped: its paths and its account of what lives where (see
@@ -495,18 +492,14 @@ Then:
   contract owns it.
 - **Docs.** Update DEVELOPMENT.md → "LLM prompts" and "transaction_mappings.mjs".
 
-### F1 — Tighten the test
+### F1 — Remove the layering test
 
-**Status:** todo. **Depends on:** everything above.
-
-- `KNOWN_VIOLATIONS` is empty. Keep the mechanism for future moves.
-- Every module declares `entries`.
-- Add package rules per tier:
-  - tiers 1–3 import no `drizzle-orm`, `better-sqlite3`, `hono` or
-    `@sapporta/server`;
-  - `node:fs` and `node:child_process` appear only in the named top files of
-    statement-sources, categorization and gpay.
-- Make the DEVELOPMENT.md table final.
+**Status:** done (2026-09-19). `packages/api/layering.test.ts` is gone, along
+with its mentions in DEVELOPMENT.md and the move tool; it had outlived its
+usefulness (Decisions). DEVELOPMENT.md's tier table still describes the
+layering, unenforced. The package rules this task first planned went with the
+test.
+**Depends on:** everything above.
 
 ### F2 — Independent layering review
 
@@ -654,6 +647,9 @@ move most of them.
   lives in `values` (tier 1). The import summary's `hledger_journal` keeps
   asserting every group's running balance rather than following the
   last-draft rule: no change there.
+- 2026-09-19, F1: the layering test is removed rather than tightened; it had
+  outlived its usefulness. DEVELOPMENT.md → "Backend layering" describes the
+  tiers without a test behind it.
 
 ## Found along the way
 

@@ -46,7 +46,7 @@ const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const apiRoot = path.join(projectRoot, "packages/api");
 const ts = createRequire(path.join(apiRoot, "package.json"))("typescript");
 
-// Folders that hold no source of ours; the layering test skips the same ones.
+// Folders that hold no source of ours.
 const SKIPPED_DIRECTORIES = new Set(["node_modules", "dist", "migrations"]);
 const VITEST_PATH_CALLS = new Set([
   "mock",
@@ -785,8 +785,8 @@ function printLeftovers() {
   for (const file of left) console.log(`  ${api(file)}`);
 }
 
-// Text that still names what moved: an old path (the layering test's table,
-// docs, prompts), or a moved name outside the package's code.
+// Text that still names what moved: an old path (docs, prompts), or a moved
+// name outside the package's code.
 function printMentionsLeft() {
   const searches =
     command.kind === "files"
