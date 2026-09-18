@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { formatPlainDate } from "@sapporta/shared/temporal";
 import {
@@ -11,6 +11,7 @@ import {
 } from "../values/index.js";
 import type { DraftCategorizedTransaction } from "./DraftCategorizedTransaction.js";
 import type { LedgerAuth } from "../ledger-sql/index.js";
+import { draftOrderBy } from "../reconciliation/index.js";
 import { accounts, accountsTable } from "../../schema/accounts.js";
 import {
   draftTransactions,
@@ -48,7 +49,7 @@ export function loadCategorizedDrafts(
         eq(draftTransactionsTable.base_account_id, baseAccountId),
       ),
     )
-    .orderBy(asc(draftTransactionsTable.date), asc(draftTransactionsTable.id))
+    .orderBy(...draftOrderBy())
     .all();
 
   const accountNameById = new Map<number, string>(

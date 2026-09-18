@@ -13,6 +13,7 @@ import {
   type DuplicateDraftSourceRow,
   type DuplicateJournalEntrySourceRow,
   baseAccountRunningBalanceCtes,
+  draftOrderSql,
   failingDraftAssertionsSelect,
 } from "../reconciliation/index.js";
 import { allRows, type LedgerAuth } from "../ledger-sql/index.js";
@@ -104,9 +105,9 @@ export function loadDraftStatus(
         date,
         balance_assertion_base_account AS balance,
         ROW_NUMBER() OVER (
-          PARTITION BY base_account_id ORDER BY date DESC, id DESC
+          PARTITION BY base_account_id ORDER BY ${draftOrderSql("dt", "DESC")}
         ) AS position
-      FROM scoped_draft_transactions
+      FROM scoped_draft_transactions dt
       WHERE base_account_id IS NOT NULL
         AND balance_assertion_base_account IS NOT NULL${accountCondition(filter, "base_account_id")}
     )

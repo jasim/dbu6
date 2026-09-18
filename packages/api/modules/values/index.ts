@@ -1,11 +1,14 @@
 // The value types every tier above builds on: Money and its direction, the
-// amount in paise, Account, Chrono, and the text normalization transaction
-// identity compares with. Import from here rather than from the files.
+// amount in paise and when two amounts are the same, Account, Chrono, and the
+// text normalization transaction identity compares with. Import from here
+// rather than from the files.
 export {
   amount,
   direction,
+  HALF_PAISA,
   isWithdrawal,
   moneyFromColumns,
+  sameAmount,
   transactionAmountMinor,
   type Direction,
   type Money,

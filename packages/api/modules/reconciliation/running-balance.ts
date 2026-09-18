@@ -1,5 +1,8 @@
+import { assertionFailsSql, draftOrderSql } from "./balance-check.js";
+
 // Shared SQL for draft assertion reporting and the posting gate. Journal rows
-// precede draft rows on the same date; IDs provide the deterministic tie-break.
+// precede draft rows on the same date; journals go by id, and drafts in
+// `draftOrderSql`, numbered here so the window can order them.
 export const BASE_ACCOUNT_ACTIVITY_ORDER =
   "activity_date, source_rank, ord_journal, ord_entry";
 
@@ -22,7 +25,9 @@ export const baseAccountRunningBalanceCtes = `
     dt.base_account_id AS account_id,
     dt.date AS activity_date,
     0 AS ord_journal,
-    dt.id AS ord_entry,
+    ROW_NUMBER() OVER (
+      PARTITION BY dt.base_account_id ORDER BY ${draftOrderSql("dt")}
+    ) AS ord_entry,
     1 AS source_rank,
     'draft' AS source,
     dt.deposit - dt.withdrawal AS delta,
@@ -57,4 +62,4 @@ SELECT
 FROM base_account_running r
 WHERE r.source = 'draft'
   AND r.assertion IS NOT NULL
-  AND ABS(r.running_balance - r.assertion) > 0.005`;
+  AND ${assertionFailsSql("r.running_balance", "r.assertion")}`;

@@ -17,7 +17,6 @@ export {
   verifyDeclaredBalances,
 } from "./balances.js";
 export {
-  ANCHOR_EPSILON,
   assembleStatements,
   partEdges,
   validatePart,

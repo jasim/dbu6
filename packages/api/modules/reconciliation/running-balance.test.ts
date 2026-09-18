@@ -37,4 +37,32 @@ describe("shared draft running-balance query", () => {
       },
     ]);
   });
+
+  it("adds a day's drafts up by id, so the day's last draft checks the whole day", () => {
+    const sqlite = new Database(":memory:");
+    sqlite.exec(`
+      CREATE TABLE journals (id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT);
+      CREATE TABLE journal_entries (id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER, account_id INTEGER, debit REAL, credit REAL);
+      CREATE TABLE draft_transactions (id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT, base_account_id INTEGER, deposit REAL, withdrawal REAL, balance_assertion_base_account REAL);
+      INSERT INTO draft_transactions VALUES (8, 'workspace', 'user', '2026-05-07', 1, 1000, 0, 1500);
+      INSERT INTO draft_transactions VALUES (4, 'workspace', 'user', '2026-05-07', 1, 500, 0, NULL);
+      INSERT INTO draft_transactions VALUES (6, 'workspace', 'user', '2026-05-08', 1, 0, 200, 1400);
+    `);
+    const rows = allRows(
+      sqlite,
+      testLedgerAuth(),
+      `${baseAccountRunningBalanceCtes}
+       SELECT * FROM (${failingDraftAssertionsSelect})`,
+    );
+    expect(rows).toEqual([
+      {
+        account_id: 1,
+        date: "2026-05-08",
+        draft_id: 6,
+        running_balance: 1300,
+        assertion: 1400,
+        diff: -100,
+      },
+    ]);
+  });
 });
