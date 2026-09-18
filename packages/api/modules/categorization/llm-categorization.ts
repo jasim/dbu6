@@ -1,11 +1,7 @@
 import { z } from "zod";
 import type { CategorizationReport, CodingAgent } from "dbu6-shared";
-import type { Abacus } from "../../modules/statement/index.js";
-import {
-  type Account,
-  parseAccount,
-  isWithdrawal,
-} from "../../modules/values/index.js";
+import type { Abacus } from "../statement/index.js";
+import { type Account, parseAccount, isWithdrawal } from "../values/index.js";
 
 /*
  * What categorization needs of an LLM, and who can answer it: one call that

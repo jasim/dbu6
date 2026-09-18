@@ -6,7 +6,7 @@ import type {
   ListAnswer,
   ListClient,
   ListRequest,
-} from "../bank-importer/categorization/llm-categorization.js";
+} from "../modules/categorization/index.js";
 
 /*
  * The only module that imports nuabase. Its published declarations don't

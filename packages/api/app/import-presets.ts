@@ -1,6 +1,6 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import { importPresetsContract } from "dbu6-shared";
-import { readImportPresets } from "../bank-importer/import-presets.js";
+import { readImportPresets } from "../modules/statement-sources/index.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
 const api = new TsRestApi<SapportaEnv>();

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ImportPreset, StatementAccount } from "dbu6-shared";
-import { unsafeAsChrono } from "../modules/values/index.js";
-import type { AbacusStatement } from "../modules/statement/index.js";
+import { unsafeAsChrono } from "../values/index.js";
+import type { AbacusStatement } from "../statement/index.js";
 import {
   planAutoImport,
   type AutoImportPlan,

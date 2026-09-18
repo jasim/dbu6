@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import type { Abacus } from "../../modules/statement/index.js";
-import { parseAccount, UNCATEGORIZED } from "../../modules/values/index.js";
+import type { Abacus } from "../statement/index.js";
+import { parseAccount, UNCATEGORIZED } from "../values/index.js";
 
 // Mock the Nuabase-touching module so resolve runs as a pure pipeline.
 vi.mock("./llm-categorization.js", async (importOriginal) => ({

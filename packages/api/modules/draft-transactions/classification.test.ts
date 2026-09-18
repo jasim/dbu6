@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 import { draftTransactionsContract } from "dbu6-shared";
 import { createTestAuthContext } from "@sapporta/server/testing";
-import type { CategorizationLlm } from "../../bank-importer/categorization/llm-categorization.js";
+import type { CategorizationLlm } from "../categorization/index.js";
 import { accounts, accountsTable } from "../../schema/accounts.js";
 import {
   draftTransactions,

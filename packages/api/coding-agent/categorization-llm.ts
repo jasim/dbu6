@@ -1,5 +1,5 @@
 import { CODING_AGENTS, NO_CODING_AGENT_MESSAGE } from "dbu6-shared";
-import type { CategorizationLlm } from "../bank-importer/categorization/llm-categorization.js";
+import type { CategorizationLlm } from "../modules/categorization/index.js";
 import { currentCodingAgent } from "./agents.js";
 import { noAgentModelReason } from "./errors.js";
 import { agentModels } from "./models.js";

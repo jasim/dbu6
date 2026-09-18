@@ -1,6 +1,6 @@
 // Deterministic transaction mappings, applied before the LLM is consulted.
 // Pure data — the matching engine lives in
-// packages/api/bank-importer/categorization/mapping-rules.ts.
+// packages/api/modules/categorization/mapping-rules.ts.
 //
 // Narrations are normalized before matching: Unicode NFKC, runs of whitespace
 // collapsed to one space, trimmed, upper-cased. Write patterns in whatever

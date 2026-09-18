@@ -10,7 +10,7 @@ import {
   type CategorizationLlm,
   type LLMCategorizationConfig,
 } from "./llm-categorization.js";
-import type { Abacus } from "../../modules/statement/index.js";
+import type { Abacus } from "../statement/index.js";
 
 const listMock = vi.fn();
 

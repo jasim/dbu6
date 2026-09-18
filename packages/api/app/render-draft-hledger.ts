@@ -1,7 +1,10 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import { draftTransactionsContract } from "dbu6-shared";
-import { groupByDateAndType } from "../bank-importer/domain/TransactionGroup.js";
-import { fromGroups, format } from "../bank-importer/domain/HledgerJournal.js";
+import {
+  formatHledger,
+  groupByDateAndType,
+  hledgerFromGroups,
+} from "../modules/journal-plan/index.js";
 import { loadCategorizedDrafts } from "./draft-categorization.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
@@ -19,12 +22,12 @@ api.register(
     }
 
     const groups = groupByDateAndType(loaded.categorized);
-    const journal = fromGroups(groups, loaded.baseAccount);
+    const journal = hledgerFromGroups(groups, loaded.baseAccount);
 
     return {
       status: 200,
       body: {
-        hledger_journal: format(journal),
+        hledger_journal: formatHledger(journal),
         transaction_count: loaded.drafts.length,
         base_account: loaded.baseAccountName,
       },

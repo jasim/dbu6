@@ -8,7 +8,7 @@ import {
   parseGPayHtml,
   type GPayIndex,
 } from "./GPayIndex.js";
-import type { Abacus } from "../../modules/statement/index.js";
+import type { Abacus } from "../statement/index.js";
 
 function txn(partial: Partial<Abacus>): Abacus {
   return {

@@ -13,21 +13,17 @@ import {
   type AutoImportGroup,
   type FileRecognition,
   type PlannedFile,
-} from "../bank-importer/auto-import-plan.js";
+  readImportPresets,
+  type ImportPreset,
+  recognizeStatementFile,
+  savedCustomStatementParserPaths,
+} from "../modules/statement-sources/index.js";
 import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import {
   importOptionsFromPreset,
-  readImportPresets,
-  type ImportPreset,
-} from "../bank-importer/import-presets.js";
-import {
   runStatementImport,
   type StatementImportResult,
 } from "../bank-importer/statement-import.js";
-import {
-  recognizeStatementFile,
-  savedCustomStatementParserPaths,
-} from "../bank-importer/statement-recognition.js";
 import { categorizationLlm } from "../coding-agent/categorization-llm.js";
 import { respondWithImportErrors } from "./import-error-response.js";
 import {

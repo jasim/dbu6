@@ -164,12 +164,13 @@ every file belongs to, so a new file needs a place in it, and the imports that
 break the rules today are listed there with the [PLAN.md](./PLAN.md) task that
 removes them. That list only shrinks.
 
-The backend is being moved into this shape ([PLAN.md](./PLAN.md)). Tiers 0–2
-are in place: `modules/ledger-sql/`, `modules/values/` and
-`modules/statement/`, each imported through its `index.ts`. Until the rest is,
-code also sits in the older folders: `bank-importer/` (the import pipeline,
-categorization, and in `domain/` the categorized-transaction, Google Pay and
-journal-plan types), `coding-agent/`, `modules/journals/`,
+The backend is being moved into this shape ([PLAN.md](./PLAN.md)). Tiers 0–3
+are in place, each module in `modules/<name>/` and imported through its
+`index.ts`: `ledger-sql`, `values`, `statement`, and in tier 3
+`transaction-identity`, `categorization`, `gpay`, `journal-plan` and
+`statement-sources`. Until the rest is, code also sits in the older folders:
+`bank-importer/` (the statement import, draft persistence, and in `domain/`
+the draft-categorized-transaction type), `coding-agent/`, `modules/journals/`,
 `modules/reconciliation/`, `modules/draft-transactions/`, and the draft
 queries in `app/draft-status.ts` and `app/draft-categorization.ts`. The test's
 table maps each of them to its module.
@@ -191,7 +192,7 @@ builds on `dataPath()` from `@sapporta/server`. Don't hardcode them.
 
 Deterministic rules, applied before the LLM is consulted. The file is pure
 data; the matching engine is
-`packages/api/bank-importer/categorization/mapping-rules.ts`.
+`packages/api/modules/categorization/mapping-rules.ts`.
 
 Narrations are normalized before matching (NFKC, whitespace collapsed, trimmed,
 upper-cased). `exact` wins outright; `includes` are substring rules checked in
@@ -201,7 +202,7 @@ optional and limits a rule to `"withdrawal"` or `"deposit"`.
 ### LLM prompts
 
 The categorization prompt template is in
-`packages/api/bank-importer/categorization/prompt-template.ts`. It is filled
+`packages/api/modules/categorization/prompt-template.ts`. It is filled
 with `hledger_accounts.prompt` and the `custom_mappings_*.prompt` files named
 by the matching entry in `import-presets.json`.
 `categorization/llm-categorization.ts` is the only LLM call site. It says what

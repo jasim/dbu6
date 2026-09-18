@@ -16,8 +16,8 @@ import {
   matchTransactionToJournal,
   type JournalCandidate,
   type TransactionMatchType,
-} from "./journal-transaction-matcher.js";
-import type { TransactionIdentityInput } from "./transaction-identity.js";
+  type TransactionIdentityInput,
+} from "../transaction-identity/index.js";
 
 export interface DuplicateLookupInput extends TransactionIdentityInput {
   databaseDate: Temporal.PlainDate;

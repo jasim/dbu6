@@ -9,7 +9,7 @@ import {
   type AbacusStatement,
 } from "../modules/statement/index.js";
 import { type Chrono, parseAccount } from "../modules/values/index.js";
-import type { CategorizationLlm } from "./categorization/llm-categorization.js";
+import type { CategorizationLlm } from "../modules/categorization/index.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
 
 // Stub the persistence tail so the test can inspect exactly what reaches it.

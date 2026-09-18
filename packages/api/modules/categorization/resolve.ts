@@ -1,13 +1,9 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
-import { type Abacus, ApiImportError } from "../../modules/statement/index.js";
-import type { CategorizedTransaction } from "../domain/CategorizedTransaction.js";
-import {
-  type Account,
-  parseAccount,
-  UNCATEGORIZED,
-} from "../../modules/values/index.js";
+import { type Abacus, ApiImportError } from "../statement/index.js";
+import type { CategorizedTransaction } from "./CategorizedTransaction.js";
+import { type Account, parseAccount, UNCATEGORIZED } from "../values/index.js";
 import {
   categorizeViaLLM,
   nothingSentReport,

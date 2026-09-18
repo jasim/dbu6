@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Abacus } from "../modules/statement/index.js";
-import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";
+import type { CategorizedTransaction } from "../modules/categorization/index.js";
 import {
   unsafeAsChrono as chrono,
   parseAccount,

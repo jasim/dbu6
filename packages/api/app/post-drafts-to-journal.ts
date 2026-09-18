@@ -14,8 +14,10 @@ import {
 } from "dbu6-shared";
 import { unsafeAsChrono } from "../modules/values/index.js";
 import { partitionByCategorization } from "../bank-importer/domain/DraftCategorizedTransaction.js";
-import { groupByDateAndType } from "../bank-importer/domain/TransactionGroup.js";
-import { fromGroups as planFromGroups } from "../bank-importer/domain/JournalPlan.js";
+import {
+  groupByDateAndType,
+  planFromGroups,
+} from "../modules/journal-plan/index.js";
 import {
   draftTransactions,
   draftTransactionsTable,

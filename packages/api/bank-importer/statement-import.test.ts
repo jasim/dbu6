@@ -12,7 +12,7 @@ import {
   BalanceMismatchError,
   ClosingBalanceUnavailable,
 } from "../modules/statement/index.js";
-import type { CategorizationLlm } from "./categorization/llm-categorization.js";
+import type { CategorizationLlm } from "../modules/categorization/index.js";
 import { parseAccount } from "../modules/values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 

@@ -1,9 +1,7 @@
-import type { CategorizedTransaction } from "./CategorizedTransaction.js";
-import { type Chrono, isWithdrawal } from "../../modules/values/index.js";
+import type { Abacus } from "../statement/index.js";
+import { type Chrono, isWithdrawal } from "../values/index.js";
 
-export interface TransactionGroup<
-  T extends CategorizedTransaction = CategorizedTransaction,
-> {
+export interface TransactionGroup<T extends { transaction: Abacus }> {
   date: string;
   type: "deposit" | "withdrawal";
   transactions: T[];
@@ -19,7 +17,7 @@ export interface TransactionGroup<
  * Input is chronological, so the last transaction in each group is the
  * group's end balance.
  */
-export function groupByDateAndType<T extends CategorizedTransaction>(
+export function groupByDateAndType<T extends { transaction: Abacus }>(
   transactions: Chrono<T>,
 ): TransactionGroup<T>[] {
   const groups: TransactionGroup<T>[] = [];

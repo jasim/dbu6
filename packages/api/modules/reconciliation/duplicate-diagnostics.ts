@@ -3,12 +3,12 @@ import {
   matchTransactionToJournal,
   type JournalCandidate,
   type TransactionMatchType,
-} from "./journal-transaction-matcher.js";
+  type TransactionIdentityInput,
+} from "../transaction-identity/index.js";
 import {
   amount as transactionAmount,
   direction as transactionDirection,
 } from "../values/index.js";
-import type { TransactionIdentityInput } from "./transaction-identity.js";
 
 export const duplicateDraftRowsSql = `
 SELECT

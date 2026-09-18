@@ -5,13 +5,16 @@ import {
   type Chrono,
   unsafeAsChrono,
 } from "../modules/values/index.js";
-import { groupByDateAndType } from "./domain/TransactionGroup.js";
-import { fromGroups, format } from "./domain/HledgerJournal.js";
-import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";
 import {
+  formatHledger,
+  groupByDateAndType,
+  hledgerFromGroups,
+} from "../modules/journal-plan/index.js";
+import {
+  type CategorizedTransaction,
   resolveCategories,
   type CategorizationConfig,
-} from "./categorization/resolve.js";
+} from "../modules/categorization/index.js";
 
 export interface PipelineConfig {
   baseAccount: Account;
@@ -48,9 +51,9 @@ export async function processStatement(
   );
 
   const groups = groupByDateAndType(categorized);
-  const journal = fromGroups(groups, config.baseAccount);
+  const journal = hledgerFromGroups(groups, config.baseAccount);
   return {
-    hledgerJournal: format(journal),
+    hledgerJournal: formatHledger(journal),
     categorized,
     categorization: resolved.report,
   };

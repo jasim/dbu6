@@ -180,7 +180,15 @@ and pin it before dbu6 switches back to npm.
 
 ### M2 — Tier 3
 
-**Status:** todo. **Depends on:** M1. **Findings:** 3, and the types of 6.
+**Status:** done (2026-09-18). The five tier-3 modules are in
+`modules/<name>/`, each imported through its `index.ts`. journal-plan's index
+names its two `fromGroups` `planFromGroups` and `hledgerFromGroups`, and
+`format` `formatHledger`, until C merges them. `resolveAccountIdForCategorized`
+sits in `categorization/CategorizedTransaction.ts`. `JournalPlan.test.ts` lost
+its `CategorizedDraft` type and the two fields `fromGroups` never read; its
+expectations are unchanged. For M3: `--symbols` can leave misplaced `type`
+modifiers (Found along the way).
+**Depends on:** M1. **Findings:** 3, and the types of 6.
 
 - **`modules/transaction-identity/`:** what remains of
   `transaction-identity.ts`, plus `journal-transaction-matcher.ts`.
@@ -545,4 +553,11 @@ date and the task.
 - 2026-09-18, M0: `modules/reconciliation/transaction-identity.test.ts` ("keeps
   distinct HDFC fee rows…") uses non-round amounts such as `100.25` and `9.09`,
   against AGENTS.md's fixture rules. M1 must leave the key tests untouched, so
-  fixing it is a separate change.
+  fixing it is a separate change. (Since M2 the test is in
+  `modules/transaction-identity/`.)
+- 2026-09-18, M2: when TypeScript's "Move to file" refactor, which `--symbols`
+  runs, adds a value import to an existing `import type { … }`, it puts the
+  `type` modifiers on the wrong names, as in
+  `import { type accountKindOf, AccountKind }`. The tool's own merge isn't at
+  fault, and it reports the resulting errors, which are quick to fix by hand.
+  The tool could rewrite such imports itself.

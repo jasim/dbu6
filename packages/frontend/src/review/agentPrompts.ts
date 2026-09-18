@@ -35,7 +35,7 @@ ${rows(detail.duplicates, duplicateLine)}
 For each line, find out whether the two are one real transaction or two. If
 they are one, say which draft is the extra one. If they are two real
 transactions, find out why
-packages/api/modules/reconciliation/journal-transaction-matcher.ts matched them.
+packages/api/modules/transaction-identity/journal-transaction-matcher.ts matched them.
 A common cause is a transfer between my own accounts: the same payment on a
 bank statement and on a card statement, or already posted from the other
 account.

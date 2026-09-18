@@ -6,7 +6,7 @@ import {
   type ReviewAccount,
   type ReviewAccountDetail,
 } from "dbu6-shared";
-import { readImportPresets } from "../bank-importer/import-presets.js";
+import { readImportPresets } from "../modules/statement-sources/index.js";
 import {
   loadAccountStandings,
   type AccountStanding,

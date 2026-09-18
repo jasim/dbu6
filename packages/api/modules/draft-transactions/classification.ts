@@ -2,16 +2,14 @@ import { eq, inArray } from "drizzle-orm";
 import { formatPlainDate } from "@sapporta/shared/temporal";
 import type { CategorizationReport } from "dbu6-shared";
 import type { Abacus } from "../statement/index.js";
-import { enrichWithGPayHtml } from "../../bank-importer/domain/GPayIndex.js";
+import { enrichWithGPayHtml } from "../gpay/index.js";
 import { moneyFromColumns } from "../values/index.js";
 import {
   resolveCategories,
   type CategorizationConfig,
-} from "../../bank-importer/categorization/resolve.js";
-import {
-  loadAccountsByName,
   resolveAccountIdForCategorized,
-} from "../../bank-importer/draft-persistence.js";
+} from "../categorization/index.js";
+import { loadAccountsByName } from "../../bank-importer/draft-persistence.js";
 import type { LedgerAuth } from "../ledger-sql/index.js";
 import {
   draftTransactions,

@@ -7,7 +7,7 @@ import {
   parseAbacusJson,
   type AbacusStatement,
   AbacusJsonParseError,
-} from "../modules/statement/index.js";
+} from "../statement/index.js";
 
 // Recognizing an uploaded statement with the saved parsers under
 // custom-built-parsers/. A parser is its own executable fingerprint: it writes

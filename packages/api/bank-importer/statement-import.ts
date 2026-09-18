@@ -1,8 +1,18 @@
-import type { AccountKind, DatedBalance, DateSpan } from "dbu6-shared";
+import {
+  accountKindOf,
+  type AccountKind,
+  type DatedBalance,
+  type DateSpan,
+  type ImportPreset,
+} from "dbu6-shared";
 import { userConfigDir } from "../user-data.js";
-import type { CategorizationLlm } from "./categorization/llm-categorization.js";
-import { type Account, unsafeAsChrono } from "../modules/values/index.js";
-import { enrichWithGPayHtml } from "./domain/GPayIndex.js";
+import type { CategorizationLlm } from "../modules/categorization/index.js";
+import {
+  type Account,
+  parseAccount,
+  unsafeAsChrono,
+} from "../modules/values/index.js";
+import { enrichWithGPayHtml } from "../modules/gpay/index.js";
 import {
   assembleStatements,
   synthesizeRunningBalances,
@@ -17,7 +27,7 @@ import {
 } from "./draft-persistence.js";
 import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import { runDraftImport, type ImportSummary } from "./draft-import.js";
-import { assignSourceTransactionKeys } from "../modules/reconciliation/transaction-identity.js";
+import { assignSourceTransactionKeys } from "../modules/transaction-identity/index.js";
 
 export type BalanceSource = "statement" | "checkpoint" | "per-row" | "none";
 
@@ -267,5 +277,21 @@ export async function runStatementImport(
     reconciliation_checkpoint: checkpoint
       ? { date: checkpoint.date, balance: checkpoint.balance }
       : null,
+  };
+}
+
+// How a preset decides an import. The Google Pay Takeout is the one choice
+// made per upload rather than per account, so it arrives alongside.
+export function importOptionsFromPreset(
+  preset: ImportPreset,
+  gpayHtmlPath: string | null,
+  llm: CategorizationLlm,
+): ImportOptions {
+  return {
+    baseAccount: parseAccount(preset.base_account),
+    accountKind: accountKindOf(preset.is_credit_card),
+    customMappingsFilenames: preset.custom_mappings_filenames,
+    gpayHtmlPath,
+    llm,
   };
 }

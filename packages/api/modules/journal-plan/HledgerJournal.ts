@@ -1,5 +1,6 @@
 import type { TransactionGroup } from "./TransactionGroup.js";
-import type { Account } from "../../modules/values/index.js";
+import type { Abacus } from "../statement/index.js";
+import type { Account } from "../values/index.js";
 
 export interface HledgerJournal {
   entries: string[];
@@ -19,7 +20,7 @@ export interface HledgerJournal {
  *       {income_account:<35} {-amount:>10.2f} ; {narration}
  */
 export function fromGroups(
-  groups: TransactionGroup[],
+  groups: TransactionGroup<{ transaction: Abacus; account: Account }>[],
   baseAccount: Account,
 ): HledgerJournal {
   const entries: string[] = [];

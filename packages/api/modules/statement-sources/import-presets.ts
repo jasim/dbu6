@@ -1,14 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
-import {
-  accountKindOf,
-  importPresetSchema,
-  type ImportPreset,
-} from "dbu6-shared";
-import { userConfigPath } from "../user-data.js";
-import type { CategorizationLlm } from "./categorization/llm-categorization.js";
-import { parseAccount } from "../modules/values/index.js";
-import type { ImportOptions } from "./statement-import.js";
+import { importPresetSchema, type ImportPreset } from "dbu6-shared";
+import { userConfigPath } from "../../user-data.js";
 
 export type { ImportPreset } from "dbu6-shared";
 
@@ -124,20 +117,4 @@ export function resolveImportPreset(
       ? `${statement.file} reports account identifier ${statement.identifier}, which none of the presets using ${statement.parserPath} carry (${candidatePresetNames.join(", ")}).`
       : `${statement.file} reports account identifier ${statement.identifier}, which ${matching.length} presets using ${statement.parserPath} carry (${matching.map((preset) => preset.name).join(", ")}).`,
   );
-}
-
-// How a preset decides an import. The Google Pay Takeout is the one choice
-// made per upload rather than per account, so it arrives alongside.
-export function importOptionsFromPreset(
-  preset: ImportPreset,
-  gpayHtmlPath: string | null,
-  llm: CategorizationLlm,
-): ImportOptions {
-  return {
-    baseAccount: parseAccount(preset.base_account),
-    accountKind: accountKindOf(preset.is_credit_card),
-    customMappingsFilenames: preset.custom_mappings_filenames,
-    gpayHtmlPath,
-    llm,
-  };
 }

@@ -2,7 +2,7 @@ import type { z } from "zod";
 import type { importSummarySchema } from "dbu6-shared";
 import type { Abacus } from "../modules/statement/index.js";
 import type { Account, Chrono } from "../modules/values/index.js";
-import type { CategorizationConfig } from "./categorization/resolve.js";
+import type { CategorizationConfig } from "../modules/categorization/index.js";
 import { processStatement } from "./pipeline.js";
 import {
   toDraftRows,

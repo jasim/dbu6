@@ -70,38 +70,32 @@ const MODULES: readonly Module[] = [
   {
     name: "transaction-identity",
     tier: 3,
-    files: [
-      "modules/reconciliation/transaction-identity",
-      "modules/reconciliation/journal-transaction-matcher",
-    ],
+    files: ["modules/transaction-identity/"],
+    entries: ["modules/transaction-identity/index.ts"],
   },
   {
     name: "categorization",
     tier: 3,
-    files: [
-      "bank-importer/categorization/",
-      "bank-importer/domain/CategorizedTransaction",
-    ],
+    files: ["modules/categorization/"],
+    entries: ["modules/categorization/index.ts"],
   },
-  { name: "gpay", tier: 3, files: ["bank-importer/domain/GPayIndex"] },
+  {
+    name: "gpay",
+    tier: 3,
+    files: ["modules/gpay/"],
+    entries: ["modules/gpay/index.ts"],
+  },
   {
     name: "journal-plan",
     tier: 3,
-    files: [
-      "bank-importer/domain/TransactionGroup",
-      "bank-importer/domain/JournalPlan",
-      "bank-importer/domain/HledgerJournal",
-    ],
+    files: ["modules/journal-plan/"],
+    entries: ["modules/journal-plan/index.ts"],
   },
   {
     name: "statement-sources",
     tier: 3,
-    files: [
-      "bank-importer/statement-recognition",
-      "bank-importer/import-presets",
-      "bank-importer/auto-import-plan",
-      "bank-importer/parsers/",
-    ],
+    files: ["modules/statement-sources/"],
+    entries: ["modules/statement-sources/index.ts"],
   },
 
   // Tier 4: ledger storage, lowest first, and the coding agent beside it.
@@ -163,33 +157,6 @@ const MODULES: readonly Module[] = [
 // Imports that break the rules today, each removed by the PLAN.md task named.
 const KNOWN_VIOLATIONS: readonly { from: string; to: string; task: string }[] =
   [
-    // The journal plan stops naming categorization's and drafts' types;
-    // importOptionsFromPreset moves up into the statement-import workflow.
-    {
-      from: "bank-importer/domain/TransactionGroup.ts",
-      to: "bank-importer/domain/CategorizedTransaction.ts",
-      task: "M2",
-    },
-    {
-      from: "bank-importer/domain/JournalPlan.ts",
-      to: "bank-importer/domain/DraftCategorizedTransaction.ts",
-      task: "M2",
-    },
-    {
-      from: "bank-importer/domain/JournalPlan.test.ts",
-      to: "bank-importer/domain/DraftCategorizedTransaction.ts",
-      task: "M2",
-    },
-    {
-      from: "bank-importer/import-presets.ts",
-      to: "bank-importer/categorization/llm-categorization.ts",
-      task: "M2",
-    },
-    {
-      from: "bank-importer/import-presets.ts",
-      to: "bank-importer/statement-import.ts",
-      task: "M2",
-    },
     // Tests in the wrong module: toDraftRows is tested with the statement,
     // and the draft reports are tested with draft status.
     {

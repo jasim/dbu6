@@ -1,5 +1,5 @@
 import type { TransactionGroup } from "./TransactionGroup.js";
-import type { CategorizedDraft } from "./DraftCategorizedTransaction.js";
+import type { Abacus } from "../statement/index.js";
 
 export interface JournalEntryRow {
   account_id: number;
@@ -28,7 +28,7 @@ export type JournalPlan = JournalInsert[];
  * output is row data instead of formatted text.
  */
 export function fromGroups(
-  groups: TransactionGroup<CategorizedDraft>[],
+  groups: TransactionGroup<{ transaction: Abacus; accountId: number }>[],
   baseAccountId: number,
 ): JournalPlan {
   const plan: JournalInsert[] = [];
@@ -53,7 +53,7 @@ export function fromGroups(
     });
 
     const counterpartyRow = (
-      m: CategorizedDraft,
+      m: { transaction: Abacus; accountId: number },
       debit: string,
       credit: string,
     ): JournalEntryRow => ({
