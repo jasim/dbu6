@@ -49,6 +49,7 @@ export interface CategorizationLlm {
 
 export interface LLMCategorizationConfig {
   promptTemplate: string;
+  // The account names the LLM may answer with, one per line.
   hledgerAccounts: string;
   customMappings: string;
   llm: CategorizationLlm;

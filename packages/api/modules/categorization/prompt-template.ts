@@ -1,6 +1,7 @@
 /**
- * Scaffold for the LLM categorization prompt. `{hledger_accounts}` and
- * `{custom_mapping}` are filled from user config in llm-categorization.ts.
+ * Scaffold for the LLM categorization prompt. llm-categorization.ts fills
+ * `{hledger_accounts}` with the accounts `categorize` offers, from the
+ * ledger, and `{custom_mapping}` with the preset's instructions.
  */
 export const PROMPT_TEMPLATE = `\
 I want to add all my transactions into my accounting system that includes an hledger plain-text bookkeeping journal file. I have a list of transaction details from my bank statement, and a list of account names that I use in my hledger. Please return the hledger account name that best matches each transaction.

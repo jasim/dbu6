@@ -65,7 +65,7 @@ export async function classifyDraftTransactions(input: {
     accountsByName,
   );
   const accountNameById = new Map<number, string>();
-  for (const [name, id] of accountsByName) accountNameById.set(id, name);
+  for (const [name, { id }] of accountsByName) accountNameById.set(id, name);
 
   const reclassified: ReclassifiedDraft[] = drafts.map((draft, index) => ({
     id: draft.id,

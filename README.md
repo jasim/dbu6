@@ -66,9 +66,9 @@ Each imported transaction is assigned an account in two passes.
 1. Your own rules in `transaction_mappings.mjs`. Exact matches on the
    narration win outright. Substring rules are checked in order and can be
    limited to withdrawals or deposits.
-2. Anything the rules miss goes to an LLM together with your account list and
-   your written instructions on how to categorize. If the LLM is not
-   confident, it leaves the entry blank for you.
+2. Anything the rules miss goes to an LLM together with your accounts (all but
+   Equity, from the Accounts table) and your written instructions on how to
+   categorize. If the LLM is not confident, it leaves the entry blank for you.
 
 The LLM is the coding agent on your own machine, Claude Code or Codex, logged
 in with your own plan. dbu6 finds whichever is installed; **Settings** shows
@@ -112,7 +112,6 @@ data/
   sqlite.db
   user-config/
     transaction_mappings.mjs     narration → account rules, applied before the LLM
-    hledger_accounts.prompt      the account list handed to the LLM
     custom_mappings_*.prompt     your categorization instructions for the LLM
     import-presets.json          your banks and cards, and which parser and prompts each uses
 ```

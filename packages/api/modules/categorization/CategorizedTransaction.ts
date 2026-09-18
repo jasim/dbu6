@@ -1,3 +1,4 @@
+import type { AccountType } from "../../schema/accounts.js";
 import type { Abacus } from "../statement/index.js";
 import { type Account, UNCATEGORIZED } from "../values/index.js";
 
@@ -5,6 +6,13 @@ export interface CategorizedTransaction {
   transaction: Abacus;
   account: Account;
 }
+
+// The ledger's accounts by their exact name: what an answer resolves to, and
+// what the LLM is offered.
+export type AccountsByName = ReadonlyMap<
+  string,
+  { id: number; account_type: AccountType }
+>;
 
 export interface ResolvedAccountId {
   accountId: number | null;
@@ -20,12 +28,12 @@ export interface ResolvedAccountId {
 // the caller which nulls came from that silencing vs. plain UNCATEGORIZED.
 export function resolveAccountIdForCategorized(
   account: Account,
-  accountsByName: ReadonlyMap<string, number>,
+  accountsByName: AccountsByName,
   baseAccountId: number | null,
 ): ResolvedAccountId {
   if (account === UNCATEGORIZED)
     return { accountId: null, sameAccountSkip: false };
-  const resolvedId = accountsByName.get(account) ?? null;
+  const resolvedId = accountsByName.get(account)?.id ?? null;
   if (resolvedId !== null && resolvedId === baseAccountId)
     return { accountId: null, sameAccountSkip: true };
   return { accountId: resolvedId, sameAccountSkip: false };

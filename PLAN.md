@@ -512,8 +512,18 @@ workflow: a reviewer per tier, then a verifier per finding.
 
 ### G — The LLM chooses from the accounts table
 
-**Status:** todo. **Depends on:** F2. A behavior change, kept out of the
-layering work (decided at D).
+**Status:** done (2026-09-19), ahead of F2. `categorize` offers the LLM every
+account in the Accounts table (row-scoped) except Equity, one name per line,
+sorted. The `loadAccountsByName` map it already took now carries each
+account's type (`AccountType`, exported from `schema/accounts.ts`). The
+`Categorizer`'s `prompt` part is now `customMappings`. Nothing reads
+`hledger_accounts.prompt` any more; it is gone from `user-config.example/`, the
+README and DEVELOPMENT.md. Answers still resolve against every account, Equity
+included. The two tests of the prompt file went, and a new one pins what the
+LLM is offered. The two items under "Consider alongside" are unchanged, by the
+owner's decision.
+**Depends on:** F2. A behavior change, kept out of the layering work (decided
+at D).
 
 - **The prompt lists the ledger's accounts** (the `accounts` table, row-scoped)
   instead of `hledger_accounts.prompt`, so the LLM can only name accounts the
@@ -647,6 +657,9 @@ move most of them.
   lives in `values` (tier 1). The import summary's `hledger_journal` keeps
   asserting every group's running balance rather than following the
   last-draft rule: no change there.
+- 2026-09-19, G: the LLM is offered every account but Equity (opening
+  balances and the like): asset and liability accounts help it with transfers
+  and card payments. The two "consider alongside" items stay as they are.
 - 2026-09-19, F1: the layering test is removed rather than tightened; it had
   outlived its usefulness. DEVELOPMENT.md → "Backend layering" describes the
   tiers without a test behind it.
