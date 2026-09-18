@@ -1,10 +1,5 @@
 import { useMemo } from "react";
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   SchemaTableGridView,
   useSchemaStore,
@@ -66,18 +61,9 @@ export function DraftsTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 px-5 pt-5 sm:px-8 lg:px-14">
-        <Button
-          render={<Link to="/views/reclassify-drafts" />}
-          nativeButton={false}
-          variant="outline"
-          size="sm"
-        >
-          Run the categoriser again
-        </Button>
-      </div>
-      {/* The frame's header already clears the sidebar toggle. */}
-      <div className="mt-4 min-h-0 flex-1 border-t border-sap-border [--sap-page-header-inset:0px]">
+      {/* The frame's header already clears the sidebar toggle, and carries
+          this tab's "Run the categoriser again". */}
+      <div className="mt-3 min-h-0 flex-1 border-t border-sap-border [--sap-page-header-inset:0px]">
         {source ? (
           <SchemaTableGridView
             source={source}

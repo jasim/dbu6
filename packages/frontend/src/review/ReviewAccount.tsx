@@ -135,9 +135,17 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
         gridTab && !empty ? "overflow-hidden" : "overflow-y-auto",
       )}
     >
-      <div className="shrink-0 px-5 pt-6 sm:px-8 sm:pt-8 lg:px-14">
+      {/* Two lines, so the Drafts grid keeps the height: the account and its
+          drafts, then the tabs and the open tab's action. The header lines up
+          with the shell's content-side sidebar toggle. */}
+      <div className="shrink-0 px-5 pt-1 sm:px-8 lg:px-14">
         <FrameHeader detail={detail} />
-        {!empty && <Tabs detail={detail} />}
+        {!empty && (
+          <Tabs
+            detail={detail}
+            action={gridTab ? <RecategoriseButton /> : null}
+          />
+        )}
       </div>
       {empty ? (
         <div className="px-5 py-8 sm:px-8 lg:px-14">
@@ -183,27 +191,44 @@ function FramePadding({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * One line: "‹ All accounts / Sample Savings  21 drafts · …". Where it doesn't
+ * fit, the drafts line wraps under the name, and on a phone the way back
+ * shrinks to its chevron.
+ */
 function FrameHeader({ detail }: { detail: ReviewAccountDetail }) {
   const { account } = detail;
   return (
-    <header className="[padding-left:var(--sap-page-header-inset,0px)]">
-      {detail.other_accounts.length > 0 ? (
-        <Button
-          className="-ml-1"
-          render={<Link to={REVIEW_ROUTE} />}
-          nativeButton={false}
-          variant="ghost"
-          size="sm"
+    <header className="flex min-h-11 flex-wrap content-center items-baseline gap-x-4 [padding-left:var(--sap-page-header-inset,0px)]">
+      <div className="flex min-w-0 items-baseline">
+        {detail.other_accounts.length > 0 && (
+          <>
+            <Button
+              className="-ml-2 min-w-11 px-2"
+              render={<Link to={REVIEW_ROUTE} />}
+              nativeButton={false}
+              variant="ghost"
+              size="sm"
+            >
+              <span aria-hidden="true">‹</span>
+              <span className="max-sm:sr-only">All accounts</span>
+            </Button>
+            <span
+              aria-hidden="true"
+              className="pl-1 pr-2 text-heading font-normal text-ink-meta max-sm:hidden"
+            >
+              /
+            </span>
+          </>
+        )}
+        <h1
+          title={account.path}
+          className="truncate text-heading text-foreground"
         >
-          <span aria-hidden="true">‹</span> All accounts
-        </Button>
-      ) : (
-        <div className="h-2" />
-      )}
-      <h1 title={account.path} className="mt-1 text-title text-foreground">
-        {account.name}
-      </h1>
-      <p className="mt-1.5 text-body text-ink-meta">{headerLine(detail)}</p>
+          {account.name}
+        </h1>
+      </div>
+      <p className="text-meta text-ink-meta">{headerLine(detail)}</p>
     </header>
   );
 }
@@ -238,7 +263,18 @@ interface TabLink {
   problems?: number;
 }
 
-function Tabs({ detail }: { detail: ReviewAccountDetail }) {
+/**
+ * The tab bar, and the open tab's action at its end. Below `lg` the tabs
+ * scroll edge to edge and the action takes the line under them; from `lg` the
+ * action sits on the tabs' line, and drops under them when both don't fit.
+ */
+function Tabs({
+  detail,
+  action,
+}: {
+  detail: ReviewAccountDetail;
+  action: React.ReactNode;
+}) {
   const { account } = detail;
   const tabs: TabLink[] = [
     { label: "Overview", to: reviewHref(account.account_id), end: true },
@@ -255,42 +291,59 @@ function Tabs({ detail }: { detail: ReviewAccountDetail }) {
     }),
   ];
   return (
-    <nav
-      aria-label={`Review ${account.name}`}
-      className="-mx-5 mt-5 overflow-x-auto px-5 pb-1 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0"
+    <div className="mt-1.5 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-3">
+      <nav
+        aria-label={`Review ${account.name}`}
+        className="-mx-5 overflow-x-auto px-5 pb-1 sm:-mx-8 sm:px-8 lg:mx-0 lg:flex-1 lg:px-0"
+      >
+        <ul className="flex w-max gap-2.5">
+          {tabs.map((tab) => (
+            <li key={tab.label}>
+              <NavLink
+                to={tab.to}
+                end={tab.end}
+                className={({ isActive }) =>
+                  cn(
+                    "inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[15.5px] font-semibold no-underline outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40",
+                    isActive
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-sap-border bg-card text-ink-soft hover:bg-muted",
+                  )
+                }
+              >
+                {tab.label}
+                {tab.count !== undefined && (
+                  <span className="tnum font-mono text-meta font-medium">
+                    {tab.count}
+                  </span>
+                )}
+                {tab.problems !== undefined && (
+                  <span className="tnum rounded-full bg-destructive px-2 py-px font-mono text-[13px] font-medium text-destructive-foreground">
+                    {tab.problems}
+                    <span className="sr-only"> to fix</span>
+                  </span>
+                )}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      {action && <div className="shrink-0 pb-1">{action}</div>}
+    </div>
+  );
+}
+
+/** The Drafts tab's action. */
+function RecategoriseButton() {
+  return (
+    <Button
+      render={<Link to="/views/reclassify-drafts" />}
+      nativeButton={false}
+      variant="outline"
+      size="sm"
     >
-      <ul className="flex w-max gap-2.5">
-        {tabs.map((tab) => (
-          <li key={tab.label}>
-            <NavLink
-              to={tab.to}
-              end={tab.end}
-              className={({ isActive }) =>
-                cn(
-                  "inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[15.5px] font-semibold no-underline outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40",
-                  isActive
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-sap-border bg-card text-ink-soft hover:bg-muted",
-                )
-              }
-            >
-              {tab.label}
-              {tab.count !== undefined && (
-                <span className="tnum font-mono text-meta font-medium">
-                  {tab.count}
-                </span>
-              )}
-              {tab.problems !== undefined && (
-                <span className="tnum rounded-full bg-destructive px-2 py-px font-mono text-[13px] font-medium text-destructive-foreground">
-                  {tab.problems}
-                  <span className="sr-only"> to fix</span>
-                </span>
-              )}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
-    </nav>
+      Run the categoriser again
+    </Button>
   );
 }
 
@@ -298,14 +351,12 @@ function FrameSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="flex-1 overflow-hidden bg-sap-surface px-5 pt-6 sm:px-8 sm:pt-8 lg:px-14"
+      className="flex-1 overflow-hidden bg-sap-surface px-5 pt-1 sm:px-8 lg:px-14"
     >
-      <div className="[padding-left:var(--sap-page-header-inset,0px)]">
-        <div className="h-11" />
-        <div className="mt-1 h-[38px] w-[min(320px,100%)] rounded-control bg-sap-nested" />
-        <div className="mt-2.5 h-6 w-[min(420px,100%)] rounded-control bg-sap-nested" />
+      <div className="flex h-11 items-center [padding-left:var(--sap-page-header-inset,0px)]">
+        <div className="h-7 w-[min(520px,100%)] rounded-control bg-sap-nested" />
       </div>
-      <div className="mt-5 flex gap-2.5">
+      <div className="mt-1.5 flex gap-2.5">
         {["w-[112px]", "w-[104px]", "w-[132px]", "w-[156px]"].map((width) => (
           <div
             key={width}

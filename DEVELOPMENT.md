@@ -203,7 +203,11 @@ entry in each of those two tables.
   description again.
 - **Agent prompts** open on the most capable model that answered, in the
   agent's auto mode: the agent's own reviewer approves edits and commands, so
-  the user isn't asked for each one.
+  the user isn't asked for each one. Every prompt opens with
+  `PLAN_FIRST_RULE` (`packages/frontend/src/agent-prompt-rules.ts`), which the
+  AI-assisted panel puts on top of whatever it copies or hands off: the
+  agent's first reply is the big idea in a sentence and a few short steps, and
+  it touches nothing until the user says go.
 
 With no agent installed, or none of its models answering, categorization
 reports why and the import goes through uncategorized, and prompts can only be

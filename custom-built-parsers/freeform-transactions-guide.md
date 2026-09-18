@@ -11,7 +11,8 @@ gives them a prompt saying whether the transactions are from a bank account or a
 credit card, and naming the ledger account they go into. They copy the prompt
 into a session and paste the content after it, or open a new session on it
 from the screen (**Open in Claude Code** or **Open in Codex**) and paste the
-content as their first reply. They may also give you a file path.
+content when they tell you to go ahead. They may also give you a file path.
+The prompt asks you to show your steps first and to wait for that go-ahead.
 
 You turn the content into one Abacus JSON statement, get the opening and
 closing balances from the user, import the statement into Drafts through the

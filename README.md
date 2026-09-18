@@ -46,7 +46,8 @@ you the prompt: copy it, or, when Claude Code or Codex is installed on the
 machine running dbu6, click **Open in Claude Code** (or **Codex**, whichever
 Settings names) to start the agent on it in a new terminal window, in the
 repository. (On Linux the
-button gives you a command to run in a terminal instead.) See
+button gives you a command to run in a terminal instead.) Every prompt asks
+the agent to show you its steps first and to do nothing until you say go. See
 [custom-built-parsers/README.md](./custom-built-parsers/README.md) and
 [custom-built-parsers/import-statement-parser-guide.md](./custom-built-parsers/import-statement-parser-guide.md).
 
@@ -55,7 +56,7 @@ from a PDF or a web page, HTML, CSV, or a list you typed), go through the Import
 freeform transactions screen. It gives you a prompt for your coding agent, which turns the
 transactions into a statement, asks you for the opening and closing balances,
 and imports them into Drafts. Copy the prompt, or open it in your coding agent
-from the same screen and paste the transactions as your first reply. See
+from the same screen, and paste the transactions when you say go. See
 [custom-built-parsers/freeform-transactions-guide.md](./custom-built-parsers/freeform-transactions-guide.md).
 
 ### Automatic categorization
