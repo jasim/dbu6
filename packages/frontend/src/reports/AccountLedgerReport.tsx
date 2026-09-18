@@ -42,7 +42,8 @@ export function AccountLedgerReport() {
   };
 
   return (
-    <ReportScreenFrame title="Account Ledger">
+    // The report's label names the account.
+    <ReportScreenFrame title={report.result?.label ?? "Account Ledger"}>
       <ReportToolbar
         actions={
           <ReportRunButton

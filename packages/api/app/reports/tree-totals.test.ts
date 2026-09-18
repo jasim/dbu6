@@ -138,40 +138,6 @@ function sections(result: GridDataset): Record<string, Section> {
   );
 }
 
-type Category = { total: number; accounts: [string, number][] };
-
-type Breakdown = Record<
-  string,
-  { total: number; categories: Record<string, Category> }
->;
-
-/** The Expense breakdown's top accounts, each with its categories. */
-function breakdown(result: GridDataset): Breakdown {
-  const parsed = gridDatasetSchema.parse(result);
-  return Object.fromEntries(
-    parsed.nodes.map((top) => [
-      String(top.columns.top_name),
-      {
-        total: Number(top.rollup?.top_total),
-        categories: Object.fromEntries(
-          (top.children?.category ?? []).map((category) => [
-            String(category.columns.category_name),
-            {
-              total: Number(category.rollup?.category_total),
-              accounts: (category.children?.accounts ?? []).map(
-                (row): [string, number] => [
-                  String(row.columns.name),
-                  Number(row.columns.amount),
-                ],
-              ),
-            },
-          ]),
-        ),
-      },
-    ]),
-  );
-}
-
 function footer(result: GridDataset, column: string): number[] {
   return (result.footerRows ?? []).map((row) => Number(row.columns[column]));
 }
@@ -325,54 +291,55 @@ describe("reports over an account tree", () => {
     ]);
   });
 
-  it("spending breakdown lists each top account with its sub-accounts as categories, each entry once", () => {
-    const result = expenseBreakdownReport(ledger(), auth, january);
+  it("spending breakdown shows each account under its parent, a parent's own entries once", () => {
+    const result = gridDatasetSchema.parse(
+      expenseBreakdownReport(ledger(), auth, january),
+    );
 
-    expect(breakdown(result)).toEqual({
-      Rent: {
-        total: 20000,
-        categories: {
-          Rent: { total: 20000, accounts: [["Rent", 20000]] },
-        },
-      },
-      Food: {
-        total: 6000,
-        categories: {
-          Groceries: { total: 3000, accounts: [["Groceries", 3000]] },
-          Dining: {
-            total: 2500,
-            accounts: [
-              ["Restaurants", 1500],
-              ["Dining", 1000],
+    expect(
+      tree(result, "accounts", result.nodes, (columns) => columns.amount),
+    ).toEqual([
+      ["Rent", 20000, []],
+      [
+        "Food",
+        6000,
+        [
+          ["Groceries", 3000, []],
+          [
+            "Dining",
+            2500,
+            [
+              ["Restaurants", 1500, []],
+              ["Dining, not in a sub-account", 1000, []],
             ],
-          },
-          "Food, not in a sub-account": {
-            total: 500,
-            accounts: [["Food", 500]],
-          },
-        },
-      },
-    });
-    expect(footer(result, "top_total")).toEqual([26000]);
+          ],
+          ["Food, not in a sub-account", 500, []],
+        ],
+      ],
+    ]);
+    expect(result.footerRows?.map((row) => row.columns)).toEqual([
+      { name: "Total Expenses", amount: 26000 },
+    ]);
   });
 
-  it("spending breakdown shows one level below a single top account, such as Expenses", () => {
+  it("spending breakdown starts open under a single top account, such as Expenses", () => {
     const sqlite = ledger();
     sqlite.exec(`
       INSERT INTO accounts VALUES (20, 'workspace', 'user', 'Expenses', NULL, 'Expense');
       UPDATE accounts SET parent_id = 20 WHERE id IN (1, 5);
     `);
-    const result = expenseBreakdownReport(sqlite, auth, january);
+    const result = gridDatasetSchema.parse(
+      expenseBreakdownReport(sqlite, auth, january),
+    );
 
     expect(
-      Object.entries(breakdown(result)).map(([name, top]) => [
-        name,
-        top.total,
-        Object.entries(top.categories).map(([category, { total }]) => [
-          category,
-          total,
-        ]),
-      ]),
+      tree(result, "accounts", result.nodes, (columns) => columns.amount).map(
+        ([name, amount, children]) => [
+          name,
+          amount,
+          children.map(([child, childAmount]) => [child, childAmount]),
+        ],
+      ),
     ).toEqual([
       [
         "Expenses",
@@ -383,9 +350,8 @@ describe("reports over an account tree", () => {
         ],
       ],
     ]);
-    const levels = gridDatasetSchema.parse(result).levels;
-    expect(levels.top?.defaultCollapsed).toBeUndefined();
-    expect(levels.category?.defaultCollapsed).toBe(true);
+    expect(result.levels.accounts?.defaultCollapsed).toBeUndefined();
+    expect(footer(result, "amount")).toEqual([26000]);
   });
 
   it("account ledger takes the account's whole branch", () => {
@@ -541,7 +507,7 @@ async function januaryLedger(
 }
 
 function closingRow(ledger: GridDataset): Record<string, unknown> {
-  return ledger.nodes[0]?.childFooterRows?.entries?.[0]?.columns ?? {};
+  return ledger.footerRows?.[0]?.columns ?? {};
 }
 
 describe("reports over a deep account tree, with drafts filed on parents", () => {
@@ -577,45 +543,19 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
     ]);
   });
 
-  it("spending breakdown lists each account under its parent_id branch", () => {
-    const result = expenseBreakdownReport(treeLedger(), auth, january);
+  it("spending breakdown has the income statement's expense tree, down every parent_id branch", () => {
+    const sqlite = treeLedger();
+    const result = gridDatasetSchema.parse(
+      expenseBreakdownReport(sqlite, auth, january),
+    );
 
-    expect(breakdown(result)).toEqual({
-      Rent: {
-        total: 20000,
-        categories: { Rent: { total: 20000, accounts: [["Rent", 20000]] } },
-      },
-      Food: {
-        total: 5050,
-        categories: {
-          Groceries: { total: 3000, accounts: [["Groceries", 3000]] },
-          Dining: {
-            total: 1550,
-            accounts: [
-              ["Restaurants", 1500],
-              ["Tips", 50],
-            ],
-          },
-          "Food, not in a sub-account": {
-            total: 500,
-            accounts: [["Food", 500]],
-          },
-        },
-      },
-      Travel: {
-        total: 800,
-        categories: {
-          Travel: { total: 800, accounts: [["Travel", 800]] },
-        },
-      },
-      Transport: {
-        total: 200,
-        categories: {
-          Snacks: { total: 200, accounts: [["Snacks", 200]] },
-        },
-      },
-    });
-    expect(footer(result, "top_total")).toEqual([26050]);
+    // The next test pins the income statement's tree.
+    expect(
+      tree(result, "accounts", result.nodes, (columns) => columns.amount),
+    ).toEqual(
+      sections(incomeStatementReport(sqlite, auth, january)).Expense?.accounts,
+    );
+    expect(footer(result, "amount")).toEqual([26050]);
   });
 
   it("the income statement, monthly summary and balance sheet agree with Income and Expenses", () => {
@@ -712,9 +652,7 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
 
   it("the account ledger lists an account outside the branch among a journal's other accounts, whatever its name", async () => {
     const food = await januaryLedger(treeLedger(), 1);
-    const spending = food.nodes[0]?.children?.entries?.find(
-      (row) => row.columns.journal_id === 11,
-    );
+    const spending = food.nodes.find((row) => row.columns.journal_id === 11);
 
     expect(String(spending?.columns.accounts).split(", ")).toContain("Snacks");
   });

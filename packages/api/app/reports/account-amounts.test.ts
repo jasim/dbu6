@@ -153,11 +153,15 @@ describe("the grids read the amounts", () => {
   it("spending breakdown totals the same spending by branch", () => {
     const result = expenseBreakdownReport(ledger(), auth, allTime);
 
-    expect(rootTotals(result, "top_name", "top_total")).toEqual({
-      Food: 5500,
-      Shopping: -500,
-    });
-    expect(result.footerRows?.[0]?.columns.top_total).toBe(5000);
+    expect(
+      result.nodes
+        .filter((row) => row.columns.parent_key === null)
+        .map((row) => [row.columns.name, row.columns.amount]),
+    ).toEqual([
+      ["Food", 5500],
+      ["Shopping", -500],
+    ]);
+    expect(result.footerRows?.[0]?.columns.amount).toBe(5000);
   });
 
   it("monthly summary shows each month's amounts", () => {
