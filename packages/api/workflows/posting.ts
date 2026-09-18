@@ -11,13 +11,12 @@ import {
 } from "../modules/drafts/index.js";
 import { planJournals } from "../modules/journal-plan/index.js";
 import { insertJournalPlan } from "../modules/journals/index.js";
-import type { LedgerAuth, ScopeParams } from "../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 
 export interface PostingLedger {
   db: BetterSQLite3Database;
   sqlite: Database.Database;
   auth: LedgerAuth;
-  scope: ScopeParams;
 }
 
 export type PostingOutcome =
@@ -38,14 +37,14 @@ export type PostingOutcome =
  * drafts deleted. Refuses while the draft status shows anything that blocks.
  */
 export function postDrafts(
-  { db, sqlite, auth, scope }: PostingLedger,
+  { db, sqlite, auth }: PostingLedger,
   baseAccountId: number,
 ): PostingOutcome {
   const loaded = loadCategorizedDrafts(db, baseAccountId, auth);
   if (loaded === null) return { kind: "account-not-found" };
 
   // The same blocks Review shows, so its ticks and this gate agree.
-  const status = loadDraftStatus(sqlite, scope, {
+  const status = loadDraftStatus(sqlite, auth, {
     accountId: baseAccountId,
   }).get(baseAccountId);
   const [block] = postingBlocks(draftCounts(status));

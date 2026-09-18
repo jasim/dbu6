@@ -4,7 +4,7 @@ import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
 import { loadAccountAmounts } from "./account-amounts.js";
 import { authorizeReport } from "./shared.js";
-import type { ScopeParams } from "../../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 import {
   sectionAccountResult,
   sectionFooterRow,
@@ -18,11 +18,10 @@ api.register(
   "incomeStatement",
   reportsContract.incomeStatement,
   ({ c, request }) => {
-    const scope = authorizeReport(c, "income-statement");
+    const auth = authorizeReport(c, "income-statement");
     return {
       status: 200,
-      body: incomeStatementReport(c.get("sqlite"), {
-        ...scope,
+      body: incomeStatementReport(c.get("sqlite"), auth, {
         fromDate: request.query.from_date ?? null,
         toDate: request.query.to_date ?? null,
       }),
@@ -36,10 +35,11 @@ api.register(
  */
 export function incomeStatementReport(
   sqlite: Database.Database,
-  query: ScopeParams & { fromDate: string | null; toDate: string | null },
+  auth: LedgerAuth,
+  query: { fromDate: string | null; toDate: string | null },
 ): GridDataset {
-  const { fromDate, toDate, ...scope } = query;
-  const rows = loadAccountAmounts(sqlite, scope, {
+  const { fromDate, toDate } = query;
+  const rows = loadAccountAmounts(sqlite, auth, {
     types: ["Revenue", "Expense"],
     fromDate,
     toDate,

@@ -3,19 +3,11 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { unsafeAsChrono } from "../values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
-import { accounts, accountsTable } from "../../schema/accounts.js";
-import {
-  draftTransactions,
-  draftTransactionsTable,
-} from "../../schema/draft-journals.js";
-import {
-  journalEntries,
-  journalEntriesTable,
-  journals,
-  journalsTable,
-} from "../../schema/journals.js";
+import { accountsTable } from "../../schema/accounts.js";
+import { draftTransactionsTable } from "../../schema/draft-journals.js";
+import { journalEntriesTable, journalsTable } from "../../schema/journals.js";
 import { persistDrafts, toDraftRows } from "./draft-persistence.js";
-import { createTestAuthContext } from "@sapporta/server/testing";
+import { testLedgerAuth } from "../ledger-sql/testing.js";
 import type { Abacus } from "../statement/index.js";
 import { AmbiguousDuplicateError } from "../reconciliation/index.js";
 import { AssertionConflictError } from "./draft-persistence.js";
@@ -25,11 +17,7 @@ const BASE_ACCOUNT_ID = 1;
 const SOFTWARE_ACCOUNT_ID = 2;
 const OFFICE_ACCOUNT_ID = 3;
 
-const auth = createTestAuthContext({
-  tables: [accounts, draftTransactions, journals, journalEntries],
-  workspaceId: "workspace",
-  userId: "user",
-});
+const auth = testLedgerAuth();
 
 describe("draft persistence reconciliation", () => {
   it("reimport after category change reuses the keyed draft and preserves user category", () => {

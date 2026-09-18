@@ -12,12 +12,8 @@ import { readImportPresets } from "../modules/statement-sources/index.js";
 import { accountLabel, importablePaths } from "./account-names.js";
 import { loadAccountStandings } from "./account-standing.js";
 import { draftCounts } from "../modules/drafts/index.js";
-import {
-  allRows,
-  type ScopeParams,
-  ledgerCtes,
-} from "../modules/ledger-sql/index.js";
-import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
+import { allRows, type LedgerAuth } from "../modules/ledger-sql/index.js";
+import { requireWorkflowAuth } from "./workflow-auth.js";
 
 /*
  * The Home screen's one request (PLAN.md §11 P1): the importable accounts
@@ -29,12 +25,11 @@ import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
 const api = new TsRestApi<SapportaEnv>();
 
 api.register("summary", homeContract.summary, async ({ c }) => {
-  requireWorkflowAuth(c);
-  const scope = requireWorkflowScope(c);
+  const auth = requireWorkflowAuth(c);
   const presets = await readImportPresets();
   return {
     status: 200,
-    body: loadHomeSummary(c.get("sqlite"), scope, presets),
+    body: loadHomeSummary(c.get("sqlite"), auth, presets),
   };
 });
 
@@ -42,11 +37,11 @@ export default api;
 
 export function loadHomeSummary(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   presets: readonly ImportPreset[],
 ): HomeSummary {
   const standings = Array.from(
-    loadAccountStandings(sqlite, scope, presets).values(),
+    loadAccountStandings(sqlite, auth, presets).values(),
   );
   const byPath = new Map(
     standings.map((standing) => [standing.path, standing]),
@@ -54,8 +49,8 @@ export function loadHomeSummary(
   const journalAccounts = new Set(
     allRows<{ account_id: number }>(
       sqlite,
-      `${ledgerCtes} SELECT DISTINCT account_id FROM scoped_journal_entries`,
-      scope,
+      auth,
+      `SELECT DISTINCT account_id FROM scoped_journal_entries`,
     ).map((row) => row.account_id),
   );
 

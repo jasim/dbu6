@@ -14,8 +14,7 @@ import {
 import {
   oneRow,
   allRows,
-  type ScopeParams,
-  ledgerCtes,
+  type LedgerAuth,
 } from "../../modules/ledger-sql/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -24,18 +23,18 @@ api.register(
   "accountLedger",
   reportsContract.accountLedger,
   ({ c, request }) => {
-    const scope = authorizeReport(c, "account-ledger");
+    const auth = authorizeReport(c, "account-ledger");
     const sqlite = c.get("sqlite");
     const query: AccountLedgerQuery = {
-      ...scope,
       accountId: request.query.account_id,
-      accountIds: ledgerAccountIds(sqlite, scope, request.query.account_id),
+      accountIds: ledgerAccountIds(sqlite, auth, request.query.account_id),
       fromDate: request.query.from_date ?? null,
       toDate: request.query.to_date ?? null,
     };
     const account = oneRow<AccountInfoRow>(
       sqlite,
-      `${ledgerCtes}${accountTreeCte}
+      auth,
+      `${accountTreeCte}
     SELECT
       a.id,
       a.name,
@@ -55,7 +54,8 @@ api.register(
     );
     const rows = allRows<AccountLedgerTransactionRow>(
       sqlite,
-      `${ledgerCtes}${accountTreeCte}
+      auth,
+      `${accountTreeCte}
     SELECT
       j.id AS journal_id,
       j.date,
@@ -82,7 +82,7 @@ api.register(
     ORDER BY j.date, j.id`,
       treeParams(query),
     );
-    const journalEntries = loadAccountLedgerJournalEntries(sqlite, query);
+    const journalEntries = loadAccountLedgerJournalEntries(sqlite, auth, query);
 
     return {
       status: 200,
@@ -123,7 +123,7 @@ type AccountLedgerJournalEntryRow = {
   comment: string | null;
 };
 
-type AccountLedgerQuery = ScopeParams & {
+type AccountLedgerQuery = {
   accountId: number;
   /** The account and every account under it (`ledgerAccountIds`). */
   accountIds: readonly number[];
@@ -137,13 +137,13 @@ type AccountLedgerQuery = ScopeParams & {
  */
 export function ledgerAccountIds(
   sqlite: Parameters<typeof allRows>[0],
-  scope: ScopeParams,
+  auth: LedgerAuth,
   accountId: number,
 ): number[] {
   const accounts = allRows<TreeAccount>(
     sqlite,
-    `${ledgerCtes} SELECT id AS account_id, parent_id FROM scoped_accounts`,
-    scope,
+    auth,
+    `SELECT id AS account_id, parent_id FROM scoped_accounts`,
   );
   return subtree(accounts, accountId).map((account) => account.account_id);
 }
@@ -160,11 +160,13 @@ function treeParams(query: AccountLedgerQuery) {
 
 export function loadAccountLedgerJournalEntries(
   sqlite: Parameters<typeof allRows>[0],
+  auth: LedgerAuth,
   query: AccountLedgerQuery,
 ): AccountLedgerJournalEntryRow[] {
   return allRows<AccountLedgerJournalEntryRow>(
     sqlite,
-    `${ledgerCtes}${accountTreeCte},
+    auth,
+    `${accountTreeCte},
     matching_journals AS (
       SELECT DISTINCT j.id
       FROM scoped_journal_entries je

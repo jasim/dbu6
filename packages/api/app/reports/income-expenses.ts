@@ -14,7 +14,7 @@ import {
   type IncomeSpendingType,
 } from "./account-amounts.js";
 import { authorizeReport } from "./shared.js";
-import type { ScopeParams } from "../../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 
 /*
  * Income and Expenses (PLAN.md §11 P4): income and spending for a period
@@ -29,11 +29,10 @@ api.register(
   "incomeExpenses",
   reportsContract.incomeExpenses,
   ({ c, request }) => {
-    const scope = authorizeReport(c, "income-expenses");
+    const auth = authorizeReport(c, "income-expenses");
     return {
       status: 200,
-      body: incomeExpensesReport(c.get("sqlite"), {
-        ...scope,
+      body: incomeExpensesReport(c.get("sqlite"), auth, {
         fromDate: request.query.from_date,
         toDate: request.query.to_date,
       }),
@@ -45,22 +44,23 @@ export default api;
 
 export function incomeExpensesReport(
   sqlite: Database.Database,
-  query: ScopeParams & { fromDate: string; toDate: string },
+  auth: LedgerAuth,
+  query: { fromDate: string; toDate: string },
 ): IncomeExpenses {
-  const { fromDate, toDate, ...scope } = query;
-  const accounts = loadAccountAmounts(sqlite, scope, {
+  const { fromDate, toDate } = query;
+  const accounts = loadAccountAmounts(sqlite, auth, {
     types: ["Revenue", "Expense"],
     fromDate,
     toDate,
   });
   const inPeriod = new Map(
-    loadMonthlyAmounts(sqlite, scope, { fromDate, toDate }).map((row) => [
+    loadMonthlyAmounts(sqlite, auth, { fromDate, toDate }).map((row) => [
       row.month,
       row,
     ]),
   );
   const firstMonth =
-    loadMonthlyAmounts(sqlite, scope, { fromDate: null, toDate: null })[0]
+    loadMonthlyAmounts(sqlite, auth, { fromDate: null, toDate: null })[0]
       ?.month ?? null;
 
   return {

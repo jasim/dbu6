@@ -15,7 +15,7 @@ import {
   baseAccountRunningBalanceCtes,
   failingDraftAssertionsSelect,
 } from "../reconciliation/index.js";
-import { allRows, type ScopeParams, ledgerCtes } from "../ledger-sql/index.js";
+import { allRows, type LedgerAuth } from "../ledger-sql/index.js";
 
 /*
  * What an account's drafts hold (PLAN.md §11 P3). Home, Review, the posting
@@ -72,13 +72,14 @@ type ClosingRow = { account_id: number; date: string; balance: number };
 /** Every account with drafts, keyed by its id. */
 export function loadDraftStatus(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   filter: DraftStatusFilter = {},
 ): Map<number, DraftAccountStatus> {
-  const params = withAccount(scope, filter);
+  const params = accountParams(filter);
   const counts = allRows<DraftCountRow>(
     sqlite,
-    `${ledgerCtes}
+    auth,
+    `
     SELECT
       base_account_id AS account_id,
       COUNT(*) AS drafts,
@@ -94,7 +95,8 @@ export function loadDraftStatus(
   );
   const closings = allRows<ClosingRow>(
     sqlite,
-    `${ledgerCtes}
+    auth,
+    `
     SELECT account_id, date, balance
     FROM (
       SELECT
@@ -113,11 +115,11 @@ export function loadDraftStatus(
   );
   const closingById = new Map(closings.map((row) => [row.account_id, row]));
   const failingById = groupBy(
-    findFailingChecks(sqlite, scope, filter),
+    findFailingChecks(sqlite, auth, filter),
     (row) => row.account_id,
   );
   const duplicatesById = groupBy(
-    findDraftDuplicates(sqlite, scope, filter),
+    findDraftDuplicates(sqlite, auth, filter),
     (row) => row.base_account_id,
   );
 
@@ -160,17 +162,18 @@ export function draftCounts(
 /** The failing draft balance checks, by account, date and draft. */
 export function findFailingChecks(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   filter: DraftStatusFilter = {},
 ): FailingCheck[] {
   return allRows<FailingCheck>(
     sqlite,
-    `${ledgerCtes}${baseAccountRunningBalanceCtes}
+    auth,
+    `${baseAccountRunningBalanceCtes}
     SELECT r.account_id, r.date, r.draft_id, r.running_balance, r.assertion, r.diff
     FROM (${failingDraftAssertionsSelect}) r
     ${accountCondition(filter, "r.account_id", "WHERE")}
     ORDER BY r.account_id, r.date, r.draft_id`,
-    withAccount(scope, filter),
+    accountParams(filter),
   );
 }
 
@@ -181,19 +184,20 @@ export function findFailingChecks(
  */
 export function findDraftDuplicates(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   filter: DraftStatusFilter = {},
 ): DuplicateDiagnostic[] {
   const drafts = allRows<DuplicateDraftSourceRow>(
     sqlite,
-    `${ledgerCtes}${duplicateDraftRowsSql}${accountCondition(filter, "dt.base_account_id")}`,
-    withAccount(scope, filter),
+    auth,
+    `${duplicateDraftRowsSql}${accountCondition(filter, "dt.base_account_id")}`,
+    accountParams(filter),
   );
   if (drafts.length === 0) return [];
   const journalEntries = allRows<DuplicateJournalEntrySourceRow>(
     sqlite,
-    `${ledgerCtes}${duplicateJournalEntryRowsSql}`,
-    scope,
+    auth,
+    duplicateJournalEntryRowsSql,
   );
   return findDuplicateDiagnostics(drafts, journalEntries);
 }
@@ -208,13 +212,8 @@ function accountCondition(
     : ` ${keyword} ${column} = @accountId`;
 }
 
-function withAccount(
-  scope: ScopeParams,
-  filter: DraftStatusFilter,
-): Record<string, unknown> {
-  return filter.accountId === undefined
-    ? scope
-    : { ...scope, accountId: filter.accountId };
+function accountParams(filter: DraftStatusFilter): Record<string, unknown> {
+  return filter.accountId === undefined ? {} : { accountId: filter.accountId };
 }
 
 function groupBy<T>(rows: readonly T[], key: (row: T) => number) {

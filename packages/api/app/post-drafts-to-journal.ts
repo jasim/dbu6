@@ -5,7 +5,7 @@ import {
 } from "@sapporta/server";
 import { draftTransactionsContract, type PostingBlock } from "dbu6-shared";
 import { postDrafts, type PostingLedger } from "../workflows/posting.js";
-import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
+import { requireWorkflowAuth } from "./workflow-auth.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
@@ -14,9 +14,8 @@ api.register(
   draftTransactionsContract.postDraftsToJournal,
   async ({ c, request }) => {
     const auth = requireWorkflowAuth(c);
-    const scope = requireWorkflowScope(c);
     return postDraftsToJournal(
-      { db: c.get("db"), sqlite: c.get("sqlite"), auth, scope },
+      { db: c.get("db"), sqlite: c.get("sqlite"), auth },
       request.body.base_account_id,
     );
   },

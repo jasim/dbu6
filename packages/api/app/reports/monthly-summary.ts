@@ -12,7 +12,7 @@ import {
   percentColumn,
   sum,
 } from "./shared.js";
-import type { ScopeParams } from "../../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
@@ -20,11 +20,10 @@ api.register(
   "monthlySummary",
   reportsContract.monthlySummary,
   ({ c, request }) => {
-    const scope = authorizeReport(c, "monthly-summary");
+    const auth = authorizeReport(c, "monthly-summary");
     return {
       status: 200,
-      body: monthlySummaryReport(c.get("sqlite"), {
-        ...scope,
+      body: monthlySummaryReport(c.get("sqlite"), auth, {
         fromDate: request.query.from_date ?? null,
         toDate: request.query.to_date ?? null,
       }),
@@ -35,11 +34,12 @@ api.register(
 /** Income and spending for each month in the period with entries. */
 export function monthlySummaryReport(
   sqlite: Database.Database,
-  query: ScopeParams & { fromDate: string | null; toDate: string | null },
+  auth: LedgerAuth,
+  query: { fromDate: string | null; toDate: string | null },
 ): GridDataset {
-  const { fromDate, toDate, ...scope } = query;
+  const { fromDate, toDate } = query;
   return toMonthlySummaryResult(
-    loadMonthlyAmounts(sqlite, scope, { fromDate, toDate }),
+    loadMonthlyAmounts(sqlite, auth, { fromDate, toDate }),
   );
 }
 

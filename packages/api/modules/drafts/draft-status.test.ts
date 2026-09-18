@@ -7,8 +7,9 @@ import {
   postingChecks,
 } from "dbu6-shared";
 import { draftCounts, loadDraftStatus } from "./draft-status.js";
+import { testLedgerAuth } from "../ledger-sql/testing.js";
 
-const scope = { workspaceId: "workspace", userId: "user" };
+const auth = testLedgerAuth();
 
 /*
  * Sample Savings (2) has a balance assertion of 1,500 on 10 Feb, then four
@@ -68,7 +69,7 @@ function ledger(): Database.Database {
 
 describe("loadDraftStatus", () => {
   it("gives every account with drafts its counts, dates, closing balance and blocks", () => {
-    const status = loadDraftStatus(ledger(), scope);
+    const status = loadDraftStatus(ledger(), auth);
 
     expect(Array.from(status.keys()).sort()).toEqual([2, 4]);
     expect(status.get(2)).toMatchObject({
@@ -112,12 +113,12 @@ describe("loadDraftStatus", () => {
 
   it("narrows every query to one account", () => {
     const sqlite = ledger();
-    const all = loadDraftStatus(sqlite, scope);
-    const one = loadDraftStatus(sqlite, scope, { accountId: 2 });
+    const all = loadDraftStatus(sqlite, auth);
+    const one = loadDraftStatus(sqlite, auth, { accountId: 2 });
 
     expect(Array.from(one.keys())).toEqual([2]);
     expect(one.get(2)).toEqual(all.get(2));
-    expect(loadDraftStatus(sqlite, scope, { accountId: 3 }).size).toBe(0);
+    expect(loadDraftStatus(sqlite, auth, { accountId: 3 }).size).toBe(0);
   });
 
   it("counts an account with no drafts as nothing", () => {
@@ -125,7 +126,7 @@ describe("loadDraftStatus", () => {
   });
 
   it("counts the balance checks the drafts carry and the ones that fail", () => {
-    const status = loadDraftStatus(ledger(), scope);
+    const status = loadDraftStatus(ledger(), auth);
     expect(draftCounts(status.get(2))).toMatchObject({
       balance_checks: 3,
       failing_checks: 1,

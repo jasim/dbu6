@@ -7,7 +7,7 @@ import {
   hiddenIdColumn,
   openRecordLink,
 } from "./shared.js";
-import { allRows, ledgerCtes } from "../../modules/ledger-sql/index.js";
+import { allRows } from "../../modules/ledger-sql/index.js";
 import { assertionColumns } from "./assertion-grid.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -16,10 +16,11 @@ api.register(
   "balanceAssertions",
   reportsContract.balanceAssertions,
   ({ c }) => {
-    const scope = authorizeReport(c, "balance-assertions");
+    const auth = authorizeReport(c, "balance-assertions");
     const rows = allRows<BalanceAssertionRow>(
       c.get("sqlite"),
-      `${ledgerCtes}
+      auth,
+      `
       , running AS (
         SELECT
           je.id AS entry_id,
@@ -50,7 +51,6 @@ api.register(
       WHERE account_balance_assertion IS NOT NULL
         AND ABS(running_balance - account_balance_assertion) > 0.005
       ORDER BY account_name, date, journal_id, entry_id`,
-      scope,
     );
 
     return { status: 200, body: toBalanceAssertionsResult(rows) };

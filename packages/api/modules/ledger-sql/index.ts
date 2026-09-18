@@ -1,58 +1,84 @@
 import type Database from "better-sqlite3";
+import { sql } from "drizzle-orm";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import type { SapportaAuthContext } from "@sapporta/server";
+import { accounts, accountsTable } from "../../schema/accounts.js";
+import {
+  draftTransactions,
+  draftTransactionsTable,
+} from "../../schema/draft-journals.js";
+import {
+  journalEntries,
+  journalEntriesTable,
+  journals,
+  journalsTable,
+} from "../../schema/journals.js";
 
 // Row scoping for the ledger. Drizzle queries scope their rows through the
-// auth every store takes; raw SQL reads the ledger through the `scoped_*`
-// CTEs below. The CTEs still filter workspace and user by hand, which B1 in
-// PLAN.md replaces with Sapporta's row security.
+// auth every store takes. Raw SQL reads the ledger only through the
+// `scoped_*` relations that `allRows` and `oneRow` put in front of it, each
+// built from the same Sapporta row security.
 
 /** What a ledger store needs of the request's auth: its row security. */
 export type LedgerAuth = Pick<SapportaAuthContext, "rowSecurity">;
 
-export type ScopeParams = {
-  workspaceId: string;
-  userId: string;
-};
+const dialect = new SQLiteSyncDialect();
 
-export const ledgerCtes = `
-WITH RECURSIVE
-scoped_accounts AS (
-  SELECT *
-  FROM accounts
-  WHERE workspace_id = @workspaceId
-    AND scoped_to_user_id = @userId
-),
-scoped_journals AS (
-  SELECT *
-  FROM journals
-  WHERE workspace_id = @workspaceId
-    AND scoped_to_user_id = @userId
-),
-scoped_journal_entries AS (
-  SELECT *
-  FROM journal_entries
-  WHERE workspace_id = @workspaceId
-    AND scoped_to_user_id = @userId
-),
-scoped_draft_transactions AS (
-  SELECT *
-  FROM draft_transactions
-  WHERE workspace_id = @workspaceId
-    AND scoped_to_user_id = @userId
-)`;
+/**
+ * `WITH RECURSIVE scoped_accounts AS (…), …`: one relation per ledger table,
+ * holding only the rows `auth` may see, with the values its predicates bind.
+ */
+function scopedLedger(auth: LedgerAuth): { sql: string; params: unknown[] } {
+  const relations = [
+    sql`scoped_accounts AS (
+  SELECT * FROM ${accountsTable}
+  WHERE ${auth.rowSecurity.forTable(accounts).ownedRows()}
+)`,
+    sql`scoped_journals AS (
+  SELECT * FROM ${journalsTable}
+  WHERE ${auth.rowSecurity.forTable(journals).ownedRows()}
+)`,
+    sql`scoped_journal_entries AS (
+  SELECT * FROM ${journalEntriesTable}
+  WHERE ${auth.rowSecurity.forTable(journalEntries).ownedRows()}
+)`,
+    sql`scoped_draft_transactions AS (
+  SELECT * FROM ${draftTransactionsTable}
+  WHERE ${auth.rowSecurity.forTable(draftTransactions).ownedRows()}
+)`,
+  ];
+  return dialect.sqlToQuery(
+    sql`WITH RECURSIVE\n${sql.join(relations, sql`,\n`)}`,
+  );
+}
+
+/*
+ * `query` continues the scoped relations: a statement that reads them, or
+ * more CTEs starting with a comma. It binds its own values by name
+ * (`@asOfDate`); the positional ones belong to the scoped relations.
+ */
 
 export function allRows<T>(
   sqlite: Database.Database,
-  sql: string,
-  params: Record<string, unknown>,
+  auth: LedgerAuth,
+  query: string,
+  params: Record<string, unknown> = {},
 ): T[] {
-  return sqlite.prepare(sql).all(params) as T[];
+  const scoped = scopedLedger(auth);
+  return sqlite
+    .prepare(`${scoped.sql}\n${query}`)
+    .all(...scoped.params, params) as T[];
 }
 
 export function oneRow<T>(
   sqlite: Database.Database,
-  sql: string,
-  params: Record<string, unknown>,
+  auth: LedgerAuth,
+  query: string,
+  params: Record<string, unknown> = {},
 ): T | null {
-  return (sqlite.prepare(sql).get(params) as T | undefined) ?? null;
+  const scoped = scopedLedger(auth);
+  const row = sqlite
+    .prepare(`${scoped.sql}\n${query}`)
+    .get(...scoped.params, params) as T | undefined;
+  return row ?? null;
 }

@@ -13,7 +13,7 @@ import {
   sum,
   textColumn,
 } from "./shared.js";
-import type { ScopeParams } from "../../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
@@ -21,11 +21,10 @@ api.register(
   "expenseBreakdown",
   reportsContract.expenseBreakdown,
   ({ c, request }) => {
-    const scope = authorizeReport(c, "expense-breakdown");
+    const auth = authorizeReport(c, "expense-breakdown");
     return {
       status: 200,
-      body: expenseBreakdownReport(c.get("sqlite"), {
-        ...scope,
+      body: expenseBreakdownReport(c.get("sqlite"), auth, {
         fromDate: request.query.from_date ?? null,
         toDate: request.query.to_date ?? null,
       }),
@@ -40,10 +39,11 @@ api.register(
  */
 export function expenseBreakdownReport(
   sqlite: Database.Database,
-  query: ScopeParams & { fromDate: string | null; toDate: string | null },
+  auth: LedgerAuth,
+  query: { fromDate: string | null; toDate: string | null },
 ): GridDataset {
-  const { fromDate, toDate, ...scope } = query;
-  const accounts = loadAccountAmounts(sqlite, scope, {
+  const { fromDate, toDate } = query;
+  const accounts = loadAccountAmounts(sqlite, auth, {
     types: ["Expense"],
     fromDate,
     toDate,

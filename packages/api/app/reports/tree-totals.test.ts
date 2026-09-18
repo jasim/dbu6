@@ -15,9 +15,10 @@ import { expenseBreakdownReport } from "./expense-breakdown.js";
 import { incomeExpensesReport } from "./income-expenses.js";
 import { incomeStatementReport } from "./income-statement.js";
 import { monthlySummaryReport } from "./monthly-summary.js";
+import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
 
-const scope = { workspaceId: "workspace", userId: "user" };
-const january = { ...scope, fromDate: "2026-01-01", toDate: "2026-01-31" };
+const auth = testLedgerAuth();
+const january = { fromDate: "2026-01-01", toDate: "2026-01-31" };
 
 /*
  * Entries sit on parent accounts as well as leaves: salary (6) and bank (8)
@@ -110,7 +111,7 @@ function footer(result: GridDataset, column: string): number[] {
 
 describe("reports over an account tree", () => {
   it("income statement counts entries on parent accounts", () => {
-    const result = incomeStatementReport(ledger(), january);
+    const result = incomeStatementReport(ledger(), auth, january);
 
     expect(sections(result, "section", "section_total", "balance")).toEqual({
       Revenue: {
@@ -135,8 +136,7 @@ describe("reports over an account tree", () => {
   });
 
   it("balance sheet counts entries on parent accounts", () => {
-    const result = balanceSheetReport(ledger(), {
-      ...scope,
+    const result = balanceSheetReport(ledger(), auth, {
       asOfDate: "2026-01-31",
     });
 
@@ -152,7 +152,7 @@ describe("reports over an account tree", () => {
   });
 
   it("spending breakdown puts each account under the top of its branch, once", () => {
-    const result = expenseBreakdownReport(ledger(), january);
+    const result = expenseBreakdownReport(ledger(), auth, january);
 
     expect(
       sections(result, "category_name", "category_total", "amount"),
@@ -176,10 +176,10 @@ describe("reports over an account tree", () => {
 
   it("account ledger takes the account's whole branch", () => {
     const sqlite = ledger();
-    const lines = loadAccountLedgerJournalEntries(sqlite, {
+    const lines = loadAccountLedgerJournalEntries(sqlite, auth, {
       ...january,
       accountId: 3,
-      accountIds: ledgerAccountIds(sqlite, scope, 3),
+      accountIds: ledgerAccountIds(sqlite, auth, 3),
     });
 
     expect(lines.map((line) => line.entry_id)).toEqual([
@@ -197,12 +197,14 @@ describe("reports over an account tree", () => {
     const loop = "parent_id loops through accounts 1 → 4 → 3 → 1";
 
     it("the account ledger throws, even for an account outside the loop", () => {
-      expect(() => ledgerAccountIds(looped(), scope, 1)).toThrow(loop);
-      expect(() => ledgerAccountIds(looped(), scope, 8)).toThrow(loop);
+      expect(() => ledgerAccountIds(looped(), auth, 1)).toThrow(loop);
+      expect(() => ledgerAccountIds(looped(), auth, 8)).toThrow(loop);
     });
 
     it("spending breakdown throws", () => {
-      expect(() => expenseBreakdownReport(looped(), january)).toThrow(loop);
+      expect(() => expenseBreakdownReport(looped(), auth, january)).toThrow(
+        loop,
+      );
     });
   });
 });
@@ -306,17 +308,7 @@ function ledgerRoute(sqlite: Database.Database): TsRestApi<SapportaEnv> {
   const app = new TsRestApi<SapportaEnv>();
   app.use(async (c, next) => {
     c.set("sqlite", sqlite);
-    c.set("auth", {
-      ability: { can: () => true },
-      dataAuthority: {
-        rowAuthorities: {
-          workspaceUserScoped: {
-            workspace: { id: "workspace" },
-            user: { id: "user" },
-          },
-        },
-      },
-    } as never);
+    c.set("auth", auth);
     await next();
   });
   app.route("/", accountLedgerApi);
@@ -341,7 +333,7 @@ function closingRow(ledger: GridDataset): Record<string, unknown> {
 describe("reports over a deep account tree, with drafts filed on parents", () => {
   it("Income and Expenses counts each account's own entries once, at every depth, by parent_id", () => {
     const report = incomeExpensesSchema.parse(
-      incomeExpensesReport(treeLedger(), january),
+      incomeExpensesReport(treeLedger(), auth, january),
     );
 
     expect(report.spending.total).toBe(26050);
@@ -372,7 +364,7 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
   });
 
   it("spending breakdown puts each account under the top of its parent_id branch", () => {
-    const result = expenseBreakdownReport(treeLedger(), january);
+    const result = expenseBreakdownReport(treeLedger(), auth, january);
 
     expect(
       sections(result, "category_name", "category_total", "amount"),
@@ -406,7 +398,7 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
     const sqlite = treeLedger();
 
     const statement = sections(
-      incomeStatementReport(sqlite, january),
+      incomeStatementReport(sqlite, auth, january),
       "section",
       "section_total",
       "balance",
@@ -426,7 +418,7 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
     });
 
     expect(
-      monthlySummaryReport(sqlite, january).nodes.map((node) => [
+      monthlySummaryReport(sqlite, auth, january).nodes.map((node) => [
         node.columns.month,
         node.columns.income,
         node.columns.expenses,
@@ -435,7 +427,7 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
 
     expect(
       sections(
-        balanceSheetReport(sqlite, { ...scope, asOfDate: "2026-01-31" }),
+        balanceSheetReport(sqlite, auth, { asOfDate: "2026-01-31" }),
         "section",
         "section_total",
         "balance",

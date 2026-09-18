@@ -6,7 +6,7 @@ import {
   type DraftAccountStatus,
 } from "../modules/drafts/index.js";
 import { loadLastReconciled } from "../modules/journals/index.js";
-import type { ScopeParams } from "../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import { loadLedgerAccounts } from "../modules/accounts/index.js";
 
 /*
@@ -28,18 +28,18 @@ export interface AccountStanding extends AccountLabel {
 /** Every account in scope, by id. */
 export function loadAccountStandings(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   presets: readonly ImportPreset[],
 ): Map<number, AccountStanding> {
   const checkpoints = new Map(
-    loadLastReconciled(sqlite, scope).map((row) => [
+    loadLastReconciled(sqlite, auth).map((row) => [
       row.account_id,
       { date: row.last_reconciled_date, balance: row.last_balance },
     ]),
   );
-  const drafts = loadDraftStatus(sqlite, scope);
+  const drafts = loadDraftStatus(sqlite, auth);
   return new Map(
-    loadLedgerAccounts(sqlite, scope).map((account) => [
+    loadLedgerAccounts(sqlite, auth).map((account) => [
       account.id,
       {
         account_id: account.id,

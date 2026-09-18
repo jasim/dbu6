@@ -1,8 +1,9 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { loadHomeSummary } from "./home.js";
+import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 
-const scope = { workspaceId: "workspace", userId: "user" };
+const auth = testLedgerAuth();
 
 function ledger(): Database.Database {
   const sqlite = new Database(":memory:");
@@ -80,7 +81,7 @@ describe("Home summary", () => {
         (205, 'workspace', 'other-user', '2026-03-03', 'NOPII other', 5, 0, NULL, 2, NULL, NULL, 'k-205');
     `);
 
-    const summary = loadHomeSummary(sqlite, scope, presets);
+    const summary = loadHomeSummary(sqlite, auth, presets);
 
     // The account the ledger lacks has no assertion, so it leads; then
     // Sample Savings (10 Feb) before Sample Card (20 Feb).
@@ -132,7 +133,7 @@ describe("Home summary", () => {
   it("names and kinds an account the way Review does", () => {
     // A loan preset that doesn't say it is a card: the ledger's Liability
     // type decides, on Home as on Review.
-    const summary = loadHomeSummary(ledger(), scope, [
+    const summary = loadHomeSummary(ledger(), auth, [
       {
         name: "Sample Loan",
         base_account: "liabilities:loans:sample-loan",
@@ -149,7 +150,7 @@ describe("Home summary", () => {
     const sqlite = ledger();
     sqlite.exec(`DELETE FROM journal_entries; DELETE FROM journals;`);
 
-    const summary = loadHomeSummary(sqlite, scope, presets.slice(0, 2));
+    const summary = loadHomeSummary(sqlite, auth, presets.slice(0, 2));
 
     expect(summary.has_journals).toBe(false);
     expect(summary.totals.drafts).toBe(0);
@@ -162,7 +163,7 @@ describe("Home summary", () => {
   });
 
   it("returns no accounts without presets", () => {
-    const summary = loadHomeSummary(ledger(), scope, []);
+    const summary = loadHomeSummary(ledger(), auth, []);
     expect(summary.accounts).toEqual([]);
     expect(summary.has_journals).toBe(false);
   });

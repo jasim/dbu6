@@ -5,7 +5,7 @@ import {
   handOffPrompt,
 } from "../modules/coding-agent/index.js";
 import { respondWithHandoffErrors } from "./coding-agent-error-response.js";
-import { requireWorkflowAuth } from "./workflow-auth.js";
+import { requireOwner } from "./workflow-auth.js";
 
 // Handing an agent prompt to the coding agent on this machine. Both routes
 // check access and call coding-agent/handoff.ts, which decides which agent,
@@ -17,7 +17,7 @@ api.register(
   "getAgentHandoffAvailability",
   agentHandoffContract.getAgentHandoffAvailability,
   async ({ c }) => {
-    requireWorkflowAuth(c);
+    requireOwner(c);
     return {
       status: 200,
       body: await agentHandoffAvailability(process.platform),
@@ -29,7 +29,7 @@ api.register(
   "handOffPrompt",
   agentHandoffContract.handOffPrompt,
   async ({ c, request }) => {
-    requireWorkflowAuth(c);
+    requireOwner(c);
     return respondWithHandoffErrors(() =>
       handOffPrompt(request.body.prompt, process.platform, projectRoot()),
     );

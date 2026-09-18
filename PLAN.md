@@ -328,7 +328,19 @@ the classify routes use `categorizationErrorResponse`.
 
 ### B1 — One row-scoping mechanism
 
-**Status:** todo. **Depends on:** M4. **Runs alongside** A and C.
+**Status:** done (2026-09-19). `allRows(sqlite, auth, sql, params?)` and
+`oneRow` put the `scoped_*` CTEs in front of each raw query, built from
+`rowSecurity.forTable(t).ownedRows()` with Drizzle's SQLite dialect;
+`ledgerCtes` and `ScopeParams` are gone, and every store, report and workflow
+takes `auth: LedgerAuth`, required. `requireLedgerAuth` (`app/workflow-auth.ts`)
+checks the ability and the workspace/user authority; `requireWorkflowAuth` and
+`authorizeReport` go through it, and the coding-agent, handoff and preset
+routes, which don't read the ledger, call `requireOwner`. Tests take
+`testLedgerAuth()` from `modules/ledger-sql/testing.ts`, the module's second
+entry; `app/row-scoping.test.ts` adds other users' rows and shows draft status,
+the balance sheet, the accounts and both checkpoint queries unchanged. For F1:
+`ledger-sql` now imports `drizzle-orm` and sits above `schema`.
+**Depends on:** M4. **Runs alongside** A and C.
 **Findings:** 2.
 
 **Decision for the owner, at the go-ahead:** how raw SQL gets Sapporta's
@@ -606,6 +618,10 @@ move most of them.
 - 2026-09-19, D: the LLM will choose from the `accounts` table instead of
   `hledger_accounts.prompt`, as task G after the refactor, because it changes
   behavior. D keeps the prompt file and today's behavior.
+- 2026-09-19, B1: raw SQL gets Sapporta's scope by rendering `ownedRows()`
+  into each `scoped_*` CTE with Drizzle's SQLite dialect (option (a)), inside
+  dbu6. Sapporta's docs prescribe guarded base-row CTEs for raw SQL, so no
+  Sapporta helper is needed.
 
 ## Found along the way
 

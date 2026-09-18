@@ -1,11 +1,6 @@
 import type Database from "better-sqlite3";
 import { accounts, accountsTable } from "../../schema/accounts.js";
-import {
-  allRows,
-  ledgerCtes,
-  type LedgerAuth,
-  type ScopeParams,
-} from "../ledger-sql/index.js";
+import { allRows, type LedgerAuth } from "../ledger-sql/index.js";
 
 /** An account in scope, as the accounts table holds it. */
 export type LedgerAccount = {
@@ -16,14 +11,14 @@ export type LedgerAccount = {
 
 export function loadAccountsByName(
   db: any,
-  auth?: LedgerAuth,
+  auth: LedgerAuth,
 ): Map<string, number> {
-  const access = auth?.rowSecurity.forTable(accounts);
+  const access = auth.rowSecurity.forTable(accounts);
   return new Map(
     db
       .select()
       .from(accountsTable)
-      .where(access ? access.ownedRows() : undefined)
+      .where(access.ownedRows())
       .all()
       .map((a: any) => [a.name, a.id]),
   );
@@ -31,11 +26,11 @@ export function loadAccountsByName(
 
 export function loadLedgerAccounts(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
 ): LedgerAccount[] {
   return allRows<LedgerAccount>(
     sqlite,
-    `${ledgerCtes} SELECT id, name, account_type FROM scoped_accounts`,
-    scope,
+    auth,
+    `SELECT id, name, account_type FROM scoped_accounts`,
   );
 }

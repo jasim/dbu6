@@ -15,6 +15,9 @@ import {
 import type { Categorizer } from "../../modules/categorization/index.js";
 import { parseAccount } from "../../modules/values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
+import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
+
+const auth = testLedgerAuth();
 
 describe("pickOpeningBalance", () => {
   it("prefers the statement's own opening over the checkpoint", () => {
@@ -88,7 +91,7 @@ describe("runStatementImport", () => {
   it("requires an effective closing for a credit-card import before writes", async () => {
     const part = stmt(["2026-05-01"], -100, null);
     await expect(
-      runStatementImport([part], options(), stubImportDb()),
+      runStatementImport([part], options(), stubImportDb(), auth),
     ).rejects.toBeInstanceOf(ClosingBalanceUnavailable);
   });
 
@@ -98,6 +101,7 @@ describe("runStatementImport", () => {
       [part],
       options(),
       stubImportDb({ date: "2026-12-31", balance: -999 }),
+      auth,
     );
     await expect(refusal).rejects.toBeInstanceOf(BalanceMismatchError);
     // The statement prints no running balances, so a gap is the likely cause.
@@ -111,6 +115,7 @@ describe("runStatementImport", () => {
       [part],
       options(),
       stubImportDb({ date: "2026-12-31", balance: 0 }),
+      auth,
     );
     expect(result.balance_metadata).toEqual({
       opening: { extracted: -100, effective: -100, source: "statement" },

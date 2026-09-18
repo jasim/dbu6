@@ -8,10 +8,10 @@ import { describe, expect, it } from "vitest";
 import { incomeExpensesReport, monthsBetween } from "./income-expenses.js";
 import { incomeStatementReport } from "./income-statement.js";
 import { sectionTotal } from "./section-account-grid.js";
+import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
 
-const scope = { workspaceId: "workspace", userId: "user" };
+const auth = testLedgerAuth();
 const firstQuarter = {
-  ...scope,
   fromDate: "2026-01-01",
   toDate: "2026-03-31",
 };
@@ -96,7 +96,7 @@ function shape(accounts: IncomeExpensesAccount[]): Shape[] {
 describe("Income and Expenses", () => {
   it("lists each section as its account tree, ranked by total", () => {
     const report = incomeExpensesSchema.parse(
-      incomeExpensesReport(ledger(), firstQuarter),
+      incomeExpensesReport(ledger(), auth, firstQuarter),
     );
 
     expect(report.spending.total).toBe(26000);
@@ -124,8 +124,8 @@ describe("Income and Expenses", () => {
 
   it("has the income statement's section totals for the same dates", () => {
     const sqlite = ledger();
-    const report = incomeExpensesReport(sqlite, firstQuarter);
-    const statement = incomeStatementReport(sqlite, firstQuarter);
+    const report = incomeExpensesReport(sqlite, auth, firstQuarter);
+    const statement = incomeStatementReport(sqlite, auth, firstQuarter);
 
     expect(report.income.total).toBe(sectionTotal(statement.nodes, "Revenue"));
     expect(report.spending.total).toBe(
@@ -137,7 +137,7 @@ describe("Income and Expenses", () => {
     const sqlite = ledger();
     sqlite.exec("UPDATE accounts SET parent_id = 20 WHERE id IN (1, 5)");
 
-    const report = incomeExpensesReport(sqlite, firstQuarter);
+    const report = incomeExpensesReport(sqlite, auth, firstQuarter);
 
     expect(report.spending.total).toBe(26000);
     expect(
@@ -155,13 +155,13 @@ describe("Income and Expenses", () => {
     // Food (1) now sits under its own grandchild, restaurants (4).
     sqlite.exec("UPDATE accounts SET parent_id = 4 WHERE id = 1");
 
-    expect(() => incomeExpensesReport(sqlite, firstQuarter)).toThrow(
+    expect(() => incomeExpensesReport(sqlite, auth, firstQuarter)).toThrow(
       "parent_id loops through accounts 1 → 4 → 3 → 1",
     );
   });
 
   it("gives every month in the period, zero-filled, and the first month", () => {
-    const report = incomeExpensesReport(ledger(), firstQuarter);
+    const report = incomeExpensesReport(ledger(), auth, firstQuarter);
 
     expect(report.months).toEqual([
       { month: "2026-01", income: 100000, spending: 6000 },
@@ -172,8 +172,7 @@ describe("Income and Expenses", () => {
   });
 
   it("is empty for a period without entries, with the first month still known", () => {
-    const report = incomeExpensesReport(ledger(), {
-      ...scope,
+    const report = incomeExpensesReport(ledger(), auth, {
       fromDate: "2026-02-10",
       toDate: "2026-02-20",
     });
@@ -185,8 +184,7 @@ describe("Income and Expenses", () => {
       first_month: "2025-12",
     });
     expect(
-      incomeExpensesReport(new Database(":memory:").exec(schemaOnly()), {
-        ...scope,
+      incomeExpensesReport(new Database(":memory:").exec(schemaOnly()), auth, {
         fromDate: "2026-02-10",
         toDate: "2026-02-20",
       }).first_month,

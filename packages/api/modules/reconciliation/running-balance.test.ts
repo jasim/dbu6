@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { ledgerCtes } from "../ledger-sql/index.js";
+import { allRows } from "../ledger-sql/index.js";
+import { testLedgerAuth } from "../ledger-sql/testing.js";
 import {
   baseAccountRunningBalanceCtes,
   failingDraftAssertionsSelect,
@@ -19,12 +20,12 @@ describe("shared draft running-balance query", () => {
       INSERT INTO journal_entries VALUES (1, 'workspace', 'user', 1, 1, 100, 0, NULL);
       INSERT INTO draft_transactions VALUES (9, 'workspace', 'user', '2026-05-07', 1, 50, 0, 140);
     `);
-    const rows = sqlite
-      .prepare(
-        `${ledgerCtes}${baseAccountRunningBalanceCtes}
-         SELECT * FROM (${failingDraftAssertionsSelect})`,
-      )
-      .all({ workspaceId: "workspace", userId: "user" });
+    const rows = allRows(
+      sqlite,
+      testLedgerAuth(),
+      `${baseAccountRunningBalanceCtes}
+       SELECT * FROM (${failingDraftAssertionsSelect})`,
+    );
     expect(rows).toEqual([
       {
         account_id: 1,

@@ -1,8 +1,9 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { listReviewAccounts, loadReviewAccount } from "./review.js";
+import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 
-const scope = { workspaceId: "workspace", userId: "user" };
+const auth = testLedgerAuth();
 
 /*
  * Sample Savings (2) has a balance assertion of 1,500 on 10 Feb and three
@@ -71,7 +72,7 @@ const presets = [
 
 describe("listReviewAccounts", () => {
   it("lists only the accounts with drafts, named from presets or their path, by name", () => {
-    expect(listReviewAccounts(ledger(), scope, presets)).toEqual([
+    expect(listReviewAccounts(ledger(), auth, presets)).toEqual([
       {
         account_id: 1,
         path: "liabilities:credit-cards:sample-card",
@@ -114,7 +115,7 @@ describe("listReviewAccounts", () => {
 
 describe("loadReviewAccount", () => {
   it("says what blocks one account's drafts and which other accounts have drafts", () => {
-    const detail = loadReviewAccount(ledger(), scope, presets, 2);
+    const detail = loadReviewAccount(ledger(), auth, presets, 2);
 
     expect(detail).toMatchObject({
       account: {
@@ -160,7 +161,7 @@ describe("loadReviewAccount", () => {
   });
 
   it("answers for an account whose drafts are all in the books", () => {
-    const detail = loadReviewAccount(ledger(), scope, presets, 6);
+    const detail = loadReviewAccount(ledger(), auth, presets, 6);
 
     expect(detail).toEqual({
       account: {
@@ -188,7 +189,7 @@ describe("loadReviewAccount", () => {
   });
 
   it("finds nothing for an unknown account or another user's", () => {
-    expect(loadReviewAccount(ledger(), scope, presets, 99)).toBeNull();
-    expect(loadReviewAccount(ledger(), scope, presets, 5)).toBeNull();
+    expect(loadReviewAccount(ledger(), auth, presets, 99)).toBeNull();
+    expect(loadReviewAccount(ledger(), auth, presets, 5)).toBeNull();
   });
 });

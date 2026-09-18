@@ -108,7 +108,7 @@ export function persistDrafts(
   db: any,
   rows: DraftRow[],
   expectedClosingByDate: Map<string, number>,
-  auth?: LedgerAuth,
+  auth: LedgerAuth,
 ): PersistSummary {
   const summary: PersistSummary = {
     inserted: 0,
@@ -119,7 +119,7 @@ export function persistDrafts(
     backfilled: 0,
   };
   db.transaction((tx: any) => {
-    const access = auth?.rowSecurity.forTable(draftTransactions);
+    const access = auth.rowSecurity.forTable(draftTransactions);
     for (const row of rows) {
       const candidates = findDuplicateCandidates(
         tx,
@@ -148,7 +148,7 @@ export function persistDrafts(
       }
       const existing = candidates[0];
       if (!existing) {
-        const values = access ? access.insertValuesSync(tx, row) : row;
+        const values = access.insertValuesSync(tx, row);
         tx.insert(draftTransactionsTable).values(values).run();
         summary.inserted++;
         continue;
@@ -169,11 +169,7 @@ export function persistDrafts(
             source_transaction_key: row.source_transaction_key,
             updated_at: TemporalValue.Now.instant(),
           })
-          .where(
-            access
-              ? access.ownedRows(eq(draftTransactionsTable.id, existing.id))
-              : eq(draftTransactionsTable.id, existing.id),
-          )
+          .where(access.ownedRows(eq(draftTransactionsTable.id, existing.id)))
           .run();
         summary.backfilled++;
       }
@@ -193,17 +189,17 @@ function placeAssertionsAfterDedupe(
   tx: any,
   baseAccountId: number | null,
   expectedClosingByDate: Map<string, number>,
-  auth?: LedgerAuth,
+  auth: LedgerAuth,
 ): void {
   if (baseAccountId === null) return;
-  const access = auth?.rowSecurity.forTable(draftTransactions);
+  const access = auth.rowSecurity.forTable(draftTransactions);
   for (const [dateText, expected] of expectedClosingByDate) {
     const databaseDate = parsePlainDate(dateText);
     const dateWhere = and(
       eq(draftTransactionsTable.base_account_id, baseAccountId),
       eq(draftTransactionsTable.date, databaseDate),
     );
-    const scopedDateWhere = access ? access.ownedRows(dateWhere) : dateWhere;
+    const scopedDateWhere = access.ownedRows(dateWhere);
     const existingAssertions = tx
       .select({
         assertion: draftTransactionsTable.balance_assertion_base_account,
@@ -242,11 +238,7 @@ function placeAssertionsAfterDedupe(
       .run();
     tx.update(draftTransactionsTable)
       .set({ balance_assertion_base_account: expected, updated_at: now })
-      .where(
-        access
-          ? access.ownedRows(eq(draftTransactionsTable.id, finalDraft.id))
-          : eq(draftTransactionsTable.id, finalDraft.id),
-      )
+      .where(access.ownedRows(eq(draftTransactionsTable.id, finalDraft.id)))
       .run();
   }
 }

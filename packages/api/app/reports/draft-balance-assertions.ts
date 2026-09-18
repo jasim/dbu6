@@ -8,7 +8,7 @@ import {
   hiddenIdColumn,
   openRecordLink,
 } from "./shared.js";
-import type { ScopeParams } from "../../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 import { assertionColumns } from "./assertion-grid.js";
 import { loadLedgerAccounts } from "../../modules/accounts/index.js";
 import {
@@ -22,12 +22,12 @@ api.register(
   "draftBalanceAssertions",
   reportsContract.draftBalanceAssertions,
   ({ c, request }) => {
-    const scope = authorizeReport(c, "draft-balance-assertions");
+    const auth = authorizeReport(c, "draft-balance-assertions");
     return {
       status: 200,
       body: draftBalanceAssertionsReport(
         c.get("sqlite"),
-        scope,
+        auth,
         request.query.base_account_id,
       ),
     };
@@ -40,16 +40,16 @@ api.register(
  */
 export function draftBalanceAssertionsReport(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   accountId?: number,
 ): GridDataset {
   const names = new Map(
-    loadLedgerAccounts(sqlite, scope).map((account) => [
+    loadLedgerAccounts(sqlite, auth).map((account) => [
       account.id,
       account.name,
     ]),
   );
-  const rows = findFailingChecks(sqlite, scope, { accountId })
+  const rows = findFailingChecks(sqlite, auth, { accountId })
     .map((row) => ({ ...row, account_name: names.get(row.account_id) ?? "" }))
     // By account name, as SQLite's binary collation orders it; the checks
     // already come by date and draft within an account.

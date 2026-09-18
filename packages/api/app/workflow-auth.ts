@@ -1,25 +1,35 @@
 import type { Context } from "hono";
-import { forbidUnless, type SapportaEnv } from "@sapporta/server";
+import {
+  forbidUnless,
+  type SapportaAuthContext,
+  type SapportaEnv,
+} from "@sapporta/server";
 import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 
-export function requireWorkflowAuth(c: Context<SapportaEnv>): LedgerAuth {
+/**
+ * The request's auth for reading and writing the ledger: forbidden unless
+ * `may` allows the action and the request acts for one user in a workspace,
+ * the scope every ledger table's rows are owned in.
+ */
+export function requireLedgerAuth(
+  c: Context<SapportaEnv>,
+  may: (ability: SapportaAuthContext["ability"]) => boolean,
+): LedgerAuth {
   const auth = c.get("auth");
-  forbidUnless(c, auth.ability.can("manage", "all"));
+  forbidUnless(
+    c,
+    may(auth.ability) &&
+      auth.dataAuthority.rowAuthorities.workspaceUserScoped != null,
+  );
   return auth;
 }
 
-export function requireWorkflowScope(c: Context<SapportaEnv>): {
-  workspaceId: string;
-  userId: string;
-} {
-  const auth = c.get("auth");
-  const scope = auth.dataAuthority.rowAuthorities.workspaceUserScoped;
-  forbidUnless(c, scope !== null && scope !== undefined);
-  if (!scope) {
-    throw new Error("Workflow requires workspace/user scoped data authority.");
-  }
-  return {
-    workspaceId: scope.workspace.id,
-    userId: scope.user.id,
-  };
+/** The ledger's auth for the owner's workflows: imports, review, posting. */
+export function requireWorkflowAuth(c: Context<SapportaEnv>): LedgerAuth {
+  return requireLedgerAuth(c, (ability) => ability.can("manage", "all"));
+}
+
+/** Forbidden unless the request is the owner's; for routes off the ledger. */
+export function requireOwner(c: Context<SapportaEnv>): void {
+  forbidUnless(c, c.get("auth").ability.can("manage", "all"));
 }
