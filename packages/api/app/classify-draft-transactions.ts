@@ -3,7 +3,7 @@ import { categorizationLlm } from "../modules/coding-agent/index.js";
 import { userConfigDir } from "../user-data.js";
 import { draftTransactionsContract } from "dbu6-shared";
 import { ApiImportError } from "../modules/statement/index.js";
-import { classifyDraftTransactions } from "../modules/draft-transactions/classification.js";
+import { classifyDraftTransactions } from "../workflows/reclassification.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 import { uploadedFile, withTempUpload } from "./upload-tmp.js";
 

@@ -1,4 +1,3 @@
-import path from "node:path";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   accountKindOf,
@@ -9,23 +8,18 @@ import {
   type AutoImportPlanFile,
 } from "dbu6-shared";
 import {
-  planAutoImport,
   type AutoImportGroup,
-  type FileRecognition,
   type PlannedFile,
   readImportPresets,
   type ImportPreset,
-  recognizeStatementFile,
-  savedCustomStatementParserPaths,
 } from "../modules/statement-sources/index.js";
 import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import {
-  importOptionsFromPreset,
-  runStatementImport,
-  type StatementImportResult,
-} from "../bank-importer/statement-import.js";
-import { categorizationLlm } from "../modules/coding-agent/index.js";
-import { respondWithImportErrors } from "./import-error-response.js";
+  importStatementBatch,
+  type BatchImportOutcome,
+  type ImportedGroup,
+} from "../workflows/statement-import/index.js";
+import { importErrorResponse } from "./import-error-response.js";
 import {
   filesFromField,
   uploadedFile,
@@ -38,13 +32,9 @@ import { requireWorkflowAuth } from "./workflow-auth.js";
 // Automatic statement import: the user uploads statement files, and
 // optionally a Google Pay Takeout, and nothing else.
 //
-//   withStagedUploads(statements)
-//     -> per file: savedCustomStatementParserPaths(ext)
-//                  recognizeStatementFile(candidates, path)
-//     -> planAutoImport(recognitions, presets)   pure: groups, or a rejection
-//     -> per group: runStatementImport(statements, importOptionsFromPreset)
-//
-// The Takeout names UPI recipients in every account the batch imports.
+//   withTempUpload(gpay), withStagedUploads(statements)
+//     -> importStatementBatch: recognize, plan, import group by group
+//     -> the reply, built from the batch's outcome
 //
 // Everything the account resolution decided is reported back, whether or not
 // anything was imported, so the user can fix a preset and retry.
@@ -118,10 +108,7 @@ function failedGroup(group: AutoImportGroup): AutoImportFailedGroup {
   };
 }
 
-function groupResult(
-  group: AutoImportGroup,
-  result: StatementImportResult,
-): AutoImportGroupResult {
+function groupResult({ group, result }: ImportedGroup): AutoImportGroupResult {
   return {
     preset_name: group.preset.name,
     base_account: group.preset.base_account,
@@ -136,87 +123,57 @@ function groupResult(
   };
 }
 
-// Detection is per file so that one unreadable upload annotates its own row
-// instead of ending the batch. `names` are what the user dropped; `paths` are
-// the staged copies, in the same order.
-async function recognizeUploads(
-  names: readonly string[],
-  paths: readonly string[],
-): Promise<FileRecognition[]> {
-  const recognitions: FileRecognition[] = [];
-  for (const [index, inputPath] of paths.entries()) {
-    const candidates = await savedCustomStatementParserPaths(
-      path.extname(inputPath),
-    );
-    recognitions.push({
-      ...(await recognizeStatementFile(candidates, inputPath)),
-      file: names[index],
-    });
-  }
-  return recognitions;
-}
-
-// Nothing is imported when any file is unrecognized, ambiguous, or unplaced by
-// the presets: a partial import of a batch the user dropped as a unit is
-// harder to undo than a retry.
-function planRejection(files: AutoImportPlanFile[]): AutoImportRouteResponse {
-  const unplaced = files.filter((file) => file.status !== "resolved").length;
-  return {
-    status: 422,
-    body: {
-      error: "auto_import_files_unresolved",
-      message: `${unplaced} of ${files.length} uploaded file(s) could not be tied to an import preset, so nothing was imported.`,
-      hint: "Remove those files, add a saved parser for a layout none recognised, or declare the account's preset in import-presets.json.",
-      files,
-    },
-  };
-}
-
-// One preset is one account, so each group is one ordinary statement import.
-// Groups run in sequence: a later failure leaves the earlier groups' drafts
-// saved, which the response says outright, and names the group that failed.
-async function importGroups(
-  groups: readonly AutoImportGroup[],
-  files: AutoImportPlanFile[],
-  gpayHtmlPath: string | null,
-  db: unknown,
-  auth: LedgerAuth,
-): Promise<AutoImportRouteResponse> {
-  const imported: AutoImportGroupResult[] = [];
-  // One engine for the batch: every group categorizes on the same agent.
-  const llm = await categorizationLlm();
-
-  for (const group of groups) {
-    const response = await respondWithImportErrors(() =>
-      runStatementImport(
-        group.statements.map((one) => one.statement),
-        importOptionsFromPreset(group.preset, gpayHtmlPath, llm),
-        db,
-        auth,
-        group.statements.map((one) => one.file),
-      ),
-    );
-    if (response.status !== 200) {
+// The reply for a batch's outcome. `savedPath` says where a file's staged copy
+// is, by the name it was uploaded under.
+function batchResponse(
+  outcome: BatchImportOutcome,
+  savedPath: (fileName: string) => string | null,
+): AutoImportRouteResponse {
+  const files = outcome.files.map((file) =>
+    planFileRow(file, savedPath(file.file)),
+  );
+  switch (outcome.kind) {
+    case "unplanned": {
+      const unplaced = files.filter(
+        (file) => file.status !== "resolved",
+      ).length;
+      return {
+        status: 422,
+        body: {
+          error: "auto_import_files_unresolved",
+          message: `${unplaced} of ${files.length} uploaded file(s) could not be tied to an import preset, so nothing was imported.`,
+          hint: "Remove those files, add a saved parser for a layout none recognised, or declare the account's preset in import-presets.json.",
+          files,
+        },
+      };
+    }
+    case "failed": {
+      // The failing group keeps the import error's own payload and status,
+      // and the reply says outright which groups' drafts are already saved.
+      const { status, body } = importErrorResponse(outcome.error);
+      const imported = outcome.imported.map(groupResult);
       const done = imported.map((one) => one.preset_name).join(", ");
       return {
-        status: response.status,
+        status,
         body: {
-          ...response.body,
+          ...body,
           files,
-          failed_group: failedGroup(group),
+          failed_group: failedGroup(outcome.failed),
           ...(imported.length === 0
             ? {}
             : {
                 imported_groups: imported,
-                partial_import: `${done} imported before "${group.preset.name}" failed. Those drafts are saved; drop their files before retrying.`,
+                partial_import: `${done} imported before "${outcome.failed.preset.name}" failed. Those drafts are saved; drop their files before retrying.`,
               }),
         },
       };
     }
-    imported.push(groupResult(group, response.body));
+    case "imported":
+      return {
+        status: 200,
+        body: { files, groups: outcome.imported.map(groupResult) },
+      };
   }
-
-  return { status: 200, body: { files, groups: imported } };
 }
 
 export interface AutoImportUploads {
@@ -258,29 +215,25 @@ async function importStaged(
   auth: LedgerAuth,
 ): Promise<AutoImportRouteResponse> {
   return withStagedUploads(statements, STAGED_UPLOADS_DIR, async (staged) => {
-    const names = statements.map((file) => file.name);
-    const recognitions = await recognizeUploads(names, staged.paths);
-    const plan = planAutoImport(recognitions, presets);
-    // The plan keys a file by the name it was uploaded under, which is how
+    const outcome = await importStatementBatch(
+      {
+        statements: statements.map((file, index) => ({
+          name: file.name,
+          path: staged.paths[index],
+        })),
+        gpayHtmlPath,
+        presets,
+      },
+      db,
+      auth,
+    );
+    // The outcome keys a file by the name it was uploaded under, which is how
     // its staged copy is found again.
     const stagedAt = new Map(
-      names.map((name, index) => [name, staged.projectPaths[index]]),
-    );
-    const files = plan.files.map((file) =>
-      planFileRow(file, stagedAt.get(file.file) ?? null),
-    );
-    if (!plan.ok) return keepUploadsFor(planRejection(files), staged);
-
-    console.log(
-      `[auto-statement-upload] importing ${plan.groups.length} account(s): ${plan.groups
-        .map(
-          (group) =>
-            `${group.preset.name} <- ${group.statements.map((one) => one.file).join(", ")}`,
-        )
-        .join("; ")}`,
+      statements.map((file, index) => [file.name, staged.projectPaths[index]]),
     );
     return keepUploadsFor(
-      await importGroups(plan.groups, files, gpayHtmlPath, db, auth),
+      batchResponse(outcome, (name) => stagedAt.get(name) ?? null),
       staged,
     );
   });

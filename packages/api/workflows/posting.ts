@@ -1,0 +1,83 @@
+import type Database from "better-sqlite3";
+import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { postingBlocks, type PostingBlock } from "dbu6-shared";
+import { unsafeAsChrono } from "../modules/values/index.js";
+import {
+  deleteAccountDrafts,
+  partitionByCategorization,
+  loadCategorizedDrafts,
+  draftCounts,
+  loadDraftStatus,
+} from "../modules/drafts/index.js";
+import {
+  groupByDateAndType,
+  planFromGroups,
+} from "../modules/journal-plan/index.js";
+import { insertJournalPlan } from "../modules/journals/index.js";
+import type { LedgerAuth, ScopeParams } from "../modules/ledger-sql/index.js";
+
+export interface PostingLedger {
+  db: BetterSQLite3Database;
+  sqlite: Database.Database;
+  auth: LedgerAuth;
+  scope: ScopeParams;
+}
+
+export type PostingOutcome =
+  | { kind: "account-not-found" }
+  // The first thing the draft status shows that keeps the drafts off the
+  // books; nothing was written.
+  | { kind: "blocked"; block: PostingBlock; baseAccountName: string }
+  | {
+      kind: "posted";
+      baseAccountName: string;
+      journalsCreated: number;
+      entriesCreated: number;
+      draftsPosted: number;
+    };
+
+/**
+ * Adds one account's drafts to the books: a journal per date and type, the
+ * drafts deleted. Refuses while the draft status shows anything that blocks.
+ */
+export function postDrafts(
+  { db, sqlite, auth, scope }: PostingLedger,
+  baseAccountId: number,
+): PostingOutcome {
+  const loaded = loadCategorizedDrafts(db, baseAccountId, auth);
+  if (loaded === null) return { kind: "account-not-found" };
+
+  // The same blocks Review shows, so its ticks and this gate agree.
+  const status = loadDraftStatus(sqlite, scope, {
+    accountId: baseAccountId,
+  }).get(baseAccountId);
+  const [block] = postingBlocks(draftCounts(status));
+  if (block) {
+    return { kind: "blocked", block, baseAccountName: loaded.baseAccountName };
+  }
+
+  // The drafts and the status were read in one synchronous pass, so every
+  // draft loaded here has a category.
+  const { categorized, uncategorized } = partitionByCategorization([
+    ...loaded.categorized,
+  ]);
+  if (uncategorized.length > 0) {
+    throw new Error("Drafts changed while they were being posted.");
+  }
+
+  const groups = groupByDateAndType(unsafeAsChrono(categorized));
+  const plan = planFromGroups(groups, baseAccountId);
+  const inserted = db.transaction((tx: any) => {
+    const written = insertJournalPlan(tx, plan, auth);
+    deleteAccountDrafts(tx, baseAccountId, auth);
+    return written;
+  });
+
+  return {
+    kind: "posted",
+    baseAccountName: loaded.baseAccountName,
+    journalsCreated: inserted.journals,
+    entriesCreated: inserted.entries,
+    draftsPosted: loaded.drafts.length,
+  };
+}

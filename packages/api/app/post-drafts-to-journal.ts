@@ -1,39 +1,10 @@
-import type Database from "better-sqlite3";
-import { eq } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import {
   TsRestApi,
   type SapportaEnv,
   type ServerInferResponses,
 } from "@sapporta/server";
-import { parsePlainDate } from "@sapporta/shared/temporal";
-import {
-  draftTransactionsContract,
-  postingBlocks,
-  type PostingBlock,
-} from "dbu6-shared";
-import { unsafeAsChrono } from "../modules/values/index.js";
-import {
-  partitionByCategorization,
-  loadCategorizedDrafts,
-  draftCounts,
-  loadDraftStatus,
-} from "../modules/drafts/index.js";
-import {
-  groupByDateAndType,
-  planFromGroups,
-} from "../modules/journal-plan/index.js";
-import {
-  draftTransactions,
-  draftTransactionsTable,
-} from "../schema/draft-journals.js";
-import {
-  journalEntries,
-  journalEntriesTable,
-  journals,
-  journalsTable,
-} from "../schema/journals.js";
-import type { LedgerAuth, ScopeParams } from "../modules/ledger-sql/index.js";
+import { draftTransactionsContract, type PostingBlock } from "dbu6-shared";
+import { postDrafts, type PostingLedger } from "../workflows/posting.js";
 import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -58,104 +29,28 @@ type PostingResponse = ServerInferResponses<
   200 | 404 | 422
 >;
 
-export interface PostingLedger {
-  db: BetterSQLite3Database;
-  sqlite: Database.Database;
-  auth: LedgerAuth;
-  scope: ScopeParams;
-}
-
-/**
- * Adds one account's drafts to the books: a journal per date and type, the
- * drafts deleted. Refuses while the draft status shows anything that blocks.
- */
+/** Posts one account's drafts, answered in the contract's terms. */
 export function postDraftsToJournal(
-  { db, sqlite, auth, scope }: PostingLedger,
+  ledger: PostingLedger,
   base_account_id: number,
 ): PostingResponse {
-  const loaded = loadCategorizedDrafts(db, base_account_id, auth);
-  if (loaded === null) {
-    return { status: 404, body: { error: "Base account not found" } };
+  const outcome = postDrafts(ledger, base_account_id);
+  switch (outcome.kind) {
+    case "account-not-found":
+      return { status: 404, body: { error: "Base account not found" } };
+    case "blocked":
+      return refusal(outcome.block, outcome.baseAccountName);
+    case "posted":
+      return {
+        status: 200,
+        body: {
+          base_account: outcome.baseAccountName,
+          journals_created: outcome.journalsCreated,
+          entries_created: outcome.entriesCreated,
+          drafts_posted: outcome.draftsPosted,
+        },
+      };
   }
-
-  // The same blocks Review shows, so its ticks and this gate agree.
-  const status = loadDraftStatus(sqlite, scope, {
-    accountId: base_account_id,
-  }).get(base_account_id);
-  const [block] = postingBlocks(draftCounts(status));
-  if (block) return refusal(block, loaded.baseAccountName);
-
-  // The drafts and the status were read in one synchronous pass, so every
-  // draft loaded here has a category.
-  const { categorized, uncategorized } = partitionByCategorization([
-    ...loaded.categorized,
-  ]);
-  if (uncategorized.length > 0) {
-    throw new Error("Drafts changed while they were being posted.");
-  }
-
-  const groups = groupByDateAndType(unsafeAsChrono(categorized));
-  const plan = planFromGroups(groups, base_account_id);
-  const journalAccess = auth.rowSecurity.forTable(journals);
-  const entryAccess = auth.rowSecurity.forTable(journalEntries);
-  const draftAccess = auth.rowSecurity.forTable(draftTransactions);
-
-  const stats = db.transaction((tx: any) => {
-    let journalCount = 0;
-    let entryCount = 0;
-
-    for (const insert of plan) {
-      const journalValues = journalAccess.insertValuesSync(tx, {
-        date: parsePlainDate(insert.date),
-        description: insert.description,
-      });
-      const journal = tx
-        .insert(journalsTable)
-        .values(journalValues)
-        .returning({ id: journalsTable.id })
-        .get();
-
-      const entryValues = insert.entries.map((entry) =>
-        entryAccess.insertValuesSync(tx, {
-          journal_id: journal.id,
-          account_id: entry.account_id,
-          debit: Number(entry.debit),
-          credit: Number(entry.credit),
-          account_balance_assertion:
-            entry.account_balance_assertion === null
-              ? null
-              : Number(entry.account_balance_assertion),
-          comment: entry.comment,
-          source_reference: entry.source_reference,
-          source_transaction_key: entry.source_transaction_key,
-        }),
-      );
-      tx.insert(journalEntriesTable).values(entryValues).run();
-
-      journalCount++;
-      entryCount += insert.entries.length;
-    }
-
-    tx.delete(draftTransactionsTable)
-      .where(
-        draftAccess.ownedRows(
-          eq(draftTransactionsTable.base_account_id, base_account_id),
-        ),
-      )
-      .run();
-
-    return { journalCount, entryCount };
-  });
-
-  return {
-    status: 200,
-    body: {
-      base_account: loaded.baseAccountName,
-      journals_created: stats.journalCount,
-      entries_created: stats.entryCount,
-      drafts_posted: loaded.drafts.length,
-    },
-  };
 }
 
 /** The 422 for the first block, in the codes and counts callers read. */

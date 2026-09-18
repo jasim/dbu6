@@ -1,15 +1,23 @@
 import type { z } from "zod";
 import type { importSummarySchema } from "dbu6-shared";
-import type { Abacus } from "../modules/statement/index.js";
-import type { Account, Chrono } from "../modules/values/index.js";
-import type { CategorizationConfig } from "../modules/categorization/index.js";
-import { processStatement } from "./pipeline.js";
+import type { Abacus } from "../../modules/statement/index.js";
 import {
-  toDraftRows,
-  persistDrafts,
-  sameAccountSkipSchema,
-} from "../modules/drafts/index.js";
-import type { LedgerAuth } from "../modules/ledger-sql/index.js";
+  type Account,
+  type Chrono,
+  unsafeAsChrono,
+} from "../../modules/values/index.js";
+import {
+  type CategorizationConfig,
+  type CategorizedTransaction,
+  resolveCategories,
+} from "../../modules/categorization/index.js";
+import {
+  formatHledger,
+  groupByDateAndType,
+  hledgerFromGroups,
+} from "../../modules/journal-plan/index.js";
+import { toDraftRows, persistDrafts } from "../../modules/drafts/index.js";
+import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 
 // What an import did, as the contract states it (dbu6-shared). Everything
 // but the Google Pay count, which `runStatementImport` adds.
@@ -30,9 +38,11 @@ export interface DraftImportInput {
   auth?: LedgerAuth;
 }
 
-// Shared tail of a statement import: categorize + format the new rows,
-// persist them as drafts, return a summary. Assembly, keying, balance
-// validation, and the reconciliation filter are `runStatementImport`'s job.
+// Shared tail of a statement import: categorize the new rows, format them as
+// an hledger journal, persist them as drafts, return a summary. The rows were
+// checked when their statement was parsed (`abacusStatementFromJson`).
+// Assembly, keying, balance validation, and the reconciliation filter are
+// `runStatementImport`'s job, so everything that arrives here is in scope.
 export async function runDraftImport(
   input: DraftImportInput,
 ): Promise<ImportSummary> {
@@ -47,11 +57,16 @@ export async function runDraftImport(
   } = input;
 
   // With nothing new, this categorizes nothing and formats an empty journal.
-  const { hledgerJournal, categorized, categorization } =
-    await processStatement(newTransactions, {
-      baseAccount,
-      categorization: categorizationConfig,
-    });
+  const resolved = await resolveCategories(
+    [...newTransactions],
+    categorizationConfig,
+  );
+  const categorized: Chrono<CategorizedTransaction> = unsafeAsChrono(
+    resolved.categorized,
+  );
+  const hledgerJournal = formatHledger(
+    hledgerFromGroups(groupByDateAndType(categorized), baseAccount),
+  );
 
   const {
     rows: draftRows,
@@ -81,6 +96,6 @@ export async function runDraftImport(
     same_account_skips: sameAccountSkips,
     // Categorization runs before the duplicates are dropped, so a report is
     // only about this import when it created drafts.
-    categorization: persisted.inserted > 0 ? categorization : null,
+    categorization: persisted.inserted > 0 ? resolved.report : null,
   };
 }

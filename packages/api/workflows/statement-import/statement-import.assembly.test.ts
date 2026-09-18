@@ -6,9 +6,9 @@ import {
   type AbacusStatement,
   BalanceMismatchError,
   StatementPartInvalidError,
-} from "../modules/statement/index.js";
-import type { CategorizationLlm } from "../modules/categorization/index.js";
-import { parseAccount, moneyFromColumns } from "../modules/values/index.js";
+} from "../../modules/statement/index.js";
+import type { CategorizationLlm } from "../../modules/categorization/index.js";
+import { parseAccount, moneyFromColumns } from "../../modules/values/index.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
 
 // Stub the persistence tail so the test can inspect exactly what reaches it.

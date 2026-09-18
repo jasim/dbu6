@@ -1,6 +1,7 @@
 // The drafts module: draft rows from categorized statement rows, saving them
-// and placing their balance assertions, loading them back categorized, and
-// what an account's drafts hold. Import from here rather than from the files.
+// and placing their balance assertions, loading them back categorized,
+// reclassifying and clearing them, and what an account's drafts hold. Import
+// from here rather than from the files.
 export {
   partitionByCategorization,
   type CategorizedDraft,
@@ -10,6 +11,13 @@ export {
   loadCategorizedDrafts,
   type LoadedDrafts,
 } from "./draft-categorization.js";
+export {
+  deleteAccountDrafts,
+  loadDraftsById,
+  saveReclassifiedDrafts,
+  type ReclassifiedDraft,
+  type SavedDraft,
+} from "./draft-edits.js";
 export {
   persistDrafts,
   sameAccountSkipSchema,

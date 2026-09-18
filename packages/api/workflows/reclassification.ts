@@ -1,22 +1,20 @@
-import { eq, inArray } from "drizzle-orm";
 import { formatPlainDate } from "@sapporta/shared/temporal";
 import type { CategorizationReport } from "dbu6-shared";
-import type { Abacus } from "../statement/index.js";
-import { enrichWithGPayHtml } from "../gpay/index.js";
-import { moneyFromColumns } from "../values/index.js";
+import type { Abacus } from "../modules/statement/index.js";
+import { enrichWithGPayHtml } from "../modules/gpay/index.js";
+import { moneyFromColumns } from "../modules/values/index.js";
 import {
   resolveCategories,
   type CategorizationConfig,
   resolveAccountIdForCategorized,
-} from "../categorization/index.js";
-import { loadAccountsByName } from "../accounts/index.js";
-import type { LedgerAuth } from "../ledger-sql/index.js";
+} from "../modules/categorization/index.js";
+import { loadAccountsByName } from "../modules/accounts/index.js";
 import {
-  draftTransactions,
-  draftTransactionsTable,
-} from "../../schema/draft-journals.js";
-
-type DraftTransactionRow = typeof draftTransactionsTable.$inferSelect;
+  loadDraftsById,
+  saveReclassifiedDrafts,
+  type ReclassifiedDraft,
+} from "../modules/drafts/index.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 
 export interface ClassifiedDraftTransaction {
   id: number;
@@ -39,12 +37,7 @@ export async function classifyDraftTransactions(input: {
   gpayHtmlPath?: string;
 }): Promise<DraftClassificationResult> {
   const { db, auth, ids, categorizationConfig, gpayHtmlPath } = input;
-  const draftAccess = auth.rowSecurity.forTable(draftTransactions);
-  const drafts: DraftTransactionRow[] = db
-    .select()
-    .from(draftTransactionsTable)
-    .where(draftAccess.ownedRows(inArray(draftTransactionsTable.id, ids)))
-    .all();
+  const drafts = loadDraftsById(db, ids, auth);
 
   const sourceTransactions: Abacus[] = drafts.map((draft) => ({
     date: formatPlainDate(draft.date),
@@ -64,28 +57,26 @@ export async function classifyDraftTransactions(input: {
   const accountNameById = new Map<number, string>();
   for (const [name, id] of accountsByName) accountNameById.set(id, name);
 
-  const transactions: ClassifiedDraftTransaction[] = [];
-  db.transaction((tx: any) => {
-    drafts.forEach((draft, index) => {
-      const narration = enrichment.enriched[index].narration;
-      const { accountId } = resolveAccountIdForCategorized(
-        categorized[index].account,
-        accountsByName,
-        draft.base_account_id,
-      );
-      tx.update(draftTransactionsTable)
-        .set({ narration, account_id: accountId })
-        .where(draftAccess.ownedRows(eq(draftTransactionsTable.id, draft.id)))
-        .run();
-      transactions.push({
-        id: draft.id,
-        narration,
-        account_id: accountId,
-        account_name:
-          accountId === null ? null : (accountNameById.get(accountId) ?? null),
-      });
-    });
-  });
+  const reclassified: ReclassifiedDraft[] = drafts.map((draft, index) => ({
+    id: draft.id,
+    narration: enrichment.enriched[index].narration,
+    accountId: resolveAccountIdForCategorized(
+      categorized[index].account,
+      accountsByName,
+      draft.base_account_id,
+    ).accountId,
+  }));
+  saveReclassifiedDrafts(db, reclassified, auth);
+
+  const transactions: ClassifiedDraftTransaction[] = reclassified.map(
+    ({ id, narration, accountId }) => ({
+      id,
+      narration,
+      account_id: accountId,
+      account_name:
+        accountId === null ? null : (accountNameById.get(accountId) ?? null),
+    }),
+  );
 
   return {
     transactions,

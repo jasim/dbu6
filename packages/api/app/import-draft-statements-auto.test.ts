@@ -20,19 +20,22 @@ vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
 const { runStatementImport } = vi.hoisted(() => ({
   runStatementImport: vi.fn(),
 }));
-vi.mock("../bank-importer/statement-import.js", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("../bank-importer/statement-import.js")
-  >()),
-  runStatementImport,
-}));
+vi.mock(
+  "../workflows/statement-import/statement-import.js",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../workflows/statement-import/index.js")
+    >()),
+    runStatementImport,
+  }),
+);
 
 import api, {
   importStatementsAutomatically,
 } from "./import-draft-statements-auto.js";
 import { loadApp } from "../app.js";
 import { ClosingBalanceUnavailable } from "../modules/statement/index.js";
-import type { StatementImportResult } from "../bank-importer/statement-import.js";
+import type { StatementImportResult } from "../workflows/statement-import/index.js";
 
 const BANK_PARSER = "custom-built-parsers/hdfc-bank-xls/parser.py";
 const CARD_PARSER = "custom-built-parsers/hdfc-cc-xls/parser.py";

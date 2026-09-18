@@ -5,14 +5,14 @@ import {
   type DateSpan,
   type ImportPreset,
 } from "dbu6-shared";
-import { userConfigDir } from "../user-data.js";
-import type { CategorizationLlm } from "../modules/categorization/index.js";
+import { userConfigDir } from "../../user-data.js";
+import type { CategorizationLlm } from "../../modules/categorization/index.js";
 import {
   type Account,
   parseAccount,
   unsafeAsChrono,
-} from "../modules/values/index.js";
-import { enrichWithGPayHtml } from "../modules/gpay/index.js";
+} from "../../modules/values/index.js";
+import { enrichWithGPayHtml } from "../../modules/gpay/index.js";
 import {
   assembleStatements,
   synthesizeRunningBalances,
@@ -20,12 +20,12 @@ import {
   type AbacusStatement,
   OpeningBalanceUnavailable,
   ClosingBalanceUnavailable,
-} from "../modules/statement/index.js";
-import { newTransactionsSinceReconciliation } from "../modules/reconciliation/index.js";
-import { lookupLastReconciled } from "../modules/journals/index.js";
-import type { LedgerAuth } from "../modules/ledger-sql/index.js";
+} from "../../modules/statement/index.js";
+import { newTransactionsSinceReconciliation } from "../../modules/reconciliation/index.js";
+import { lookupLastReconciled } from "../../modules/journals/index.js";
+import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 import { runDraftImport, type ImportSummary } from "./draft-import.js";
-import { assignSourceTransactionKeys } from "../modules/transaction-identity/index.js";
+import { assignSourceTransactionKeys } from "../../modules/transaction-identity/index.js";
 
 export type BalanceSource = "statement" | "checkpoint" | "per-row" | "none";
 
@@ -38,8 +38,8 @@ export interface ImportOptions {
   baseAccount: Account;
   accountKind: AccountKind;
   customMappingsFilenames: string[];
-  // Where categorization runs. The route resolves it, so nothing in the
-  // pipeline reaches for the process's engine.
+  // Where categorization runs. The batch and freeform imports resolve it
+  // once, so nothing below them reaches for the process's engine.
   llm: CategorizationLlm;
   // Path to a staged Google Pay Takeout HTML export. When set, withdrawals
   // that survive the reconciliation filter get their narration prefixed with

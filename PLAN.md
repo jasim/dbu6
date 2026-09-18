@@ -247,7 +247,13 @@ index re-exports.
 
 ### M4 — `workflows/` and thin routes
 
-**Status:** todo. **Depends on:** M3. **Findings:** the posting-in-route
+**Status:** done (2026-09-18). The workflows are `workflows/statement-import/`
+(through `index.ts`; `pipeline.ts` folded into `draft-import.ts`, a file of its
+own because two tests stub it), `posting.ts` and `reclassification.ts`; their
+queries went to journals and drafts (Decisions). For A: `auto-import.ts`
+catches `ApiImportError`, and the route translates it with
+`importErrorResponse`. For B1: `PostingLedger` is in `workflows/posting.ts`.
+**Depends on:** M3. **Findings:** the posting-in-route
 item.
 
 - **`workflows/statement-import/`:** `statement-import.ts`, `draft-import.ts`
@@ -538,6 +544,10 @@ move most of them.
 - 2026-09-18, M3: tier 4 gains `accounts` at its bottom (accounts < journals
   < reconciliation < drafts) for the account lookups, and every tier-4 module
   declares its `index.ts` as its entry.
+- 2026-09-18, M4: workflows hold no queries. Posting's journal writes and
+  draft deletion, and reclassification's draft reads and updates, moved into
+  `modules/journals` and `modules/drafts`; the workflows keep the transaction
+  boundary.
 
 ## Found along the way
 
@@ -577,3 +587,9 @@ date and the task.
   `formatPlainDate` from `@sapporta/shared` rather than
   `@sapporta/shared/temporal`), and a file's leading comment travels with the
   first declaration moved out of it. Both are quick to fix by hand.
+- 2026-09-18, M4: the classify routes (`app/classify-draft-transactions.ts`)
+  still build the categorization config and resolve the engine themselves,
+  where the import workflows resolve it. D's `loadCategorizer` is the place to
+  make them one.
+- 2026-09-18, M4: `runDraftImport` takes a `logPrefix`, but its one caller
+  always passes `"statement-import"`.

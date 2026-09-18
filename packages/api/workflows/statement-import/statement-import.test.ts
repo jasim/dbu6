@@ -11,9 +11,9 @@ import {
   type AbacusStatement,
   BalanceMismatchError,
   ClosingBalanceUnavailable,
-} from "../modules/statement/index.js";
-import type { CategorizationLlm } from "../modules/categorization/index.js";
-import { parseAccount } from "../modules/values/index.js";
+} from "../../modules/statement/index.js";
+import type { CategorizationLlm } from "../../modules/categorization/index.js";
+import { parseAccount } from "../../modules/values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 
 // runStatementImport resolves the user-config directory before the draft

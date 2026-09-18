@@ -144,7 +144,7 @@ built, tested and understood without anything above it. Lowest first:
 | 1 | `modules/values/` | values | Money and its direction, amounts in paise, Account, Chrono, the text normalization transaction identity uses | I/O, statements, ledger tables |
 | 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
 | 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into an account; the Google Pay Takeout index and enrichment; transaction groups, the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan | Database access, coding-agent names, route concepts |
-| 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent | Accounts as the stores and screens look them up; posted journals and the last reconciled checkpoint; matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter; draft rows: saving, placing balance assertions, loading, status. The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
+| 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent | Accounts as the stores and screens look them up; posted journals, writing them from a plan, and the last reconciled checkpoint; matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter; draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status. The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
 | 5 | `workflows/` | statement-import, posting, reclassification | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
 | 6 | `app/`, `app.ts`, `boot.ts` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting | Queries or rules another module needs |
 
@@ -164,15 +164,14 @@ every file belongs to, so a new file needs a place in it, and the imports that
 break the rules today are listed there with the [PLAN.md](./PLAN.md) task that
 removes them. That list only shrinks.
 
-The backend is being moved into this shape ([PLAN.md](./PLAN.md)). Tiers 0–4
-are in place, each module in `modules/<name>/` and imported through its
-`index.ts`: `ledger-sql`, `values`, `statement`; in tier 3
-`transaction-identity`, `categorization`, `gpay`, `journal-plan` and
-`statement-sources`; and in tier 4 `accounts`, `journals`, `reconciliation`,
-`drafts` and `coding-agent`. Until the workflows are, code also sits in the
-older folders: `bank-importer/` (the statement import) and
-`modules/draft-transactions/` (reclassification). The test's table maps each
-of them to its module.
+Every file is in its tier ([PLAN.md](./PLAN.md) reshapes what remains). Each
+module in `modules/<name>/` is imported through its `index.ts`: `ledger-sql`,
+`values`, `statement`; in tier 3 `transaction-identity`, `categorization`,
+`gpay`, `journal-plan` and `statement-sources`; and in tier 4 `accounts`,
+`journals`, `reconciliation`, `drafts` and `coding-agent`. The workflows are
+`workflows/statement-import/` (one account's statement, the automatic batch,
+and freeform transactions; imported through its `index.ts`),
+`workflows/posting.ts` and `workflows/reclassification.ts`.
 
 `packages/shared/` is a workspace package (`dbu6-shared`). Both
 `packages/api/` and `packages/frontend/src/` depend on it; it depends on

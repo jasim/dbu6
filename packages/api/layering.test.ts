@@ -14,11 +14,10 @@ import { describe, expect, it } from "vitest";
  * `entries`, other modules import it only through those files. Imports of
  * packages (Sapporta, dbu6-shared, drizzle, node:*) are not checked here.
  *
- * The backend is being moved into this shape (PLAN.md). Until a file moves, it
- * is listed where it is today under the module it belongs to, and every import
- * that breaks the rules today is in KNOWN_VIOLATIONS with the plan task that
- * removes it. The test fails on a new violation and on a listed one that no
- * longer occurs, so the list only shrinks.
+ * An import that breaks the rules while code is being moved is listed in
+ * KNOWN_VIOLATIONS with the PLAN.md task that removes it. The test fails on a
+ * new violation and on a listed one that no longer occurs, so the list only
+ * shrinks.
  *
  * Tiers, lowest first: 0 foundations, 1 values, 2 statement, 3 logic over
  * statements and journals, 4 ledger storage and the coding agent, 5 domain
@@ -137,18 +136,20 @@ const MODULES: readonly Module[] = [
   {
     name: "statement-import",
     tier: 5,
-    files: [
-      "bank-importer/statement-import",
-      "bank-importer/draft-import",
-      "bank-importer/pipeline",
-    ],
+    files: ["workflows/statement-import/"],
+    entries: ["workflows/statement-import/index.ts"],
   },
-  // Posting lives in its route file until PLAN.md M4.
-  { name: "posting", tier: 5, files: [] },
+  {
+    name: "posting",
+    tier: 5,
+    files: ["workflows/posting"],
+    entries: ["workflows/posting.ts"],
+  },
   {
     name: "reclassification",
     tier: 5,
-    files: ["modules/draft-transactions/"],
+    files: ["workflows/reclassification"],
+    entries: ["workflows/reclassification.ts"],
   },
 
   // Tier 6: routes, reports, and hosting.
