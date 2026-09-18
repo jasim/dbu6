@@ -321,8 +321,15 @@ body {
   --sap-grid-nested-row-header-column-width: 36px;
 }
 
-/* The Accounts page's grid (App.tsx): each depth of the account tree steps in
-   this far, more than the preset's 18px. */
+/* The Accounts page's grid (App.tsx). Each depth of the account tree steps in
+   further than the preset's 18px, and the rows sit closer than the 48px row
+   tier, at the 44px click-target floor, with no rule between them. The header
+   keeps its rule. */
 .accounts-grid {
   --sap-grid-tree-indent: 24px;
+  --grid-cell-min-height: 44px;
+}
+
+.accounts-grid [data-grid-part="row"] {
+  border-bottom: 0;
 }
