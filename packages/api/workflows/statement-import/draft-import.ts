@@ -36,7 +36,7 @@ export interface DraftImportInput {
   categorizer: Categorizer;
   logPrefix: string;
   db: any;
-  auth?: LedgerAuth;
+  auth: LedgerAuth;
 }
 
 // Shared tail of a statement import: categorize the new rows, format them as

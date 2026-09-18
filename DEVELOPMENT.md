@@ -172,7 +172,9 @@ Every file is in its tier ([PLAN.md](./PLAN.md) reshapes what remains). Each
 module in `modules/<name>/` is imported through its `index.ts`: `ledger-sql`,
 `values`, `statement`; in tier 3 `transaction-identity`, `categorization`,
 `gpay`, `journal-plan` and `statement-sources`; and in tier 4 `accounts`,
-`journals`, `reconciliation`, `drafts` and `coding-agent`. The workflows are
+`journals`, `reconciliation`, `drafts` and `coding-agent`. Tests also import
+`ledger-sql/testing.ts`, whose `testLedgerAuth` is a request's auth over the
+ledger's tables. The workflows are
 `workflows/statement-import/` (one account's statement, the automatic batch,
 and freeform transactions; imported through its `index.ts`),
 `workflows/posting.ts` and `workflows/reclassification.ts`.
@@ -297,7 +299,12 @@ Each endpoint is a trio:
    default-exported. Mount it in `packages/api/app.ts`'s `loadApp()` with
    `app.route("/", fooApi)`; it's served under `/api`. Keep the handler thin:
    it calls one workflow or module and translates the result to HTTP (see
-   [Backend layering](#backend-layering)).
+   [Backend layering](#backend-layering)). It authorizes first:
+   `requireWorkflowAuth(c)` (`app/workflow-auth.ts`), or `authorizeReport(c,
+   name)` for a report, returns the `LedgerAuth` every store takes, and raw
+   SQL reads the ledger through `allRows`/`oneRow` (`modules/ledger-sql`),
+   whose `scoped_*` relations hold only that auth's rows. A route that
+   doesn't touch the ledger calls `requireOwner(c)`.
 3. **`packages/frontend/src/api.ts`** — pass the contract to
    `createApiClient(contract, { baseUrl: getApiBase })`. Frontend code calls
    `fooApi.foo()` and gets a fully typed response or throws `ApiError`.

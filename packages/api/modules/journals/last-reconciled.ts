@@ -7,12 +7,7 @@ import {
   journals,
   journalsTable,
 } from "../../schema/journals.js";
-import {
-  allRows,
-  ledgerCtes,
-  type LedgerAuth,
-  type ScopeParams,
-} from "../ledger-sql/index.js";
+import { allRows, type LedgerAuth } from "../ledger-sql/index.js";
 
 /*
  * The last reconciled checkpoint: an account's latest posted balance
@@ -29,21 +24,17 @@ export interface ReconciledCheckpoint {
 export function lookupLastReconciled(
   db: any,
   accountName: string,
-  auth?: LedgerAuth,
+  auth: LedgerAuth,
 ): ReconciledCheckpoint | null {
-  const accountAccess = auth?.rowSecurity.forTable(accounts);
-  const journalAccess = auth?.rowSecurity.forTable(journals);
-  const entryAccess = auth?.rowSecurity.forTable(journalEntries);
+  const accountAccess = auth.rowSecurity.forTable(accounts);
+  const journalAccess = auth.rowSecurity.forTable(journals);
+  const entryAccess = auth.rowSecurity.forTable(journalEntries);
   const where = and(
-    accountAccess
-      ? accountAccess.ownedRows(eq(accountsTable.name, accountName))
-      : eq(accountsTable.name, accountName),
-    entryAccess
-      ? entryAccess.ownedRows(
-          isNotNull(journalEntriesTable.account_balance_assertion),
-        )
-      : isNotNull(journalEntriesTable.account_balance_assertion),
-    journalAccess ? journalAccess.ownedRows() : undefined,
+    accountAccess.ownedRows(eq(accountsTable.name, accountName)),
+    entryAccess.ownedRows(
+      isNotNull(journalEntriesTable.account_balance_assertion),
+    ),
+    journalAccess.ownedRows(),
   );
   const assertion = db
     .select({
@@ -80,11 +71,12 @@ export type LastReconciledRow = {
 
 export function loadLastReconciled(
   sqlite: Parameters<typeof allRows>[0],
-  scope: ScopeParams,
+  auth: LedgerAuth,
 ): LastReconciledRow[] {
   return allRows<LastReconciledRow>(
     sqlite,
-    `${ledgerCtes}
+    auth,
+    `
     SELECT
       a.id AS account_id,
       j.id AS journal_id,
@@ -105,6 +97,5 @@ export function loadLastReconciled(
         LIMIT 1
       )
     ORDER BY a.name`,
-    scope,
   );
 }

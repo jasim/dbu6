@@ -8,15 +8,16 @@ import {
   moneyColumn,
   monthEnd,
 } from "./shared.js";
-import { allRows, ledgerCtes } from "../../modules/ledger-sql/index.js";
+import { allRows } from "../../modules/ledger-sql/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
 api.register("netWorth", reportsContract.netWorth, ({ c, request }) => {
-  const scope = authorizeReport(c, "net-worth");
+  const auth = authorizeReport(c, "net-worth");
   const rows = allRows<NetWorthSourceRow>(
     c.get("sqlite"),
-    `${ledgerCtes}
+    auth,
+    `
     SELECT
       strftime('%Y-%m-01', j.date) AS month,
       COALESCE(SUM(CASE WHEN a.account_type = 'Asset'
@@ -31,7 +32,6 @@ api.register("netWorth", reportsContract.netWorth, ({ c, request }) => {
     WHERE a.account_type IN ('Asset', 'Liability')
     GROUP BY strftime('%Y-%m-01', j.date)
     ORDER BY strftime('%Y-%m-01', j.date)`,
-    scope,
   );
 
   return {

@@ -19,8 +19,8 @@ import {
 const api = new TsRestApi<SapportaEnv>();
 
 api.register("lastReconciled", reportsContract.lastReconciled, ({ c }) => {
-  const scope = authorizeReport(c, "last-reconciled");
-  const rows = loadLastReconciled(c.get("sqlite"), scope);
+  const auth = authorizeReport(c, "last-reconciled");
+  const rows = loadLastReconciled(c.get("sqlite"), auth);
 
   return { status: 200, body: toLastReconciledResult(rows) };
 });

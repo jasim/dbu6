@@ -10,18 +10,13 @@ import {
   openRecordLink,
   textColumn,
 } from "./shared.js";
-import {
-  allRows,
-  type ScopeParams,
-  ledgerCtes,
-} from "../../modules/ledger-sql/index.js";
+import { allRows, type LedgerAuth } from "../../modules/ledger-sql/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
 api.register("assetInflows", reportsContract.assetInflows, ({ c, request }) => {
-  const scope = authorizeReport(c, "asset-inflows");
-  const rows = loadAssetInflows(c.get("sqlite"), {
-    ...scope,
+  const auth = authorizeReport(c, "asset-inflows");
+  const rows = loadAssetInflows(c.get("sqlite"), auth, {
     fromDate: request.query.from_date ?? null,
     toDate: request.query.to_date ?? null,
   });
@@ -41,18 +36,20 @@ export type AssetInflowRow = {
   amount: number;
 };
 
-type AssetInflowsQuery = ScopeParams & {
+type AssetInflowsQuery = {
   fromDate: string | null;
   toDate: string | null;
 };
 
 export function loadAssetInflows(
   sqlite: Parameters<typeof allRows>[0],
+  auth: LedgerAuth,
   query: AssetInflowsQuery,
 ): AssetInflowRow[] {
   return allRows<AssetInflowRow>(
     sqlite,
-    `${ledgerCtes}
+    auth,
+    `
     SELECT
       je.id AS entry_id,
       j.id AS journal_id,

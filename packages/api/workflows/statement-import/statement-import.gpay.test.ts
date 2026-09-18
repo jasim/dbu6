@@ -13,6 +13,9 @@ import { parseGPayHtml } from "../../modules/gpay/index.js";
 import type { Categorizer } from "../../modules/categorization/index.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
 import { runStatementImport, type ImportOptions } from "./statement-import.js";
+import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
+
+const auth = testLedgerAuth();
 
 // Stub the persistence tail so the test can inspect exactly what reaches it.
 // Everything before it (key assignment, balance validation, reconciliation
@@ -157,13 +160,19 @@ describe("Google Pay enrichment on the statement import", () => {
        <div>Jul 2, 2026, 9:15 AM</div>`,
     );
 
-    await runStatementImport([statement()], options(null), stubImportDb());
+    await runStatementImport(
+      [statement()],
+      options(null),
+      stubImportDb(),
+      auth,
+    );
     const plain = draftImportCalls[0].transactions;
 
     const result = await runStatementImport(
       [statement()],
       options(html),
       stubImportDb(),
+      auth,
     );
     const enriched = draftImportCalls[1].transactions;
 
@@ -193,6 +202,7 @@ describe("Google Pay enrichment on the statement import", () => {
       [statement()],
       options(null),
       stubImportDb(),
+      auth,
     );
     expect(result.gpay_enriched_count).toBe(0);
     expect(draftImportCalls[0].transactions.map((t) => t.narration)).toEqual([
@@ -240,6 +250,7 @@ describe("Google Pay enrichment on the statement import", () => {
       [part],
       options(html),
       stubImportDb({ date: "2026-07-01", balance: 99500 }),
+      auth,
     );
 
     expect(draftImportCalls[0].transactions.map((t) => t.narration)).toEqual([

@@ -119,7 +119,7 @@ export async function runStatementImport(
   parts: AbacusStatement[],
   opts: ImportOptions,
   db: any,
-  auth?: LedgerAuth,
+  auth: LedgerAuth,
   sourceNames: readonly string[] = [],
 ): Promise<StatementImportResult> {
   // Assemble first, key second. Keys number textually identical rows on one

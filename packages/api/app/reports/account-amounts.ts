@@ -1,9 +1,5 @@
 import type Database from "better-sqlite3";
-import {
-  allRows,
-  type ScopeParams,
-  ledgerCtes,
-} from "../../modules/ledger-sql/index.js";
+import { allRows, type LedgerAuth } from "../../modules/ledger-sql/index.js";
 
 /*
  * Income and spending, per account and per month: the one source the
@@ -34,12 +30,13 @@ export type AccountAmount = {
  */
 export function loadAccountAmounts(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   query: Period & { types: readonly IncomeSpendingType[] },
 ): AccountAmount[] {
   return allRows<AccountAmount>(
     sqlite,
-    `${ledgerCtes}
+    auth,
+    `
       SELECT
         a.id AS account_id,
         a.name,
@@ -61,7 +58,6 @@ export function loadAccountAmounts(
       GROUP BY a.id, a.name, a.parent_id, a.account_type
       ORDER BY a.name, a.id`,
     {
-      ...scope,
       fromDate: query.fromDate,
       toDate: query.toDate,
       types: JSON.stringify(query.types),
@@ -82,12 +78,13 @@ export type MonthlyAmount = {
  */
 export function loadMonthlyAmounts(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   query: Period,
 ): MonthlyAmount[] {
   return allRows<MonthlyAmount>(
     sqlite,
-    `${ledgerCtes}
+    auth,
+    `
       SELECT
         strftime('%Y-%m', j.date) AS month,
         COALESCE(SUM(CASE WHEN a.account_type = 'Revenue'
@@ -104,6 +101,6 @@ export function loadMonthlyAmounts(
         AND (@toDate IS NULL OR j.date <= @toDate)
       GROUP BY strftime('%Y-%m', j.date)
       ORDER BY strftime('%Y-%m', j.date)`,
-    { ...scope, fromDate: query.fromDate, toDate: query.toDate },
+    { fromDate: query.fromDate, toDate: query.toDate },
   );
 }

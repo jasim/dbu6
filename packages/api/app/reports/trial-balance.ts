@@ -10,15 +10,16 @@ import {
   sum,
   textColumn,
 } from "./shared.js";
-import { allRows, ledgerCtes } from "../../modules/ledger-sql/index.js";
+import { allRows } from "../../modules/ledger-sql/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
 api.register("trialBalance", reportsContract.trialBalance, ({ c, request }) => {
-  const scope = authorizeReport(c, "trial-balance");
+  const auth = authorizeReport(c, "trial-balance");
   const rows = allRows<TrialBalanceRow>(
     c.get("sqlite"),
-    `${ledgerCtes}
+    auth,
+    `
     SELECT
       a.id AS account_id,
       a.name,
@@ -35,7 +36,7 @@ api.register("trialBalance", reportsContract.trialBalance, ({ c, request }) => {
     GROUP BY a.id, a.name, a.account_type
     HAVING COALESCE(SUM(je.debit), 0) != COALESCE(SUM(je.credit), 0)
     ORDER BY a.account_type, a.name`,
-    { ...scope, asOfDate: request.query.as_of_date },
+    { asOfDate: request.query.as_of_date },
   );
 
   return { status: 200, body: toTrialBalanceResult(rows) };

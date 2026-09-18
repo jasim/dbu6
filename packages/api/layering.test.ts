@@ -46,7 +46,8 @@ const MODULES: readonly Module[] = [
     name: "ledger-sql",
     tier: 0,
     files: ["modules/ledger-sql/"],
-    entries: ["modules/ledger-sql/index.ts"],
+    above: ["schema"],
+    entries: ["modules/ledger-sql/index.ts", "modules/ledger-sql/testing.ts"],
   },
 
   // Tier 1: values.

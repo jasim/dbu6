@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { loadLastReconciled } from "./last-reconciled.js";
+import { testLedgerAuth } from "../ledger-sql/testing.js";
 
 describe("Last reconciled query", () => {
   it("reports the latest assertion for every scoped account that has one", () => {
@@ -68,10 +69,7 @@ describe("Last reconciled query", () => {
         (112, 'other-workspace', 'user', 16, 6, 800, 0, 800);
     `);
 
-    const rows = loadLastReconciled(sqlite, {
-      workspaceId: "workspace",
-      userId: "user",
-    });
+    const rows = loadLastReconciled(sqlite, testLedgerAuth());
 
     expect(rows).toEqual([
       {

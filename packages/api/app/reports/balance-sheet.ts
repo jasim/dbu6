@@ -3,11 +3,7 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
 import { authorizeReport } from "./shared.js";
-import {
-  allRows,
-  type ScopeParams,
-  ledgerCtes,
-} from "../../modules/ledger-sql/index.js";
+import { allRows, type LedgerAuth } from "../../modules/ledger-sql/index.js";
 import {
   sectionAccountResult,
   sectionFooterRow,
@@ -18,11 +14,10 @@ import {
 const api = new TsRestApi<SapportaEnv>();
 
 api.register("balanceSheet", reportsContract.balanceSheet, ({ c, request }) => {
-  const scope = authorizeReport(c, "balance-sheet");
+  const auth = authorizeReport(c, "balance-sheet");
   return {
     status: 200,
-    body: balanceSheetReport(c.get("sqlite"), {
-      ...scope,
+    body: balanceSheetReport(c.get("sqlite"), auth, {
       asOfDate: request.query.as_of_date,
     }),
   };
@@ -34,11 +29,13 @@ api.register("balanceSheet", reportsContract.balanceSheet, ({ c, request }) => {
  */
 export function balanceSheetReport(
   sqlite: Database.Database,
-  query: ScopeParams & { asOfDate: string },
+  auth: LedgerAuth,
+  query: { asOfDate: string },
 ): GridDataset {
   const rows = allRows<SectionAccountRow>(
     sqlite,
-    `${ledgerCtes}
+    auth,
+    `
     SELECT
       a.account_type AS section,
       a.id AS account_id,

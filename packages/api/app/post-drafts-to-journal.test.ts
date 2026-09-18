@@ -2,21 +2,13 @@ import Database from "better-sqlite3";
 import type { IncomeExpensesAccount } from "dbu6-shared";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { createTestAuthContext } from "@sapporta/server/testing";
-import { accounts } from "../schema/accounts.js";
-import { draftTransactions } from "../schema/draft-journals.js";
-import { journalEntries, journals } from "../schema/journals.js";
 import { renderVisibleJournalsAsHledger } from "../modules/journals/index.js";
 import { postDraftsToJournal } from "./post-drafts-to-journal.js";
 import { renderDraftHledger } from "./render-draft-hledger.js";
 import { incomeExpensesReport } from "./reports/income-expenses.js";
+import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 
-const scope = { workspaceId: "workspace", userId: "user" };
-
-const auth = createTestAuthContext({
-  tables: [accounts, draftTransactions, journals, journalEntries],
-  ...scope,
-});
+const auth = testLedgerAuth();
 
 /*
  * Sample Savings (1) opened at 1,000. Its two drafts, a deposit and a
@@ -67,7 +59,7 @@ function ledger() {
       (201, 'workspace', 'user', '2026-02-01', 'NOPII salary', 0, 500, 3, 1, NULL, NULL, 'k-201', ${stamp}),
       (202, 'workspace', 'user', '2026-02-03', 'NOPII grocer', 100, 0, 2, 1, 1400, NULL, 'k-202', ${stamp});
   `);
-  const posting = { db: drizzle(sqlite), sqlite, auth, scope };
+  const posting = { db: drizzle(sqlite), sqlite, auth };
   const count = (table: string) =>
     (
       sqlite.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as {
@@ -293,7 +285,7 @@ function treeLedger() {
       (202, 'workspace', 'user', '2026-01-20', 'NOPII sample cafe', 900, 0, 1, 16, NULL, NULL, 'k-202', ${stamp}),
       (203, 'workspace', 'user', '2026-01-20', 'NOPII sample employer', 0, 5000, 13, 16, NULL, NULL, 'k-203', ${stamp});
   `);
-  const posting = { db: drizzle(sqlite), sqlite, auth, scope };
+  const posting = { db: drizzle(sqlite), sqlite, auth };
   const count = (table: string) =>
     (
       sqlite.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as {
@@ -336,8 +328,7 @@ describe("postDraftsToJournal on an account tree", () => {
     ]);
     expect(count("draft_transactions")).toBe(0);
 
-    const report = incomeExpensesReport(sqlite, {
-      ...scope,
+    const report = incomeExpensesReport(sqlite, auth, {
       fromDate: "2026-01-01",
       toDate: "2026-01-31",
     });

@@ -6,6 +6,7 @@ import {
   toAssetInflowsResult,
   type AssetInflowRow,
 } from "./asset-inflows.js";
+import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
 
 describe("Asset inflows query", () => {
   it("excludes asset-to-asset movements while retaining separate revenue gains", () => {
@@ -79,9 +80,7 @@ describe("Asset inflows query", () => {
         (116, 'other-workspace', 'user', 16, 3, 0, 60, NULL);
     `);
 
-    const rows = loadAssetInflows(sqlite, {
-      workspaceId: "workspace",
-      userId: "user",
+    const rows = loadAssetInflows(sqlite, testLedgerAuth(), {
       fromDate: "2026-01-01",
       toDate: "2026-01-31",
     });

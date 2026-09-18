@@ -6,6 +6,7 @@ import {
   loadAccountLedgerJournalEntries,
   toAccountLedgerResult,
 } from "./account-ledger.js";
+import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
 
 describe("Account Ledger journal entry query", () => {
   it("loads every scoped line for journals matched through a descendant account", () => {
@@ -63,11 +64,10 @@ describe("Account Ledger journal entry query", () => {
         (106, 'workspace', 'other-user', 13, 4, 75, 0, NULL, 'Other user line');
     `);
 
-    const scope = { workspaceId: "workspace", userId: "user" };
-    const rows = loadAccountLedgerJournalEntries(sqlite, {
-      ...scope,
+    const auth = testLedgerAuth();
+    const rows = loadAccountLedgerJournalEntries(sqlite, auth, {
       accountId: 1,
-      accountIds: ledgerAccountIds(sqlite, scope, 1),
+      accountIds: ledgerAccountIds(sqlite, auth, 1),
       fromDate: "2026-01-01",
       toDate: "2026-01-31",
     });

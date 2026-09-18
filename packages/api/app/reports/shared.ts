@@ -1,38 +1,21 @@
 import type { Context } from "hono";
-import {
-  forbidUnless,
-  type SapportaAuthContext,
-  type SapportaEnv,
-} from "@sapporta/server";
+import type { SapportaEnv } from "@sapporta/server";
 import type { NavLink } from "@sapporta/shared/contracts";
 import type {
   GridDataset,
   GridDatasetColumn,
   GridDatasetFooterRow,
 } from "@sapporta/shared/grid-dataset";
-import type { ScopeParams } from "../../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
+import { requireLedgerAuth } from "../workflow-auth.js";
 
 export function authorizeReport(
   c: Context<SapportaEnv>,
   reportName: string,
-): ScopeParams {
-  const auth = c.get("auth");
-  forbidUnless(c, auth.ability.can("read", `reports:${reportName}`));
-  const scope = workspaceUserScope(auth);
-  forbidUnless(c, scope !== null);
-  if (!scope) {
-    throw new Error("Report requires workspace/user scoped data authority.");
-  }
-  return scope;
-}
-
-function workspaceUserScope(auth: SapportaAuthContext): ScopeParams | null {
-  const scope = auth.dataAuthority.rowAuthorities.workspaceUserScoped;
-  if (!scope) return null;
-  return {
-    workspaceId: scope.workspace.id,
-    userId: scope.user.id,
-  };
+): LedgerAuth {
+  return requireLedgerAuth(c, (ability) =>
+    ability.can("read", `reports:${reportName}`),
+  );
 }
 
 export function textColumn(

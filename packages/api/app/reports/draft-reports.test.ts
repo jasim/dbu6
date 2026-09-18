@@ -3,8 +3,9 @@ import { gridDatasetSchema } from "@sapporta/shared/grid-dataset";
 import { describe, expect, it } from "vitest";
 import { draftBalanceAssertionsReport } from "./draft-balance-assertions.js";
 import { duplicateDraftsReport } from "./duplicate-drafts.js";
+import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
 
-const scope = { workspaceId: "workspace", userId: "user" };
+const auth = testLedgerAuth();
 
 /*
  * Sample Savings (2) has a balance assertion of 1,500 on 10 Feb, then four
@@ -71,10 +72,10 @@ describe("draft reports narrowed to one account", () => {
     `);
 
     const every = gridDatasetSchema.parse(
-      draftBalanceAssertionsReport(source, scope),
+      draftBalanceAssertionsReport(source, auth),
     );
     const one = gridDatasetSchema.parse(
-      draftBalanceAssertionsReport(source, scope, 2),
+      draftBalanceAssertionsReport(source, auth, 2),
     );
 
     expect(every.nodes.map((node) => node.columns.draft_id)).toEqual([
@@ -98,10 +99,8 @@ describe("draft reports narrowed to one account", () => {
         (207, 'workspace', 'user', '2026-03-03', 'NOPII cash', 5, 0, NULL, 4, NULL, NULL, 'k-205');
     `);
 
-    const every = gridDatasetSchema.parse(duplicateDraftsReport(source, scope));
-    const one = gridDatasetSchema.parse(
-      duplicateDraftsReport(source, scope, 2),
-    );
+    const every = gridDatasetSchema.parse(duplicateDraftsReport(source, auth));
+    const one = gridDatasetSchema.parse(duplicateDraftsReport(source, auth, 2));
 
     expect(every.nodes.map((node) => node.columns.draft_id)).toEqual([
       205, 202,

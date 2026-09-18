@@ -8,8 +8,9 @@ import { loadAccountAmounts, loadMonthlyAmounts } from "./account-amounts.js";
 import { expenseBreakdownReport } from "./expense-breakdown.js";
 import { incomeStatementReport } from "./income-statement.js";
 import { monthlySummaryReport } from "./monthly-summary.js";
+import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
 
-const scope = { workspaceId: "workspace", userId: "user" };
+const auth = testLedgerAuth();
 const allTime = { fromDate: null, toDate: null };
 
 /*
@@ -72,7 +73,7 @@ function ledger(): Database.Database {
 
 describe("account amounts", () => {
   it("signs income and spending positive and lists accounts without entries", () => {
-    const amounts = loadAccountAmounts(ledger(), scope, {
+    const amounts = loadAccountAmounts(ledger(), auth, {
       types: ["Revenue", "Expense"],
       ...allTime,
     });
@@ -89,7 +90,7 @@ describe("account amounts", () => {
   });
 
   it("keeps to the types and the dates asked for", () => {
-    const amounts = loadAccountAmounts(ledger(), scope, {
+    const amounts = loadAccountAmounts(ledger(), auth, {
       types: ["Expense"],
       fromDate: "2026-02-01",
       toDate: "2026-02-28",
@@ -104,12 +105,12 @@ describe("account amounts", () => {
   });
 
   it("sums each month with entries", () => {
-    expect(loadMonthlyAmounts(ledger(), scope, allTime)).toEqual([
+    expect(loadMonthlyAmounts(ledger(), auth, allTime)).toEqual([
       { month: "2026-01", income: 50000, spending: 3500 },
       { month: "2026-02", income: 50000, spending: 1500 },
     ]);
     expect(
-      loadMonthlyAmounts(ledger(), scope, {
+      loadMonthlyAmounts(ledger(), auth, {
         fromDate: "2026-02-01",
         toDate: null,
       }),
@@ -130,7 +131,7 @@ function rootTotals(result: GridDataset, label: string, total: string) {
 
 describe("the grids read the amounts", () => {
   it("income statement lists every account with an amount", () => {
-    const result = incomeStatementReport(ledger(), { ...scope, ...allTime });
+    const result = incomeStatementReport(ledger(), auth, allTime);
 
     expect(rootTotals(result, "section", "section_total")).toEqual({
       Revenue: 100000,
@@ -146,7 +147,7 @@ describe("the grids read the amounts", () => {
   });
 
   it("spending breakdown totals the same spending by branch", () => {
-    const result = expenseBreakdownReport(ledger(), { ...scope, ...allTime });
+    const result = expenseBreakdownReport(ledger(), auth, allTime);
 
     expect(rootTotals(result, "category_name", "category_total")).toEqual({
       "expenses:food": 5500,
@@ -156,7 +157,7 @@ describe("the grids read the amounts", () => {
   });
 
   it("monthly summary shows each month's amounts", () => {
-    const result = monthlySummaryReport(ledger(), { ...scope, ...allTime });
+    const result = monthlySummaryReport(ledger(), auth, allTime);
 
     expect(
       gridDatasetSchema

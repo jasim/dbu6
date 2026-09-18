@@ -14,7 +14,7 @@ import {
   percentColumn,
   textColumn,
 } from "./shared.js";
-import type { ScopeParams } from "../../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
@@ -22,12 +22,12 @@ api.register(
   "duplicateDrafts",
   reportsContract.duplicateDrafts,
   ({ c, request }) => {
-    const scope = authorizeReport(c, "duplicate-drafts");
+    const auth = authorizeReport(c, "duplicate-drafts");
     return {
       status: 200,
       body: duplicateDraftsReport(
         c.get("sqlite"),
-        scope,
+        auth,
         request.query.base_account_id,
       ),
     };
@@ -40,10 +40,10 @@ api.register(
  */
 export function duplicateDraftsReport(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   accountId?: number,
 ): GridDataset {
-  const rows = findDraftDuplicates(sqlite, scope, { accountId });
+  const rows = findDraftDuplicates(sqlite, auth, { accountId });
   return toDuplicateDraftsResult(rows, accountId === undefined);
 }
 

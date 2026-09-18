@@ -60,11 +60,11 @@ function nullable(value: string | null | undefined): string | null {
 export function findDuplicateCandidates(
   db: any,
   input: DuplicateLookupInput,
-  auth?: LedgerAuth,
+  auth: LedgerAuth,
 ): DuplicateCandidate[] {
-  const draftAccess = auth?.rowSecurity.forTable(draftTransactions);
-  const journalAccess = auth?.rowSecurity.forTable(journals);
-  const entryAccess = auth?.rowSecurity.forTable(journalEntries);
+  const draftAccess = auth.rowSecurity.forTable(draftTransactions);
+  const journalAccess = auth.rowSecurity.forTable(journals);
+  const entryAccess = auth.rowSecurity.forTable(journalEntries);
 
   if (input.sourceTransactionKey !== null) {
     const exactDraftWhere = and(
@@ -79,9 +79,7 @@ export function findDuplicateCandidates(
     const exactDrafts = db
       .select({ id: draftTransactionsTable.id })
       .from(draftTransactionsTable)
-      .where(
-        draftAccess ? draftAccess.ownedRows(exactDraftWhere) : exactDraftWhere,
-      )
+      .where(draftAccess.ownedRows(exactDraftWhere))
       .all()
       .map((row: { id: number }) => ({
         target: "draft" as const,
@@ -95,8 +93,8 @@ export function findDuplicateCandidates(
         journalEntriesTable.source_transaction_key,
         input.sourceTransactionKey,
       ),
-      journalAccess ? journalAccess.ownedRows() : undefined,
-      entryAccess ? entryAccess.ownedRows() : undefined,
+      journalAccess.ownedRows(),
+      entryAccess.ownedRows(),
     );
     const exactJournals = db
       .select({
@@ -140,7 +138,7 @@ export function findDuplicateCandidates(
       sourceTransactionKey: draftTransactionsTable.source_transaction_key,
     })
     .from(draftTransactionsTable)
-    .where(draftAccess ? draftAccess.ownedRows(draftWhere) : draftWhere)
+    .where(draftAccess.ownedRows(draftWhere))
     .all();
 
   const draftCandidates: DuplicateCandidate[] = draftRows.flatMap(
@@ -161,8 +159,8 @@ export function findDuplicateCandidates(
 
   const journalWhere = and(
     eq(journalsTable.date, input.databaseDate),
-    journalAccess ? journalAccess.ownedRows() : undefined,
-    entryAccess ? entryAccess.ownedRows() : undefined,
+    journalAccess.ownedRows(),
+    entryAccess.ownedRows(),
   );
   const entryRows = db
     .select({

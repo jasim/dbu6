@@ -6,20 +6,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 import { draftTransactionsContract } from "dbu6-shared";
-import { createTestAuthContext } from "@sapporta/server/testing";
 import type { CategorizationLlm } from "../modules/categorization/index.js";
-import { accounts, accountsTable } from "../schema/accounts.js";
-import {
-  draftTransactions,
-  draftTransactionsTable,
-} from "../schema/draft-journals.js";
+import { accountsTable } from "../schema/accounts.js";
+import { draftTransactionsTable } from "../schema/draft-journals.js";
+import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 import { classifyDraftTransactions } from "./reclassification.js";
 
-const auth = createTestAuthContext({
-  tables: [accounts, draftTransactions],
-  workspaceId: "workspace",
-  userId: "user",
-});
+const auth = testLedgerAuth();
 
 // The engine would detect this machine's coding agents. The mapping rules
 // categorize everything these tests classify, so the LLM is never asked.

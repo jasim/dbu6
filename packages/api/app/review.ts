@@ -12,8 +12,8 @@ import {
   type AccountStanding,
 } from "./account-standing.js";
 import { draftCounts } from "../modules/drafts/index.js";
-import type { ScopeParams } from "../modules/ledger-sql/index.js";
-import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
+import { requireWorkflowAuth } from "./workflow-auth.js";
 
 /*
  * Review (PLAN.md §11 P3): the accounts with drafts, and for one account
@@ -24,22 +24,20 @@ import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
 const api = new TsRestApi<SapportaEnv>();
 
 api.register("accounts", reviewContract.accounts, async ({ c }) => {
-  requireWorkflowAuth(c);
-  const scope = requireWorkflowScope(c);
+  const auth = requireWorkflowAuth(c);
   const presets = await readImportPresets();
   return {
     status: 200,
-    body: { accounts: listReviewAccounts(c.get("sqlite"), scope, presets) },
+    body: { accounts: listReviewAccounts(c.get("sqlite"), auth, presets) },
   };
 });
 
 api.register("account", reviewContract.account, async ({ c, request }) => {
-  requireWorkflowAuth(c);
-  const scope = requireWorkflowScope(c);
+  const auth = requireWorkflowAuth(c);
   const presets = await readImportPresets();
   const detail = loadReviewAccount(
     c.get("sqlite"),
-    scope,
+    auth,
     presets,
     request.params.accountId,
   );
@@ -54,20 +52,20 @@ export default api;
 /** Every account with drafts, sorted by display name. */
 export function listReviewAccounts(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   presets: readonly ImportPreset[],
 ): ReviewAccount[] {
-  return accountsWithDrafts(loadAccountStandings(sqlite, scope, presets));
+  return accountsWithDrafts(loadAccountStandings(sqlite, auth, presets));
 }
 
 /** One account's review, or null when the account isn't in scope. */
 export function loadReviewAccount(
   sqlite: Database.Database,
-  scope: ScopeParams,
+  auth: LedgerAuth,
   presets: readonly ImportPreset[],
   accountId: number,
 ): ReviewAccountDetail | null {
-  const standings = loadAccountStandings(sqlite, scope, presets);
+  const standings = loadAccountStandings(sqlite, auth, presets);
   const standing = standings.get(accountId);
   if (!standing) return null;
   const { drafts } = standing;
