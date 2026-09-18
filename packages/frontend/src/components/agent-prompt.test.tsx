@@ -13,7 +13,7 @@ import {
 } from "vitest";
 import type { AgentHandoffAvailability } from "dbu6-shared";
 import { PLAN_FIRST_RULE, planFirst } from "../agent-prompt-rules";
-import { AgentPrompt } from "./agent-prompt";
+import { AgentActions, AgentPrompt } from "./agent-prompt";
 
 /*
  * The panel shows its title and its buttons and nothing else to read. Copy
@@ -180,6 +180,30 @@ describe("AgentPrompt", () => {
     await render();
 
     expect(buttons()).toEqual(["Open in Codex", "Copy prompt"]);
+  });
+
+  it("says what the agent does, and where it opens, when given a goal", async () => {
+    offers({ mode: "terminal", agent: "claude-code" });
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await act(async () => {
+      root.render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(AgentActions, {
+            prompt: PROMPT,
+            goal: "Create new parser automatically",
+            standalone: true,
+          }),
+        ),
+      );
+    });
+    await settle();
+
+    expect(buttons()).toEqual([
+      "Create new parser automatically. Opens in Claude Code",
+      "Copy prompt",
+    ]);
   });
 
   it("offers a command where no terminal can be opened", async () => {

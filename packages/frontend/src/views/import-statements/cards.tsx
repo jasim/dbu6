@@ -245,6 +245,7 @@ export function ProblemDetail({
             standalone
             prompt={agent.prompt}
             afterwards={agent.afterwards}
+            goal={agent.goal}
           />
         </div>
       ) : (

@@ -69,7 +69,7 @@ const presets = [
 ];
 
 describe("Home summary", () => {
-  it("lists the preset accounts with their checkpoints, draft counts and problems", () => {
+  it("lists the preset accounts, oldest balance assertion first, with their draft counts and problems", () => {
     const sqlite = ledger();
     sqlite.exec(`
       INSERT INTO draft_transactions VALUES
@@ -82,25 +82,14 @@ describe("Home summary", () => {
 
     const summary = loadHomeSummary(sqlite, scope, presets);
 
+    // The account the ledger lacks has no assertion, so it leads; then
+    // Sample Savings (10 Feb) before Sample Card (20 Feb).
     expect(summary.accounts).toEqual([
       {
         in_ledger: false,
         path: "assets:bank:missing-050505",
         name: "Not Yet Added",
         kind: "bank",
-      },
-      {
-        in_ledger: true,
-        account_id: 1,
-        path: "liabilities:credit-cards:sample-card",
-        name: "Sample Card",
-        kind: "card",
-        checkpoint: { date: "2026-02-20", balance: 300 },
-        drafts: 0,
-        uncategorised: 0,
-        duplicates: 0,
-        balance_checks: 0,
-        failing_checks: 0,
       },
       {
         in_ledger: true,
@@ -114,6 +103,19 @@ describe("Home summary", () => {
         duplicates: 1,
         balance_checks: 1,
         failing_checks: 1,
+      },
+      {
+        in_ledger: true,
+        account_id: 1,
+        path: "liabilities:credit-cards:sample-card",
+        name: "Sample Card",
+        kind: "card",
+        checkpoint: { date: "2026-02-20", balance: 300 },
+        drafts: 0,
+        uncategorised: 0,
+        duplicates: 0,
+        balance_checks: 0,
+        failing_checks: 0,
       },
     ]);
     // Drafts on the account no preset names still count towards the totals.

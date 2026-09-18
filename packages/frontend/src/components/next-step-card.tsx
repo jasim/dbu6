@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
  * The one obvious next step. Exactly one per screen, at the top of Home. The
  * medallion carries the count so the number is read first; the body says
  * where the work came from and what is at stake. With nothing to count (a
- * first account, up to date) there is no medallion.
+ * first account, new statements to import) there is no medallion.
  */
 export function NextStepCard({
   count,
@@ -14,7 +14,7 @@ export function NextStepCard({
 }: {
   count?: number;
   title: string;
-  body: ReactNode;
+  body?: ReactNode;
   /** The primary button: pass a `Button` (with a `render` for a link). */
   action: ReactNode;
 }) {
@@ -30,7 +30,11 @@ export function NextStepCard({
       )}
       <div className="min-w-0 flex-1 basis-[280px]">
         <h2 className="text-heading text-foreground">{title}</h2>
-        <p className="mt-[5px] max-w-[640px] text-body text-ink-soft">{body}</p>
+        {body && (
+          <p className="mt-[5px] max-w-[640px] text-body text-ink-soft">
+            {body}
+          </p>
+        )}
       </div>
       <div className="shrink-0 sm:ml-auto">{action}</div>
     </section>

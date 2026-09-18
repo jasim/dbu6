@@ -233,7 +233,7 @@ function FrameHeader({ detail }: { detail: ReviewAccountDetail }) {
   );
 }
 
-/** "21 drafts · 1–13 Sep 2026 · checked to 31 Aug". */
+/** "21 drafts · 1–13 Sep 2026 · last balance assertion 31 Aug". */
 function headerLine({ account, checkpoint }: ReviewAccountDetail): string {
   const parts: string[] = [];
   if (account.drafts > 0) parts.push(plural(account.drafts, "draft"));
@@ -242,8 +242,8 @@ function headerLine({ account, checkpoint }: ReviewAccountDetail): string {
   }
   parts.push(
     checkpoint === null
-      ? "nothing added yet"
-      : `checked to ${formatShortDate(checkpoint.date)}`,
+      ? "no balance assertion yet"
+      : `last balance assertion ${formatShortDate(checkpoint.date)}`,
   );
   const line = parts.join(" · ");
   return line.charAt(0).toUpperCase() + line.slice(1);

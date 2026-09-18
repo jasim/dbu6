@@ -37,8 +37,8 @@ export function ReviewAccounts() {
       header={
         <ScreenTitle title="Review">
           <p>
-            Pick an account to check its drafts and add them to your books. Each
-            account is checked and added on its own.
+            Pick an account to review its drafts and add them to your books.
+            Each account is reviewed and added on its own.
           </p>
         </ScreenTitle>
       }

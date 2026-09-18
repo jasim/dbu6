@@ -42,6 +42,8 @@ export type ProblemAction =
 export interface ProblemPrompt {
     prompt: string;
     afterwards: string;
+    // What the agent gets done, in the button's words: "Fix the parser".
+    goal: string;
 }
 
 // How serious a problem is. Destructive ("problem") when the numbers don't
@@ -173,10 +175,10 @@ function planProblems(
                     key: `unrecognized:${row.file_name}`,
                     fileNames: [row.file_name],
                     subject: row.file_name,
-                    title: "Statement format is new and unrecognized",
-                    fix: "Create a parser for this format.",
+                    title: "Could not recognize this statement format",
+                    fix: "We don't have a parser for this format. Automatically create one below.",
                     context:
-                        "We use parsers to extract transaction details from bank/credit-card statements. Each institution and format need their own specific parsers. However, we couldn't parse the file you uploaded with any of our existing parsers. It can be automatically created using the following AI prompt.",
+                        "Unable to read transactions from this file, since its format was not recognized by any existing parser. Please create a parser for this file format and upload again.",
                     facts: [
                         tried.length === 0
                             ? {
@@ -199,6 +201,7 @@ function planProblems(
                     agent: {
                         prompt: unrecognizedPrompt(row),
                         afterwards: REDROP_FILE,
+                        goal: "Create new parser automatically",
                     },
                     technical: planTechnical,
                 });
@@ -223,6 +226,7 @@ function planProblems(
                     agent: {
                         prompt: ambiguousPrompt(row),
                         afterwards: RETRY_FROM_SCREEN,
+                        goal: "Tell the parsers apart",
                     },
                     technical: planTechnical,
                 });
@@ -269,6 +273,7 @@ function unresolvedProblem(
                 agent: {
                     prompt: noPresetPrompt(row),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Set up the account",
                 },
             };
         case "statement_account_identifier_required":
@@ -282,6 +287,7 @@ function unresolvedProblem(
                 agent: {
                     prompt: identifierRequiredPrompt(row),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Fix the parser",
                 },
             };
         case "statement_account_identifier_mismatch":
@@ -295,6 +301,7 @@ function unresolvedProblem(
                 agent: {
                     prompt: identifierMismatchPrompt(row),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Set up this account",
                 },
             };
     }
@@ -338,6 +345,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: balanceMismatchPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: gap ? "Find what's missing" : "Find the misread row",
                 },
             };
         }
@@ -367,6 +375,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: balanceMismatchPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Find the misread row",
                 },
             };
         }
@@ -418,6 +427,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: boundaryGapPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Find the missing period",
                 },
             };
         }
@@ -448,6 +458,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: disagreementPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Work out which file is right",
                 },
             };
         }
@@ -481,6 +492,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: partInvalidPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Check the file and the parser",
                 },
             };
         }
@@ -493,6 +505,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: reconciliationPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Compare with your books",
                 },
             };
         case "opening_balance_unavailable":
@@ -505,6 +518,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: openingBalancePrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Set the starting balance",
                 },
             };
         case "closing_balance_unavailable":
@@ -517,6 +531,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: closingBalancePrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Fix the parser",
                 },
             };
         case "assertion_conflict":
@@ -529,6 +544,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: genericFailurePrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Find which balance is right",
                 },
             };
         case "ambiguous_duplicate":
@@ -542,6 +558,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                 agent: {
                     prompt: genericFailurePrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
+                    goal: "Investigate the error",
                 },
             };
     }

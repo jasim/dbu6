@@ -13,7 +13,7 @@ import { StatusChip, type StatusTone } from "../components/status-chip";
 import { homeSummaryQuery } from "../queries";
 import { accountLedgerHref } from "../reports/links";
 import { reviewHref } from "../review/routes";
-import { formatBalance, formatDate, plural } from "../format";
+import { formatDate, plural } from "../format";
 import { homeState, type HomeCard } from "./state";
 
 /**
@@ -39,9 +39,11 @@ export function Home() {
         <>
           <p className="text-label uppercase text-ink-meta">{todayLabel()}</p>
           {view ? (
-            <h1 className="mt-2 text-title text-foreground sm:text-display">
-              {view.greeting}
-            </h1>
+            view.greeting && (
+              <h1 className="mt-2 text-title text-foreground sm:text-display">
+                {view.greeting}
+              </h1>
+            )
           ) : (
             <div
               aria-hidden="true"
@@ -72,19 +74,11 @@ export function Home() {
       </div>
 
       <section className="mt-6 rounded-card border border-sap-border bg-card shadow-card">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-3 pt-5">
+        <div className="px-6 pb-3 pt-5">
           <h2 className="text-heading text-foreground">Your accounts</h2>
-          <Button
-            render={<Link to="/accounts" />}
-            nativeButton={false}
-            variant="ghost"
-            size="sm"
-          >
-            Add an account
-          </Button>
         </div>
         {summary ? (
-          <AccountList accounts={summary.accounts} />
+          <AccountTable accounts={summary.accounts} />
         ) : error ? null : (
           <ul aria-hidden="true" className="px-6 pb-5">
             {[0, 1, 2].map((i) => (
@@ -115,7 +109,7 @@ function StepCard({ card }: { card: HomeCard }) {
   );
 }
 
-function AccountList({ accounts }: { accounts: readonly HomeAccount[] }) {
+function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
   if (accounts.length === 0) {
     return (
       <div className="px-6 pb-6">
@@ -137,11 +131,28 @@ function AccountList({ accounts }: { accounts: readonly HomeAccount[] }) {
     );
   }
   return (
-    <ul className="pb-2">
-      {accounts.map((account) => (
-        <AccountRow key={account.path} account={account} />
-      ))}
-    </ul>
+    <div className="overflow-x-auto pb-2">
+      <table className="w-full text-row">
+        <thead className="text-left text-meta text-ink-meta">
+          <tr className="border-t border-line-inner">
+            <th scope="col" className="py-2.5 pl-6 pr-3 font-medium">
+              Account
+            </th>
+            <th scope="col" className="px-3 py-2.5 font-medium">
+              Statements imported until
+            </th>
+            <th scope="col" className="py-2.5 pl-3 pr-6">
+              <span className="sr-only">Drafts</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {accounts.map((account) => (
+            <AccountRow key={account.path} account={account} />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -151,58 +162,61 @@ function AccountRow({ account }: { account: HomeAccount }) {
     : null;
   const status = accountStatus(account);
   return (
-    <li className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-line-inner px-6 py-3.5">
-      <div className="min-w-0 flex-1 basis-[240px]">
+    <tr className="border-t border-line-inner">
+      <td className="py-3.5 pl-6 pr-3 align-top">
         {ledger ? (
           <Link
             to={ledger}
             title={account.path}
-            className="text-[16.5px] font-semibold text-foreground no-underline hover:underline"
+            className="font-semibold text-foreground no-underline hover:underline"
           >
             {account.name}
           </Link>
         ) : (
-          <span
-            title={account.path}
-            className="text-[16.5px] font-semibold text-foreground"
-          >
+          <span title={account.path} className="font-semibold text-foreground">
             {account.name}
           </span>
         )}
-        <div className="mt-0.5 text-meta text-ink-meta">
-          {accountSubline(account)}
-        </div>
-      </div>
-      {account.in_ledger && account.drafts > 0 ? (
-        <Link
-          to={reviewHref(account.account_id)}
-          className="-my-2 inline-flex min-h-11 items-center rounded-control no-underline outline-none hover:[&>span]:underline hover:[&>span]:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40"
-        >
-          <StatusChip tone={status.tone}>{status.label}</StatusChip>
-        </Link>
-      ) : (
-        <StatusChip tone={status.tone}>{status.label}</StatusChip>
-      )}
-    </li>
+        {!account.in_ledger && (
+          <div className="mt-0.5 text-meta text-ink-meta">
+            {account.path} is not in your accounts yet
+          </div>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-3 py-3.5 align-top">
+        <ImportedUntil account={account} />
+      </td>
+      <td className="py-3.5 pl-3 pr-6 text-right align-top">
+        {status &&
+          (account.in_ledger && account.drafts > 0 ? (
+            <Link
+              to={reviewHref(account.account_id)}
+              className="-my-2 inline-flex min-h-11 items-center rounded-control no-underline outline-none hover:[&>span]:underline hover:[&>span]:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40"
+            >
+              <StatusChip tone={status.tone}>{status.label}</StatusChip>
+            </Link>
+          ) : (
+            <StatusChip tone={status.tone}>{status.label}</StatusChip>
+          ))}
+      </td>
+    </tr>
   );
 }
 
-function accountSubline(account: HomeAccount): string {
-  if (!account.in_ledger) {
-    return `${account.path} is not in your accounts yet`;
+/** The date of the account's last posted balance assertion. */
+function ImportedUntil({ account }: { account: HomeAccount }) {
+  if (!account.in_ledger) return <span className="text-ink-meta">—</span>;
+  if (account.checkpoint === null) {
+    return <span className="text-ink-meta">Nothing yet</span>;
   }
-  const { checkpoint } = account;
-  if (checkpoint === null) return "Nothing imported yet";
-  return `Checked to ${formatDate(checkpoint.date)} · ${formatBalance(
-    checkpoint.balance,
-    account.kind,
-  )}`;
+  return <span className="tnum">{formatDate(account.checkpoint.date)}</span>;
 }
 
+/** What waits on the account; nothing when nothing does. */
 function accountStatus(account: HomeAccount): {
   tone: StatusTone;
   label: string;
-} {
+} | null {
   if (!account.in_ledger) {
     return { tone: "problem", label: "Account missing" };
   }
@@ -215,8 +229,7 @@ function accountStatus(account: HomeAccount): {
       label: `${plural(account.drafts, "draft")} waiting`,
     };
   }
-  if (account.checkpoint !== null) return { tone: "ok", label: "Checked" };
-  return { tone: "waiting", label: "Not imported" };
+  return null;
 }
 
 /** "Tuesday, 15 September 2026". */

@@ -137,7 +137,7 @@ describe("homeState", () => {
     expect(view.card.count).toBe(12);
     expect(view.card.title).toBe("12 transactions need a category");
     expect(view.card.body).toBe(
-      "They're waiting in the drafts for Sample Savings. Nothing is added to your books until you've checked them.",
+      "They're waiting in the drafts for Sample Savings. Nothing is added to your books until you've reviewed them.",
     );
     // Drafts on two accounts: the picker, not one account's Review.
     expect(view.card.action).toEqual({
@@ -177,11 +177,13 @@ describe("homeState", () => {
     });
   });
 
-  it("says so when nothing is pending", () => {
+  it("asks for new statements, without claiming up to date, when nothing is pending", () => {
     const view = homeState(summary([account()]));
-    expect(view.state).toBe("up-to-date");
-    expect(view.greeting).toBe("You're up to date");
+    expect(view.state).toBe("import-new");
+    expect(view.greeting).toBeUndefined();
     expect(view.card.count).toBeUndefined();
+    expect(view.card.title).toBe("Import new statements");
+    expect(view.card.body).toBeUndefined();
     expect(view.card.action).toEqual({
       label: "Import statements",
       to: "/import",

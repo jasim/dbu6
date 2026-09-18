@@ -70,11 +70,17 @@ export function AgentPrompt({
 export function AgentActions({
   prompt,
   afterwards,
+  goal,
   standalone = false,
 }: {
   prompt: string;
   /** What the user does once the agent has the prompt. */
   afterwards?: ReactNode;
+  /**
+   * What the agent does, for the button to say in place of "Open in". Where
+   * it opens then drops to a muted second line, under the sparkle.
+   */
+  goal?: string;
   standalone?: boolean;
 }) {
   const availability = useQuery(agentHandoffAvailabilityQuery).data;
@@ -91,6 +97,8 @@ export function AgentActions({
   // made for; a new prompt leaves both behind.
   const asked = handoff.variables === text;
   const acted = copied === text || (asked && handoff.isSuccess);
+  const agent = handsOff ? CODING_AGENTS[availability.agent].label : "";
+  const terminal = handsOff && availability.mode === "terminal";
 
   return (
     <div>
@@ -100,13 +108,30 @@ export function AgentActions({
             type="button"
             variant="assist"
             size="sm"
+            className={
+              goal === undefined
+                ? undefined
+                : "h-auto min-h-11 px-5 py-2.5 text-left"
+            }
             disabled={handoff.isPending}
             onClick={() => handoff.mutate(text)}
           >
-            {standalone ? <Sparkles /> : <SquareTerminal />}
-            {availability.mode === "terminal"
-              ? `Open in ${CODING_AGENTS[availability.agent].label}`
-              : `Command for ${CODING_AGENTS[availability.agent].label}`}
+            {goal === undefined ? (
+              <>
+                {standalone ? <Sparkles /> : <SquareTerminal />}
+                {terminal ? `Open in ${agent}` : `Command for ${agent}`}
+              </>
+            ) : (
+              // What gets done, and under it, muted, the AI that does it.
+              <span className="flex flex-col gap-0.5">
+                <span>{goal}</span>
+                <span className="sr-only">. </span>
+                <span className="flex items-center gap-1 text-[13px] font-normal text-assist-foreground/75 [&_svg]:size-[13px]">
+                  <Sparkles aria-hidden="true" />
+                  {terminal ? `Opens in ${agent}` : `Command for ${agent}`}
+                </span>
+              </span>
+            )}
           </Button>
         )}
         <CopyButton

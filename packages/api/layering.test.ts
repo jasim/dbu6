@@ -1,0 +1,355 @@
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
+import { describe, expect, it } from "vitest";
+
+/*
+ * The backend's layering, enforced. DEVELOPMENT.md ("Backend layering") says
+ * what each tier owns and must not contain; this table says which files make
+ * up each module and where each module sits, and it is the one the tests check.
+ *
+ * A file may import from its own module, from any module in a lower tier, and
+ * from a same-tier module it is listed as sitting `above`. When a module lists
+ * `entries`, other modules import it only through those files. Imports of
+ * packages (Sapporta, dbu6-shared, drizzle, node:*) are not checked here.
+ *
+ * The backend is being moved into this shape (PLAN.md). Until a file moves, it
+ * is listed where it is today under the module it belongs to, and every import
+ * that breaks the rules today is in KNOWN_VIOLATIONS with the plan task that
+ * removes it. The test fails on a new violation and on a listed one that no
+ * longer occurs, so the list only shrinks.
+ *
+ * Tiers, lowest first: 0 foundations, 1 values, 2 statement, 3 logic over
+ * statements and journals, 4 ledger storage and the coding agent, 5 domain
+ * workflows, 6 routes and reports.
+ */
+
+type Module = {
+  name: string;
+  tier: number;
+  // Its files, relative to packages/api: "dir/" for a directory, otherwise a
+  // file path without its extension, which also covers its tests
+  // ("x/Money" holds x/Money.ts and x/Money.test.ts).
+  files: readonly string[];
+  // Same-tier modules this one sits above, and so may import.
+  above?: readonly string[];
+  // The only files other modules may import; any file when unset.
+  entries?: readonly string[];
+};
+
+const MODULES: readonly Module[] = [
+  // Tier 0: foundations.
+  { name: "schema", tier: 0, files: ["schema/"] },
+  { name: "user-data", tier: 0, files: ["user-data"] },
+  // Scoped raw SQL and the auth type every store takes (PLAN.md M1).
+  { name: "ledger-sql", tier: 0, files: [] },
+
+  // Tier 1: values.
+  {
+    name: "values",
+    tier: 1,
+    files: [
+      "bank-importer/domain/Money",
+      "bank-importer/domain/Account",
+      "bank-importer/domain/Chrono",
+    ],
+  },
+
+  // Tier 2: the statement.
+  {
+    name: "statement",
+    tier: 2,
+    files: ["bank-importer/abacus/", "bank-importer/import-errors"],
+    entries: [
+      "bank-importer/abacus/index.ts",
+      "bank-importer/import-errors.ts",
+    ],
+  },
+
+  // Tier 3: logic over statements and journals, no storage.
+  {
+    name: "transaction-identity",
+    tier: 3,
+    files: [
+      "modules/reconciliation/transaction-identity",
+      "modules/reconciliation/journal-transaction-matcher",
+    ],
+  },
+  {
+    name: "categorization",
+    tier: 3,
+    files: [
+      "bank-importer/categorization/",
+      "bank-importer/domain/CategorizedTransaction",
+    ],
+  },
+  { name: "gpay", tier: 3, files: ["bank-importer/domain/GPayIndex"] },
+  {
+    name: "journal-plan",
+    tier: 3,
+    files: [
+      "bank-importer/domain/TransactionGroup",
+      "bank-importer/domain/JournalPlan",
+      "bank-importer/domain/HledgerJournal",
+    ],
+  },
+  {
+    name: "statement-sources",
+    tier: 3,
+    files: [
+      "bank-importer/statement-recognition",
+      "bank-importer/import-presets",
+      "bank-importer/auto-import-plan",
+      "bank-importer/parsers/",
+    ],
+  },
+
+  // Tier 4: ledger storage, lowest first, and the coding agent beside it.
+  { name: "journals", tier: 4, files: ["modules/journals/"] },
+  {
+    name: "reconciliation",
+    tier: 4,
+    files: ["modules/reconciliation/"],
+    above: ["journals"],
+  },
+  {
+    name: "drafts",
+    tier: 4,
+    files: [
+      "bank-importer/draft-persistence",
+      "bank-importer/domain/DraftCategorizedTransaction",
+      "app/draft-categorization",
+      "app/draft-status",
+    ],
+    above: ["journals", "reconciliation"],
+  },
+  { name: "coding-agent", tier: 4, files: ["coding-agent/"] },
+
+  // Tier 5: domain workflows. They never import each other.
+  {
+    name: "statement-import",
+    tier: 5,
+    files: [
+      "bank-importer/statement-import",
+      "bank-importer/draft-import",
+      "bank-importer/pipeline",
+    ],
+  },
+  // Posting lives in its route file until PLAN.md M4.
+  { name: "posting", tier: 5, files: [] },
+  {
+    name: "reclassification",
+    tier: 5,
+    files: ["modules/draft-transactions/"],
+  },
+
+  // Tier 6: routes, reports, and hosting.
+  {
+    name: "app",
+    tier: 6,
+    files: [
+      "app/",
+      "app",
+      "boot",
+      "mailer",
+      "drizzle.config",
+      "layering",
+      "project-auth/",
+      "authz/",
+    ],
+  },
+];
+
+// Imports that break the rules today, each removed by the PLAN.md task named.
+const KNOWN_VIOLATIONS: readonly { from: string; to: string; task: string }[] =
+  [
+    // The auth type and the scoped-SQL helpers move down to ledger-sql;
+    // identity's text and amount helpers move down to values.
+    {
+      from: "app/draft-status.ts",
+      to: "app/reports/shared.ts",
+      task: "M1",
+    },
+    {
+      from: "modules/reconciliation/running-balance.test.ts",
+      to: "app/reports/shared.ts",
+      task: "M1",
+    },
+    {
+      from: "modules/journals/hledger.ts",
+      to: "bank-importer/draft-persistence.ts",
+      task: "M1",
+    },
+    {
+      from: "modules/reconciliation/duplicate-store.ts",
+      to: "bank-importer/draft-persistence.ts",
+      task: "M1",
+    },
+    {
+      from: "bank-importer/abacus/assemble.ts",
+      to: "modules/reconciliation/transaction-identity.ts",
+      task: "M1",
+    },
+    // The journal plan stops naming categorization's and drafts' types;
+    // importOptionsFromPreset moves up into the statement-import workflow.
+    {
+      from: "bank-importer/domain/TransactionGroup.ts",
+      to: "bank-importer/domain/CategorizedTransaction.ts",
+      task: "M2",
+    },
+    {
+      from: "bank-importer/domain/JournalPlan.ts",
+      to: "bank-importer/domain/DraftCategorizedTransaction.ts",
+      task: "M2",
+    },
+    {
+      from: "bank-importer/domain/JournalPlan.test.ts",
+      to: "bank-importer/domain/DraftCategorizedTransaction.ts",
+      task: "M2",
+    },
+    {
+      from: "bank-importer/import-presets.ts",
+      to: "bank-importer/categorization/llm-categorization.ts",
+      task: "M2",
+    },
+    {
+      from: "bank-importer/import-presets.ts",
+      to: "bank-importer/statement-import.ts",
+      task: "M2",
+    },
+    // Tests in the wrong module: toDraftRows is tested with the statement,
+    // and the draft reports are tested with draft status.
+    {
+      from: "bank-importer/abacus/Abacus.test.ts",
+      to: "bank-importer/draft-persistence.ts",
+      task: "M3",
+    },
+    {
+      from: "app/draft-status.test.ts",
+      to: "app/reports/draft-balance-assertions.ts",
+      task: "M3",
+    },
+    {
+      from: "app/draft-status.test.ts",
+      to: "app/reports/duplicate-drafts.ts",
+      task: "M3",
+    },
+  ];
+
+const API_ROOT = path.dirname(fileURLToPath(import.meta.url));
+const SKIPPED_DIRECTORIES = new Set(["node_modules", "dist", "migrations"]);
+
+function sourceFiles(directory = ""): string[] {
+  return readdirSync(path.join(API_ROOT, directory), {
+    withFileTypes: true,
+  }).flatMap((entry) => {
+    const relative = path.posix.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      if (SKIPPED_DIRECTORIES.has(entry.name) || entry.name.startsWith(".")) {
+        return [];
+      }
+      return sourceFiles(relative);
+    }
+    return entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")
+      ? [relative]
+      : [];
+  });
+}
+
+function holds(prefix: string, file: string): boolean {
+  if (prefix.endsWith("/")) return file.startsWith(prefix);
+  return file === `${prefix}.ts` || file.startsWith(`${prefix}.`);
+}
+
+// The module whose most specific `files` entry holds the file.
+function moduleOf(file: string): Module | undefined {
+  let found: { module: Module; length: number } | undefined;
+  for (const module of MODULES) {
+    for (const prefix of module.files) {
+      if (holds(prefix, file) && prefix.length > (found?.length ?? -1)) {
+        found = { module, length: prefix.length };
+      }
+    }
+  }
+  return found?.module;
+}
+
+// The package's own files a file imports, resolved to their paths.
+function importedFiles(file: string, known: ReadonlySet<string>): string[] {
+  const text = readFileSync(path.join(API_ROOT, file), "utf8");
+  return ts
+    .preProcessFile(text, true, true)
+    .importedFiles.map(({ fileName }) => fileName)
+    .filter((specifier) => specifier.startsWith("."))
+    .flatMap((specifier) => {
+      const target = path.posix.join(path.posix.dirname(file), specifier);
+      const candidates = [
+        target.replace(/\.js$/, ".ts"),
+        `${target}.ts`,
+        `${target}/index.ts`,
+      ];
+      const resolved = candidates.find((candidate) => known.has(candidate));
+      return resolved === undefined ? [] : [resolved];
+    });
+}
+
+function violation(from: Module, to: Module, target: string): string | null {
+  if (from === to) return null;
+  if (to.tier > from.tier) {
+    return `${from.name} (tier ${from.tier}) imports ${to.name}, a higher tier (${to.tier})`;
+  }
+  if (to.tier === from.tier && !(from.above ?? []).includes(to.name)) {
+    return `${from.name} imports ${to.name}, a tier ${to.tier} module it doesn't sit above`;
+  }
+  if (to.entries !== undefined && !to.entries.includes(target)) {
+    return `${from.name} imports ${to.name} past its entries (${to.entries.join(", ")})`;
+  }
+  return null;
+}
+
+function key(edge: { from: string; to: string }): string {
+  return `${edge.from} -> ${edge.to}`;
+}
+
+describe("backend layering", () => {
+  const files = sourceFiles();
+  const known = new Set(files);
+
+  it("puts every file in a module", () => {
+    expect(files.filter((file) => moduleOf(file) === undefined)).toEqual([]);
+  });
+
+  it("names same-tier modules that exist", () => {
+    const byName = new Map(MODULES.map((module) => [module.name, module]));
+    const wrong = MODULES.flatMap((module) =>
+      (module.above ?? [])
+        .filter((name) => byName.get(name)?.tier !== module.tier)
+        .map((name) => `${module.name} above ${name}`),
+    );
+    expect(wrong).toEqual([]);
+  });
+
+  it("imports only downward, and through entries", () => {
+    const found = new Map<string, string>();
+    for (const file of files) {
+      const from = moduleOf(file);
+      if (from === undefined) continue;
+      for (const target of importedFiles(file, known)) {
+        const to = moduleOf(target);
+        if (to === undefined) continue;
+        const reason = violation(from, to, target);
+        if (reason !== null) {
+          found.set(key({ from: file, to: target }), reason);
+        }
+      }
+    }
+
+    const listed = new Set(KNOWN_VIOLATIONS.map(key));
+    const unexpected = [...found]
+      .filter(([edge]) => !listed.has(edge))
+      .map(([edge, reason]) => `${edge}: ${reason}`);
+    const resolved = [...listed].filter((edge) => !found.has(edge));
+    expect({ unexpected, resolved }).toEqual({ unexpected: [], resolved: [] });
+  });
+});

@@ -14,10 +14,11 @@ import { duplicateDraftsReport } from "./reports/duplicate-drafts.js";
 const scope = { workspaceId: "workspace", userId: "user" };
 
 /*
- * Sample Savings (2) is checked to 1,500 on 10 Feb, then has four drafts: a
- * categorised pair that repeats one source key (a possible duplicate, and the
- * reason the 2 Mar balance misses by 20), and a 5 Mar draft whose balance
- * matches again. No Preset (4) has one uncategorised draft and no balances.
+ * Sample Savings (2) has a balance assertion of 1,500 on 10 Feb, then four
+ * drafts: a categorised pair that repeats one source key (a possible duplicate,
+ * and the reason the 2 Mar balance misses by 20), and a 5 Mar draft whose
+ * balance matches again. No Preset (4) has one uncategorised draft and no
+ * balances.
  */
 function ledger(): Database.Database {
   const sqlite = new Database(":memory:");

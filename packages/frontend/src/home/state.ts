@@ -15,7 +15,9 @@ import { joinNames, plural } from "../format";
  * What Home says, as a pure function of the summary (PLAN.md §11 P1). In
  * precedence order: no accounts, then whatever blocks the drafts (problems
  * before categories, as `postingBlocks` marks them), then drafts ready to add,
- * then nothing imported, then up to date.
+ * then nothing imported, then new statements to import. An empty Review
+ * doesn't mean the books are up to date: a statement may not have been
+ * imported yet, so Home never says so.
  */
 
 export type HomeStateId =
@@ -24,7 +26,7 @@ export type HomeStateId =
   | "problems"
   | "uncategorised"
   | "ready"
-  | "up-to-date";
+  | "import-new";
 
 export interface HomeLink {
   label: string;
@@ -35,13 +37,14 @@ export interface HomeCard {
   /** The medallion figure; absent when there is nothing to count. */
   count?: number;
   title: string;
-  body: string;
+  body?: string;
   action: HomeLink;
 }
 
 export interface HomeView {
   state: HomeStateId;
-  greeting: string;
+  /** The page heading; absent when there is nothing to review. */
+  greeting?: string;
   card: HomeCard;
 }
 
@@ -82,7 +85,7 @@ export function homeState(summary: HomeSummary): HomeView {
     );
     return {
       state: "uncategorised",
-      greeting: "You're nearly up to date",
+      greeting: "Almost ready to add to your books",
       card: {
         count: categories.count,
         title: checkText(categories),
@@ -90,7 +93,7 @@ export function homeState(summary: HomeSummary): HomeView {
           where
             ? `They're waiting in the drafts for ${where}.`
             : "They're waiting in the drafts."
-        } Nothing is added to your books until you've checked them.`,
+        } Nothing is added to your books until you've reviewed them.`,
         action: { label: "Review transactions", to: review },
       },
     };
@@ -116,18 +119,16 @@ export function homeState(summary: HomeSummary): HomeView {
       greeting: "Nothing imported yet",
       card: {
         title: "Import your first statement",
-        body: `Drop in a statement for ${where}. Nothing reaches your books until you've checked it.`,
+        body: `Drop in a statement for ${where}. Nothing reaches your books until you've reviewed it.`,
         action: { label: "Import statements", to: "/import" },
       },
     };
   }
 
   return {
-    state: "up-to-date",
-    greeting: "You're up to date",
+    state: "import-new",
     card: {
-      title: "Every account is checked to its last statement",
-      body: "Import the next statement when it arrives.",
+      title: "Import new statements",
       action: { label: "Import statements", to: "/import" },
     },
   };

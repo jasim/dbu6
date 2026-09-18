@@ -60,8 +60,8 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
         tone,
         text:
           total === 1
-            ? "Nothing was imported."
-            : `Nothing was imported. ${stuck} of ${plural(total, "file")} need${stuck === 1 ? "s" : ""} a fix.`,
+            ? "Sorry, unable to import transactions."
+            : `Sorry, unable to import transactions. ${stuck} of ${plural(total, "file")} need${stuck === 1 ? "s" : ""} a fix.`,
         next: null,
       };
     }
@@ -70,7 +70,7 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
       const imported = refusal.imported_groups ?? [];
       const failed = refusal.failed_group.preset_name;
       if (imported.length === 0) {
-        return { tone, text: "Nothing was imported.", next: null };
+        return { tone, text: "Sorry, unable to import transactions.", next: null };
       }
       const done = joinNames(imported.map((one) => one.preset_name));
       const removed = imported.flatMap((one) => one.file_names);
@@ -83,7 +83,7 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
     case "network":
     case "forbidden":
     case "unexpected":
-      return { tone, text: "Nothing was imported.", next: null };
+      return { tone, text: "Sorry, unable to import transactions.", next: null };
   }
 }
 

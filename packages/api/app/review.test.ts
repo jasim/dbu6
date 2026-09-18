@@ -5,10 +5,10 @@ import { listReviewAccounts, loadReviewAccount } from "./review.js";
 const scope = { workspaceId: "workspace", userId: "user" };
 
 /*
- * Sample Savings (2) is checked to 1,500 on 10 Feb and has three drafts: a
- * pair repeating one source key, whose second balance misses by 40, and an
- * uncategorised one. Sample Card (1) has one categorised draft. Sample Loan
- * (4) is a Liability with no preset. Cash (6) has no drafts.
+ * Sample Savings (2) has a balance assertion of 1,500 on 10 Feb and three
+ * drafts: a pair repeating one source key, whose second balance misses by 40,
+ * and an uncategorised one. Sample Card (1) has one categorised draft. Sample
+ * Loan (4) is a Liability with no preset. Cash (6) has no drafts.
  */
 function ledger(): Database.Database {
   const sqlite = new Database(":memory:");

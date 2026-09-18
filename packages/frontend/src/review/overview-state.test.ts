@@ -51,7 +51,7 @@ describe("overviewView", () => {
     ]);
     expect(view.checks.every((row) => row.link === undefined)).toBe(true);
     expect(phraseText(view.posting!)).toBe(
-      "Adds 21 transactions from 1–13 Sep. Sample Savings will then be checked to 13 Sep at ₹3,26,445.00.",
+      "Adds 21 transactions from 1–13 Sep. The last balance assertion for Sample Savings will then be ₹3,26,445.00 on 13 Sep.",
     );
     expect(view.posting).toContainEqual({ figure: "₹3,26,445.00" });
   });
@@ -138,7 +138,7 @@ describe("postedView", () => {
 
     expect(view.verdict).toBe("Added to your books");
     expect(phraseText(view.outcome)).toBe(
-      "21 transactions added. Sample Savings is checked to 13 Sep at ₹3,26,445.00.",
+      "21 transactions added. The last balance assertion for Sample Savings is now ₹3,26,445.00 on 13 Sep.",
     );
     expect(view.next).toEqual({ label: "Review Sample Card", to: "/review/1" });
     expect(view.also).toEqual({ label: "All accounts", to: "/review" });

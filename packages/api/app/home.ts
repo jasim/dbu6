@@ -71,7 +71,7 @@ export function loadHomeSummary(
         ...draftCounts(standing.drafts),
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort(byLastAssertion);
 
   return {
     accounts,
@@ -82,6 +82,28 @@ export function loadHomeSummary(
       (account) => account.in_ledger && journalAccounts.has(account.account_id),
     ),
   };
+}
+
+/**
+ * The account whose statements were last imported longest ago comes first:
+ * accounts with no posted balance assertion (missing from the ledger, then
+ * never imported), then by the assertion's date, then by name.
+ */
+function byLastAssertion(a: HomeAccount, b: HomeAccount): number {
+  return (
+    assertionRank(a) - assertionRank(b) ||
+    assertionDate(a).localeCompare(assertionDate(b)) ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function assertionRank(account: HomeAccount): number {
+  if (!account.in_ledger) return 0;
+  return account.checkpoint === null ? 1 : 2;
+}
+
+function assertionDate(account: HomeAccount): string {
+  return (account.in_ledger && account.checkpoint?.date) || "";
 }
 
 function addCounts(a: DraftCounts, b: DraftCounts): DraftCounts {

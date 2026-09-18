@@ -100,7 +100,7 @@ export function postedView(
     verdict: "Added to your books",
     outcome: [
       `${plural(draftsPosted, "transaction")} added.`,
-      ...checkedTo(before, "is"),
+      ...lastAssertion(before, "is now"),
     ],
     ...(next
       ? {
@@ -162,19 +162,20 @@ function postingPhrase(detail: ReviewAccountDetail): Phrase {
     : "";
   return [
     `Adds ${plural(account.drafts, "transaction")}${span}.`,
-    ...checkedTo(detail, "will then be"),
+    ...lastAssertion(detail, "will then be"),
   ];
 }
 
-// " HDFC Savings is checked to 13 Sep at ₹3,26,445.00.", from the last
-// balance the drafts carry; nothing when they carry none.
-function checkedTo(detail: ReviewAccountDetail, verb: string): Phrase {
+// " The last balance assertion for HDFC Savings is now ₹3,26,445.00 on
+// 13 Sep.", from the last balance the drafts carry; nothing when they carry
+// none.
+function lastAssertion(detail: ReviewAccountDetail, verb: string): Phrase {
   const { account, closing } = detail;
   if (closing === null) return [];
   return [
-    ` ${account.name} ${verb} checked to ${formatShortDate(closing.date)} at `,
+    ` The last balance assertion for ${account.name} ${verb} `,
     { figure: formatBalance(closing.balance, account.kind) },
-    ".",
+    ` on ${formatShortDate(closing.date)}.`,
   ];
 }
 

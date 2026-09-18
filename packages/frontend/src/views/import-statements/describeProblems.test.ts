@@ -108,10 +108,12 @@ describe("plan rejections", () => {
     const [problem] = describeProblems(error);
     expect(describeProblems(error)).toHaveLength(1);
     expect(problem.subject).toBe("notes.txt");
-    expect(problem.title).toBe("Statement format is new and unrecognized");
-    expect(problem.fix).toBe("Create a parser for this format.");
+    expect(problem.title).toBe("Could not recognize this statement format");
+    expect(problem.fix).toBe(
+      "We don't have a parser for this format. Automatically create one below.",
+    );
     expect(problem.context).toContain(
-      "We do not have a parser for this specific format.",
+      "The AI agent shows you its plan before it writes one.",
     );
     expect(problem.facts).toEqual([
       {
@@ -142,11 +144,12 @@ describe("plan rejections", () => {
     );
     expect(problem.agent?.prompt).not.toContain("curl");
     expect(problem.agent?.afterwards).toContain("drop this file again");
+    expect(problem.agent?.goal).toBe("Create new parser automatically");
     expect(problem.technical).toContain("auto_import_files_unresolved");
 
     expect(describeBatch({ kind: "failed", failure: error })).toEqual({
       tone: "attention",
-      text: "Nothing was imported. 1 of 2 files needs a fix.",
+      text: "Sorry, unable to import transactions. 1 of 2 files needs a fix.",
       next: null,
     });
     expect(
@@ -249,7 +252,7 @@ describe("plan rejections", () => {
     );
     expect(describeBatch({ kind: "failed", failure: error })).toEqual({
       tone: "attention",
-      text: "Nothing was imported.",
+      text: "Sorry, unable to import transactions.",
       next: null,
     });
     const [problem] = describeProblems(error);
@@ -324,6 +327,7 @@ describe("account import failures", () => {
     // The difference reads in the context too, without opening Details.
     expect(problem.context).toContain("The transactions end ₹100.00 away");
     expect(problem.context).toContain("the parser misread one row");
+    expect(problem.agent?.goal).toBe("Find the misread row");
     expect(problem.agent?.prompt).toContain(
       "into Sample Bank (assets:bank:sample)",
     );
@@ -341,7 +345,7 @@ describe("account import failures", () => {
     expect(problem.tone).toBe("problem");
     expect(describeBatch({ kind: "failed", failure: error })).toMatchObject({
       tone: "problem",
-      text: "Nothing was imported.",
+      text: "Sorry, unable to import transactions.",
     });
     expect(
       describeFileStatus(resolvedRow, {
@@ -371,6 +375,7 @@ describe("account import failures", () => {
     expect(problem.context).toContain(
       "some days between the statements are missing",
     );
+    expect(problem.agent?.goal).toBe("Find what's missing");
   });
 
   it("offers to remove a duplicate upload without an agent", () => {
@@ -497,6 +502,7 @@ describe("account import failures", () => {
     expect(problem.context).toContain(
       "Your books were last confirmed at ₹2,500.00 on 31 Aug 2026",
     );
+    expect(problem.agent?.goal).toBe("Compare with your books");
     expect(problem.agent?.prompt).toContain(
       "balance assertion for assets:bank:sample",
     );
@@ -526,6 +532,7 @@ describe("account import failures", () => {
     expect(problem.fileNames).toEqual(["card-aug.xls"]);
     expect(problem.title).toBe("Card's amount owed not found");
     expect(problem.actions).toEqual([]);
+    expect(problem.agent?.goal).toBe("Fix the parser");
     expect(problem.agent?.prompt).toContain("emit it as `closing`");
   });
 
@@ -540,6 +547,7 @@ describe("account import failures", () => {
     expect(problem.subject).toBe("Sample Bank");
     expect(problem.title).toBe("Import stopped with an unexpected error");
     expect(problem.context).toContain(PAYLOADS.ambiguous_duplicate.message);
+    expect(problem.agent?.goal).toBe("Investigate the error");
     expect(problem.agent?.prompt).toContain('"error": "ambiguous_duplicate"');
   });
 
@@ -556,7 +564,7 @@ describe("account import failures", () => {
     expect(problem.agent).toBeNull();
     expect(problem.technical).toContain('"error": "something_new"');
     expect(describeBatch({ kind: "failed", failure: error }).text).toBe(
-      "Nothing was imported.",
+      "Sorry, unable to import transactions.",
     );
   });
 

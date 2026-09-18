@@ -38,6 +38,7 @@ export type HomeAccount = z.infer<typeof homeAccountSchema>;
 export type HomeLedgerAccount = Extract<HomeAccount, { in_ledger: true }>;
 
 export const homeSummarySchema = z.object({
+  // Oldest balance assertion first; accounts without one lead.
   accounts: z.array(homeAccountSchema),
   // Over every draft, including ones on accounts no preset names.
   totals: draftCountsSchema,
