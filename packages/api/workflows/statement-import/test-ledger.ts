@@ -1,18 +1,18 @@
 import Database from "better-sqlite3";
+import { accountsTable } from "../../schema/accounts.js";
 import type { Ledger } from "../../modules/ledger-sql/index.js";
 import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
 
 /**
- * A ledger for the statement-import tests. Its Drizzle rows are a stub that
- * holds nothing and writes nowhere; its raw queries read an in-memory SQLite
- * that holds `checkpoint`, when given, as the account's one posted balance
- * assertion.
+ * A ledger for the statement-import tests, holding one account, `account`.
+ * Its Drizzle rows are a stub that finds that account and nothing else, and
+ * writes nowhere; its raw queries read an in-memory SQLite that holds the
+ * account and, when given, `checkpoint` as its one posted balance assertion.
  */
-export function testImportLedger(checkpoint?: {
-  account: string;
-  date: string;
-  balance: number;
-}): Ledger {
+export function testImportLedger(
+  account: string,
+  checkpoint?: { date: string; balance: number },
+): Ledger {
   const sqlite = new Database(":memory:");
   sqlite.exec(`
     CREATE TABLE accounts (
@@ -29,10 +29,10 @@ export function testImportLedger(checkpoint?: {
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
     );
   `);
+  sqlite
+    .prepare("INSERT INTO accounts VALUES (1, 'workspace', 'user', ?)")
+    .run(account);
   if (checkpoint) {
-    sqlite
-      .prepare("INSERT INTO accounts VALUES (1, 'workspace', 'user', @account)")
-      .run(checkpoint);
     sqlite
       .prepare("INSERT INTO journals VALUES (1, 'workspace', 'user', @date)")
       .run(checkpoint);
@@ -42,20 +42,26 @@ export function testImportLedger(checkpoint?: {
       )
       .run(checkpoint);
   }
-  return { db: emptyDb(), sqlite, auth: testLedgerAuth() };
+  return {
+    db: stubDb({ id: 1, name: account, parent_id: null }),
+    sqlite,
+    auth: testLedgerAuth(),
+  };
 }
 
-function emptyDb(): any {
-  const chain: any = {
-    select: () => chain,
-    from: () => chain,
-    innerJoin: () => chain,
-    where: () => chain,
-    orderBy: () => chain,
-    limit: () => chain,
-    all: () => [],
-    get: () => undefined,
-    transaction: (run: (tx: any) => unknown) => run(chain),
+function stubDb(account: object): any {
+  const rows = (table: unknown) => (table === accountsTable ? [account] : []);
+  const query = (table: unknown): any => ({
+    innerJoin: () => query(table),
+    where: () => query(table),
+    orderBy: () => query(table),
+    limit: () => query(table),
+    all: () => rows(table),
+    get: () => rows(table)[0],
+  });
+  const db: any = {
+    select: () => ({ from: (table: unknown) => query(table) }),
+    transaction: (run: (tx: any) => unknown) => run(db),
   };
-  return chain;
+  return db;
 }

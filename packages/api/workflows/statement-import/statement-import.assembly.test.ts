@@ -121,20 +121,24 @@ describe("runStatementImport over several parts", () => {
   ]);
 
   it("keys textually identical rows from different parts as distinct occurrences", async () => {
-    await runStatementImport([cut, full], options(), testImportLedger(), [
-      "cut",
-      "full",
-    ]);
+    await runStatementImport(
+      [cut, full],
+      options(),
+      testImportLedger(BASE_ACCOUNT),
+      ["cut", "full"],
+    );
     const keys = keysReachingTail();
     expect(keys).toHaveLength(4);
     expect(new Set(keys).size).toBe(4);
   });
 
   it("keys before the reconciliation filter, so a mid-day checkpoint does not renumber the day", async () => {
-    await runStatementImport([cut, full], options(), testImportLedger(), [
-      "cut",
-      "full",
-    ]);
+    await runStatementImport(
+      [cut, full],
+      options(),
+      testImportLedger(BASE_ACCOUNT),
+      ["cut", "full"],
+    );
     const unfiltered = keysReachingTail();
 
     // Checkpoint on the first auto-debit (balance 850): the filter trims
@@ -143,11 +147,7 @@ describe("runStatementImport over several parts", () => {
     await runStatementImport(
       [cut, full],
       options(),
-      testImportLedger({
-        account: BASE_ACCOUNT,
-        date: "2026-06-18",
-        balance: 850,
-      }),
+      testImportLedger(BASE_ACCOUNT, { date: "2026-06-18", balance: 850 }),
       ["cut", "full"],
     );
     const filtered = keysReachingTail();
@@ -157,19 +157,23 @@ describe("runStatementImport over several parts", () => {
   it("blames a part that fails its own validation by name", async () => {
     const bad = bank(900, [["2026-06-18", -50, "x"]], { closing: 1 });
     await expect(
-      runStatementImport([cut, bad], options(), testImportLedger(), [
-        "cut.csv",
-        "bad.csv",
-      ]),
+      runStatementImport(
+        [cut, bad],
+        options(),
+        testImportLedger(BASE_ACCOUNT),
+        ["cut.csv", "bad.csv"],
+      ),
     ).rejects.toMatchObject({
       name: "StatementPartInvalidError",
       part: "bad.csv",
     });
     await expect(
-      runStatementImport([cut, bad], options(), testImportLedger(), [
-        "cut.csv",
-        "bad.csv",
-      ]),
+      runStatementImport(
+        [cut, bad],
+        options(),
+        testImportLedger(BASE_ACCOUNT),
+        ["cut.csv", "bad.csv"],
+      ),
     ).rejects.toBeInstanceOf(StatementPartInvalidError);
   });
 
@@ -189,7 +193,7 @@ describe("runStatementImport over several parts", () => {
     const result = await runStatementImport(
       [last, first, middle],
       options(),
-      testImportLedger(),
+      testImportLedger(BASE_ACCOUNT),
     );
     expect(result.balance_metadata.opening).toEqual({
       extracted: 1000,
@@ -212,7 +216,11 @@ describe("runStatementImport over several parts", () => {
       closing: 500,
     });
     await expect(
-      runStatementImport([declaredWrong], options(), testImportLedger()),
+      runStatementImport(
+        [declaredWrong],
+        options(),
+        testImportLedger(BASE_ACCOUNT),
+      ),
     ).rejects.toBeInstanceOf(BalanceMismatchError);
     expect(draftImportCalls).toHaveLength(0);
   });

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { formatPlainDate, type Temporal } from "@sapporta/shared/temporal";
 import type { LedgerAuth } from "../ledger-sql/index.js";
 import {
@@ -20,6 +20,7 @@ import {
 } from "../transaction-identity/index.js";
 
 export interface DuplicateLookupInput extends TransactionIdentityInput {
+  baseAccountId: number;
   databaseDate: Temporal.PlainDate;
 }
 
@@ -53,79 +54,79 @@ export class AmbiguousDuplicateError extends Error {
   }
 }
 
-function nullable(value: string | null | undefined): string | null {
-  return value ?? null;
-}
+// The stored rows a lookup reads: those carrying the row's key, or those on
+// its date.
+type Narrowing = { key: string } | { date: Temporal.PlainDate };
 
-export function findDuplicateCandidates(
+/**
+ * The stored draft or posted journal entry a statement row duplicates, or
+ * null when the row is new. The transaction-identity matchers decide what is
+ * the same transaction; the queries only fetch what might be. A match on the
+ * row's key wins over a looser one on its date, and more than one match
+ * throws, since which of them the row duplicates can't be decided
+ * automatically.
+ */
+export function findDuplicate(
   db: any,
   input: DuplicateLookupInput,
   auth: LedgerAuth,
-): DuplicateCandidate[] {
-  const draftAccess = auth.rowSecurity.forTable(draftTransactions);
-  const journalAccess = auth.rowSecurity.forTable(journals);
-  const entryAccess = auth.rowSecurity.forTable(journalEntries);
-
-  if (input.sourceTransactionKey !== null) {
-    const exactDraftWhere = and(
-      input.baseAccountId === null
-        ? undefined
-        : eq(draftTransactionsTable.base_account_id, input.baseAccountId),
-      eq(
-        draftTransactionsTable.source_transaction_key,
-        input.sourceTransactionKey,
+): DuplicateCandidate | null {
+  const keyed =
+    input.sourceTransactionKey === null
+      ? []
+      : matchStored(db, input, auth, { key: input.sourceTransactionKey });
+  const candidates =
+    keyed.length > 0
+      ? keyed
+      : matchStored(db, input, auth, { date: input.databaseDate });
+  if (candidates.length > 1) {
+    throw new AmbiguousDuplicateError(
+      input.sourceTransactionKey,
+      candidates.map((candidate) =>
+        candidate.target === "draft"
+          ? `draft:${candidate.id}`
+          : `journal:${candidate.id}:entry:${candidate.journalEntryId}`,
       ),
     );
-    const exactDrafts = db
-      .select({ id: draftTransactionsTable.id })
-      .from(draftTransactionsTable)
-      .where(draftAccess.ownedRows(exactDraftWhere))
-      .all()
-      .map((row: { id: number }) => ({
-        target: "draft" as const,
-        id: row.id,
-        matchType: "source-key" as const,
-        confidence: 1,
-      }));
-
-    const exactJournalWhere = and(
-      eq(
-        journalEntriesTable.source_transaction_key,
-        input.sourceTransactionKey,
-      ),
-      journalAccess.ownedRows(),
-      entryAccess.ownedRows(),
-    );
-    const exactJournals = db
-      .select({
-        journalId: journalsTable.id,
-        entryId: journalEntriesTable.id,
-      })
-      .from(journalEntriesTable)
-      .innerJoin(
-        journalsTable,
-        eq(journalsTable.id, journalEntriesTable.journal_id),
-      )
-      .where(exactJournalWhere)
-      .all()
-      .map((row: { journalId: number; entryId: number }) => ({
-        target: "journal" as const,
-        id: row.journalId,
-        journalEntryId: row.entryId,
-        matchType: "source-key" as const,
-        confidence: 1,
-      }));
-    const exact = [...exactDrafts, ...exactJournals];
-    if (exact.length > 0) return exact;
   }
+  return candidates[0] ?? null;
+}
 
-  const draftWhere = and(
-    input.baseAccountId === null
-      ? undefined
-      : eq(draftTransactionsTable.base_account_id, input.baseAccountId),
-    eq(draftTransactionsTable.date, input.databaseDate),
+function matchStored(
+  db: any,
+  input: DuplicateLookupInput,
+  auth: LedgerAuth,
+  narrowing: Narrowing,
+): DuplicateCandidate[] {
+  const drafts = storedDrafts(db, input.baseAccountId, narrowing, auth).flatMap(
+    (draft): DuplicateCandidate[] => {
+      const match = matchDraftTransactions(input, draft);
+      return match ? [{ target: "draft", id: draft.id, ...match }] : [];
+    },
   );
-  const draftRows = db
+  const entries = storedJournals(db, narrowing, auth).flatMap((journal) =>
+    matchTransactionToJournal(input, journal).map(
+      (match): DuplicateCandidate => ({
+        target: "journal",
+        id: match.journalId,
+        journalEntryId: match.journalEntryId,
+        matchType: match.matchType,
+        confidence: match.confidence,
+      }),
+    ),
+  );
+  return [...drafts, ...entries];
+}
+
+// The base account's drafts the narrowing reads.
+function storedDrafts(
+  db: any,
+  baseAccountId: number,
+  narrowing: Narrowing,
+  auth: LedgerAuth,
+): Array<TransactionIdentityInput & { id: number }> {
+  const draftAccess = auth.rowSecurity.forTable(draftTransactions);
+  const rows = db
     .select({
       id: draftTransactionsTable.id,
       date: draftTransactionsTable.date,
@@ -138,31 +139,49 @@ export function findDuplicateCandidates(
       sourceTransactionKey: draftTransactionsTable.source_transaction_key,
     })
     .from(draftTransactionsTable)
-    .where(draftAccess.ownedRows(draftWhere))
+    .where(
+      draftAccess.ownedRows(
+        and(
+          eq(draftTransactionsTable.base_account_id, baseAccountId),
+          "key" in narrowing
+            ? eq(draftTransactionsTable.source_transaction_key, narrowing.key)
+            : eq(draftTransactionsTable.date, narrowing.date),
+        ),
+      ),
+    )
     .all();
+  return rows.map((row: any) => ({
+    ...row,
+    date: formatPlainDate(row.date),
+    sourceReference: row.sourceReference ?? null,
+    sourceTransactionKey: row.sourceTransactionKey ?? null,
+  }));
+}
 
-  const draftCandidates: DuplicateCandidate[] = draftRows.flatMap(
-    (row: any) => {
-      const match = matchDraftTransactions(input, {
-        baseAccountId: row.baseAccountId,
-        date: formatPlainDate(row.date),
-        narration: row.narration,
-        withdrawal: row.withdrawal,
-        deposit: row.deposit,
-        accountId: row.accountId,
-        sourceReference: nullable(row.sourceReference),
-        sourceTransactionKey: nullable(row.sourceTransactionKey),
-      });
-      return match ? [{ target: "draft" as const, id: row.id, ...match }] : [];
-    },
-  );
-
-  const journalWhere = and(
-    eq(journalsTable.date, input.databaseDate),
-    journalAccess.ownedRows(),
-    entryAccess.ownedRows(),
-  );
-  const entryRows = db
+// The posted journals the narrowing reads, each with all of its entries: a
+// journal holding an entry with the key, or a journal on the date.
+function storedJournals(
+  db: any,
+  narrowing: Narrowing,
+  auth: LedgerAuth,
+): JournalCandidate[] {
+  const journalAccess = auth.rowSecurity.forTable(journals);
+  const entryAccess = auth.rowSecurity.forTable(journalEntries);
+  const journalWhere =
+    "key" in narrowing
+      ? inArray(
+          journalsTable.id,
+          db
+            .select({ id: journalEntriesTable.journal_id })
+            .from(journalEntriesTable)
+            .where(
+              entryAccess.ownedRows(
+                eq(journalEntriesTable.source_transaction_key, narrowing.key),
+              ),
+            ),
+        )
+      : eq(journalsTable.date, narrowing.date);
+  const rows = db
     .select({
       journalId: journalsTable.id,
       journalDate: journalsTable.date,
@@ -180,11 +199,13 @@ export function findDuplicateCandidates(
       journalsTable,
       eq(journalsTable.id, journalEntriesTable.journal_id),
     )
-    .where(journalWhere)
+    .where(
+      and(journalWhere, journalAccess.ownedRows(), entryAccess.ownedRows()),
+    )
     .all();
 
   const journalsById = new Map<number, JournalCandidate>();
-  for (const row of entryRows as any[]) {
+  for (const row of rows as any[]) {
     let journal = journalsById.get(row.journalId);
     if (!journal) {
       journal = {
@@ -200,24 +221,10 @@ export function findDuplicateCandidates(
       accountId: row.accountId,
       debit: row.debit,
       credit: row.credit,
-      comment: nullable(row.comment),
-      sourceReference: nullable(row.sourceReference),
-      sourceTransactionKey: nullable(row.sourceTransactionKey),
+      comment: row.comment ?? null,
+      sourceReference: row.sourceReference ?? null,
+      sourceTransactionKey: row.sourceTransactionKey ?? null,
     });
   }
-
-  const journalCandidates: DuplicateCandidate[] = [];
-  for (const journal of journalsById.values()) {
-    journalCandidates.push(
-      ...matchTransactionToJournal(input, journal).map((match) => ({
-        target: "journal" as const,
-        id: match.journalId,
-        journalEntryId: match.journalEntryId,
-        matchType: match.matchType,
-        confidence: match.confidence,
-      })),
-    );
-  }
-
-  return [...draftCandidates, ...journalCandidates];
+  return [...journalsById.values()];
 }

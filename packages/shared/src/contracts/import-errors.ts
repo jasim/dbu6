@@ -9,6 +9,13 @@ import { z } from "zod";
  */
 
 export const statementImportErrorSchema = z.discriminatedUnion("error", [
+  // The import names an account the ledger doesn't have: a freeform request's
+  // account, or a preset's base_account.
+  z.object({
+    error: z.literal("import_account_not_found"),
+    message: z.string(),
+    hint: z.string(),
+  }),
   // The statement doesn't line up with the ledger's last reconciled balance.
   z.object({
     error: z.literal("reconciliation_match_failed"),

@@ -95,6 +95,58 @@ describe("draft persistence reconciliation", () => {
     ).toEqual({ count: 0 });
   });
 
+  it("imports a row whose key is on a journal that no longer touches the base account", () => {
+    const { db, sqlite } = setup();
+    // The posted row's journal once had the base account's leg; it was
+    // edited onto another account, so the journal is not this account's.
+    const journal = db
+      .insert(journalsTable)
+      .values({
+        workspace_id: "workspace",
+        scoped_to_user_id: "user",
+        date: parsePlainDate("2026-05-07"),
+        description: "Expenses",
+      })
+      .returning({ id: journalsTable.id })
+      .get();
+    db.insert(journalEntriesTable)
+      .values([
+        {
+          workspace_id: "workspace",
+          scoped_to_user_id: "user",
+          journal_id: journal.id,
+          account_id: SOFTWARE_ACCOUNT_ID,
+          debit: 100,
+          credit: 0,
+          comment: "Merchant",
+          source_transaction_key: "moved-key",
+        },
+        {
+          workspace_id: "workspace",
+          scoped_to_user_id: "user",
+          journal_id: journal.id,
+          account_id: OFFICE_ACCOUNT_ID,
+          debit: 0,
+          credit: 100,
+        },
+      ])
+      .run();
+
+    const row: Abacus = {
+      ...tx("moved-key"),
+      withdrawal: 100,
+      deposit: 0,
+      balance: -200,
+    };
+    const rows = draftRows(row, SOFTWARE_ACCOUNT_ID);
+    expect(
+      persistDrafts(db, rows.rows, rows.expectedClosingByDate, auth),
+    ).toMatchObject({ inserted: 1, duplicates: 0 });
+    expect(
+      sqlite.prepare("SELECT COUNT(*) AS count FROM draft_transactions").get(),
+    ).toEqual({ count: 1 });
+  });
+
   it("places one assertion on the final effective draft only after dedupe", () => {
     const { db, sqlite } = setup();
     const first = tx("first-key");

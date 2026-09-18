@@ -23,7 +23,8 @@ import {
 // preset's custom mappings. The statement states its opening and closing
 // balances, and the parsed statement keeps them in its type, so the rows are
 // checked against both before anything is saved. A parse or balance failure
-// is thrown as the statement's own error.
+// is thrown as the statement's own error, and an account the ledger doesn't
+// have as the import's.
 
 export interface FreeformStatement {
   // The ledger account, as the user named it.
@@ -34,28 +35,18 @@ export interface FreeformStatement {
   sourceName: string;
 }
 
-export type FreeformImportOutcome =
-  // The drafts would otherwise be saved with no base account at all.
-  | { kind: "account-not-found" }
-  | { kind: "imported"; result: StatementImportResult };
-
 export async function importFreeformStatement(
   freeform: FreeformStatement,
-  ledgerAccountNames: ReadonlySet<string>,
   ledger: Ledger,
-): Promise<FreeformImportOutcome> {
+): Promise<StatementImportResult> {
   const { baseAccount, accountKind, statement, sourceName } = freeform;
-  if (!ledgerAccountNames.has(baseAccount)) {
-    return { kind: "account-not-found" };
-  }
-
   console.log(
     `[abacus-import] ${statement.rows.length} row(s) from ${JSON.stringify(sourceName)} into ${baseAccount}`,
   );
   const llm = await categorizationLlm();
   const balanced = abacusStatementFromJson(statement);
   verifyDeclaredBalances(balanced);
-  const result = await runStatementImport(
+  return runStatementImport(
     [balanced],
     {
       baseAccount: parseAccount(baseAccount),
@@ -66,5 +57,4 @@ export async function importFreeformStatement(
     ledger,
     [sourceName],
   );
-  return { kind: "imported", result };
 }

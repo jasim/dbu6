@@ -16,10 +16,7 @@ export {
   type DuplicateDraftSourceRow,
   type DuplicateJournalEntrySourceRow,
 } from "./duplicate-diagnostics.js";
-export {
-  AmbiguousDuplicateError,
-  findDuplicateCandidates,
-} from "./duplicate-store.js";
+export { AmbiguousDuplicateError, findDuplicate } from "./duplicate-store.js";
 export {
   baseAccountRunningBalanceCtes,
   failingDraftAssertionsSelect,

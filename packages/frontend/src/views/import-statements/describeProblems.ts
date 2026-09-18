@@ -12,6 +12,7 @@ import {
     genericFailurePrompt,
     identifierMismatchPrompt,
     identifierRequiredPrompt,
+    missingAccountPrompt,
     noPresetPrompt,
     openingBalancePrompt,
     partInvalidPrompt,
@@ -84,6 +85,7 @@ export interface Problem {
 // don't add up; attention when something needs setting up. The codes without
 // a problem of their own take the unexpected-error one, destructive too.
 const STATEMENT_ERROR_TONE: Record<StatementImportErrorCode, ProblemTone> = {
+    import_account_not_found: "attention",
     balance_mismatch: "problem",
     segment_balance_mismatch: "problem",
     statement_boundary_mismatch: "problem",
@@ -320,6 +322,19 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
     };
 
     switch (refusal.error) {
+        case "import_account_not_found":
+            return {
+                ...base,
+                title: "Account not in your books",
+                fix: `Add ${group.base_account} to your accounts, or set the preset to an account you have.`,
+                context: `${group.preset_name} imports into ${group.base_account}, which isn't in your accounts, so its transactions would belong to no account. The following AI prompt can set it up.`,
+                actions: [{kind: "link", label: "Open accounts", to: "/accounts"}],
+                agent: {
+                    prompt: missingAccountPrompt(refusal),
+                    afterwards: RETRY_FROM_SCREEN,
+                    goal: "Set up the account",
+                },
+            };
         case "balance_mismatch": {
             // The server says when a gap is the likely cause.
             const gap = refusal.suspected_gap;

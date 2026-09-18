@@ -20,7 +20,10 @@ import {
   StatementPartInvalidError,
   StatementPartUnjoinableError,
 } from "../modules/statement/index.js";
-import type { ImportRefusal } from "../workflows/statement-import/index.js";
+import {
+  AccountNotFoundError,
+  type ImportRefusal,
+} from "../workflows/statement-import/index.js";
 import {
   categorizationErrorResponse,
   importErrorResponse,
@@ -43,6 +46,15 @@ const cases: Array<{
   status: 400 | 422;
   body: Record<string, unknown>;
 }> = [
+  {
+    code: "import_account_not_found",
+    error: new AccountNotFoundError("Sample Bank"),
+    status: 422,
+    body: {
+      message: "The ledger has no account named Sample Bank.",
+      hint: expect.stringMatching(/Accounts/),
+    },
+  },
   {
     code: "reconciliation_match_failed",
     error: new ReconciliationMatchError("no row lands on the checkpoint", {

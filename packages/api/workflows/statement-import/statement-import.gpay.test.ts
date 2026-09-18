@@ -137,13 +137,17 @@ describe("Google Pay enrichment on the statement import", () => {
        <div>Jul 2, 2026, 9:15 AM</div>`,
     );
 
-    await runStatementImport([statement()], options(null), testImportLedger());
+    await runStatementImport(
+      [statement()],
+      options(null),
+      testImportLedger(BASE_ACCOUNT),
+    );
     const plain = draftImportCalls[0].transactions;
 
     const result = await runStatementImport(
       [statement()],
       options(html),
-      testImportLedger(),
+      testImportLedger(BASE_ACCOUNT),
     );
     const enriched = draftImportCalls[1].transactions;
 
@@ -172,7 +176,7 @@ describe("Google Pay enrichment on the statement import", () => {
     const result = await runStatementImport(
       [statement()],
       options(null),
-      testImportLedger(),
+      testImportLedger(BASE_ACCOUNT),
     );
     expect(result.gpay_enriched_count).toBe(0);
     expect(draftImportCalls[0].transactions.map((t) => t.narration)).toEqual([
@@ -219,11 +223,7 @@ describe("Google Pay enrichment on the statement import", () => {
     const result = await runStatementImport(
       [part],
       options(html),
-      testImportLedger({
-        account: BASE_ACCOUNT,
-        date: "2026-07-01",
-        balance: 99500,
-      }),
+      testImportLedger(BASE_ACCOUNT, { date: "2026-07-01", balance: 99500 }),
     );
 
     expect(draftImportCalls[0].transactions.map((t) => t.narration)).toEqual([

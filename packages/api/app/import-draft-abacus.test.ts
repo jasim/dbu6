@@ -2,8 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AbacusImportRequest } from "dbu6-shared";
 
 // Request validation runs for real; only the ledger write at the tail is
-// stubbed, and the ledger's account names are passed in, so the tests need no
-// database.
+// stubbed, so the tests need no database.
 // The engine would detect this machine's coding agents; the import itself is
 // stubbed, so nothing categorizes here.
 vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
@@ -41,9 +40,10 @@ vi.mock(
 
 import api, { importAbacusStatement } from "./import-draft-abacus.js";
 import { BalanceMismatchError } from "../modules/statement/index.js";
-import type { StatementImportResult } from "../workflows/statement-import/index.js";
-
-const accountNames = new Set(["Sample Bank", "Sample Card"]);
+import {
+  AccountNotFoundError,
+  type StatementImportResult,
+} from "../workflows/statement-import/index.js";
 
 const ledger = {} as never;
 
@@ -164,7 +164,6 @@ describe("importAbacusStatement", () => {
 
     const response = await importAbacusStatement(
       request({ account: { kind: "card", identifier: "050505XXXXXX0505" } }),
-      accountNames,
       ledger,
     );
 
@@ -223,7 +222,7 @@ describe("importAbacusStatement", () => {
       ],
     });
 
-    const response = await importAbacusStatement(printed, accountNames, ledger);
+    const response = await importAbacusStatement(printed, ledger);
 
     expect(response.status).toBe(422);
     expect(response.body).toMatchObject({
@@ -241,7 +240,7 @@ describe("importAbacusStatement", () => {
       { base_account: "Sample Bank", is_credit_card: false },
     );
 
-    const response = await importAbacusStatement(unnamed, accountNames, ledger);
+    const response = await importAbacusStatement(unnamed, ledger);
 
     expect(response.status).toBe(200);
     expect(runStatementImport.mock.calls[0][1]).toMatchObject({
@@ -254,15 +253,20 @@ describe("importAbacusStatement", () => {
   });
 
   it("rejects an account the ledger does not have", async () => {
+    runStatementImport.mockRejectedValue(
+      new AccountNotFoundError("Other Card"),
+    );
+
     const response = await importAbacusStatement(
       request({}, { base_account: "Other Card", is_credit_card: true }),
-      accountNames,
       ledger,
     );
 
     expect(response.status).toBe(422);
-    expect(response.body).toMatchObject({ error: "import_account_not_found" });
-    expect(runStatementImport).not.toHaveBeenCalled();
+    expect(response.body).toMatchObject({
+      error: "import_account_not_found",
+      message: "The ledger has no account named Other Card.",
+    });
   });
 
   it("returns the import error's own payload when the import refuses", async () => {
@@ -270,11 +274,7 @@ describe("importAbacusStatement", () => {
       new BalanceMismatchError(-3500, -4000, 0.01),
     );
 
-    const response = await importAbacusStatement(
-      request(),
-      accountNames,
-      ledger,
-    );
+    const response = await importAbacusStatement(request(), ledger);
 
     expect(response.status).toBe(422);
     expect(response.body).toMatchObject({
@@ -298,7 +298,6 @@ describe("importAbacusStatement", () => {
       request({
         rows: [row("2026-09-03"), row("2026-09-05"), row("2026-09-04")],
       }),
-      accountNames,
       ledger,
     );
 

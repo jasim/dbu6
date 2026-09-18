@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  AccountNotFoundError,
   pickOpeningBalance,
   pickClosingBalance,
   runStatementImport,
@@ -86,10 +87,29 @@ function stmt(
 }
 
 describe("runStatementImport", () => {
+  it("refuses an account the ledger doesn't have before looking at the statement", async () => {
+    // Without a closing this card statement would be refused too; the
+    // missing account comes first, since no draft could belong to it.
+    const part = stmt(["2026-05-01"], -100, null);
+    const refusal = runStatementImport(
+      [part],
+      options(),
+      testImportLedger("Sample Other Card"),
+    );
+    await expect(refusal).rejects.toBeInstanceOf(AccountNotFoundError);
+    await expect(refusal).rejects.toMatchObject({
+      account: "StanC Credit Card",
+    });
+  });
+
   it("requires an effective closing for a credit-card import before writes", async () => {
     const part = stmt(["2026-05-01"], -100, null);
     await expect(
-      runStatementImport([part], options(), testImportLedger()),
+      runStatementImport(
+        [part],
+        options(),
+        testImportLedger("StanC Credit Card"),
+      ),
     ).rejects.toBeInstanceOf(ClosingBalanceUnavailable);
   });
 
@@ -98,8 +118,7 @@ describe("runStatementImport", () => {
     const refusal = runStatementImport(
       [part],
       options(),
-      testImportLedger({
-        account: "StanC Credit Card",
+      testImportLedger("StanC Credit Card", {
         date: "2026-12-31",
         balance: -999,
       }),
@@ -115,8 +134,7 @@ describe("runStatementImport", () => {
     const result = await runStatementImport(
       [part],
       options(),
-      testImportLedger({
-        account: "StanC Credit Card",
+      testImportLedger("StanC Credit Card", {
         date: "2026-12-31",
         balance: 0,
       }),

@@ -301,6 +301,23 @@ After the fix you may re-run the import.
 ${rerunBlock(groupPaths(refusal))}`;
 }
 
+export function missingAccountPrompt(
+  refusal: RefusalOf<"import_account_not_found">,
+): string {
+  const { preset_name, base_account } = refusal.failed_group;
+  return `${groupIntro(refusal)} The preset ${preset_name} in
+data/user-config/import-presets.json imports into ${base_account}, but the
+ledger has no account by that name, so nothing was imported into it.${quoted(refusal.message)}
+Ask me whether ${base_account} is a new account or a different name for one I
+already have. For a new one, ask me its type and which account it goes under,
+and add it to the Accounts table. Otherwise set the preset's base_account to
+that account's name exactly as Accounts lists it. Tell me what you changed.
+
+Then re-run the import yourself or tell me and I will retry.
+
+${rerunBlock(groupPaths(refusal))}`;
+}
+
 export function openingBalancePrompt(
   refusal: RefusalOf<"opening_balance_unavailable">,
 ): string {
