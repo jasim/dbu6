@@ -3,7 +3,11 @@ import type { DatedBalance, ImportPreset } from "dbu6-shared";
 import { accountLabel, type AccountLabel } from "./account-names.js";
 import { loadDraftStatus, type DraftAccountStatus } from "./draft-status.js";
 import { loadLastReconciled } from "./reports/last-reconciled.js";
-import { allRows, ledgerCtes, type ScopeParams } from "./reports/shared.js";
+import {
+  allRows,
+  type ScopeParams,
+  ledgerCtes,
+} from "../modules/ledger-sql/index.js";
 
 /*
  * Where each ledger account stands (PLAN.md §11 P1, P3): what the everyday

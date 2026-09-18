@@ -77,8 +77,10 @@ go-ahead.
 2. **Plan first.** Your first reply is your plan and the decisions you need.
    Touch nothing until the owner says go.
 3. **Keep your context small.** Find usages with `grep` or an Explore
-   subagent instead of reading whole folders. Move files with
-   `scripts/move-files.mjs` (from M0), never by editing imports by hand.
+   subagent instead of reading whole folders. Move files, move declarations
+   between files (`--symbols`), and route imports through a module's
+   `index.ts` (`--through`) with `scripts/move-files.mjs`, never by editing
+   imports by hand.
 4. **Behavior stays the same unless your task says otherwise.**
    - The `dbu6-shared` contracts and the HTTP responses don't change, so the
      frontend needs no edits except its coding-agent prompts (step 6).
@@ -145,7 +147,13 @@ so M1–M4 don't spend their context editing imports.
 
 ### M1 — Tiers 0–2
 
-**Status:** todo. **Depends on:** M0. **Findings:** 2 (the type), 3, 4.
+**Status:** done (2026-09-18). `modules/ledger-sql/`, `values/` and
+`statement/` exist, each imported only through its `index.ts`. The move tool
+gained `--symbols` and `--through` (DEVELOPMENT.md → Commands). Tests build
+auth with `createTestAuthContext`, which only the linked Sapporta exports so
+far: publish Sapporta's next release (0.8.0, with its pending changesets)
+and pin it before dbu6 switches back to npm.
+**Depends on:** M0. **Findings:** 2 (the type), 3, 4.
 
 - **New module `modules/ledger-sql/`:**
   - Move `ledgerCtes`, `ScopeParams`, `allRows` and `oneRow` here from

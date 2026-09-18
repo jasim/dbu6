@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Chrono } from "../domain/Chrono.js";
-import { moneyFromColumns } from "../domain/Money.js";
+import { type Chrono, moneyFromColumns } from "../values/index.js";
 import {
   analyzeDateOrder,
   computeRunningBalances,
@@ -11,7 +10,7 @@ import {
 import {
   BalanceMismatchError,
   SegmentBalanceMismatchError,
-} from "../import-errors.js";
+} from "./import-errors.js";
 
 function row(
   date: string,

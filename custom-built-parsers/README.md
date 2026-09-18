@@ -32,7 +32,7 @@ matching parser.
 ## Goal
 
 Produce one `<input-basename>.abacus.json` file next to each statement input, in
-the wire shape defined by `packages/api/bank-importer/abacus/Abacus.ts`.
+the wire shape defined by `packages/api/modules/statement/Abacus.ts`.
 
 A parser never calls the import API itself: `parser.py` stops after writing the
 JSON. When you build a parser, report the output path, row count, opening/closing

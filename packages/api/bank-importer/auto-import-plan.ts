@@ -1,5 +1,5 @@
 import type { StatementAccount } from "dbu6-shared";
-import type { AbacusStatement } from "./abacus/index.js";
+import type { AbacusStatement } from "../modules/statement/index.js";
 import {
   resolveImportPreset,
   type ImportPreset,

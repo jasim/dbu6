@@ -1,9 +1,9 @@
 import { eq, inArray } from "drizzle-orm";
 import { formatPlainDate } from "@sapporta/shared/temporal";
 import type { CategorizationReport } from "dbu6-shared";
-import type { Abacus } from "../../bank-importer/abacus/index.js";
+import type { Abacus } from "../statement/index.js";
 import { enrichWithGPayHtml } from "../../bank-importer/domain/GPayIndex.js";
-import { moneyFromColumns } from "../../bank-importer/domain/Money.js";
+import { moneyFromColumns } from "../values/index.js";
 import {
   resolveCategories,
   type CategorizationConfig,
@@ -11,8 +11,8 @@ import {
 import {
   loadAccountsByName,
   resolveAccountIdForCategorized,
-  type RowScopeAuth,
 } from "../../bank-importer/draft-persistence.js";
+import type { LedgerAuth } from "../ledger-sql/index.js";
 import {
   draftTransactions,
   draftTransactionsTable,
@@ -35,7 +35,7 @@ export interface DraftClassificationResult {
 
 export async function classifyDraftTransactions(input: {
   db: any;
-  auth: RowScopeAuth;
+  auth: LedgerAuth;
   ids: number[];
   categorizationConfig: CategorizationConfig;
   gpayHtmlPath?: string;

@@ -42,29 +42,28 @@ const MODULES: readonly Module[] = [
   // Tier 0: foundations.
   { name: "schema", tier: 0, files: ["schema/"] },
   { name: "user-data", tier: 0, files: ["user-data"] },
-  // Scoped raw SQL and the auth type every store takes (PLAN.md M1).
-  { name: "ledger-sql", tier: 0, files: [] },
+  // Scoped raw SQL and the auth type every store takes.
+  {
+    name: "ledger-sql",
+    tier: 0,
+    files: ["modules/ledger-sql/"],
+    entries: ["modules/ledger-sql/index.ts"],
+  },
 
   // Tier 1: values.
   {
     name: "values",
     tier: 1,
-    files: [
-      "bank-importer/domain/Money",
-      "bank-importer/domain/Account",
-      "bank-importer/domain/Chrono",
-    ],
+    files: ["modules/values/"],
+    entries: ["modules/values/index.ts"],
   },
 
   // Tier 2: the statement.
   {
     name: "statement",
     tier: 2,
-    files: ["bank-importer/abacus/", "bank-importer/import-errors"],
-    entries: [
-      "bank-importer/abacus/index.ts",
-      "bank-importer/import-errors.ts",
-    ],
+    files: ["modules/statement/"],
+    entries: ["modules/statement/index.ts"],
   },
 
   // Tier 3: logic over statements and journals, no storage.
@@ -164,33 +163,6 @@ const MODULES: readonly Module[] = [
 // Imports that break the rules today, each removed by the PLAN.md task named.
 const KNOWN_VIOLATIONS: readonly { from: string; to: string; task: string }[] =
   [
-    // The auth type and the scoped-SQL helpers move down to ledger-sql;
-    // identity's text and amount helpers move down to values.
-    {
-      from: "app/draft-status.ts",
-      to: "app/reports/shared.ts",
-      task: "M1",
-    },
-    {
-      from: "modules/reconciliation/running-balance.test.ts",
-      to: "app/reports/shared.ts",
-      task: "M1",
-    },
-    {
-      from: "modules/journals/hledger.ts",
-      to: "bank-importer/draft-persistence.ts",
-      task: "M1",
-    },
-    {
-      from: "modules/reconciliation/duplicate-store.ts",
-      to: "bank-importer/draft-persistence.ts",
-      task: "M1",
-    },
-    {
-      from: "bank-importer/abacus/assemble.ts",
-      to: "modules/reconciliation/transaction-identity.ts",
-      task: "M1",
-    },
     // The journal plan stops naming categorization's and drafts' types;
     // importOptionsFromPreset moves up into the statement-import workflow.
     {
@@ -221,7 +193,7 @@ const KNOWN_VIOLATIONS: readonly { from: string; to: string; task: string }[] =
     // Tests in the wrong module: toDraftRows is tested with the statement,
     // and the draft reports are tested with draft status.
     {
-      from: "bank-importer/abacus/Abacus.test.ts",
+      from: "modules/statement/Abacus.test.ts",
       to: "bank-importer/draft-persistence.ts",
       task: "M3",
     },

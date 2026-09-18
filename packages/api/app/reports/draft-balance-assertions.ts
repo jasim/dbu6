@@ -7,8 +7,8 @@ import {
   flatResult,
   hiddenIdColumn,
   openRecordLink,
-  type ScopeParams,
 } from "./shared.js";
+import type { ScopeParams } from "../../modules/ledger-sql/index.js";
 import { assertionColumns } from "./assertion-grid.js";
 import { loadLedgerAccounts } from "../account-standing.js";
 import { findFailingChecks, type FailingCheck } from "../draft-status.js";

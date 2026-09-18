@@ -31,7 +31,7 @@ import api, {
   importStatementsAutomatically,
 } from "./import-draft-statements-auto.js";
 import { loadApp } from "../app.js";
-import { ClosingBalanceUnavailable } from "../bank-importer/import-errors.js";
+import { ClosingBalanceUnavailable } from "../modules/statement/index.js";
 import type { StatementImportResult } from "../bank-importer/statement-import.js";
 
 const BANK_PARSER = "custom-built-parsers/hdfc-bank-xls/parser.py";

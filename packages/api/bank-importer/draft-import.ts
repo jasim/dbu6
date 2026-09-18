@@ -1,16 +1,15 @@
 import type { z } from "zod";
 import type { importSummarySchema } from "dbu6-shared";
-import type { Abacus } from "./abacus/index.js";
-import type { Account } from "./domain/Account.js";
-import type { Chrono } from "./domain/Chrono.js";
+import type { Abacus } from "../modules/statement/index.js";
+import type { Account, Chrono } from "../modules/values/index.js";
 import type { CategorizationConfig } from "./categorization/resolve.js";
 import { processStatement } from "./pipeline.js";
 import {
   toDraftRows,
   persistDrafts,
-  type RowScopeAuth,
   sameAccountSkipSchema,
 } from "./draft-persistence.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 
 // What an import did, as the contract states it (dbu6-shared). Everything
 // but the Google Pay count, which `runStatementImport` adds.
@@ -28,7 +27,7 @@ export interface DraftImportInput {
   categorizationConfig: CategorizationConfig;
   logPrefix: string;
   db: any;
-  auth?: RowScopeAuth;
+  auth?: LedgerAuth;
 }
 
 // Shared tail of a statement import: categorize + format the new rows,

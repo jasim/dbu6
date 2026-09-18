@@ -13,7 +13,8 @@ import {
   type AccountAmount,
   type IncomeSpendingType,
 } from "./account-amounts.js";
-import { authorizeReport, type ScopeParams } from "./shared.js";
+import { authorizeReport } from "./shared.js";
+import type { ScopeParams } from "../../modules/ledger-sql/index.js";
 
 /*
  * Income and Expenses (PLAN.md §11 P4): income and spending for a period

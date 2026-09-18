@@ -9,12 +9,10 @@ import {
 import {
   abacusStatementFromJson,
   verifyDeclaredBalances,
-} from "../bank-importer/abacus/index.js";
-import { parseAccount } from "../bank-importer/domain/Account.js";
-import {
-  loadAccountsByName,
-  type RowScopeAuth,
-} from "../bank-importer/draft-persistence.js";
+} from "../modules/statement/index.js";
+import { parseAccount } from "../modules/values/index.js";
+import { loadAccountsByName } from "../bank-importer/draft-persistence.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import { runStatementImport } from "../bank-importer/statement-import.js";
 import { categorizationLlm } from "../coding-agent/categorization-llm.js";
 import { respondWithImportErrors } from "./import-error-response.js";
@@ -46,7 +44,7 @@ export async function importAbacusStatement(
   request: AbacusImportRequest,
   accountNames: ReadonlySet<string>,
   db: unknown,
-  auth: RowScopeAuth,
+  auth: LedgerAuth,
 ): Promise<AbacusImportRouteResponse> {
   const { base_account, is_credit_card, statement } = request;
   // The drafts would otherwise be saved with no base account at all.

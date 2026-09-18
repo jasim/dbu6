@@ -14,8 +14,8 @@ import {
   StatementDisagreementError,
   StatementPartInvalidError,
   StatementPartUnjoinableError,
-} from "../import-errors.js";
-import { moneyFromColumns } from "../domain/Money.js";
+} from "./import-errors.js";
+import { moneyFromColumns } from "../values/index.js";
 
 // [date, signed amount, printed balance or null, narration?]
 type Row = [string, number, number | null, string?];

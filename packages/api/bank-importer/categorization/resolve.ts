@@ -1,10 +1,13 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
-import type { Abacus } from "../abacus/index.js";
+import { type Abacus, ApiImportError } from "../../modules/statement/index.js";
 import type { CategorizedTransaction } from "../domain/CategorizedTransaction.js";
-import type { Account } from "../domain/Account.js";
-import { parseAccount, UNCATEGORIZED } from "../domain/Account.js";
+import {
+  type Account,
+  parseAccount,
+  UNCATEGORIZED,
+} from "../../modules/values/index.js";
 import {
   categorizeViaLLM,
   nothingSentReport,
@@ -17,7 +20,6 @@ import {
   mappingRulesSchema,
 } from "./mapping-rules.js";
 import type { CategorizationReport, StatementImportError } from "dbu6-shared";
-import { ApiImportError } from "../import-errors.js";
 
 export interface CategorizationConfig {
   userConfigDir: string;

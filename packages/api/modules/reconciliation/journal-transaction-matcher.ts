@@ -1,11 +1,11 @@
 import {
   direction as transactionDirection,
   type Direction,
-} from "../../bank-importer/domain/Money.js";
-import {
-  normalizeIdentityText,
-  sameLegacyTransaction,
   transactionAmountMinor,
+  normalizeIdentityText,
+} from "../values/index.js";
+import {
+  sameLegacyTransaction,
   type TransactionIdentityInput,
 } from "./transaction-identity.js";
 

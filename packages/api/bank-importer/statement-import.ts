@@ -1,24 +1,21 @@
 import type { AccountKind, DatedBalance, DateSpan } from "dbu6-shared";
 import { userConfigDir } from "../user-data.js";
 import type { CategorizationLlm } from "./categorization/llm-categorization.js";
-import type { Account } from "./domain/Account.js";
-import { unsafeAsChrono } from "./domain/Chrono.js";
+import { type Account, unsafeAsChrono } from "../modules/values/index.js";
 import { enrichWithGPayHtml } from "./domain/GPayIndex.js";
 import {
   assembleStatements,
   synthesizeRunningBalances,
   verifyClosingBalance,
   type AbacusStatement,
-} from "./abacus/index.js";
-import {
   OpeningBalanceUnavailable,
   ClosingBalanceUnavailable,
-} from "./import-errors.js";
+} from "../modules/statement/index.js";
 import {
   lookupLastReconciled,
   newTransactionsSinceReconciliation,
-  type RowScopeAuth,
 } from "./draft-persistence.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import { runDraftImport, type ImportSummary } from "./draft-import.js";
 import { assignSourceTransactionKeys } from "../modules/reconciliation/transaction-identity.js";
 
@@ -110,7 +107,7 @@ export async function runStatementImport(
   parts: AbacusStatement[],
   opts: ImportOptions,
   db: any,
-  auth?: RowScopeAuth,
+  auth?: LedgerAuth,
   sourceNames: readonly string[] = [],
 ): Promise<StatementImportResult> {
   // Assemble first, key second. Keys number textually identical rows on one

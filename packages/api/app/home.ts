@@ -12,7 +12,11 @@ import { readImportPresets } from "../bank-importer/import-presets.js";
 import { accountLabel, importablePaths } from "./account-names.js";
 import { loadAccountStandings } from "./account-standing.js";
 import { draftCounts } from "./draft-status.js";
-import { allRows, ledgerCtes, type ScopeParams } from "./reports/shared.js";
+import {
+  allRows,
+  type ScopeParams,
+  ledgerCtes,
+} from "../modules/ledger-sql/index.js";
 import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
 
 /*

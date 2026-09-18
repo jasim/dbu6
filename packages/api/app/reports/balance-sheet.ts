@@ -2,12 +2,12 @@ import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
+import { authorizeReport } from "./shared.js";
 import {
   allRows,
-  authorizeReport,
-  ledgerCtes,
   type ScopeParams,
-} from "./shared.js";
+  ledgerCtes,
+} from "../../modules/ledger-sql/index.js";
 import {
   sectionAccountResult,
   sectionFooterRow,

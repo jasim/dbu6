@@ -3,7 +3,8 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
 import { loadAccountAmounts } from "./account-amounts.js";
-import { authorizeReport, type ScopeParams } from "./shared.js";
+import { authorizeReport } from "./shared.js";
+import type { ScopeParams } from "../../modules/ledger-sql/index.js";
 import {
   sectionAccountResult,
   sectionFooterRow,

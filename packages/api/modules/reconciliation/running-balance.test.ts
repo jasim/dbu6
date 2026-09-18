@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { ledgerCtes } from "../../app/reports/shared.js";
+import { ledgerCtes } from "../ledger-sql/index.js";
 import {
   baseAccountRunningBalanceCtes,
   failingDraftAssertionsSelect,

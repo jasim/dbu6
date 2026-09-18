@@ -2,7 +2,7 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import { categorizationLlm } from "../coding-agent/categorization-llm.js";
 import { userConfigDir } from "../user-data.js";
 import { draftTransactionsContract } from "dbu6-shared";
-import { ApiImportError } from "../bank-importer/import-errors.js";
+import { ApiImportError } from "../modules/statement/index.js";
 import { classifyDraftTransactions } from "../modules/draft-transactions/classification.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 import { uploadedFile, withTempUpload } from "./upload-tmp.js";

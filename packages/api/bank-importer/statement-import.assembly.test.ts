@@ -4,15 +4,12 @@ import {
   normalizeChronological,
   type Abacus,
   type AbacusStatement,
-} from "./abacus/index.js";
-import type { CategorizationLlm } from "./categorization/llm-categorization.js";
-import { parseAccount } from "./domain/Account.js";
-import { moneyFromColumns } from "./domain/Money.js";
-import type { DraftImportInput, ImportSummary } from "./draft-import.js";
-import {
   BalanceMismatchError,
   StatementPartInvalidError,
-} from "./import-errors.js";
+} from "../modules/statement/index.js";
+import type { CategorizationLlm } from "./categorization/llm-categorization.js";
+import { parseAccount, moneyFromColumns } from "../modules/values/index.js";
+import type { DraftImportInput, ImportSummary } from "./draft-import.js";
 
 // Stub the persistence tail so the test can inspect exactly what reaches it.
 // Everything before it (assembly, key assignment, balance validation and the

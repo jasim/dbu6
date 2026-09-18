@@ -1,7 +1,10 @@
 import type { CategorizationReport } from "dbu6-shared";
-import type { Abacus } from "./abacus/index.js";
-import type { Account } from "./domain/Account.js";
-import { type Chrono, unsafeAsChrono } from "./domain/Chrono.js";
+import type { Abacus } from "../modules/statement/index.js";
+import {
+  type Account,
+  type Chrono,
+  unsafeAsChrono,
+} from "../modules/values/index.js";
 import { groupByDateAndType } from "./domain/TransactionGroup.js";
 import { fromGroups, format } from "./domain/HledgerJournal.js";
 import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";

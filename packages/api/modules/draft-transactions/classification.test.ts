@@ -6,20 +6,20 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 import { draftTransactionsContract } from "dbu6-shared";
-import type { RowScopeAuth } from "../../bank-importer/draft-persistence.js";
+import { createTestAuthContext } from "@sapporta/server/testing";
 import type { CategorizationLlm } from "../../bank-importer/categorization/llm-categorization.js";
-import { accountsTable } from "../../schema/accounts.js";
-import { draftTransactionsTable } from "../../schema/draft-journals.js";
+import { accounts, accountsTable } from "../../schema/accounts.js";
+import {
+  draftTransactions,
+  draftTransactionsTable,
+} from "../../schema/draft-journals.js";
 import { classifyDraftTransactions } from "./classification.js";
 
-const auth: RowScopeAuth = {
-  rowSecurity: {
-    forTable: () => ({
-      ownedRows: (predicate?: unknown) => predicate,
-      insertValuesSync: (_db: unknown, input: unknown) => input,
-    }),
-  },
-};
+const auth = createTestAuthContext({
+  tables: [accounts, draftTransactions],
+  workspaceId: "workspace",
+  userId: "user",
+});
 
 // The mapping rules categorize everything these tests classify, so the LLM is
 // never asked.

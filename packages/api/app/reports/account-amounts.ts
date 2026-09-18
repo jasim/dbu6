@@ -1,5 +1,9 @@
 import type Database from "better-sqlite3";
-import { allRows, ledgerCtes, type ScopeParams } from "./shared.js";
+import {
+  allRows,
+  type ScopeParams,
+  ledgerCtes,
+} from "../../modules/ledger-sql/index.js";
 
 /*
  * Income and spending, per account and per month: the one source the

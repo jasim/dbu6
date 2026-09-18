@@ -12,7 +12,7 @@ import {
   postingBlocks,
   type PostingBlock,
 } from "dbu6-shared";
-import { unsafeAsChrono } from "../bank-importer/domain/Chrono.js";
+import { unsafeAsChrono } from "../modules/values/index.js";
 import { partitionByCategorization } from "../bank-importer/domain/DraftCategorizedTransaction.js";
 import { groupByDateAndType } from "../bank-importer/domain/TransactionGroup.js";
 import { fromGroups as planFromGroups } from "../bank-importer/domain/JournalPlan.js";
@@ -28,8 +28,7 @@ import {
 } from "../schema/journals.js";
 import { loadCategorizedDrafts } from "./draft-categorization.js";
 import { draftCounts, loadDraftStatus } from "./draft-status.js";
-import type { RowScopeAuth } from "../bank-importer/draft-persistence.js";
-import type { ScopeParams } from "./reports/shared.js";
+import type { LedgerAuth, ScopeParams } from "../modules/ledger-sql/index.js";
 import { requireWorkflowAuth, requireWorkflowScope } from "./workflow-auth.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -57,7 +56,7 @@ type PostingResponse = ServerInferResponses<
 export interface PostingLedger {
   db: BetterSQLite3Database;
   sqlite: Database.Database;
-  auth: RowScopeAuth;
+  auth: LedgerAuth;
   scope: ScopeParams;
 }
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { Abacus } from "../abacus/index.js";
-import { isWithdrawal } from "../domain/Money.js";
+import type { Abacus } from "../../modules/statement/index.js";
+import { isWithdrawal } from "../../modules/values/index.js";
 
 const accountSchema = z.string().trim().min(1);
 const directionSchema = z.enum(["withdrawal", "deposit"]);

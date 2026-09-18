@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
-import type { Abacus } from "./abacus/index.js";
+import type { Abacus } from "../modules/statement/index.js";
 import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";
-import { unsafeAsChrono as chrono } from "./domain/Chrono.js";
-import { parseAccount, UNCATEGORIZED } from "./domain/Account.js";
+import {
+  unsafeAsChrono as chrono,
+  parseAccount,
+  UNCATEGORIZED,
+} from "../modules/values/index.js";
 import {
   newTransactionsSinceReconciliation,
   ReconciliationMatchError,

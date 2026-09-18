@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Abacus } from "../abacus/index.js";
-import { moneyFromColumns } from "../domain/Money.js";
+import type { Abacus } from "../../modules/statement/index.js";
+import { moneyFromColumns } from "../../modules/values/index.js";
 import {
   classifyWith,
   compileMappings,

@@ -3,8 +3,11 @@ import { readFile, readdir, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { projectPath } from "@sapporta/server";
-import { parseAbacusJson, type AbacusStatement } from "./abacus/index.js";
-import { AbacusJsonParseError } from "./import-errors.js";
+import {
+  parseAbacusJson,
+  type AbacusStatement,
+  AbacusJsonParseError,
+} from "../modules/statement/index.js";
 
 // Recognizing an uploaded statement with the saved parsers under
 // custom-built-parsers/. A parser is its own executable fingerprint: it writes

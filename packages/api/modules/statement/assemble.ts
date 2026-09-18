@@ -54,12 +54,12 @@ import {
   StatementPartInvalidError,
   StatementPartUnjoinableError,
   type DisagreeingRow,
-} from "../import-errors.js";
+} from "./import-errors.js";
 import {
   normalizeIdentityText,
   transactionAmountMinor,
-} from "../../modules/reconciliation/transaction-identity.js";
-import { direction } from "../domain/Money.js";
+  direction,
+} from "../values/index.js";
 import type { Abacus, AbacusStatement } from "./Abacus.js";
 import {
   BALANCE_TOLERANCE,

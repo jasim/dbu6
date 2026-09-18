@@ -6,7 +6,7 @@ The Import statements screen imports a statement only when a deterministic parse
 - Create or update `custom-built-parsers/<parser-name>/fingerprint.md`.
 - Create `custom-built-parsers/<parser-name>/parser.py`.
 - Build the output through `custom-built-parsers/shared/abacus.py`: rows with `abacus.row`, the document with `abacus.statement`, and the command line with `abacus.run_cli`, which writes `<input-basename>.abacus.json` next to the input.
-- Keep parser output in the Abacus JSON shape accepted by the importer; the shared module is its Python definition and `packages/api/bank-importer/abacus/` its TypeScript one.
+- Keep parser output in the Abacus JSON shape accepted by the importer; the shared module is its Python definition and `packages/api/modules/statement/` its TypeScript one.
 - For credit cards, pass printed balances through `abacus.ledger_balance` so the emitted values are ledger-semantic.
 - Make the parser emit the account or card number the statement prints about itself as a top-level `account` object, and the institution's name as printed as a top-level `institution` string (see below).
 

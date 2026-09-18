@@ -1,11 +1,11 @@
 import type { Context } from "hono";
 import { forbidUnless, type SapportaEnv } from "@sapporta/server";
-import type { RowScopeAuth } from "../bank-importer/draft-persistence.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 
-export function requireWorkflowAuth(c: Context<SapportaEnv>): RowScopeAuth {
+export function requireWorkflowAuth(c: Context<SapportaEnv>): LedgerAuth {
   const auth = c.get("auth");
   forbidUnless(c, auth.ability.can("manage", "all"));
-  return auth as RowScopeAuth;
+  return auth;
 }
 
 export function requireWorkflowScope(c: Context<SapportaEnv>): {

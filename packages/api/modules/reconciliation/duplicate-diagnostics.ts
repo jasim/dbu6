@@ -7,7 +7,7 @@ import {
 import {
   amount as transactionAmount,
   direction as transactionDirection,
-} from "../../bank-importer/domain/Money.js";
+} from "../values/index.js";
 import type { TransactionIdentityInput } from "./transaction-identity.js";
 
 export const duplicateDraftRowsSql = `

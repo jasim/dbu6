@@ -13,8 +13,8 @@ import {
   openRecordLink,
   percentColumn,
   textColumn,
-  type ScopeParams,
 } from "./shared.js";
+import type { ScopeParams } from "../../modules/ledger-sql/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 

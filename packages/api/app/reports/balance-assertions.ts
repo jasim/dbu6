@@ -2,13 +2,12 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
 import {
-  allRows,
   authorizeReport,
   flatResult,
   hiddenIdColumn,
-  ledgerCtes,
   openRecordLink,
 } from "./shared.js";
+import { allRows, ledgerCtes } from "../../modules/ledger-sql/index.js";
 import { assertionColumns } from "./assertion-grid.js";
 
 const api = new TsRestApi<SapportaEnv>();

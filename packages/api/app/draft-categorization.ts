@@ -5,11 +5,12 @@ import {
   parseAccount,
   UNCATEGORIZED,
   type Account,
-} from "../bank-importer/domain/Account.js";
-import { type Chrono, unsafeAsChrono } from "../bank-importer/domain/Chrono.js";
+  type Chrono,
+  unsafeAsChrono,
+  moneyFromColumns,
+} from "../modules/values/index.js";
 import type { DraftCategorizedTransaction } from "../bank-importer/domain/DraftCategorizedTransaction.js";
-import { moneyFromColumns } from "../bank-importer/domain/Money.js";
-import type { RowScopeAuth } from "../bank-importer/draft-persistence.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import { accounts, accountsTable } from "../schema/accounts.js";
 import {
   draftTransactions,
@@ -28,7 +29,7 @@ export interface LoadedDrafts {
 export function loadCategorizedDrafts(
   db: BetterSQLite3Database,
   baseAccountId: number,
-  auth: RowScopeAuth,
+  auth: LedgerAuth,
 ): LoadedDrafts | null {
   const accountAccess = auth.rowSecurity.forTable(accounts);
   const draftAccess = auth.rowSecurity.forTable(draftTransactions);

@@ -7,7 +7,7 @@ import {
 } from "dbu6-shared";
 import { userConfigPath } from "../user-data.js";
 import type { CategorizationLlm } from "./categorization/llm-categorization.js";
-import { parseAccount } from "./domain/Account.js";
+import { parseAccount } from "../modules/values/index.js";
 import type { ImportOptions } from "./statement-import.js";
 
 export type { ImportPreset } from "dbu6-shared";

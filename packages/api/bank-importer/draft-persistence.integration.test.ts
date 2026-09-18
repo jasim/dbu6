@@ -1,35 +1,32 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { parseAccount } from "./domain/Account.js";
-import { unsafeAsChrono } from "./domain/Chrono.js";
+import { parseAccount, unsafeAsChrono } from "../modules/values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
-import { accountsTable } from "../schema/accounts.js";
-import { draftTransactionsTable } from "../schema/draft-journals.js";
-import { journalEntriesTable, journalsTable } from "../schema/journals.js";
+import { accounts, accountsTable } from "../schema/accounts.js";
 import {
-  persistDrafts,
-  toDraftRows,
-  type RowScopeAuth,
-} from "./draft-persistence.js";
+  draftTransactions,
+  draftTransactionsTable,
+} from "../schema/draft-journals.js";
+import {
+  journalEntries,
+  journalEntriesTable,
+  journals,
+  journalsTable,
+} from "../schema/journals.js";
+import { persistDrafts, toDraftRows } from "./draft-persistence.js";
+import { createTestAuthContext } from "@sapporta/server/testing";
 import {
   AmbiguousDuplicateError,
   AssertionConflictError,
-} from "./import-errors.js";
-import type { Abacus } from "./abacus/index.js";
+  type Abacus,
+} from "../modules/statement/index.js";
 
-const auth: RowScopeAuth = {
-  rowSecurity: {
-    forTable: () => ({
-      ownedRows: (predicate?: unknown) => predicate,
-      insertValuesSync: (_db: unknown, input: unknown) => ({
-        ...(input as object),
-        workspace_id: "workspace",
-        scoped_to_user_id: "user",
-      }),
-    }),
-  },
-};
+const auth = createTestAuthContext({
+  tables: [accounts, draftTransactions, journals, journalEntries],
+  workspaceId: "workspace",
+  userId: "user",
+});
 
 describe("draft persistence reconciliation", () => {
   it("reimport after category change reuses the keyed draft and preserves user category", () => {

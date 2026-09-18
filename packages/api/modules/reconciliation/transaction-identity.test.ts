@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Abacus } from "../../bank-importer/abacus/index.js";
-import { parseAccount } from "../../bank-importer/domain/Account.js";
-import { unsafeAsChrono } from "../../bank-importer/domain/Chrono.js";
+import type { Abacus } from "../statement/index.js";
+import { parseAccount, unsafeAsChrono } from "../values/index.js";
 import { assignSourceTransactionKeys } from "./transaction-identity.js";
 
 describe("assignSourceTransactionKeys", () => {

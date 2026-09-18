@@ -25,7 +25,7 @@ vi.mock("../bank-importer/statement-import.js", async (importOriginal) => ({
 }));
 
 import api, { importAbacusStatement } from "./import-draft-abacus.js";
-import { BalanceMismatchError } from "../bank-importer/import-errors.js";
+import { BalanceMismatchError } from "../modules/statement/index.js";
 import type { StatementImportResult } from "../bank-importer/statement-import.js";
 
 const accountNames = new Set(["assets:bank:sample", "liabilities:card:sample"]);

@@ -17,7 +17,11 @@ import {
   baseAccountRunningBalanceCtes,
   failingDraftAssertionsSelect,
 } from "../modules/reconciliation/running-balance.js";
-import { allRows, ledgerCtes, type ScopeParams } from "./reports/shared.js";
+import {
+  allRows,
+  type ScopeParams,
+  ledgerCtes,
+} from "../modules/ledger-sql/index.js";
 
 /*
  * What an account's drafts hold (PLAN.md §11 P3). Home, Review, the posting

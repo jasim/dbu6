@@ -1,7 +1,7 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { formatPlainDate } from "@sapporta/shared/temporal";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type { RowScopeAuth } from "../../bank-importer/draft-persistence.js";
+import type { LedgerAuth } from "../ledger-sql/index.js";
 import { accountsTable } from "../../schema/accounts.js";
 import {
   journalEntries,
@@ -47,7 +47,7 @@ export function renderVisibleJournalsAsHledger({
   journalIds,
 }: {
   db: BetterSQLite3Database;
-  auth: RowScopeAuth;
+  auth: LedgerAuth;
   journalIds: readonly number[];
 }): RenderedJournalsHledger {
   const ids = uniqueIds(journalIds);
@@ -71,7 +71,7 @@ function loadJournalHledgerRows({
   journalIds,
 }: {
   db: BetterSQLite3Database;
-  auth: RowScopeAuth;
+  auth: LedgerAuth;
   journalIds: readonly number[];
 }): JournalHledgerRow[] {
   const journalAccess = auth.rowSecurity.forTable(journals);

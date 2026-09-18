@@ -1,6 +1,5 @@
 import type { CategorizedTransaction } from "./CategorizedTransaction.js";
-import type { Chrono } from "./Chrono.js";
-import { isWithdrawal } from "./Money.js";
+import { type Chrono, isWithdrawal } from "../../modules/values/index.js";
 
 export interface TransactionGroup<
   T extends CategorizedTransaction = CategorizedTransaction,

@@ -9,13 +9,11 @@ import {
   normalizeChronological,
   type Abacus,
   type AbacusStatement,
-} from "./abacus/index.js";
-import {
   BalanceMismatchError,
   ClosingBalanceUnavailable,
-} from "./import-errors.js";
+} from "../modules/statement/index.js";
 import type { CategorizationLlm } from "./categorization/llm-categorization.js";
-import { parseAccount } from "./domain/Account.js";
+import { parseAccount } from "../modules/values/index.js";
 import { parsePlainDate } from "@sapporta/shared/temporal";
 
 // runStatementImport resolves the user-config directory before the draft

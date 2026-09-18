@@ -2,24 +2,19 @@ import Database from "better-sqlite3";
 import type { IncomeExpensesAccount } from "dbu6-shared";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
-import type { RowScopeAuth } from "../bank-importer/draft-persistence.js";
+import { createTestAuthContext } from "@sapporta/server/testing";
+import { accounts } from "../schema/accounts.js";
+import { draftTransactions } from "../schema/draft-journals.js";
+import { journalEntries, journals } from "../schema/journals.js";
 import { postDraftsToJournal } from "./post-drafts-to-journal.js";
 import { incomeExpensesReport } from "./reports/income-expenses.js";
 
 const scope = { workspaceId: "workspace", userId: "user" };
 
-const auth: RowScopeAuth = {
-  rowSecurity: {
-    forTable: () => ({
-      ownedRows: (predicate?: unknown) => predicate,
-      insertValuesSync: (_db: unknown, input: unknown) => ({
-        ...(input as object),
-        workspace_id: "workspace",
-        scoped_to_user_id: "user",
-      }),
-    }),
-  },
-};
+const auth = createTestAuthContext({
+  tables: [accounts, draftTransactions, journals, journalEntries],
+  ...scope,
+});
 
 /*
  * Sample Savings (1) opened at 1,000. Its two drafts, a deposit and a

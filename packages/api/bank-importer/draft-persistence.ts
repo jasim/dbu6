@@ -5,10 +5,19 @@ import {
   formatPlainDate,
   parsePlainDate,
 } from "@sapporta/shared/temporal";
-import type { Abacus } from "./abacus/index.js";
-import type { Account } from "./domain/Account.js";
-import { type Chrono, chronoConcat, chronoFilter } from "./domain/Chrono.js";
-import { UNCATEGORIZED } from "./domain/Account.js";
+import {
+  type Abacus,
+  AmbiguousDuplicateError,
+  AssertionConflictError,
+  ReconciliationMatchError,
+} from "../modules/statement/index.js";
+import {
+  type Account,
+  UNCATEGORIZED,
+  type Chrono,
+  chronoConcat,
+  chronoFilter,
+} from "../modules/values/index.js";
 import type { CategorizedTransaction } from "./domain/CategorizedTransaction.js";
 import { accounts, accountsTable } from "../schema/accounts.js";
 import {
@@ -22,12 +31,8 @@ import {
   journalsTable,
 } from "../schema/journals.js";
 import { Temporal as TemporalValue } from "@sapporta/shared/temporal";
-import {
-  AmbiguousDuplicateError,
-  AssertionConflictError,
-  ReconciliationMatchError,
-} from "./import-errors.js";
 import { findDuplicateCandidates } from "../modules/reconciliation/duplicate-store.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 
 export const BALANCE_EPSILON = 0.005;
 
@@ -36,16 +41,7 @@ export interface ReconciledCheckpoint {
   balance: number;
 }
 
-export type RowScopeAuth = {
-  rowSecurity: {
-    forTable(tableDef: unknown): {
-      ownedRows(predicate?: any): any;
-      insertValuesSync(db: any, input: unknown, options?: unknown): any;
-    };
-  };
-};
-
-export { ReconciliationMatchError } from "./import-errors.js";
+export { ReconciliationMatchError } from "../modules/statement/index.js";
 
 export interface PersistSummary {
   inserted: number;
@@ -131,7 +127,7 @@ function toDraftRow(
 export function lookupLastReconciled(
   db: any,
   accountName: string,
-  auth?: RowScopeAuth,
+  auth?: LedgerAuth,
 ): ReconciledCheckpoint | null {
   const accountAccess = auth?.rowSecurity.forTable(accounts);
   const journalAccess = auth?.rowSecurity.forTable(journals);
@@ -224,7 +220,7 @@ export function newTransactionsSinceReconciliation(
 
 export function loadAccountsByName(
   db: any,
-  auth?: RowScopeAuth,
+  auth?: LedgerAuth,
 ): Map<string, number> {
   const access = auth?.rowSecurity.forTable(accounts);
   return new Map(
@@ -249,7 +245,7 @@ export function toDraftRows(
   db: any,
   baseAccount: string,
   categorized: Chrono<CategorizedTransaction>,
-  auth?: RowScopeAuth,
+  auth?: LedgerAuth,
 ): {
   rows: DraftRow[];
   sameAccountSkips: SameAccountSkip[];
@@ -275,7 +271,7 @@ export function persistDrafts(
   db: any,
   rows: DraftRow[],
   expectedClosingByDate: Map<string, number>,
-  auth?: RowScopeAuth,
+  auth?: LedgerAuth,
 ): PersistSummary {
   const summary: PersistSummary = {
     inserted: 0,
@@ -360,7 +356,7 @@ function placeAssertionsAfterDedupe(
   tx: any,
   baseAccountId: number | null,
   expectedClosingByDate: Map<string, number>,
-  auth?: RowScopeAuth,
+  auth?: LedgerAuth,
 ): void {
   if (baseAccountId === null) return;
   const access = auth?.rowSecurity.forTable(draftTransactions);

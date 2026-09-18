@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { formatPlainDate, type Temporal } from "@sapporta/shared/temporal";
-import type { RowScopeAuth } from "../../bank-importer/draft-persistence.js";
+import type { LedgerAuth } from "../ledger-sql/index.js";
 import {
   draftTransactions,
   draftTransactionsTable,
@@ -45,7 +45,7 @@ function nullable(value: string | null | undefined): string | null {
 export function findDuplicateCandidates(
   db: any,
   input: DuplicateLookupInput,
-  auth?: RowScopeAuth,
+  auth?: LedgerAuth,
 ): DuplicateCandidate[] {
   const draftAccess = auth?.rowSecurity.forTable(draftTransactions);
   const journalAccess = auth?.rowSecurity.forTable(journals);

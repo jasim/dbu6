@@ -43,3 +43,11 @@ export function moneyFromColumns(columns: MoneyColumns): Money {
   }
   return parsed.data;
 }
+
+/** The amount in paise, which identities and matches compare exactly. */
+export function transactionAmountMinor(transaction: {
+  withdrawal: number;
+  deposit: number;
+}): number {
+  return Math.round(amount(transaction) * 100);
+}

@@ -14,7 +14,7 @@ import {
   type FileRecognition,
   type PlannedFile,
 } from "../bank-importer/auto-import-plan.js";
-import type { RowScopeAuth } from "../bank-importer/draft-persistence.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import {
   importOptionsFromPreset,
   readImportPresets,
@@ -184,7 +184,7 @@ async function importGroups(
   files: AutoImportPlanFile[],
   gpayHtmlPath: string | null,
   db: unknown,
-  auth: RowScopeAuth,
+  auth: LedgerAuth,
 ): Promise<AutoImportRouteResponse> {
   const imported: AutoImportGroupResult[] = [];
   // One engine for the batch: every group categorizes on the same agent.
@@ -232,7 +232,7 @@ export async function importStatementsAutomatically(
   uploads: AutoImportUploads,
   presets: readonly ImportPreset[],
   db: unknown,
-  auth: RowScopeAuth,
+  auth: LedgerAuth,
 ): Promise<AutoImportRouteResponse> {
   const { statements, gpay } = uploads;
   const received = statements
@@ -259,7 +259,7 @@ async function importStaged(
   gpayHtmlPath: string | null,
   presets: readonly ImportPreset[],
   db: unknown,
-  auth: RowScopeAuth,
+  auth: LedgerAuth,
 ): Promise<AutoImportRouteResponse> {
   return withStagedUploads(statements, STAGED_UPLOADS_DIR, async (staged) => {
     const names = statements.map((file) => file.name);

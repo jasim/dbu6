@@ -1,5 +1,5 @@
 import type { TransactionGroup } from "./TransactionGroup.js";
-import type { Account } from "./Account.js";
+import type { Account } from "../../modules/values/index.js";
 
 export interface HledgerJournal {
   entries: string[];

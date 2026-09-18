@@ -1,10 +1,10 @@
 // Ordering and running-balance arithmetic over Abacus rows.
 import type { Abacus, BalancedStatement } from "./Abacus.js";
-import { type Chrono, chronoMap, unsafeAsChrono } from "../domain/Chrono.js";
+import { type Chrono, chronoMap, unsafeAsChrono } from "../values/index.js";
 import {
   BalanceMismatchError,
   SegmentBalanceMismatchError,
-} from "../import-errors.js";
+} from "./import-errors.js";
 
 // `unordered` is an explicit parser assertion, never something we infer from
 // conflicting transitions. It is for sources that group independent sections

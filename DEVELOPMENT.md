@@ -50,13 +50,22 @@ dbu6, or you will see stale type errors.
   frontend (`vite build`).
 - `pnpm start` — run the production server (serves API and SPA on one port).
 - `pnpm typecheck`, `pnpm test`, `pnpm test:watch`, `pnpm format`.
-- `node scripts/move-files.mjs <from> <to> [<from> <to> …] [--dry-run]` — move
-  files or folders inside `packages/api` (paths relative to it) with `git mv`,
-  rewriting every relative import of them and every `vi.mock` path, then
-  formatting the edited files. `--dry-run` prints the edits without making
-  them. Afterwards it lists tests left beside a moved file, and text that still
-  names an old path, such as `layering.test.ts`'s table, the docs and the
-  agent prompts; update those by hand.
+- `node scripts/move-files.mjs … [--dry-run]` — move code inside
+  `packages/api` (paths relative to it) and rewrite every relative import of
+  it. Each form merges imports that end up naming one module twice, formats
+  the edited files, and reports the TypeScript errors left in them;
+  `--dry-run` prints the edits and those errors without making them.
+  Afterwards it lists text that still names what moved, such as
+  `layering.test.ts`'s table, the docs and the agent prompts; update those by
+  hand.
+  - `<from> <to> [<from> <to> …]` moves files or folders with `git mv`, and
+    rewrites every `vi.mock` path too. It also lists tests left beside a moved
+    file.
+  - `--symbols <file> <name>[,<name>…] <to>` moves top-level declarations
+    into another file, created if it doesn't exist, with TypeScript's "Move to
+    file" refactor.
+  - `--through <folder>` makes every file outside the folder import its files
+    through its `index.ts`.
 - `pnpm --filter ./packages/api db:generate --name add_table` — generate
   Drizzle SQL migrations from schema changes.
 - `pnpm --filter ./packages/api db:migrate` — apply pending migrations.
@@ -155,13 +164,15 @@ every file belongs to, so a new file needs a place in it, and the imports that
 break the rules today are listed there with the [PLAN.md](./PLAN.md) task that
 removes them. That list only shrinks.
 
-The backend is being moved into this shape ([PLAN.md](./PLAN.md)). Until it
-is, code also sits in the older folders: `bank-importer/` (the import
-pipeline, categorization, and the value types in `domain/`), `coding-agent/`,
-`modules/journals/`, `modules/reconciliation/`,
-`modules/draft-transactions/`, and the draft queries in `app/draft-status.ts`
-and `app/draft-categorization.ts`. The test's table maps each of them to its
-module.
+The backend is being moved into this shape ([PLAN.md](./PLAN.md)). Tiers 0–2
+are in place: `modules/ledger-sql/`, `modules/values/` and
+`modules/statement/`, each imported through its `index.ts`. Until the rest is,
+code also sits in the older folders: `bank-importer/` (the import pipeline,
+categorization, and in `domain/` the categorized-transaction, Google Pay and
+journal-plan types), `coding-agent/`, `modules/journals/`,
+`modules/reconciliation/`, `modules/draft-transactions/`, and the draft
+queries in `app/draft-status.ts` and `app/draft-categorization.ts`. The test's
+table maps each of them to its module.
 
 `packages/shared/` is a workspace package (`dbu6-shared`). Both
 `packages/api/` and `packages/frontend/src/` depend on it; it depends on

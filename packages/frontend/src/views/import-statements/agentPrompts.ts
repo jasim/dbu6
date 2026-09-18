@@ -256,7 +256,7 @@ export function disagreementPrompt(
 (${list(refusal.parts)}); the first differing row is ${JSON.stringify(refusal.row)}.${quoted(refusal.message)}
 Run the saved parser on both files, print every row each one has on
 ${refusal.date}, and tell me which file is right, or whether both are and the
-importer's assembly in packages/api/bank-importer/abacus/assemble.ts should
+importer's assembly in packages/api/modules/statement/assemble.ts should
 accept this case. If the parser is the cause, fix it with a sanitized fixture
 and test. ${PII_RULE}
 
@@ -346,7 +346,7 @@ The full error payload was:
 ${JSON.stringify(refusal, null, 2)}
 
 Please find out what went wrong, starting from the error class in
-packages/api/bank-importer/import-errors.ts and the import pipeline in
+packages/api/modules/statement/import-errors.ts and the import pipeline in
 packages/api/bank-importer/statement-import.ts, and tell me what the fix is
 before changing the ledger. ${PII_RULE}
 

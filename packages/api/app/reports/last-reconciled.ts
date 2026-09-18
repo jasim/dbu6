@@ -3,17 +3,19 @@ import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
 import {
   accountLedgerLink,
-  allRows,
   authorizeReport,
   dateColumn,
   flatResult,
   hiddenIdColumn,
-  ledgerCtes,
   moneyColumn,
   openRecordLink,
   textColumn,
-  type ScopeParams,
 } from "./shared.js";
+import {
+  allRows,
+  type ScopeParams,
+  ledgerCtes,
+} from "../../modules/ledger-sql/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 

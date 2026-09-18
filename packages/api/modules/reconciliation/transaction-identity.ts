@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
-import type { Abacus } from "../../bank-importer/abacus/index.js";
-import type { Account } from "../../bank-importer/domain/Account.js";
+import type { Abacus } from "../statement/index.js";
 import {
+  type Account,
   unsafeAsChrono,
   type Chrono,
-} from "../../bank-importer/domain/Chrono.js";
-import { amount, direction } from "../../bank-importer/domain/Money.js";
+  direction,
+  transactionAmountMinor,
+  normalizeIdentityText,
+} from "../values/index.js";
 
 export interface TransactionIdentityInput {
   baseAccountId: number | null;
@@ -16,22 +18,6 @@ export interface TransactionIdentityInput {
   accountId: number | null;
   sourceReference: string | null;
   sourceTransactionKey: string | null;
-}
-
-export function normalizeIdentityText(value: string): string {
-  return value
-    .normalize("NFKC")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLocaleLowerCase("en");
-}
-
-/** The amount in paise, which identities and matches compare exactly. */
-export function transactionAmountMinor(transaction: {
-  withdrawal: number;
-  deposit: number;
-}): number {
-  return Math.round(amount(transaction) * 100);
 }
 
 function digest(value: string): string {

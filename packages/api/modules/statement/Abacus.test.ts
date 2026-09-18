@@ -1,9 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { parseAbacusJson } from "./index.js";
-import { AbacusJsonParseError } from "../import-errors.js";
-import { toDraftRows } from "../draft-persistence.js";
-import { chronoMap } from "../domain/Chrono.js";
-import { parseAccount, UNCATEGORIZED } from "../domain/Account.js";
+import { AbacusJsonParseError } from "./import-errors.js";
+import { toDraftRows } from "../../bank-importer/draft-persistence.js";
+import { chronoMap, parseAccount, UNCATEGORIZED } from "../values/index.js";
 
 function stubDb() {
   const chain = {

@@ -1,4 +1,3 @@
-import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import {
   forbidUnless,
@@ -11,38 +10,7 @@ import type {
   GridDatasetColumn,
   GridDatasetFooterRow,
 } from "@sapporta/shared/grid-dataset";
-
-export const ledgerCtes = `
-WITH RECURSIVE
-scoped_accounts AS (
-  SELECT *
-  FROM accounts
-  WHERE workspace_id = @workspaceId
-    AND scoped_to_user_id = @userId
-),
-scoped_journals AS (
-  SELECT *
-  FROM journals
-  WHERE workspace_id = @workspaceId
-    AND scoped_to_user_id = @userId
-),
-scoped_journal_entries AS (
-  SELECT *
-  FROM journal_entries
-  WHERE workspace_id = @workspaceId
-    AND scoped_to_user_id = @userId
-),
-scoped_draft_transactions AS (
-  SELECT *
-  FROM draft_transactions
-  WHERE workspace_id = @workspaceId
-    AND scoped_to_user_id = @userId
-)`;
-
-export type ScopeParams = {
-  workspaceId: string;
-  userId: string;
-};
+import type { ScopeParams } from "../../modules/ledger-sql/index.js";
 
 export function authorizeReport(
   c: Context<SapportaEnv>,
@@ -65,22 +33,6 @@ function workspaceUserScope(auth: SapportaAuthContext): ScopeParams | null {
     workspaceId: scope.workspace.id,
     userId: scope.user.id,
   };
-}
-
-export function allRows<T>(
-  sqlite: Database.Database,
-  sql: string,
-  params: Record<string, unknown>,
-): T[] {
-  return sqlite.prepare(sql).all(params) as T[];
-}
-
-export function oneRow<T>(
-  sqlite: Database.Database,
-  sql: string,
-  params: Record<string, unknown>,
-): T | null {
-  return (sqlite.prepare(sql).get(params) as T | undefined) ?? null;
 }
 
 export function textColumn(
