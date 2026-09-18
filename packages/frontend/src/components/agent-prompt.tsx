@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Copy, Sparkles, SquareTerminal } from "lucide-react";
 import { CODING_AGENTS, type AgentHandoff } from "dbu6-shared";
+import { planFirst } from "../agent-prompt-rules";
 import { agentHandoffApi, apiRefusalMessage } from "../api";
 import { agentHandoffAvailabilityQuery } from "../queries";
 import { Disclosure } from "./disclosure";
@@ -16,10 +17,15 @@ import { Button } from "./ui/button";
  * that say what they do. `afterwards` is for once the agent has the prompt,
  * so it waits until the user has taken it somewhere.
  *
+ * `prompt` is the request alone. What the user copies, hands off and
+ * previews has the plan-first rule on top (agent-prompt-rules.ts), so the
+ * agent's first reply is its plan and it does nothing until the user says go.
+ *
  * Which agent is started, and whether the server can open a terminal for it,
  * is the server's to decide: the button only asks, and the result says what
  * happened. The session is interactive, so the user carries the conversation
- * on there; it runs in auto mode, so its edits don't wait on approval.
+ * on there; it runs in auto mode, so once the user has approved the plan its
+ * edits don't wait on approval.
  */
 export function AgentPrompt({
   title,
@@ -37,14 +43,15 @@ export function AgentPrompt({
   // offered everywhere, and on its own is the whole of the panel's advice.
   const handsOff = availability !== undefined && availability.mode !== "none";
   const handoff = useMutation({
-    mutationFn: (text: string) =>
-      agentHandoffApi.handOffPrompt({ body: { prompt: text } }),
+    mutationFn: (sent: string) =>
+      agentHandoffApi.handOffPrompt({ body: { prompt: sent } }),
   });
+  const text = planFirst(prompt);
   const [copied, setCopied] = useState<string>();
   // A result, and the advice that follows it, belong to the prompt they were
   // made for; a new prompt leaves both behind.
-  const asked = handoff.variables === prompt;
-  const acted = copied === prompt || (asked && handoff.isSuccess);
+  const asked = handoff.variables === text;
+  const acted = copied === text || (asked && handoff.isSuccess);
 
   return (
     <section className="rounded-card border border-assist-border bg-assist-bg px-5 py-[18px] sm:px-6">
@@ -62,7 +69,7 @@ export function AgentPrompt({
             variant="assist"
             size="sm"
             disabled={handoff.isPending}
-            onClick={() => handoff.mutate(prompt)}
+            onClick={() => handoff.mutate(text)}
           >
             <SquareTerminal />
             {availability.mode === "terminal"
@@ -70,7 +77,7 @@ export function AgentPrompt({
               : `Command for ${CODING_AGENTS[availability.agent].label}`}
           </Button>
         )}
-        <CopyButton text={prompt} label="Copy prompt" onCopied={setCopied} />
+        <CopyButton text={text} label="Copy prompt" onCopied={setCopied} />
       </div>
       {!handsOff && (
         <p className="mt-2 text-meta text-ink-meta">
@@ -91,7 +98,7 @@ export function AgentPrompt({
       <div className="mt-2">
         <Disclosure tone="assist" summary="Preview the prompt">
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control border border-assist-border bg-card p-3 font-mono text-meta">
-            {prompt}
+            {text}
           </pre>
         </Disclosure>
       </div>
@@ -105,7 +112,8 @@ function HandoffResult({ handoff }: { handoff: AgentHandoff }) {
     return (
       <div className="mt-3 space-y-2">
         <p className="text-body text-ink-soft">
-          Run this to start {label}, then continue there:
+          Run this in a terminal. {label} shows its steps there and waits for
+          your go-ahead.
         </p>
         <Command command={handoff.command} />
       </div>
@@ -114,7 +122,8 @@ function HandoffResult({ handoff }: { handoff: AgentHandoff }) {
   return (
     <div className="mt-3">
       <p className="text-body text-ink-soft">
-        {label} is open in a terminal. Continue there.
+        {label} is open in a terminal. It shows its steps there and waits for
+        your go-ahead.
       </p>
       <Disclosure tone="assist" summary="Didn't open?">
         <p className="text-body text-ink-soft">Run this instead:</p>

@@ -143,7 +143,7 @@ export function ImportFreeformTransactions() {
             <AgentPrompt
               title="Turn your transactions into drafts"
               prompt={prompt}
-              afterwards="Paste the transactions as your first reply. It asks for the balance just before the earliest and just after the latest."
+              afterwards="Paste the transactions when you say go. It asks for the balance just before the earliest and just after the latest."
             />
           )}
         </Step>

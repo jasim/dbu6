@@ -12,13 +12,15 @@ import {
   vi,
 } from "vitest";
 import type { AgentHandoffAvailability } from "dbu6-shared";
+import { PLAN_FIRST_RULE, planFirst } from "../agent-prompt-rules";
 import { AgentPrompt } from "./agent-prompt";
 
 /*
  * The panel shows its title and its buttons and nothing else to read. Copy
  * prompt always shows; an Open or Command button shows for the agent the
  * server can start, and a click shows what happened. What the user does next
- * waits until they have taken the prompt somewhere.
+ * waits until they have taken the prompt somewhere. Whichever way the prompt
+ * goes, it opens by asking the agent for its plan and a go-ahead.
  */
 
 let host: HTMLDivElement;
@@ -26,6 +28,7 @@ let root: Root;
 let availability: { status: number; body: unknown };
 let handoff: { status: number; body: unknown };
 let posts: unknown[];
+let clipboard: string[];
 
 const PROMPT = "Build a parser for NOPII sample statement 050505.";
 const TITLE = "Build a reader for this file's layout";
@@ -43,6 +46,7 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   posts = [];
+  clipboard = [];
   handoff = {
     status: 200,
     body: {
@@ -55,7 +59,11 @@ beforeEach(() => {
   };
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
-    value: { writeText: async () => {} },
+    value: {
+      writeText: async (text: string) => {
+        clipboard.push(text);
+      },
+    },
   });
   vi.stubGlobal(
     "fetch",
@@ -140,7 +148,22 @@ describe("AgentPrompt", () => {
     expect(buttons()).toEqual(["Open in Claude Code", "Copy prompt"]);
     expect(host.textContent).not.toContain("terminal");
     expect(host.textContent).not.toContain(AFTERWARDS);
-    expect(host.querySelector("pre")?.textContent).toBe(PROMPT);
+    expect(host.querySelector("pre")?.textContent).toBe(planFirst(PROMPT));
+  });
+
+  it("asks the agent for its plan and a go-ahead before the prompt, however it goes", async () => {
+    offers({ mode: "terminal", agent: "claude-code" });
+    await render();
+
+    await click("Copy prompt");
+    await click("Open in Claude Code");
+
+    const given = `${PLAN_FIRST_RULE}\n\n${PROMPT}`;
+    expect(clipboard).toEqual([given]);
+    expect(posts).toEqual([{ prompt: given }]);
+    expect(host.querySelector("pre")?.textContent).toBe(given);
+    expect(PLAN_FIRST_RULE).toContain("wait for my go-ahead");
+    expect(PLAN_FIRST_RULE).toContain("until I say go");
   });
 
   it("says where to run the agent when it can't start one", async () => {
@@ -182,9 +205,9 @@ describe("AgentPrompt", () => {
 
     await click("Open in Claude Code");
 
-    expect(posts).toEqual([{ prompt: PROMPT }]);
+    expect(posts).toEqual([{ prompt: planFirst(PROMPT) }]);
     expect(host.textContent).toContain(
-      "Claude Code is open in a terminal. Continue there.",
+      "Claude Code is open in a terminal. It shows its steps there and waits for your go-ahead.",
     );
     expect(host.querySelector("summary")?.textContent).toContain(
       "Didn't open?",
@@ -199,9 +222,9 @@ describe("AgentPrompt", () => {
 
     await click("Command for Claude Code");
 
-    expect(posts).toEqual([{ prompt: PROMPT }]);
+    expect(posts).toEqual([{ prompt: planFirst(PROMPT) }]);
     expect(host.textContent).toContain(
-      "Run this to start Claude Code, then continue there:",
+      "Run this in a terminal. Claude Code shows its steps there and waits for your go-ahead.",
     );
     expect(host.querySelector("code")?.textContent).toBe(`sh '${LAUNCHER}'`);
     expect(buttons()).toContain("Copy");
@@ -228,7 +251,7 @@ describe("AgentPrompt", () => {
     await rerender("A different NOPII sample prompt.", AFTERWARDS);
 
     expect(host.querySelector("code")).toBeNull();
-    expect(host.textContent).not.toContain("Run this to start");
+    expect(host.textContent).not.toContain("Run this in a terminal");
     expect(host.textContent).not.toContain(AFTERWARDS);
   });
 
