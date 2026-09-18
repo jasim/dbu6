@@ -9,7 +9,7 @@ import {
   sectionAccountResult,
   sectionFooterRow,
   sectionTotal,
-  type SectionAccountRow,
+  type SectionAccount,
 } from "./section-account-grid.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -30,8 +30,8 @@ api.register(
 );
 
 /**
- * Every income and expense account with entries of its own in the period,
- * parents included, since an entry can sit on a parent account.
+ * Every income and expense account down the account tree, with its amount in
+ * the period: its own entries and everything below it.
  */
 export function incomeStatementReport(
   sqlite: Database.Database,
@@ -39,27 +39,20 @@ export function incomeStatementReport(
   query: { fromDate: string | null; toDate: string | null },
 ): GridDataset {
   const { fromDate, toDate } = query;
-  const rows = loadAccountAmounts(sqlite, auth, {
+  const accounts = loadAccountAmounts(sqlite, auth, {
     types: ["Revenue", "Expense"],
     fromDate,
     toDate,
-  })
-    .filter((account) => account.amount !== 0)
-    .map((account): SectionAccountRow => ({
-      section: account.account_type,
-      account_id: account.account_id,
-      name: account.name,
-      balance: account.amount,
-    }));
-  return toIncomeStatementResult(rows);
+  });
+  return toIncomeStatementResult(accounts);
 }
 
-function toIncomeStatementResult(rows: SectionAccountRow[]): GridDataset {
+function toIncomeStatementResult(accounts: SectionAccount[]): GridDataset {
   const result = sectionAccountResult({
     name: "income-statement",
     label: "Income Statement",
     sections: ["Revenue", "Expense"],
-    rows,
+    accounts,
   });
   result.footerRows = [
     sectionFooterRow({

@@ -130,7 +130,7 @@ function rootTotals(result: GridDataset, label: string, total: string) {
 }
 
 describe("the grids read the amounts", () => {
-  it("income statement lists every account with an amount", () => {
+  it("income statement lists every account with an amount down the tree", () => {
     const result = incomeStatementReport(ledger(), auth, allTime);
 
     expect(rootTotals(result, "section", "section_total")).toEqual({
@@ -138,8 +138,16 @@ describe("the grids read the amounts", () => {
       Expense: 5000,
     });
     expect(
-      result.nodes[1]?.children?.accounts?.map((row) => row.columns.name),
-    ).toEqual(["Food", "Groceries", "Shopping"]);
+      result.nodes[1]?.children?.accounts?.map((row) => [
+        row.columns.name,
+        row.columns.balance,
+      ]),
+    ).toEqual([
+      ["Food", 5500],
+      ["Groceries", 5000],
+      ["Food, not in a sub-account", 500],
+      ["Shopping", -500],
+    ]);
   });
 
   it("spending breakdown totals the same spending by branch", () => {

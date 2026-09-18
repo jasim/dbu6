@@ -2,52 +2,44 @@ import type {
   GridDataset,
   GridDatasetNode,
 } from "@sapporta/shared/grid-dataset";
-import {
-  footerRow,
-  hiddenIdColumn,
-  moneyColumn,
-  openRecordLink,
-  sum,
-  textColumn,
-} from "./shared.js";
+import { accountTree, type AmountAccount } from "../account-tree.js";
+import { accountTreeLevel, accountTreeNodes } from "./account-tree-level.js";
+import { footerRow, moneyColumn, textColumn } from "./shared.js";
 
-export type SectionAccountRow = {
-  section: string;
-  account_id: number;
-  name: string;
-  balance: number;
-};
+/**
+ * An account in a report sectioned by account type, with the amount of its
+ * own entries. Accounts without entries are kept at 0, so the tree keeps
+ * their sub-accounts' parents.
+ */
+export type SectionAccount = AmountAccount & { account_type: string };
 
+/**
+ * One row per section, an account type, with its total; under it, the
+ * section's accounts down the account tree, each with everything on and
+ * below it (`accountTreeLevel`).
+ */
 export function sectionAccountResult(input: {
   name: string;
   label: string;
   sections: string[];
-  rows: SectionAccountRow[];
+  accounts: SectionAccount[];
 }): GridDataset {
-  const levelColumns = {
-    section: [
-      textColumn("section", "Section", { width: 32 }),
-      moneyColumn("section_total", "Total", { width: 18, strong: true }),
-    ],
-    accounts: [
-      hiddenIdColumn("account_id", "Account ID"),
-      textColumn("name", "Account", { width: 52 }),
-      moneyColumn("balance", "Balance", { width: 18 }),
-    ],
-  };
   const data = input.sections.map((section) => {
-    const accountRows = input.rows.filter((row) => row.section === section);
-    const children = accountRows.map((row) => ({
-      rowKey: `account:${row.account_id}`,
-      levelName: "accounts",
-      columns: row,
-    }));
+    const tree = accountTree(
+      input.accounts.filter((account) => account.account_type === section),
+    );
     return {
       rowKey: `section:${section}`,
       levelName: "section",
       columns: { section },
-      rollup: { section_total: sum(accountRows, "balance") },
-      children: { accounts: children },
+      rollup: {
+        section_total: tree.reduce((total, node) => total + node.total, 0),
+      },
+      children: {
+        accounts: accountTreeNodes(tree, "accounts", (_account, amount) => ({
+          balance: amount,
+        })),
+      },
     };
   });
 
@@ -56,12 +48,17 @@ export function sectionAccountResult(input: {
     label: input.label,
     rootLevel: "section",
     levels: {
-      section: { columns: levelColumns.section, childLevels: ["accounts"] },
-      accounts: {
-        columns: levelColumns.accounts,
-        childLevels: [],
-        rowLinks: [openRecordLink("accounts", "account_id", "Open account")],
+      section: {
+        columns: [
+          textColumn("section", "Section", { width: 32 }),
+          moneyColumn("section_total", "Total", { width: 18, strong: true }),
+        ],
+        childLevels: ["accounts"],
       },
+      accounts: accountTreeLevel({
+        nameWidth: 52,
+        columns: [moneyColumn("balance", "Balance", { width: 18 })],
+      }),
     },
     nodes: data,
   };

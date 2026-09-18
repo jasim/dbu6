@@ -122,7 +122,7 @@ describe("Income and Expenses", () => {
     });
   });
 
-  it("has the income statement's section totals for the same dates", () => {
+  it("has the income statement's section totals and accounts, in its order, for the same dates", () => {
     const sqlite = ledger();
     const report = incomeExpensesReport(sqlite, auth, firstQuarter);
     const statement = incomeStatementReport(sqlite, auth, firstQuarter);
@@ -131,6 +131,18 @@ describe("Income and Expenses", () => {
     expect(report.spending.total).toBe(
       sectionTotal(statement.nodes, "Expense"),
     );
+    // Rows for a parent's own entries carry no account, so they drop out.
+    const statementAccounts = (section: number) =>
+      (statement.nodes[section]?.children?.accounts ?? [])
+        .filter((row) => row.columns.account_id !== undefined)
+        .map((row) => [row.columns.account_id, row.columns.balance]);
+    const depthFirst = (accounts: IncomeExpensesAccount[]): number[][] =>
+      accounts.flatMap((account) => [
+        [account.account_id, account.total],
+        ...depthFirst(account.children),
+      ]);
+    expect(statementAccounts(0)).toEqual(depthFirst(report.income.accounts));
+    expect(statementAccounts(1)).toEqual(depthFirst(report.spending.accounts));
   });
 
   it("starts from one account above every group", () => {
