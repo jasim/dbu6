@@ -90,13 +90,13 @@ freeform transactions specifically:
 
 Write the request body to
 `tmp/freeform-transactions/<account>-<first-date>-<last-date>.json`, with the
-account's colons written as hyphens:
+account's name in lower case and its spaces written as hyphens:
 
 ```json
 {
-  "base_account": "cc:sample",
+  "base_account": "Sample Card",
   "is_credit_card": true,
-  "source_name": "cc-sample-2026-09-01-2026-09-12",
+  "source_name": "sample-card-2026-09-01-2026-09-12",
   "statement": {
     "kind": "abacus",
     "institution": "Sample Bank",

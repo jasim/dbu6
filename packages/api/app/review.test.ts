@@ -71,8 +71,20 @@ const presets = [
 ];
 
 describe("listReviewAccounts", () => {
-  it("lists only the accounts with drafts, named from presets or their path, by name", () => {
+  it("lists only the accounts with drafts, named from presets or their own name, by name", () => {
     expect(listReviewAccounts(ledger(), auth, presets)).toEqual([
+      {
+        account_id: 4,
+        path: "liabilities:loans:sample-loan",
+        name: "liabilities:loans:sample-loan",
+        kind: "card",
+        drafts: 1,
+        uncategorised: 0,
+        duplicates: 0,
+        balance_checks: 0,
+        failing_checks: 0,
+        draft_span: { first_date: "2026-03-05", last_date: "2026-03-05" },
+      },
       {
         account_id: 1,
         path: "liabilities:credit-cards:sample-card",
@@ -84,18 +96,6 @@ describe("listReviewAccounts", () => {
         balance_checks: 0,
         failing_checks: 0,
         draft_span: { first_date: "2026-03-04", last_date: "2026-03-04" },
-      },
-      {
-        account_id: 4,
-        path: "liabilities:loans:sample-loan",
-        name: "Sample loan",
-        kind: "card",
-        drafts: 1,
-        uncategorised: 0,
-        duplicates: 0,
-        balance_checks: 0,
-        failing_checks: 0,
-        draft_span: { first_date: "2026-03-05", last_date: "2026-03-05" },
       },
       {
         account_id: 2,
@@ -136,8 +136,8 @@ describe("loadReviewAccount", () => {
         },
       ],
       other_accounts: [
+        { account_id: 4, name: "liabilities:loans:sample-loan", drafts: 1 },
         { account_id: 1, name: "Sample Card", drafts: 1 },
-        { account_id: 4, name: "Sample loan", drafts: 1 },
       ],
     });
     expect(detail?.duplicates).toEqual([
@@ -167,7 +167,7 @@ describe("loadReviewAccount", () => {
       account: {
         account_id: 6,
         path: "assets:cash",
-        name: "Cash",
+        name: "assets:cash",
         kind: "bank",
         drafts: 0,
         uncategorised: 0,
@@ -181,8 +181,8 @@ describe("loadReviewAccount", () => {
       failing: [],
       duplicates: [],
       other_accounts: [
+        { account_id: 4, name: "liabilities:loans:sample-loan", drafts: 1 },
         { account_id: 1, name: "Sample Card", drafts: 1 },
-        { account_id: 4, name: "Sample loan", drafts: 1 },
         { account_id: 2, name: "Sample Savings", drafts: 3 },
       ],
     });

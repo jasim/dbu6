@@ -12,14 +12,13 @@ import {
 } from "./figures";
 
 function account(
-  path: string,
+  name: string,
   own: number,
   children: IncomeExpensesAccount[] = [],
 ): IncomeExpensesAccount {
   return {
-    account_id: path.length,
-    path,
-    name: path,
+    account_id: name.length,
+    name,
     own,
     total: own + children.reduce((total, child) => total + child.total, 0),
     children,

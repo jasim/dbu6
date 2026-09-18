@@ -2,15 +2,14 @@ import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { reportsContract } from "dbu6-shared";
-import { branchTops } from "../account-tree.js";
-import { loadAccountAmounts } from "./account-amounts.js";
+import { accountTree, type AccountNode } from "../account-tree.js";
+import { loadAccountAmounts, type AccountAmount } from "./account-amounts.js";
 import {
   authorizeReport,
   footerRow,
   hiddenIdColumn,
   moneyColumn,
   openRecordLink,
-  sum,
   textColumn,
 } from "./shared.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
@@ -33,9 +32,12 @@ api.register(
 );
 
 /**
- * Spending in the period by category. A category is the top of a branch of
- * expense accounts (`branchTops`), and each account with entries of its own
- * is listed under exactly one, the category's own account included.
+ * Spending in the period down the account tree (`accountTree`, by
+ * `parent_id`). The rows are the top-level expense accounts, such as
+ * "Expenses", open; under each, its sub-accounts as categories, with
+ * everything on and below them, closed; under a category, each account with
+ * entries of its own. Entries on a top-level account itself make a category
+ * of their own, so every entry counts exactly once.
  */
 export function expenseBreakdownReport(
   sqlite: Database.Database,
@@ -48,33 +50,84 @@ export function expenseBreakdownReport(
     fromDate,
     toDate,
   });
-  const tops = branchTops(accounts);
-  const rows = accounts
-    .filter((account) => account.amount !== 0)
-    .map((account): ExpenseBreakdownRow => {
-      const top = tops.get(account.account_id)!;
-      return {
-        category_id: top.account_id,
-        category_name: top.name,
-        account_id: account.account_id,
-        name: account.name,
-        amount: account.amount,
-      };
-    })
-    .sort((a, b) => b.amount - a.amount);
-  return toExpenseBreakdownResult(rows);
+  return toExpenseBreakdownResult(accountTree(accounts).map(topAccount));
 }
 
-type ExpenseBreakdownRow = {
+type ExpenseNode = AccountNode<AccountAmount>;
+
+type AccountRow = { account_id: number; name: string; amount: number };
+
+type Category = {
   category_id: number;
   category_name: string;
-  account_id: number;
-  name: string;
-  amount: number;
+  total: number;
+  accounts: AccountRow[];
 };
 
-function toExpenseBreakdownResult(rows: ExpenseBreakdownRow[]): GridDataset {
+type TopAccount = {
+  top_id: number;
+  top_name: string;
+  total: number;
+  categories: Category[];
+};
+
+function topAccount(node: ExpenseNode): TopAccount {
+  const { account } = node;
+  const categories = node.children.map((child): Category => ({
+    category_id: child.account.account_id,
+    category_name: child.account.name,
+    total: child.total,
+    accounts: ownAmounts(child),
+  }));
+  if (node.own !== 0) {
+    categories.push({
+      category_id: account.account_id,
+      category_name:
+        node.children.length > 0
+          ? `${account.name}, not in a sub-account`
+          : account.name,
+      total: node.own,
+      accounts: [
+        {
+          account_id: account.account_id,
+          name: account.name,
+          amount: node.own,
+        },
+      ],
+    });
+  }
+  return {
+    top_id: account.account_id,
+    top_name: account.name,
+    total: node.total,
+    categories,
+  };
+}
+
+/** The node and every account below it with entries of its own, largest first. */
+function ownAmounts(node: ExpenseNode): AccountRow[] {
+  const walk = (current: ExpenseNode): AccountRow[] => [
+    ...(current.own !== 0
+      ? [
+          {
+            account_id: current.account.account_id,
+            name: current.account.name,
+            amount: current.own,
+          },
+        ]
+      : []),
+    ...current.children.flatMap(walk),
+  ];
+  return walk(node).sort((a, b) => b.amount - a.amount);
+}
+
+function toExpenseBreakdownResult(tops: TopAccount[]): GridDataset {
   const levelColumns = {
+    top: [
+      hiddenIdColumn("top_id", "Account ID"),
+      textColumn("top_name", "Account", { width: 52 }),
+      moneyColumn("top_total", "Total", { width: 18, strong: true }),
+    ],
     category: [
       hiddenIdColumn("category_id", "Category ID"),
       textColumn("category_name", "Category", { width: 52 }),
@@ -86,42 +139,46 @@ function toExpenseBreakdownResult(rows: ExpenseBreakdownRow[]): GridDataset {
       moneyColumn("amount", "Amount", { width: 18 }),
     ],
   };
-  const categoryIds = Array.from(new Set(rows.map((row) => row.category_id)));
-  const data = categoryIds
-    .map((categoryId) => {
-      const categoryRows = rows.filter((row) => row.category_id === categoryId);
-      const first = categoryRows[0]!;
-      return {
-        rowKey: `category:${first.category_id}`,
+  const data = tops.map((top) => ({
+    rowKey: `top:${top.top_id}`,
+    levelName: "top",
+    columns: { top_id: top.top_id, top_name: top.top_name },
+    rollup: { top_total: top.total },
+    children: {
+      category: top.categories.map((category) => ({
+        rowKey: `category:${category.category_id}`,
         levelName: "category",
         columns: {
-          category_id: first.category_id,
-          category_name: first.category_name,
+          category_id: category.category_id,
+          category_name: category.category_name,
         },
-        rollup: { category_total: sum(categoryRows, "amount") },
+        rollup: { category_total: category.total },
         children: {
-          accounts: categoryRows.map((row) => ({
+          accounts: category.accounts.map((row) => ({
             rowKey: `account:${row.account_id}`,
             levelName: "accounts",
             columns: row,
           })),
         },
-      };
-    })
-    .sort(
-      (a, b) =>
-        Number(b.rollup.category_total ?? 0) -
-        Number(a.rollup.category_total ?? 0),
-    );
+      })),
+    },
+  }));
 
   return {
     name: "expense-breakdown",
     label: "Expense Breakdown",
-    rootLevel: "category",
+    rootLevel: "top",
     levels: {
+      top: {
+        columns: levelColumns.top,
+        childLevels: ["category"],
+        rowLinks: [openRecordLink("accounts", "top_id", "Open account")],
+      },
       category: {
         columns: levelColumns.category,
         childLevels: ["accounts"],
+        // One level of spending shows: the categories, not their accounts.
+        defaultCollapsed: true,
         rowLinks: [
           openRecordLink("accounts", "category_id", "Open category account"),
         ],
@@ -139,13 +196,10 @@ function toExpenseBreakdownResult(rows: ExpenseBreakdownRow[]): GridDataset {
           rowKey: "total-expenses",
           label: "Total Expenses",
           columns: {
-            category_total: data.reduce(
-              (total, node) => total + Number(node.rollup.category_total ?? 0),
-              0,
-            ),
+            top_total: tops.reduce((total, top) => total + top.total, 0),
           },
         },
-        levelColumns.category,
+        levelColumns.top,
       ),
     ],
   };

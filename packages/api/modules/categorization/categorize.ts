@@ -143,7 +143,7 @@ async function answerAccounts(
       unmappedIndices,
       {
         promptTemplate: PROMPT_TEMPLATE,
-        hledgerAccounts: offeredAccounts(accountsByName),
+        accounts: offeredAccounts(accountsByName),
         customMappings: need(categorizer.customMappings),
         llm,
       },

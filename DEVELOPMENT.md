@@ -351,6 +351,15 @@ test against a migrated database. `drizzle-kit migrate` exits 1 without a
 message when a statement fails; run the migration through drizzle-orm's
 `migrate()` to see the error.
 
+Accounts are named in plain words, such as `Dining Out`, never with their
+parents' names in front. The tree comes only from `parent_id`, and each type
+has one top account (`Assets`, `Liabilities`, `Equity`, `Income`,
+`Expenses`) in the sample data. A name is unique in a user's books
+(`accounts_name_unique`, from `0005_unique_account_names.sql`), because
+mapping rules, import presets and the LLM name an account by it alone. The
+hledger export builds each account's colon path, `Expenses:Food:Dining Out`,
+from the tree (`hledgerAccountNames` in `modules/journal-plan/hledger.ts`).
+
 ## Email
 
 This project uses Nodemailer. `packages/api/mailer.ts` exports

@@ -23,7 +23,11 @@ drill-down and see related data easily.
 ### Double-entry books
 
 Every transaction is a journal entry between two accounts,
-for example `assets:bank:hdfc` and `expenses:grocery`. It follows GAAP approach
+for example `HDFC Bank` and `Groceries`. Accounts are named in plain words and
+nest under one another: `Assets` holds `Bank`, which holds `HDFC Bank`, and
+`Expenses` holds `Food`, which holds `Dining Out`. Each name is unique in your
+books, so mapping rules and import presets refer to an account by its name
+alone. It follows GAAP approach
 and provides standard accounting reports like trial balance, balance
 sheet, account ledger and so on. It also has reports tuned for personal
 financial management like: net worth over time, monthly cashflow etc.
@@ -100,8 +104,9 @@ Nothing reaches the books until you post.
 ### hledger export
 
 Posted journals can be rendered as an [hledger](https://hledger.org) journal
-file. Account names follow hledger conventions, so the export drops into an
-existing hledger setup.
+file. Each account is written as its path through the account tree, such as
+`Expenses:Food:Dining Out`, so the export drops into an existing hledger
+setup.
 
 ## What you configure
 
@@ -121,9 +126,9 @@ overwrites files you have edited. A rule file looks like this:
 
 ```js
 export const mappings = {
-    exact: {"ACME SUPERMARKET": "expenses:grocery"},
+    exact: {"ACME SUPERMARKET": "Groceries"},
     includes: [
-        {account: "expenses:fuel", direction: "withdrawal", values: ["FUELS"]},
+        {account: "Fuel", direction: "withdrawal", values: ["FUELS"]},
     ],
 };
 ```

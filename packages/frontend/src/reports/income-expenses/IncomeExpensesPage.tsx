@@ -64,13 +64,13 @@ export function IncomeExpensesPage() {
   const query = useQuery(incomeExpensesQuery(dates));
   const report = query.data ?? null;
   const error = query.isError ? apiErrorMessage(query.error) : null;
-  // Which rows are open, per section. Not in the URL; a new period keeps
-  // the rows that still exist open.
-  const [openSpending, setOpenSpending] = useState<ReadonlySet<number>>(
-    () => new Set(),
+  // Which rows are open, per section; null leaves each top row open. Not in
+  // the URL; a new period keeps the rows that still exist open.
+  const [openSpending, setOpenSpending] = useState<ReadonlySet<number> | null>(
+    null,
   );
-  const [openIncome, setOpenIncome] = useState<ReadonlySet<number>>(
-    () => new Set(),
+  const [openIncome, setOpenIncome] = useState<ReadonlySet<number> | null>(
+    null,
   );
 
   const showDates = (next: DateSpan) => setSearch(spanSearch(next));
@@ -147,9 +147,9 @@ function PeriodReport({
   dates: DateSpan;
   today: string;
   onDates: (dates: DateSpan) => void;
-  openSpending: ReadonlySet<number>;
+  openSpending: ReadonlySet<number> | null;
   onOpenSpending: (open: ReadonlySet<number>) => void;
-  openIncome: ReadonlySet<number>;
+  openIncome: ReadonlySet<number> | null;
   onOpenIncome: (open: ReadonlySet<number>) => void;
 }) {
   // While a new period loads, the last one's figures stay, months and all.

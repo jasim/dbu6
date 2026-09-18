@@ -46,15 +46,15 @@ function ledger(): Database.Database {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'expenses:food', NULL, 'Expense'),
-      (2, 'workspace', 'user', 'expenses:food:groceries', 1, 'Expense'),
-      (3, 'workspace', 'user', 'expenses:food:dining', 1, 'Expense'),
-      (4, 'workspace', 'user', 'expenses:food:dining:restaurants', 3, 'Expense'),
-      (5, 'workspace', 'user', 'expenses:rent', NULL, 'Expense'),
-      (6, 'workspace', 'user', 'income:salary', NULL, 'Revenue'),
-      (7, 'workspace', 'user', 'income:salary:bonus', 6, 'Revenue'),
-      (8, 'workspace', 'user', 'assets:bank', NULL, 'Asset'),
-      (9, 'workspace', 'user', 'assets:bank:sample-savings', 8, 'Asset');
+      (1, 'workspace', 'user', 'Food', NULL, 'Expense'),
+      (2, 'workspace', 'user', 'Groceries', 1, 'Expense'),
+      (3, 'workspace', 'user', 'Dining', 1, 'Expense'),
+      (4, 'workspace', 'user', 'Restaurants', 3, 'Expense'),
+      (5, 'workspace', 'user', 'Rent', NULL, 'Expense'),
+      (6, 'workspace', 'user', 'Salary', NULL, 'Revenue'),
+      (7, 'workspace', 'user', 'Bonus', 6, 'Revenue'),
+      (8, 'workspace', 'user', 'Bank', NULL, 'Asset'),
+      (9, 'workspace', 'user', 'Sample Savings', 8, 'Asset');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-01', 'Salary'),
@@ -105,6 +105,38 @@ function sections(
   );
 }
 
+type Breakdown = Record<
+  string,
+  { total: number; categories: Record<string, Section> }
+>;
+
+/** The Expense breakdown's top accounts, each with its categories. */
+function breakdown(result: GridDataset): Breakdown {
+  const parsed = gridDatasetSchema.parse(result);
+  return Object.fromEntries(
+    parsed.nodes.map((top) => [
+      String(top.columns.top_name),
+      {
+        total: Number(top.rollup?.top_total),
+        categories: Object.fromEntries(
+          (top.children?.category ?? []).map((category) => [
+            String(category.columns.category_name),
+            {
+              total: Number(category.rollup?.category_total),
+              accounts: (category.children?.accounts ?? []).map(
+                (row): [string, number] => [
+                  String(row.columns.name),
+                  Number(row.columns.amount),
+                ],
+              ),
+            },
+          ]),
+        ),
+      },
+    ]),
+  );
+}
+
 function footer(result: GridDataset, column: string): number[] {
   return (result.footerRows ?? []).map((row) => Number(row.columns[column]));
 }
@@ -117,18 +149,18 @@ describe("reports over an account tree", () => {
       Revenue: {
         total: 100000,
         accounts: [
-          ["income:salary", 90000],
-          ["income:salary:bonus", 10000],
+          ["Bonus", 10000],
+          ["Salary", 90000],
         ],
       },
       Expense: {
         total: 26000,
         accounts: [
-          ["expenses:food", 500],
-          ["expenses:food:dining", 1000],
-          ["expenses:food:dining:restaurants", 1500],
-          ["expenses:food:groceries", 3000],
-          ["expenses:rent", 20000],
+          ["Dining", 1000],
+          ["Food", 500],
+          ["Groceries", 3000],
+          ["Rent", 20000],
+          ["Restaurants", 1500],
         ],
       },
     });
@@ -145,33 +177,73 @@ describe("reports over an account tree", () => {
     ).toEqual({
       total: 74000,
       accounts: [
-        ["assets:bank", 2000],
-        ["assets:bank:sample-savings", 72000],
+        ["Bank", 2000],
+        ["Sample Savings", 72000],
       ],
     });
   });
 
-  it("spending breakdown puts each account under the top of its branch, once", () => {
+  it("spending breakdown lists each top account with its sub-accounts as categories, each entry once", () => {
     const result = expenseBreakdownReport(ledger(), auth, january);
 
-    expect(
-      sections(result, "category_name", "category_total", "amount"),
-    ).toEqual({
-      "expenses:rent": {
+    expect(breakdown(result)).toEqual({
+      Rent: {
         total: 20000,
-        accounts: [["expenses:rent", 20000]],
+        categories: {
+          Rent: { total: 20000, accounts: [["Rent", 20000]] },
+        },
       },
-      "expenses:food": {
+      Food: {
         total: 6000,
-        accounts: [
-          ["expenses:food:groceries", 3000],
-          ["expenses:food:dining:restaurants", 1500],
-          ["expenses:food:dining", 1000],
-          ["expenses:food", 500],
-        ],
+        categories: {
+          Groceries: { total: 3000, accounts: [["Groceries", 3000]] },
+          Dining: {
+            total: 2500,
+            accounts: [
+              ["Restaurants", 1500],
+              ["Dining", 1000],
+            ],
+          },
+          "Food, not in a sub-account": {
+            total: 500,
+            accounts: [["Food", 500]],
+          },
+        },
       },
     });
-    expect(footer(result, "category_total")).toEqual([26000]);
+    expect(footer(result, "top_total")).toEqual([26000]);
+  });
+
+  it("spending breakdown shows one level below a single top account, such as Expenses", () => {
+    const sqlite = ledger();
+    sqlite.exec(`
+      INSERT INTO accounts VALUES (20, 'workspace', 'user', 'Expenses', NULL, 'Expense');
+      UPDATE accounts SET parent_id = 20 WHERE id IN (1, 5);
+    `);
+    const result = expenseBreakdownReport(sqlite, auth, january);
+
+    expect(
+      Object.entries(breakdown(result)).map(([name, top]) => [
+        name,
+        top.total,
+        Object.entries(top.categories).map(([category, { total }]) => [
+          category,
+          total,
+        ]),
+      ]),
+    ).toEqual([
+      [
+        "Expenses",
+        26000,
+        [
+          ["Rent", 20000],
+          ["Food", 6000],
+        ],
+      ],
+    ]);
+    const levels = gridDatasetSchema.parse(result).levels;
+    expect(levels.top?.defaultCollapsed).toBeUndefined();
+    expect(levels.category?.defaultCollapsed).toBe(true);
   });
 
   it("account ledger takes the account's whole branch", () => {
@@ -212,8 +284,8 @@ describe("reports over an account tree", () => {
 /*
  * Five levels, food (1) down to tips (5), with entries on food and
  * restaurants as well as their children, and none on dining (3). Travel (7)
- * has entries and a child without any. Snacks (10) is named under food but
- * its parent_id is transport (9), which has no entries of its own. Unused
+ * has entries and a child without any. Snacks (10) sits under transport (9),
+ * which has no entries of its own. Unused
  * (11) and its child have no entries at all. The bank (15) has entries of
  * its own under savings (16). Three categorised drafts on savings, two of
  * them on parent accounts, are never posted.
@@ -244,22 +316,22 @@ function treeLedger(): Database.Database {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'expenses:food', NULL, 'Expense'),
-      (2, 'workspace', 'user', 'expenses:food:groceries', 1, 'Expense'),
-      (3, 'workspace', 'user', 'expenses:food:dining', 1, 'Expense'),
-      (4, 'workspace', 'user', 'expenses:food:dining:restaurants', 3, 'Expense'),
-      (5, 'workspace', 'user', 'expenses:food:dining:restaurants:tips', 4, 'Expense'),
-      (6, 'workspace', 'user', 'expenses:rent', NULL, 'Expense'),
-      (7, 'workspace', 'user', 'expenses:travel', NULL, 'Expense'),
-      (8, 'workspace', 'user', 'expenses:travel:flights', 7, 'Expense'),
-      (9, 'workspace', 'user', 'expenses:transport', NULL, 'Expense'),
-      (10, 'workspace', 'user', 'expenses:food:snacks', 9, 'Expense'),
-      (11, 'workspace', 'user', 'expenses:unused', NULL, 'Expense'),
-      (12, 'workspace', 'user', 'expenses:unused:sub', 11, 'Expense'),
-      (13, 'workspace', 'user', 'income:salary', NULL, 'Revenue'),
-      (14, 'workspace', 'user', 'income:salary:bonus', 13, 'Revenue'),
-      (15, 'workspace', 'user', 'assets:bank', NULL, 'Asset'),
-      (16, 'workspace', 'user', 'assets:bank:sample-savings', 15, 'Asset');
+      (1, 'workspace', 'user', 'Food', NULL, 'Expense'),
+      (2, 'workspace', 'user', 'Groceries', 1, 'Expense'),
+      (3, 'workspace', 'user', 'Dining', 1, 'Expense'),
+      (4, 'workspace', 'user', 'Restaurants', 3, 'Expense'),
+      (5, 'workspace', 'user', 'Tips', 4, 'Expense'),
+      (6, 'workspace', 'user', 'Rent', NULL, 'Expense'),
+      (7, 'workspace', 'user', 'Travel', NULL, 'Expense'),
+      (8, 'workspace', 'user', 'Flights', 7, 'Expense'),
+      (9, 'workspace', 'user', 'Transport', NULL, 'Expense'),
+      (10, 'workspace', 'user', 'Snacks', 9, 'Expense'),
+      (11, 'workspace', 'user', 'Unused', NULL, 'Expense'),
+      (12, 'workspace', 'user', 'Sub', 11, 'Expense'),
+      (13, 'workspace', 'user', 'Salary', NULL, 'Revenue'),
+      (14, 'workspace', 'user', 'Bonus', 13, 'Revenue'),
+      (15, 'workspace', 'user', 'Bank', NULL, 'Asset'),
+      (16, 'workspace', 'user', 'Sample Savings', 15, 'Asset');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-01', 'Salary'),
@@ -363,35 +435,45 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
     ]);
   });
 
-  it("spending breakdown puts each account under the top of its parent_id branch", () => {
+  it("spending breakdown lists each account under its parent_id branch", () => {
     const result = expenseBreakdownReport(treeLedger(), auth, january);
 
-    expect(
-      sections(result, "category_name", "category_total", "amount"),
-    ).toEqual({
-      "expenses:rent": {
+    expect(breakdown(result)).toEqual({
+      Rent: {
         total: 20000,
-        accounts: [["expenses:rent", 20000]],
+        categories: { Rent: { total: 20000, accounts: [["Rent", 20000]] } },
       },
-      "expenses:food": {
+      Food: {
         total: 5050,
-        accounts: [
-          ["expenses:food:groceries", 3000],
-          ["expenses:food:dining:restaurants", 1500],
-          ["expenses:food", 500],
-          ["expenses:food:dining:restaurants:tips", 50],
-        ],
+        categories: {
+          Groceries: { total: 3000, accounts: [["Groceries", 3000]] },
+          Dining: {
+            total: 1550,
+            accounts: [
+              ["Restaurants", 1500],
+              ["Tips", 50],
+            ],
+          },
+          "Food, not in a sub-account": {
+            total: 500,
+            accounts: [["Food", 500]],
+          },
+        },
       },
-      "expenses:travel": {
+      Travel: {
         total: 800,
-        accounts: [["expenses:travel", 800]],
+        categories: {
+          Travel: { total: 800, accounts: [["Travel", 800]] },
+        },
       },
-      "expenses:transport": {
+      Transport: {
         total: 200,
-        accounts: [["expenses:food:snacks", 200]],
+        categories: {
+          Snacks: { total: 200, accounts: [["Snacks", 200]] },
+        },
       },
     });
-    expect(footer(result, "category_total")).toEqual([26050]);
+    expect(footer(result, "top_total")).toEqual([26050]);
   });
 
   it("the income statement, monthly summary and balance sheet agree with Income and Expenses", () => {
@@ -407,13 +489,13 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
     expect(statement.Expense).toEqual({
       total: 26050,
       accounts: [
-        ["expenses:food", 500],
-        ["expenses:food:dining:restaurants", 1500],
-        ["expenses:food:dining:restaurants:tips", 50],
-        ["expenses:food:groceries", 3000],
-        ["expenses:food:snacks", 200],
-        ["expenses:rent", 20000],
-        ["expenses:travel", 800],
+        ["Food", 500],
+        ["Groceries", 3000],
+        ["Rent", 20000],
+        ["Restaurants", 1500],
+        ["Snacks", 200],
+        ["Tips", 50],
+        ["Travel", 800],
       ],
     });
 
@@ -435,8 +517,8 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
     ).toEqual({
       total: 73950,
       accounts: [
-        ["assets:bank", 2000],
-        ["assets:bank:sample-savings", 71950],
+        ["Bank", 2000],
+        ["Sample Savings", 71950],
       ],
     });
   });
@@ -476,9 +558,7 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
       (row) => row.columns.journal_id === 11,
     );
 
-    expect(String(spending?.columns.accounts).split(", ")).toContain(
-      "expenses:food:snacks",
-    );
+    expect(String(spending?.columns.accounts).split(", ")).toContain("Snacks");
   });
 
   it("the account ledger closes the bank at the balance sheet's assets", async () => {

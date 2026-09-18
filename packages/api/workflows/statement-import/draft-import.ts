@@ -16,7 +16,10 @@ import {
   formatHledger,
   planJournals,
 } from "../../modules/journal-plan/index.js";
-import { loadAccountsByName } from "../../modules/accounts/index.js";
+import {
+  loadAccountsByName,
+  loadHledgerAccountNames,
+} from "../../modules/accounts/index.js";
 import { toDraftRows, persistDrafts } from "../../modules/drafts/index.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 
@@ -80,6 +83,7 @@ export async function runDraftImport(
       })),
       baseAccount,
     ),
+    loadHledgerAccountNames(db, auth),
   );
 
   const { rows: draftRows, expectedClosingByDate } = toDraftRows(

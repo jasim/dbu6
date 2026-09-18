@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /*
- * The account tree's rules (migrations/0004_account_tree_rules.sql), on a
- * database migrated from scratch: a later migration that rebuilds `accounts`
- * without its triggers fails here.
+ * The account tree's rules (migrations/0004_account_tree_rules.sql) and the
+ * unique name (0005_unique_account_names.sql), on a database migrated from
+ * scratch: a later migration that rebuilds `accounts` without them fails here.
  *
  * Food (1) has groceries (2) and dining (3), and dining has restaurants (4).
  * Rent (5) and salary (6, income) have no children. The last two sit in
@@ -127,5 +127,22 @@ describe("accounts.parent_id", () => {
         "UPDATE accounts SET scoped_to_user_id = 'other-user' WHERE id = 1",
       ),
     ).toThrow(childrenRule);
+  });
+});
+
+describe("accounts.name", () => {
+  it("is unique in one user's books, and may repeat in others'", () => {
+    const sqlite = books();
+    const insert = (workspace: string, user: string) =>
+      sqlite.exec(`
+        INSERT INTO accounts
+          (workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+        VALUES ('${workspace}', '${user}', 'expenses:rent', NULL, 'Expense', '', '')`);
+
+    expect(() => insert("workspace", "user")).toThrow(
+      "UNIQUE constraint failed: accounts.workspace_id, accounts.scoped_to_user_id, accounts.name",
+    );
+    insert("other-workspace", "user");
+    insert("workspace", "other-user");
   });
 });

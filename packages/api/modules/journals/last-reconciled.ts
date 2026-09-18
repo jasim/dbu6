@@ -4,8 +4,8 @@ import { allRows, type LedgerAuth } from "../ledger-sql/index.js";
  * The last reconciled checkpoint: an account's latest posted balance
  * assertion, in the journal with the latest date and, on a tie, the highest
  * id. One query finds it. Home, Review and the last-reconciled report read it
- * for every account, and the statement import for the accounts with the
- * name it imports into.
+ * for every account, and the statement import for the account it imports
+ * into.
  */
 
 export interface ReconciledCheckpoint {
@@ -23,7 +23,7 @@ export type LastReconciledRow = {
 };
 
 /**
- * The last reconciled checkpoint of every account, or of the accounts named
+ * The last reconciled checkpoint of every account, or of the account named
  * `accountName`. An account whose last reconciled journal asserts its balance
  * more than once has a row for each assertion, and the last is its
  * checkpoint. Rows are ordered by account name, account id and entry id.
@@ -63,28 +63,17 @@ export function loadLastReconciled(
 }
 
 /**
- * The checkpoint a statement import into `accountName` starts from: the
- * latest among the accounts with that name. Names aren't unique, so it can
- * be another account's than the one the import's drafts are saved under.
+ * The checkpoint a statement import into `accountName` starts from: that
+ * account's last reconciled checkpoint. A name is unique in a user's books,
+ * so it is one account's.
  */
 export function lookupLastReconciled(
   sqlite: Parameters<typeof allRows>[0],
   auth: LedgerAuth,
   accountName: string,
 ): ReconciledCheckpoint | null {
-  let latest: LastReconciledRow | null = null;
-  for (const row of loadLastReconciled(sqlite, auth, { accountName })) {
-    if (latest === null || !isEarlier(row, latest)) latest = row;
-  }
-  return latest === null
+  const last = loadLastReconciled(sqlite, auth, { accountName }).at(-1);
+  return last === undefined
     ? null
-    : { date: latest.last_reconciled_date, balance: latest.last_balance };
-}
-
-function isEarlier(row: LastReconciledRow, than: LastReconciledRow): boolean {
-  return (
-    row.last_reconciled_date < than.last_reconciled_date ||
-    (row.last_reconciled_date === than.last_reconciled_date &&
-      row.journal_id < than.journal_id)
-  );
+    : { date: last.last_reconciled_date, balance: last.last_balance };
 }

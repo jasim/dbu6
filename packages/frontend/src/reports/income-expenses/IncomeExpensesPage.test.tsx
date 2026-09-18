@@ -17,8 +17,9 @@ import { IncomeExpensesPage } from "./IncomeExpensesPage";
 
 /*
  * The page's own behaviour (PLAN.md §11 P4): the period it asks the server
- * for and writes to the URL, rows opening level by level with the parent's
- * own entries as a row of their own, and the empty state.
+ * for and writes to the URL, the top rows open and the rows below opening
+ * level by level with the parent's own entries as a row of their own, and
+ * the empty state.
  */
 
 vi.mock("@sapporta/frontend", () => ({ appTimeZone: () => "Asia/Kolkata" }));
@@ -63,17 +64,13 @@ afterEach(() => {
 
 function account(
   account_id: number,
-  path: string,
+  name: string,
   own: number,
   children: IncomeExpensesAccount[] = [],
 ): IncomeExpensesAccount {
   return {
     account_id,
-    path,
-    name: path
-      .split(":")
-      .at(-1)!
-      .replace(/^./, (c) => c.toUpperCase()),
+    name,
     own,
     total: own + children.reduce((sum, child) => sum + child.total, 0),
     children,
@@ -82,11 +79,9 @@ function account(
 
 const spending = [
   // Ranked by total, as the server sends them.
-  account(1, "expenses", 0, [
-    account(4, "expenses:rent", 20000),
-    account(2, "expenses:food", 500, [
-      account(3, "expenses:food:groceries", 3000),
-    ]),
+  account(1, "Expenses", 0, [
+    account(4, "Rent", 20000),
+    account(2, "Food", 500, [account(3, "Groceries", 3000)]),
   ]),
 ];
 
@@ -94,7 +89,7 @@ function report(overrides: Partial<IncomeExpenses> = {}): IncomeExpenses {
   return {
     income: {
       total: 50000,
-      accounts: [account(10, "income:salary", 50000)],
+      accounts: [account(10, "Salary", 50000)],
     },
     spending: { total: 23500, accounts: spending },
     months: [
@@ -211,14 +206,10 @@ describe("Income and Expenses", () => {
     expect(button("Last month").getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("opens rows level by level, with a parent's own entries last", async () => {
+  it("opens the top rows, then rows level by level, with a parent's own entries last", async () => {
     responses = [report()];
     await renderAt("/reports/income-expenses");
 
-    expect(text()).not.toContain("Food");
-    expect(text()).not.toContain("Collapse all");
-
-    await act(async () => row("Expenses").click());
     expect(row("Expenses").getAttribute("aria-expanded")).toBe("true");
     expect(text()).toContain("Rent");
     expect(text()).toContain("Food");
@@ -245,6 +236,11 @@ describe("Income and Expenses", () => {
 
     await act(async () => button("Collapse all").click());
     expect(text()).not.toContain("Rent");
+    expect(text()).not.toContain("Collapse all");
+
+    await act(async () => row("Expenses").click());
+    expect(text()).toContain("Rent");
+    expect(text()).not.toContain("Groceries");
   });
 
   it("links the accountant's view with the same dates", async () => {

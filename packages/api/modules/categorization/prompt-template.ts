@@ -1,32 +1,32 @@
 /**
  * Scaffold for the LLM categorization prompt. llm-categorization.ts fills
- * `{hledger_accounts}` with the accounts `categorize` offers, from the
- * ledger, and `{custom_mapping}` with the preset's instructions.
+ * `{accounts}` with the accounts `categorize` offers, from the ledger, and
+ * `{custom_mapping}` with the preset's instructions.
  */
 export const PROMPT_TEMPLATE = `\
-I want to add all my transactions into my accounting system that includes an hledger plain-text bookkeeping journal file. I have a list of transaction details from my bank statement, and a list of account names that I use in my hledger. Please return the hledger account name that best matches each transaction.
+I want to add all my transactions into my accounting system. I have a list of transaction details from my bank statement, and a list of the account names in my books. Please return the account name that best matches each transaction.
 
-Each input row has a "text" field containing the transaction description prefixed with "Expense:" or "Deposit:". Classify each into the appropriate hledger account from the list below.
+Each input row has a "text" field containing the transaction description prefixed with "Expense:" or "Deposit:". Classify each into the appropriate account from the list below, and answer with the account's name exactly as the list writes it.
 
 Example input text: "Expense: ATM Withdrawal at Main Street"
-Example output: "expenses:cash"
+Example output: "Cash"
 
 Example input text: "Deposit: Salary from ABC Corp"
-Example output: "income:salary"
+Example output: "Salary"
 
-If you can't find a valid mapping to my hledger account, return an empty string for that transaction.
+If you can't find a valid mapping to one of my accounts, return an empty string for that transaction.
 
-Here is the list of my accounts from hledger:
+Here is the list of my accounts:
 
-{hledger_accounts}
+{accounts}
 
 When categorizing, please follow the following custom mapping instructions:
 
 {custom_mapping}
 
-Do think before you classify - do not rush into classifying accounts you are not sure about. Do not generalize from concrete mapping instructions; for example: if I have said a specific company maps to a certain account, then do map that company to that account. But don't map other companies that you are not sure about. For specific groupings like expenses:sharing, only map accounts that I have specifically told you.
+Do think before you classify - do not rush into classifying accounts you are not sure about. Do not generalize from concrete mapping instructions; for example: if I have said a specific company maps to a certain account, then do map that company to that account. But don't map other companies that you are not sure about. For specific groupings like Sharing, only map accounts that I have specifically told you.
 
-For individual names that comes from UPI transactions, do not classify them unless you can confidently tell what it is. Do not use expenses:misc as a catch-all bucket.
+For individual names that comes from UPI transactions, do not classify them unless you can confidently tell what it is. Do not use Miscellaneous as a catch-all bucket.
 
 If you are not sure about classifying something, then return an empty string.
 

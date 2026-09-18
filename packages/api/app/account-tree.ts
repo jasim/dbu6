@@ -1,8 +1,7 @@
 /*
  * Accounts form a tree through `parent_id`, and entries can sit on any account
- * in it, parents included. A report puts each account under the top of its
- * branch (`branchTops`), keeps the whole tree with a total on every node
- * (`accountTree`), or takes one account with everything under it
+ * in it, parents included. A report keeps the whole tree with a total on
+ * every node (`accountTree`), or takes one account with everything under it
  * (`subtree`); either way every entry counts exactly once however deep the
  * tree goes. The hierarchy comes only from `parent_id`, never from the
  * account's name.
@@ -14,24 +13,6 @@
  */
 
 export type TreeAccount = { account_id: number; parent_id: number | null };
-
-/**
- * The top of each account's branch: its furthest ancestor among `accounts`.
- * An account whose parent isn't in the list is a top, so passing the accounts
- * of one type keeps each branch within that type.
- */
-export function branchTops<T extends TreeAccount>(
-  accounts: readonly T[],
-): Map<number, T> {
-  const { tops, childrenOf } = forest(accounts);
-  return new Map(
-    tops.flatMap((top) =>
-      withDescendants(top, childrenOf).map(
-        (account) => [account.account_id, top] as const,
-      ),
-    ),
-  );
-}
 
 /**
  * The account with `accountId` and every account under it among `accounts`,

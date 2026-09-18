@@ -11,7 +11,7 @@ export const FREEFORM_TRANSACTIONS_GUIDE =
 
 export interface FreeformAccount {
   kind: AccountKind;
-  // The ledger account's full name, e.g. `cc:sample`.
+  // The ledger account's name, e.g. `Sample Card`.
   name: string;
 }
 

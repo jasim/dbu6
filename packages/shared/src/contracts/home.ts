@@ -9,7 +9,7 @@ const c = initContract();
 
 const importableAccountFields = {
   path: z.string(),
-  // The preset's name when one preset points here, else a readable segment.
+  // The preset's name when one preset points here, else the account's name.
   name: z.string(),
   kind: accountKindSchema,
 };

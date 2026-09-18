@@ -43,16 +43,16 @@ function ledger(): Database.Database {
     );
 
     INSERT INTO accounts VALUES
-      (1, 'workspace', 'user', 'expenses:food', NULL, 'Expense'),
-      (2, 'workspace', 'user', 'expenses:food:groceries', 1, 'Expense'),
-      (3, 'workspace', 'user', 'expenses:food:dining', 1, 'Expense'),
-      (4, 'workspace', 'user', 'expenses:food:dining:restaurants', 3, 'Expense'),
-      (5, 'workspace', 'user', 'expenses:rent', NULL, 'Expense'),
-      (6, 'workspace', 'user', 'income:salary', NULL, 'Revenue'),
-      (7, 'workspace', 'user', 'income:salary:bonus', 6, 'Revenue'),
-      (8, 'workspace', 'user', 'income:interest', NULL, 'Revenue'),
-      (9, 'workspace', 'user', 'assets:bank:sample-savings', NULL, 'Asset'),
-      (20, 'workspace', 'user', 'expenses', NULL, 'Expense');
+      (1, 'workspace', 'user', 'Food', NULL, 'Expense'),
+      (2, 'workspace', 'user', 'Groceries', 1, 'Expense'),
+      (3, 'workspace', 'user', 'Dining', 1, 'Expense'),
+      (4, 'workspace', 'user', 'Restaurants', 3, 'Expense'),
+      (5, 'workspace', 'user', 'Rent', NULL, 'Expense'),
+      (6, 'workspace', 'user', 'Salary', NULL, 'Revenue'),
+      (7, 'workspace', 'user', 'Bonus', 6, 'Revenue'),
+      (8, 'workspace', 'user', 'Interest', NULL, 'Revenue'),
+      (9, 'workspace', 'user', 'Sample Savings', NULL, 'Asset'),
+      (20, 'workspace', 'user', 'Expenses', NULL, 'Expense');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2025-12-20', 'Before the period'),
@@ -118,7 +118,7 @@ describe("Income and Expenses", () => {
     ]);
     expect(report.spending.accounts[1]).toMatchObject({
       account_id: 1,
-      path: "expenses:food",
+      name: "Food",
     });
   });
 

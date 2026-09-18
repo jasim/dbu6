@@ -1,6 +1,7 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { draftTransactionsContract } from "dbu6-shared";
+import { loadHledgerAccountNames } from "../modules/accounts/index.js";
 import { formatHledger, planJournals } from "../modules/journal-plan/index.js";
 import { loadCategorizedDrafts } from "../modules/drafts/index.js";
 import type { LedgerAuth } from "../modules/ledger-sql/index.js";
@@ -12,8 +13,8 @@ export interface DraftHledger {
   base_account: string;
 }
 
-// One account's drafts as the journals posting would write, by account name.
-// Null when the account doesn't exist.
+// One account's drafts as the journals posting would write, each account by
+// its hledger name. Null when the account doesn't exist.
 export function renderDraftHledger(
   db: BetterSQLite3Database,
   baseAccountId: number,
@@ -25,6 +26,7 @@ export function renderDraftHledger(
   return {
     hledger_journal: formatHledger(
       planJournals(loaded.categorized, loaded.baseAccount),
+      loadHledgerAccountNames(db, auth),
     ),
     transaction_count: loaded.drafts.length,
     base_account: loaded.baseAccountName,
