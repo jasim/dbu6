@@ -8,6 +8,7 @@ import {
   openRecordLink,
 } from "./shared.js";
 import { allRows } from "../../modules/ledger-sql/index.js";
+import { assertionFailsSql } from "../../modules/reconciliation/index.js";
 import { assertionColumns } from "./assertion-grid.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -49,7 +50,7 @@ api.register(
         running_balance - account_balance_assertion AS diff
       FROM running
       WHERE account_balance_assertion IS NOT NULL
-        AND ABS(running_balance - account_balance_assertion) > 0.005
+        AND ${assertionFailsSql("running_balance", "account_balance_assertion")}
       ORDER BY account_name, date, journal_id, entry_id`,
     );
 

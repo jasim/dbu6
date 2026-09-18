@@ -63,12 +63,13 @@ the statement's balance, and the difference (running minus statement).
 
 ${rows(failing, failingLine)}
 
-How the check is computed
-(packages/api/modules/reconciliation/running-balance.ts): the running balance
-adds up every posted entry on the account, including entries posted from
-other accounts, and then the drafts. On the same date, posted entries come
-before drafts, and drafts go in id order. Only the last draft of each day
-carries the statement's balance.
+How the check is computed (the rule is in
+packages/api/modules/reconciliation/balance-check.ts, the query in
+running-balance.ts next to it): the running balance adds up every posted entry
+on the account, including entries posted from other accounts, and then the
+drafts. On the same date, posted entries come before drafts, and drafts go in
+id order. Only the last draft of each day carries the statement's balance,
+and the check passes when the two are less than half a paisa apart.
 
 Please find the first failing day, list the account's posted entries and
 drafts around it with the running balance after each, and find what explains

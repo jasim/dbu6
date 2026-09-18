@@ -395,8 +395,17 @@ stub.
 
 ### B3 — One balance-check rule
 
-**Status:** todo. **Depends on:** B2, which edits the same SQL.
-**Findings:** 7.
+**Status:** done (2026-09-19). `modules/reconciliation/balance-check.ts`
+states the rule and exports `dayClosings` (each date's last printed balance,
+which placement asserts on the day's last draft), `draftOrderSql` /
+`draftOrderBy` (date, then id; the running balance numbers drafts with it) and
+`assertionFailsSql`. The tolerance is `sameAmount` / `HALF_PAISA` in
+`values/Money.ts`, since `ANCHOR_EPSILON` was the same fact and tier 2 can't
+import tier 4; it and `BALANCE_EPSILON` are gone. One edge differs: the SQL
+checks and the assertion-conflict check now fail at exactly half a paisa
+(`>=`, was `>`), which amounts in paise can't reach. The import summary still
+asserts every group (see Decisions).
+**Depends on:** B2, which edits the same SQL. **Findings:** 7.
 
 - A module in `modules/reconciliation` owns three things:
   - the tolerance within which an assertion holds (today `0.005` in
@@ -640,6 +649,11 @@ move most of them.
 - 2026-09-19, B2: no behavior change. The import keeps finding its checkpoint
   by account name rather than by id, because names aren't unique and by id
   would change which checkpoint an import into a shared name uses.
+- 2026-09-19, B3: "the same amount" (less than half a paisa apart) is one
+  fact, for statement joins, checkpoints and balance assertions alike, so it
+  lives in `values` (tier 1). The import summary's `hledger_journal` keeps
+  asserting every group's running balance rather than following the
+  last-draft rule: no change there.
 
 ## Found along the way
 

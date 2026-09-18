@@ -44,6 +44,16 @@ export function moneyFromColumns(columns: MoneyColumns): Money {
   return parsed.data;
 }
 
+// Amounts are exact to the paisa, so two that should be the same number and
+// differ by less than half a paisa are the same amount: the difference is
+// float arithmetic over a sum. Printed balances, asserted balances and the
+// running balances that reach them are all compared this way.
+export const HALF_PAISA = 0.005;
+
+export function sameAmount(a: number, b: number): boolean {
+  return Math.abs(a - b) < HALF_PAISA;
+}
+
 /** The amount in paise, which identities and matches compare exactly. */
 export function transactionAmountMinor(transaction: {
   withdrawal: number;

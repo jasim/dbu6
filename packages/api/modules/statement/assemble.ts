@@ -58,6 +58,7 @@ import {
 } from "./errors.js";
 import {
   normalizeIdentityText,
+  sameAmount,
   transactionAmountMinor,
   direction,
 } from "../values/index.js";
@@ -68,11 +69,6 @@ import {
   synthesizeRunningBalances,
   verifyClosingBalance,
 } from "./balances.js";
-
-// Two balances that should be the same number are allowed to differ by less
-// than half a paisa: printed values are exact, so this only absorbs float
-// arithmetic over a part's net.
-export const ANCHOR_EPSILON = 0.005;
 
 const LOG = "[statement-assembly]";
 
@@ -340,7 +336,7 @@ function chain(run: Run, part: Part, remainder: Remainder): Run | null {
     logJoin(run, part, "already contained", dropped);
     return run;
   }
-  if (near(run.end, start)) {
+  if (sameAmount(run.end, start)) {
     logJoin(run, part, "forward chain", dropped);
     return {
       rows: [...run.rows, ...tagged],
@@ -351,7 +347,7 @@ function chain(run: Run, part: Part, remainder: Remainder): Run | null {
       last: part,
     };
   }
-  if (near(end, run.start)) {
+  if (sameAmount(end, run.start)) {
     logJoin(run, part, "reverse chain", dropped);
     return {
       rows: [...tagged, ...run.rows],
@@ -374,8 +370,8 @@ function refuse(run: Run, part: Part, remainder: Remainder): never {
     [...partDates].every((date) => runDates.has(date));
   if (
     sameDates &&
-    near(part.edges.start, run.start) &&
-    near(part.edges.end, run.end)
+    sameAmount(part.edges.start, run.start) &&
+    sameAmount(part.edges.end, run.end)
   ) {
     throw new StatementBoundaryMismatchError(
       run.end,
@@ -481,10 +477,6 @@ function disagreeingRow(row: Abacus, part: string): DisagreeingRow {
 
 function minor(value: number | null): number | null {
   return value === null ? null : Math.round(value * 100);
-}
-
-function near(a: number, b: number): boolean {
-  return Math.abs(a - b) < ANCHOR_EPSILON;
 }
 
 function net(rows: readonly Abacus[]): number {

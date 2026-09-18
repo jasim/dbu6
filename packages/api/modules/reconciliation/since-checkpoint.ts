@@ -1,8 +1,11 @@
 import type { ReconciledCheckpoint } from "../journals/index.js";
 import type { Abacus } from "../statement/index.js";
-import { type Chrono, chronoConcat, chronoFilter } from "../values/index.js";
-
-export const BALANCE_EPSILON = 0.005;
+import {
+  type Chrono,
+  chronoConcat,
+  chronoFilter,
+  sameAmount,
+} from "../values/index.js";
 
 // The statement reaches the checkpoint's date but no row on it lands on the
 // checkpoint's balance, and its opening doesn't either, so what is new since
@@ -35,7 +38,7 @@ export function newTransactionsSinceReconciliation(
 
   const openingMatches =
     statementOpening !== null &&
-    Math.abs(statementOpening - checkpoint.balance) < BALANCE_EPSILON;
+    sameAmount(statementOpening, checkpoint.balance);
 
   let anchor = -1;
   let sawNullBalance = false;
@@ -45,7 +48,7 @@ export function newTransactionsSinceReconciliation(
       sawNullBalance = true;
       continue;
     }
-    if (Math.abs(b - checkpoint.balance) < BALANCE_EPSILON) anchor = i;
+    if (sameAmount(b, checkpoint.balance)) anchor = i;
   }
 
   if (anchor >= 0) return chronoConcat(onDate.slice(anchor + 1), afterDate);

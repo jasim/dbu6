@@ -1,10 +1,10 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import {
   Temporal,
   formatPlainDate,
   parsePlainDate,
 } from "@sapporta/shared/temporal";
-import type { Chrono } from "../values/index.js";
+import { chronoMap, sameAmount, type Chrono } from "../values/index.js";
 import type { Abacus } from "../statement/index.js";
 import {
   draftTransactions,
@@ -13,8 +13,9 @@ import {
 import { Temporal as TemporalValue } from "@sapporta/shared/temporal";
 import {
   AmbiguousDuplicateError,
+  dayClosings,
+  draftOrderBy,
   findDuplicateCandidates,
-  BALANCE_EPSILON,
 } from "../reconciliation/index.js";
 import type { LedgerAuth } from "../ledger-sql/index.js";
 
@@ -78,14 +79,8 @@ function toDraftRow(
   };
 }
 
-// Only the last row of each date carries a balance assertion. The
-// draft-balance-assertions report sums the full day's activity before
-// checking the assertion on the last (date, id)-ordered row, so the
-// day's closing alone catches drift. Per-row assertions would be
-// fragile: within-day order in the draft table (insertion order) can
-// differ from the statement's printed order (LLM output variance,
-// multi-file merges), making middle-of-day assertions fail spuriously
-// even when the day's closing is right.
+// The drafts to save, and each day's closing, which `persistDrafts` asserts
+// on the day's last draft (the balance-check rule, in reconciliation).
 export function toDraftRows(
   categorized: Chrono<CategorizedStatementRow>,
   baseAccountId: number | null,
@@ -93,15 +88,12 @@ export function toDraftRows(
   rows: DraftRow[];
   expectedClosingByDate: Map<string, number>;
 } {
-  const rows: DraftRow[] = [];
-  const expectedClosingByDate = new Map<string, number>();
-  categorized.forEach((row) => {
-    rows.push(toDraftRow(row, baseAccountId));
-    if (row.transaction.balance !== null) {
-      expectedClosingByDate.set(row.transaction.date, row.transaction.balance);
-    }
-  });
-  return { rows, expectedClosingByDate };
+  return {
+    rows: categorized.map((row) => toDraftRow(row, baseAccountId)),
+    expectedClosingByDate: dayClosings(
+      chronoMap(categorized, (row) => row.transaction),
+    ),
+  };
 }
 
 export function persistDrafts(
@@ -213,7 +205,7 @@ function placeAssertionsAfterDedupe(
       )
       .all();
     for (const existing of existingAssertions) {
-      if (Math.abs(existing.assertion - expected) > BALANCE_EPSILON) {
+      if (!sameAmount(existing.assertion, expected)) {
         throw new AssertionConflictError(
           dateText,
           existing.assertion,
@@ -222,11 +214,12 @@ function placeAssertionsAfterDedupe(
       }
     }
 
+    // The day's last draft carries its closing, alone.
     const finalDraft = tx
       .select({ id: draftTransactionsTable.id })
       .from(draftTransactionsTable)
       .where(scopedDateWhere)
-      .orderBy(desc(draftTransactionsTable.id))
+      .orderBy(...draftOrderBy("desc"))
       .limit(1)
       .get();
     if (!finalDraft) continue;
