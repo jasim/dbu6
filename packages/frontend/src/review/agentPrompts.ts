@@ -36,9 +36,14 @@ For each line, find out whether the two are one real transaction or two. If
 they are one, say which draft is the extra one. If they are two real
 transactions, find out why
 packages/api/modules/transaction-identity/journal-transaction-matcher.ts matched them.
-A common cause is a transfer between my own accounts: the same payment on a
-bank statement and on a card statement, or already posted from the other
-account.
+A draft is compared only with other drafts on this account and with
+transactions in the books that have an entry on this account. So a match is
+usually two drafts for the same transaction; a draft for a statement row
+that's already in the books; or a draft that looks like a transaction in the
+books that doesn't say which statement row it came from (one I entered by
+hand, or an older import), with the same date, amount and category. A transfer
+already added from my other account's statement usually isn't flagged here; it
+shows up as a failing balance check instead.
 
 ${GROUND_RULES}
 

@@ -83,6 +83,8 @@ describe("duplicatesPrompt", () => {
       '- 2026-09-05 · withdrawal 12000.00 · draft 812 "NOPII CARD PAYMENT" (Sample Card) · matched journal 31, entry 1204 "NOPII payment received" (Sample Card) · base-account-payment, confidence 80%',
     );
     expect(prompt).toContain("journal-transaction-matcher.ts");
+    expect(prompt).toContain("compared only with other drafts on this account");
+    expect(prompt).toContain("shows up as a failing balance check instead");
     expect(prompt).toContain("without first telling me exactly");
     expect(prompt).toContain("050505 / NOPII / sample");
   });
