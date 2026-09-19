@@ -171,3 +171,7 @@ For a production build, run `pnpm build` then `pnpm start`, or use the included
   layout, and how to extend the code.
 - [DEPLOYMENT.md](./DEPLOYMENT.md): supported deployment shapes and their
   environment variables.
+
+## License
+
+[MIT](./LICENSE)
