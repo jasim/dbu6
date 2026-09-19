@@ -6,16 +6,24 @@ import type {
 import type { StatusTone } from "../../components/status-chip";
 import { problemTone, type ProblemTone } from "./describeProblems";
 import type { ImportOutcome } from "./outcome";
-import { describeStatementAccount, joinNames, plural } from "../../format";
+import {
+  agree,
+  describeStatementAccount,
+  joinNames,
+  plural,
+} from "../../format";
+import { categorizationCounts } from "../categorization/describeCategorization";
 
-// The sentence at the top of the outcome, in the tone of what happened: ok
-// when something new came in, waiting when nothing did, and the problem's
-// tone when the import stopped.
+// The headline of the outcome, in the tone of what happened: ok when
+// something new came in, waiting when nothing did, and the problem's tone
+// when the import stopped.
 export interface BatchSummary {
   tone: StatusTone;
   text: string;
-  // What changed in the list above, under the sentence. Null when nothing
-  // did: the cards say what went wrong and what to do.
+  // The line under it: where the new transactions came from and what they
+  // still need, or what changed in the list above when the import stopped.
+  // Null when there is nothing to add: the cards say what went wrong and
+  // what to do.
   next: string | null;
 }
 
@@ -31,19 +39,30 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
   if (outcome.kind === "imported") {
     const { result } = outcome;
     const fresh = newTransactionCount(result);
-    const statements = plural(result.files.length, "statement");
-    const accounts = plural(result.groups.length, "account");
+    const statements = result.files.length;
     if (fresh === 0) {
       return {
         tone: "waiting",
-        text: `${statements} imported for ${accounts}. Everything in them was already in your books.`,
-        next: null,
+        text: "Nothing new",
+        next:
+          statements === 1
+            ? "Everything in the statement was already in your books."
+            : `Everything in the ${statements} statements was already in your books.`,
       };
     }
+    const remaining = result.groups.reduce(
+      (sum, group) =>
+        sum + categorizationCounts(group.result.categorization_tally).remaining,
+      0,
+    );
+    const from = `From ${plural(statements, "statement")}.`;
     return {
       tone: "ok",
-      text: `${statements} imported into ${accounts}. ${plural(fresh, "new transaction")} to review.`,
-      next: null,
+      text: `${plural(fresh, "new transaction")} imported`,
+      next:
+        remaining === 0
+          ? `${from} All are categorized.`
+          : `${from} ${remaining} ${agree(remaining, "needs", "need")} a category before ${agree(remaining, "it", "they")} can go into your books.`,
     };
   }
   const { failure } = outcome;
@@ -70,7 +89,11 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
       const imported = refusal.imported_groups ?? [];
       const failed = refusal.failed_group.preset_name;
       if (imported.length === 0) {
-        return { tone, text: "Sorry, unable to import transactions.", next: null };
+        return {
+          tone,
+          text: "Sorry, unable to import transactions.",
+          next: null,
+        };
       }
       const done = joinNames(imported.map((one) => one.preset_name));
       const removed = imported.flatMap((one) => one.file_names);
@@ -83,7 +106,11 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
     case "network":
     case "forbidden":
     case "unexpected":
-      return { tone, text: "Sorry, unable to import transactions.", next: null };
+      return {
+        tone,
+        text: "Sorry, unable to import transactions.",
+        next: null,
+      };
   }
 }
 

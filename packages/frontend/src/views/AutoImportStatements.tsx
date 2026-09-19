@@ -173,102 +173,107 @@ export function AutoImportStatements() {
         </div>
       )}
 
-      <section className="mt-8">
-        {(files.length > 0 || failure) && (
-          <div className="mb-3 flex items-center justify-between gap-3">
-            {outcome && failure ? (
-              <Summary batch={describeBatch(outcome)} />
-            ) : (
-              <h2 className="text-subheading text-foreground">
-                {plural(files.length, "statement")}
-              </h2>
-            )}
-            {!imported && files.length > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={loading}
-                onClick={clearFiles}
-              >
-                Clear all
-              </Button>
-            )}
-          </div>
-        )}
-        <ul className="divide-y divide-line-inner overflow-hidden rounded-card border border-sap-border bg-card">
-          {files.map((file) => {
-            const row = annotations.get(file.name);
-            const here = placed.under.get(file.name) ?? [];
-            const flagged = here.length > 0;
-            return (
-              <FileRow
-                key={fileKey(file)}
-                file={file}
-                flagged={flagged}
-                note={flagged && row ? describeStatement(row) : null}
-                status={
-                  row && !flagged
-                    ? describeFileStatus(row, { importedFiles, failed })
-                    : null
-                }
-                disabled={loading}
-                onRemove={imported ? undefined : () => removeFile(file)}
-              >
-                {flagged && (
-                  <div className="space-y-8">
-                    {here.map((problem) => (
-                      <ProblemDetail
-                        key={problem.key}
-                        problem={problem}
-                        onAction={handleProblemAction}
-                      />
-                    ))}
-                  </div>
-                )}
-              </FileRow>
-            );
-          })}
-          {!imported && (
-            <GooglePayRow
-              file={gpayFile}
-              disabled={loading}
-              onChoose={chooseGpayFile}
-              onRemove={() => chooseGpayFile(null)}
-            />
+      {/* After an import that went through, the outcome replaces the list:
+          each account's row says what came of its files. */}
+      {!imported && (
+        <section className="mt-8">
+          {(files.length > 0 || failure) && (
+            <div className="mb-3 flex items-center justify-between gap-3">
+              {outcome && failure ? (
+                <Summary batch={describeBatch(outcome)} />
+              ) : (
+                <h2 className="text-subheading text-foreground">
+                  {plural(files.length, "statement")}
+                </h2>
+              )}
+              {!imported && files.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={loading}
+                  onClick={clearFiles}
+                >
+                  Clear all
+                </Button>
+              )}
+            </div>
           )}
-        </ul>
-        {placed.apart.length > 0 && (
-          <div className="mt-4 space-y-4">
-            {placed.apart.map((problem) => (
-              <ProblemApart
-                key={problem.key}
-                problem={problem}
-                onAction={handleProblemAction}
+          <ul className="divide-y divide-line-inner overflow-hidden rounded-card border border-sap-border bg-card">
+            {files.map((file) => {
+              const row = annotations.get(file.name);
+              const here = placed.under.get(file.name) ?? [];
+              const flagged = here.length > 0;
+              return (
+                <FileRow
+                  key={fileKey(file)}
+                  file={file}
+                  flagged={flagged}
+                  note={flagged && row ? describeStatement(row) : null}
+                  status={
+                    row && !flagged
+                      ? describeFileStatus(row, { importedFiles, failed })
+                      : null
+                  }
+                  disabled={loading}
+                  onRemove={imported ? undefined : () => removeFile(file)}
+                >
+                  {flagged && (
+                    <div className="space-y-8">
+                      {here.map((problem) => (
+                        <ProblemDetail
+                          key={problem.key}
+                          problem={problem}
+                          onAction={handleProblemAction}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </FileRow>
+              );
+            })}
+            {!imported && (
+              <GooglePayRow
+                file={gpayFile}
+                disabled={loading}
+                onChoose={chooseGpayFile}
+                onRemove={() => chooseGpayFile(null)}
               />
-            ))}
-          </div>
-        )}
-      </section>
+            )}
+          </ul>
+          {placed.apart.length > 0 && (
+            <div className="mt-4 space-y-4">
+              {placed.apart.map((problem) => (
+                <ProblemApart
+                  key={problem.key}
+                  problem={problem}
+                  onAction={handleProblemAction}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
-      <div className="mt-6">
-        {imported ? (
-          <DoneActions
-            newTransactions={newTransactionCount(imported)}
-            onStartOver={startOver}
-          />
-        ) : (
+      {!imported && (
+        <div className="mt-6">
           <ImportButton
             statements={files.length}
             loading={loading}
             onImport={() => void handleSubmit()}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {outcome && imported && (
-        <div className="mt-10 space-y-5">
-          <Summary batch={describeBatch(outcome)} />
+        <div className="mt-8 space-y-6">
+          <div className="space-y-4">
+            <Summary batch={describeBatch(outcome)} prominent />
+            <DoneActions
+              newTransactions={newTransactionCount(imported)}
+              onStartOver={startOver}
+            />
+          </div>
           {groups.length > 0 && (
             <ResultsCard groups={groups} sources={planned} />
           )}
@@ -345,15 +350,25 @@ function DoneActions({
 }
 
 // The sentence that says what happened: over the list when the import
-// stopped, under the button when it went through. A problem colours it in its
-// tone; a success or an import with nothing new stays in ink.
-function Summary({ batch }: { batch: BatchSummary }) {
+// stopped, and the page's headline, `prominent`, when it went through. A
+// problem colours it in its tone; a success or an import with nothing new
+// stays in ink.
+function Summary({
+  batch,
+  prominent = false,
+}: {
+  batch: BatchSummary;
+  prominent?: boolean;
+}) {
   const quiet = batch.tone === "ok" || batch.tone === "waiting";
   return (
     <div role="status" className="min-w-0 space-y-1">
       <OutcomeLine
         tone={batch.tone}
-        className={cn("text-subheading", quiet && "text-foreground")}
+        className={cn(
+          prominent ? "text-heading" : "text-subheading",
+          quiet && "text-foreground",
+        )}
       >
         {batch.text}
       </OutcomeLine>

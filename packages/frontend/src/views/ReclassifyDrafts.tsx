@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  AlertCircle,
-  AlertTriangle,
-  CheckCircle2,
-  Loader2,
-  Upload,
-  Wand2,
-} from "lucide-react";
+import { AlertCircle, Loader2, Upload, Wand2 } from "lucide-react";
 import { getApiBase } from "@sapporta/frontend/platform";
 import { AppPage } from "@sapporta/frontend/shell";
 import {
@@ -17,13 +10,19 @@ import {
   type DraftClassification,
 } from "dbu6-shared";
 import { draftTransactionsApi } from "../api";
+import { FactTable } from "../components/fact-table";
 import { Button } from "../components/ui/button";
+import { plural } from "../format";
 import { parseAccountId } from "../review/routes";
 import { AccountImportInputs } from "./AccountImportInputs";
-import { CategorizedLine } from "./categorization/CategorizedLine";
 import {
+  CategorizationFigures,
+  CategorizationNote,
+  Figures,
+} from "./categorization/CategorizationFigures";
+import {
+  categorizationCounts,
   describeCategorizationProblem,
-  describeCategorizationTally,
 } from "./categorization/describeCategorization";
 
 interface Account {
@@ -217,9 +216,6 @@ export function ReclassifyDrafts() {
 
   // The last run, while its account is still the one chosen.
   const shownRun = classified?.accountId === accountId ? classified : null;
-  const categorized =
-    shownRun &&
-    describeCategorizationTally(shownRun.tally, shownRun.report.agent);
   const categorizationProblem =
     shownRun && describeCategorizationProblem(shownRun.report);
 
@@ -295,53 +291,33 @@ export function ReclassifyDrafts() {
           </div>
         )}
 
-        {shownRun && categorized && (
-          <div className="space-y-3 rounded-card border bg-card p-4 text-body">
-            <CategorizedLine
-              summary={categorized}
-              accountId={shownRun.accountId}
-            />
-            {shownRun.tally.accounts.length > 0 && (
-              <dl className="divide-y divide-line-inner rounded-control border border-sap-border">
-                {shownRun.tally.accounts.map((account) => (
-                  <div
-                    key={account.account_id}
-                    className="flex items-baseline justify-between gap-x-6 px-4 py-2 text-row"
-                  >
-                    <dt className="min-w-0 text-ink-soft [overflow-wrap:anywhere]">
-                      {account.account_name}
-                    </dt>
-                    <dd className="tnum font-mono font-medium text-foreground">
-                      {account.count}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+        {shownRun && (
+          <div className="space-y-3 rounded-card border bg-card p-4">
+            <Figures>
+              <CategorizationFigures
+                counts={categorizationCounts(shownRun.tally)}
+                accountId={shownRun.accountId}
+              />
+            </Figures>
+            {categorizationProblem && (
+              <CategorizationNote problem={categorizationProblem}>
+                Once that's fixed, classify them again.
+              </CategorizationNote>
             )}
-          </div>
-        )}
-
-        {categorizationProblem && (
-          <div className="flex items-start gap-3 rounded-card border border-attention-border bg-attention-bg p-4">
-            <AlertTriangle className="h-5 w-5 shrink-0 text-attention-ink mt-0.5" />
-            <div className="space-y-1 text-row text-attention-ink [overflow-wrap:anywhere]">
-              <p>
-                {categorizationProblem.text}. Those drafts stay uncategorized;
-                classify them again once this is fixed.
+            <FactTable
+              heading="By category"
+              rows={shownRun.tally.accounts.map((account) => ({
+                label: account.account_name,
+                value: String(account.count),
+              }))}
+            />
+            {gpayEnrichedCount !== null && (
+              <p className="text-meta text-ink-meta">
+                {gpayEnrichedCount === 0
+                  ? "Google Pay named none of these payments."
+                  : `Named ${plural(gpayEnrichedCount, "payment")} from Google Pay first.`}
               </p>
-              <p className="text-meta">{categorizationProblem.reason}</p>
-            </div>
-          </div>
-        )}
-
-        {gpayEnrichedCount !== null && (
-          <div className="flex items-start gap-3 rounded-card border border-money-in-border bg-money-in-bg p-4">
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-money-in mt-0.5" />
-            <div className="text-row text-money-in-ink">
-              Enriched {gpayEnrichedCount} draft narration
-              {gpayEnrichedCount === 1 ? "" : "s"} from Google Pay before
-              classification.
-            </div>
+            )}
           </div>
         )}
 

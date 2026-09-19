@@ -1,128 +1,104 @@
 import {
   accountKindOf,
+  type AccountKind,
   type AutoImportGroupResult,
   type AutoImportPlanFile,
 } from "dbu6-shared";
+import type { Fact } from "../../components/fact-table";
 import {
-  describeStatementAccount,
   formatBalance,
   formatDate,
   formatDateRange,
+  formatShortDate,
   joinNames,
-  parserLabel,
+  maskIdentifier,
   plural,
 } from "../../format";
 import {
+  categorizationCounts,
   describeCategorizationProblem,
-  describeCategorizationTally,
+  type CategorizationCounts,
   type CategorizationProblem,
-  type CategorizationSummary,
 } from "../categorization/describeCategorization";
 
-// A labelled fact, for the facts tables. Values are figures (money, dates,
-// counts, codes) set in mono unless marked as words.
-export interface Stat {
-  label: string;
-  value: string;
-  face?: "figure" | "words";
-}
+// A labelled fact, for the facts tables.
+export type Stat = Fact;
 
-// One account's row in the results card, laid out to be scanned: whose
-// statement, the status, the counts, the balances, then the details.
-export interface GroupSummary {
-  tone: "new" | "nothing-new";
+// One account's card in the results, in the order someone doing their books
+// reads it: which account, what came in and whether it still needs a
+// category, whether the balance agrees with the bank, and, folded away, the
+// categories and the facts behind the import.
+export type GroupSummary = {
   // The account the statement went into: the preset's name.
   title: string;
-  // Institution, account number, statement span and files, as one caption.
+  // A bank account or a credit card, for the card's icon.
+  accountKind: AccountKind;
+  // What kind of account, the number the statement prints, and its period,
+  // as one caption: "Bank account ending 0505 · 1 Aug to 31 Aug 2026".
   caption: string;
-  // The status chip's words: "21 new" or "Nothing new".
-  chip: string;
-  // The counts as a sentence: "8 in the statement: 5 new, 3 already in your
-  // books".
-  counts: string;
-  balances:
-    | { tone: "verified"; text: string; figures: string }
-    | { tone: "unverified"; text: string; figures: null };
-  // "Named 6 UPI payments from Google Pay", or null when none were named.
-  gpay: string | null;
-  // Who categorized the new drafts, and how many remain; null when there are
-  // none.
-  categorized: CategorizationSummary | null;
-  // Descriptions the LLM couldn't categorize, and why; null when it answered
-  // for all of them, or when the import has no report to give.
-  categorization: CategorizationProblem | null;
-  // Collapsed under "Details": where the rows that were not new went (empty
-  // when everything was new), the accounts the new drafts were given, then
-  // the facts behind the import.
-  breakdown: Stat[];
-  categorizedAs: Stat[];
+  closing: ClosingBalance;
+  // Folded under "Details": where the rows that were not new went (empty
+  // when everything was new), then the files and what Google Pay named.
+  notNew: Stat[];
   details: Stat[];
-}
+} & (
+  | {
+      kind: "new";
+      fresh: number;
+      // "of 8 in the statement" when some of its rows were already in the
+      // books; null when every row was new.
+      outOf: string | null;
+      categories: CategorizationCounts;
+      // Why the LLM left some uncategorized; null when it answered for all.
+      problem: CategorizationProblem | null;
+      // Folded under "By category": how many each account was given.
+      byCategory: Stat[];
+    }
+  | {
+      kind: "nothing-new";
+      // "Nothing new: 6 transactions already in your books."
+      text: string;
+    }
+);
 
-type Balance = AutoImportGroupResult["result"]["balance_metadata"]["opening"];
-
-function sourceLabel(source: Balance["source"]): string {
-  switch (source) {
-    case "statement":
-      return "from the statement";
-    case "checkpoint":
-      return "from your books' last confirmed balance";
-    case "per-row":
-      return "from the last row's printed balance";
-    case "none":
-      return "not available";
-  }
-}
-
-function counts(group: AutoImportGroupResult): string {
-  const { draft_transaction_count: fresh, transaction_count: total } =
-    group.result;
-  if (total === 0) return "The statement has no transactions.";
-  const known = total - fresh;
-  const parts = [
-    fresh > 0 ? `${fresh} new` : null,
-    known > 0 ? `${known} already in your books` : null,
-  ].filter((part): part is string => part !== null);
-  return `${total} in the statement: ${parts.join(", ")}`;
-}
+// The statement's closing balance, and whether it agreed with the books.
+export type ClosingBalance =
+  | { verified: true; label: string; figure: string }
+  | { verified: false; label: string; text: string };
 
 function caption(
   group: AutoImportGroupResult,
   sources: readonly AutoImportPlanFile[],
 ): string {
-  const resolved = sources.filter(
-    (row): row is Extract<AutoImportPlanFile, { status: "resolved" }> =>
-      row.status === "resolved" && group.file_names.includes(row.file_name),
-  );
-  const institutions = Array.from(
+  const endings = Array.from(
     new Set(
-      resolved
-        .map((row) => row.institution)
-        .filter((name): name is string => name !== null),
-    ),
-  );
-  const accounts = Array.from(
-    new Set(
-      resolved
+      sources
+        .filter(
+          (row): row is Extract<AutoImportPlanFile, { status: "resolved" }> =>
+            row.status === "resolved" &&
+            group.file_names.includes(row.file_name),
+        )
         .map((row) => row.account)
         .filter(
           (account): account is NonNullable<typeof account> => account !== null,
         )
-        .map(describeStatementAccount),
+        .map((account) => maskIdentifier(account.identifier)),
     ),
   );
+  const kind =
+    accountKindOf(group.is_credit_card) === "card"
+      ? "Credit card"
+      : "Bank account";
   const period = group.result.statement_period;
   return [
-    ...institutions,
-    ...accounts,
+    endings.length === 0 ? kind : `${kind} ${joinNames(endings)}`,
     period ? formatDateRange(period) : null,
-    joinNames(group.file_names),
   ]
-    .filter((part): part is string => part !== null && part !== "")
+    .filter((part): part is string => part !== null)
     .join(" · ");
 }
 
-function breakdown(group: AutoImportGroupResult): Stat[] {
+function notNew(group: AutoImportGroupResult): Stat[] {
   const r = group.result;
   const rows: Stat[] = [];
   if (r.skipped_reconciled_count > 0) {
@@ -148,87 +124,85 @@ function breakdown(group: AutoImportGroupResult): Stat[] {
   return rows;
 }
 
-function balances(group: AutoImportGroupResult): GroupSummary["balances"] {
-  const kind = accountKindOf(group.is_credit_card);
-  const { opening, closing } = group.result.balance_metadata;
-  if (closing.effective === null) {
+// Only the closing balance: it is the one a bank shows, and the import
+// checked the statement against it.
+function closing(group: AutoImportGroupResult): ClosingBalance {
+  const { effective } = group.result.balance_metadata.closing;
+  const period = group.result.statement_period;
+  if (effective === null) {
     return {
-      tone: "unverified",
-      text: "Balances not checked: the statement prints no closing balance",
-      figures: null,
+      verified: false,
+      label: "Closing balance",
+      text: "Not checked: the statement prints none",
     };
   }
-  const closingText = formatBalance(closing.effective, kind);
   return {
-    tone: "verified",
-    text: "Balances match the statement",
-    figures:
-      opening.effective === null
-        ? closingText
-        : `${formatBalance(opening.effective, kind)} → ${closingText}`,
+    verified: true,
+    label: period
+      ? `Closing balance, ${formatShortDate(period.last_date)}`
+      : "Closing balance",
+    figure: formatBalance(effective, accountKindOf(group.is_credit_card)),
   };
 }
 
 function details(group: AutoImportGroupResult): Stat[] {
-  const r = group.result;
-  const rows: Stat[] = [{ label: "Ledger account", value: group.base_account }];
-  const parsers = Array.from(new Set(r.custom_statement_parser_paths ?? []));
-  if (parsers.length > 0) {
-    rows.push({
-      label: "Read with",
-      value: parsers
-        .map((path) => `${parserLabel(path)} reader (${path})`)
-        .join(", "),
-    });
-  }
-  rows.push({
-    label: "Balance sources",
-    value: `Opening ${sourceLabel(r.balance_metadata.opening.source)}, closing ${sourceLabel(r.balance_metadata.closing.source)}`,
-    face: "words",
-  });
-  if (r.reconciliation_checkpoint) {
-    rows.push({
-      label: "Last confirmed balance",
-      value: `${formatBalance(r.reconciliation_checkpoint.balance, accountKindOf(group.is_credit_card))} on ${formatDate(r.reconciliation_checkpoint.date)}`,
-    });
+  const { file_names: files } = group;
+  const rows: Stat[] = [
+    {
+      label: files.length === 1 ? "File" : "Files",
+      value: joinNames(files),
+      face: "words",
+    },
+  ];
+  const named = group.result.gpay_enriched_count;
+  if (named > 0) {
+    rows.push({ label: "Named from Google Pay", value: String(named) });
   }
   return rows;
 }
 
 // `sources` are the batch's file rows; only the ones for this group's files
-// are read, for the institution and account number the statement prints.
+// are read, for the account number the statement prints.
 export function describeGroup(
   group: AutoImportGroupResult,
   sources: readonly AutoImportPlanFile[] = [],
 ): GroupSummary {
-  const fresh = group.result.draft_transaction_count;
-  const enriched = group.result.gpay_enriched_count;
-  return {
-    tone: fresh > 0 ? "new" : "nothing-new",
+  const r = group.result;
+  const common = {
     title: group.preset_name,
+    accountKind: accountKindOf(group.is_credit_card),
     caption: caption(group, sources),
-    chip: fresh > 0 ? `${fresh} new` : "Nothing new",
-    counts: counts(group),
-    balances: balances(group),
-    gpay:
-      enriched > 0
-        ? `Named ${plural(enriched, "UPI payment")} from Google Pay`
-        : null,
-    categorized: describeCategorizationTally(
-      group.result.categorization_tally,
-      group.result.categorization?.agent ?? null,
-    ),
-    categorization:
-      group.result.categorization === null
-        ? null
-        : describeCategorizationProblem(group.result.categorization),
-    breakdown: breakdown(group),
-    categorizedAs: group.result.categorization_tally.accounts.map(
-      (account) => ({
-        label: account.account_name,
-        value: String(account.count),
-      }),
-    ),
+    closing: closing(group),
+    notNew: notNew(group),
     details: details(group),
+  };
+  const fresh = r.draft_transaction_count;
+  if (fresh === 0) {
+    return {
+      ...common,
+      kind: "nothing-new",
+      text:
+        r.transaction_count === 0
+          ? "The statement has no transactions."
+          : `Nothing new: ${plural(r.transaction_count, "transaction")} already in your books.`,
+    };
+  }
+  return {
+    ...common,
+    kind: "new",
+    fresh,
+    outOf:
+      r.transaction_count === fresh
+        ? null
+        : `of ${r.transaction_count} in the statement`,
+    categories: categorizationCounts(r.categorization_tally),
+    problem:
+      r.categorization === null
+        ? null
+        : describeCategorizationProblem(r.categorization),
+    byCategory: r.categorization_tally.accounts.map((account) => ({
+      label: account.account_name,
+      value: String(account.count),
+    })),
   };
 }
