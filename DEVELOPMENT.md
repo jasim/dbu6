@@ -45,7 +45,11 @@ dbu6, or you will see stale type errors.
   `demo@example.com` (password `demo-password`) holding a year of sample
   personal finances up to today, or up to the given date. The twelve months
   before that month are posted journals, and that month so far is HDFC savings
-  drafts. Re-running replaces the demo account's ledger.
+  drafts. Re-running replaces the demo account's ledger. With
+  `--statements <dir>`, that month is written to `<dir>` as the statement files
+  it would arrive in (HDFC savings XLS, HDFC credit card CSV, and an SBI PDF no
+  saved parser reads) instead of drafts, with an `import-presets.json` to copy
+  into the data directory's `user-config/`.
 - `pnpm build` — typecheck, compile shared + backend (`tsc`), and bundle the
   frontend (`vite build`).
 - `pnpm start` — run the production server (serves API and SPA on one port).
