@@ -3,12 +3,15 @@
  * Sample data for development: a demo account holding a year of personal
  * finances for a salaried employee in Bengaluru.
  *
- *   pnpm seed               # the year up to today
- *   pnpm seed 2027-01-15    # the year up to another date
+ *   pnpm seed                                  # the year up to today
+ *   pnpm seed 2027-01-15                       # the year up to another date
+ *   pnpm seed 2026-09-30 --statements <dir>    # the as-of month as statement files
  *
  * The twelve months before the as-of month are posted as journals. The as-of
  * month so far is left as drafts on the HDFC savings account, as if that
- * statement had just been imported. Sign in as demo@example.com with the
+ * statement had just been imported. With --statements, the as-of month is
+ * written instead as the statement files it would arrive in, for importing
+ * through the app (see STATEMENT_FILES). Sign in as demo@example.com with the
  * password demo-password. Re-running replaces that account's accounts,
  * journals, and drafts.
  *
@@ -23,9 +26,12 @@
  * the app's own sign-up. The ledger rows are then written straight to SQLite.
  * All amounts, payees, and employers here are made up; see AGENTS.md.
  */
+import { execFileSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -530,7 +536,7 @@ export function buildLedger(asOf) {
     for (const day of [30, 30, 31]) receive(on(8, day), HDFC, RECEIVABLES, 4500, "Friend settles villa split", "UPI/SPLITWISE SETTLE UP");
   }
 
-  /** Two rows in the as-of month's drafts that no rule can place. */
+  /** Two rows in the as-of month that no rule can place. */
   function unrecognisedDrafts() {
     const day = (d) => ymd(year.asOfYear, year.asOfMonth, Math.min(d, Number(asOf.slice(8))));
     // The counterpart accounts only balance the transaction; the drafts are
@@ -593,16 +599,18 @@ export function buildLedger(asOf) {
   events.sort(byPostingOrder);
 
   const posted = events.filter((e) => e.date <= year.lastPostedDate);
-  // Only the as-of month's HDFC savings statement has been imported so far.
-  const drafts = events.filter((e) => e.date > year.lastPostedDate && e.date <= asOf && e.postings.some((p) => p.account === HDFC));
+  // The as-of month so far, of which only the HDFC savings statement has
+  // been imported.
+  const current = events.filter((e) => e.date > year.lastPostedDate && e.date <= asOf);
+  const drafts = current.filter((e) => e.postings.some((p) => p.account === HDFC));
 
   const { closing, lowest } = runningBalances(posted);
-  const lowestWithDrafts = runningBalances([...posted, ...drafts]).lowest;
+  const lowestWithCurrent = runningBalances([...posted, ...current]).lowest;
   for (const account of [HDFC, SBI, CASH]) {
-    const low = Math.min(lowest.get(account), lowestWithDrafts.get(account));
+    const low = Math.min(lowest.get(account), lowestWithCurrent.get(account));
     if (low < 0) throw new Error(`${account} dips to ${low / 100} in the year up to ${asOf}.`);
   }
-  return { year, posted, drafts, closing, lowest };
+  return { year, posted, current, drafts, closing, lowest };
 }
 
 function byPostingOrder(a, b) {
@@ -620,6 +628,82 @@ function runningBalances(events) {
     }
   }
   return { closing, lowest };
+}
+
+// ── Statement files ───────────────────────────────────────────────────────
+
+/**
+ * The files --statements writes for the as-of month, one per account, each in
+ * a layout its bank uses. HDFC's two have a saved parser under
+ * custom-built-parsers/; SBI's has none, so importing it asks for one.
+ * scripts/sample-statements/render.py draws each layout.
+ */
+const STATEMENT_FILES = [
+  { account: HDFC, layout: "hdfc-bank-xls", prefix: "HDFC_Bank", extension: "xls", parser: "custom-built-parsers/hdfc-bank-xls/parser.py" },
+  { account: HCC, layout: "hdfc-cc-csv", prefix: "HDFC_Millennia", extension: "csv", parser: "custom-built-parsers/hdfc-cc-csv/parser.py", isCreditCard: true },
+  { account: SBI, layout: "sbi-pdf", prefix: "SBI", extension: "pdf" },
+];
+
+/**
+ * Each file's statement of the as-of month so far, amounts in rupees. It
+ * opens on the balance the posted months close on, so it imports cleanly. A
+ * card's balances are what is owed, as its statement prints them.
+ */
+function buildStatements({ year, posted, current }) {
+  const { closing } = runningBalances(posted);
+  const mon = MONTHS[year.asOfMonth - 1].slice(0, 3);
+  const rupees = (paise) => paise / 100;
+  return STATEMENT_FILES.map(({ account, layout, prefix, extension, isCreditCard = false }) => {
+    const sign = isCreditCard ? -1 : 1;
+    const opening = sign * (closing.get(account) ?? 0);
+    let balance = opening;
+    const rows = [];
+    for (const e of current) {
+      const own = e.postings.filter((p) => p.account === account);
+      const paise = own.reduce((sum, p) => sum + p.paise, 0);
+      if (paise === 0) continue;
+      balance += sign * paise;
+      rows.push({
+        date: e.date,
+        narration: own.find((p) => p.comment)?.comment ?? e.narration,
+        reference: `050505${String(rows.length + 1).padStart(6, "0")}`,
+        // Money into the account, or a payment or refund onto the card.
+        deposit: rupees(Math.max(paise, 0)),
+        withdrawal: rupees(Math.max(-paise, 0)),
+        balance: rupees(balance),
+      });
+    }
+    return {
+      file: `${prefix}_${mon}_${year.asOfYear}.${extension}`,
+      layout,
+      account,
+      from: ymd(year.asOfYear, year.asOfMonth, 1),
+      to: year.asOf,
+      opening: rupees(opening),
+      closing: rupees(balance),
+      rows,
+    };
+  });
+}
+
+/**
+ * Writes the statement files into `dir`, with statements.json (what they
+ * hold) and import-presets.json (the presets that import the ones a saved
+ * parser reads, for the data directory's user-config/).
+ */
+function writeStatementFiles(dir, statements) {
+  mkdirSync(dir, { recursive: true });
+  const json = join(dir, "statements.json");
+  writeFileSync(json, `${JSON.stringify(statements, null, 2)}\n`);
+  const presets = STATEMENT_FILES.filter((f) => f.parser).map((f) => ({
+    name: f.account,
+    base_account: f.account,
+    custom_mappings_filenames: ["custom_mappings_default.prompt"],
+    ...(f.isCreditCard ? { is_credit_card: true } : {}),
+    custom_statement_parser_path: f.parser,
+  }));
+  writeFileSync(join(dir, "import-presets.json"), `${JSON.stringify(presets, null, 2)}\n`);
+  execFileSync("uv", ["run", "--quiet", join(projectRoot, "scripts/sample-statements/render.py"), json], { stdio: "inherit" });
 }
 
 // ── Database ──────────────────────────────────────────────────────────────
@@ -720,12 +804,22 @@ function openDatabase() {
 
 // ── Main ──────────────────────────────────────────────────────────────────
 
-/** The as-of date from the command line, or today in India. */
-function asOfArgument(args) {
-  const date = args.find((arg) => arg !== "--") ?? new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(new Date());
+/**
+ * The as-of date (today in India when left out) and the --statements
+ * directory, resolved against where pnpm was run.
+ */
+function commandLine(args) {
+  const { values, positionals } = parseArgs({
+    args: args.filter((arg) => arg !== "--"),
+    options: { statements: { type: "string" } },
+    allowPositionals: true,
+  });
+  if (positionals.length > 1) throw new Error(`Expected at most one as-of date, got ${positionals.join(" ")}.`);
+  const date = positionals[0] ?? new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(new Date());
   const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && new Date(`${date}T00:00:00Z`).toISOString().startsWith(date);
   if (!valid) throw new Error(`Expected an as-of date like 2027-01-15, got "${date}".`);
-  return date;
+  const statementsDir = values.statements === undefined ? null : resolve(process.env.INIT_CWD ?? process.cwd(), values.statements);
+  return { asOf: date, statementsDir };
 }
 
 /** Signs in to the demo account through the running API, creating it on the first run. */
@@ -764,7 +858,7 @@ function demoWorkspaceScope(sqlite) {
   return scope;
 }
 
-function printSummary({ year, posted, drafts, closing, lowest }) {
+function printSummary({ year, posted, drafts, closing, lowest }, statements) {
   const inr = (paise) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
   const total = (type) =>
     posted
@@ -772,23 +866,35 @@ function printSummary({ year, posted, drafts, closing, lowest }) {
       .reduce((sum, e) => sum + e.postings.filter((p) => ACCOUNT_TYPES.get(p.account) === type).reduce((s, p) => s + p.paise, 0), 0);
 
   console.log(`Seeded ${DEMO_ACCOUNT.email} (password: ${DEMO_ACCOUNT.password})`);
-  console.log(`  Posted ${addDays(year.openingDate, 1)} to ${year.lastPostedDate}; HDFC savings drafts to ${year.asOf}`);
+  console.log(
+    statements
+      ? `  Posted ${addDays(year.openingDate, 1)} to ${year.lastPostedDate}; statements to ${year.asOf} in ${statements.dir}`
+      : `  Posted ${addDays(year.openingDate, 1)} to ${year.lastPostedDate}; HDFC savings drafts to ${year.asOf}`,
+  );
   console.log(`  ${ACCOUNTS.length} accounts, ${posted.length} journals, ${posted.reduce((n, e) => n + e.postings.length, 0)} entries, ${drafts.length} drafts`);
   console.log(`  Income ${inr(-total("Revenue"))}, expenses ${inr(total("Expense"))}`);
   console.log(`  Closing balances on ${year.lastPostedDate}:`);
   for (const account of [HDFC, SBI, CASH, HCC, ICC, CAR_LOAN, "HDFC Fixed Deposit"]) {
     console.log(`    ${account.padEnd(42)} ${inr(closing.get(account)).padStart(12)}   (lowest ${inr(lowest.get(account))})`);
   }
+  for (const s of statements?.files ?? []) {
+    console.log(`  ${s.file.padEnd(44)} ${String(s.rows.length).padStart(3)} rows, ${inr(s.opening * 100)} to ${inr(s.closing * 100)}`);
+  }
 }
 
 if (import.meta.main) {
-  const ledger = buildLedger(asOfArgument(process.argv.slice(2)));
+  const { asOf, statementsDir } = commandLine(process.argv.slice(2));
+  const ledger = buildLedger(asOf);
+  const statements = statementsDir && { dir: statementsDir, files: buildStatements(ledger) };
+  // The as-of month arrives either as drafts or as statement files, not both.
+  const written = statements ? { ...ledger, drafts: [] } : ledger;
   await signInDemoAccount();
   const sqlite = openDatabase();
   try {
-    writeLedger(sqlite, demoWorkspaceScope(sqlite), ledger);
+    writeLedger(sqlite, demoWorkspaceScope(sqlite), written);
   } finally {
     sqlite.close();
   }
-  printSummary(ledger);
+  if (statements) writeStatementFiles(statements.dir, statements.files);
+  printSummary(written, statements);
 }
