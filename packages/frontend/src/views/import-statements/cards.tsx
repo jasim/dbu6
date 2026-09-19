@@ -1,18 +1,22 @@
 import { Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { CreditCard, Landmark } from "lucide-react";
 import type { AutoImportGroupResult, AutoImportPlanFile } from "dbu6-shared";
 import { cn } from "@sapporta/ui/cn";
 import { AgentActions, PromptText } from "../../components/agent-prompt";
 import { Disclosure } from "../../components/disclosure";
 import { Button } from "../../components/ui/button";
-import {
-  StatusChip,
-  statusTextClass,
-  type StatusTone,
-} from "../../components/status-chip";
+import { statusTextClass, type StatusTone } from "../../components/status-chip";
 import { joinNames } from "../../format";
-import { CategorizedLine } from "../categorization/CategorizedLine";
-import { describeGroup, type Stat } from "./describeGroup";
+import { FactTable } from "../../components/fact-table";
+import {
+  CategorizationFigures,
+  CategorizationNote,
+  Figure,
+  Figures,
+} from "../categorization/CategorizationFigures";
+import { reclassifyDraftsHref } from "../ReclassifyDrafts";
+import { describeGroup, type ClosingBalance, type Stat } from "./describeGroup";
 import type { Problem, ProblemAction } from "./describeProblems";
 
 // The glyph that marks a done line in shape as well as colour. A problem
@@ -57,89 +61,32 @@ export function OutcomeLine({
   );
 }
 
-// Labels on the left, values on the right. Figures are mono; words wrap.
-function FactTable({ rows, heading }: { rows: Stat[]; heading?: string }) {
-  if (rows.length === 0) return null;
-  return (
-    <div>
-      {heading && (
-        <div className="mb-2 text-label uppercase text-ink-meta">{heading}</div>
-      )}
-      <dl className="divide-y divide-line-inner rounded-control border border-sap-border">
-        {rows.map((row) => (
-          <div
-            key={row.label}
-            className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 px-4 py-2.5 text-row"
-          >
-            <dt className="min-w-0 text-ink-soft">{row.label}</dt>
-            <dd
-              className={cn(
-                "ml-auto min-w-0 text-right text-foreground [overflow-wrap:anywhere]",
-                row.face !== "words" && "tnum font-mono font-medium",
-              )}
-            >
-              {row.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
-
-// Collapsed by default; the summary reads as a link.
-// Whose statement: the title and its caption, with the status on the right.
-function Subject({
-  title,
-  caption,
-  status,
-}: {
-  title: string;
-  caption: string | null;
-  status: ReactNode;
-}) {
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-1.5">
-      <div className="min-w-0 flex-1 basis-[240px]">
-        <h2 className="text-[16.5px] font-semibold text-foreground [overflow-wrap:anywhere]">
-          {title}
-        </h2>
-        {caption && (
-          <p className="mt-0.5 text-meta text-ink-meta [overflow-wrap:anywhere]">
-            {caption}
-          </p>
-        )}
-      </div>
-      <div className="pt-0.5">{status}</div>
-    </div>
-  );
-}
-
-/** One card, one row per account an import reached. */
+/** One card per account an import reached, apart, so each reads alone. */
 export function ResultsCard({
   groups,
   sources,
 }: {
   groups: readonly AutoImportGroupResult[];
-  // The batch's file rows, for the institution and account number.
+  // The batch's file rows, for the account number.
   sources: readonly AutoImportPlanFile[];
 }) {
   return (
-    <section className="rounded-card border border-sap-border bg-card shadow-card">
-      <ul className="divide-y divide-line-inner">
-        {groups.map((group) => (
-          <ResultRow
-            key={group.preset_name + group.base_account}
-            group={group}
-            sources={sources}
-          />
-        ))}
-      </ul>
-    </section>
+    <ul className="space-y-4">
+      {groups.map((group) => (
+        <AccountResult
+          key={group.preset_name + group.base_account}
+          group={group}
+          sources={sources}
+        />
+      ))}
+    </ul>
   );
 }
 
-function ResultRow({
+// One account's card, top to bottom: a header band naming the account, then
+// what came in and whether it still needs a category, the closing balance,
+// and the categories and the facts behind the import folded away.
+function AccountResult({
   group,
   sources,
 }: {
@@ -147,58 +94,83 @@ function ResultRow({
   sources: readonly AutoImportPlanFile[];
 }) {
   const summary = describeGroup(group, sources);
+  const accountId = group.result.base_account_id;
+  const Icon = summary.accountKind === "card" ? CreditCard : Landmark;
   return (
-    <li className="px-5 pb-3 pt-5 sm:px-6">
-      <Subject
-        title={summary.title}
-        caption={summary.caption}
-        status={
-          <StatusChip tone={summary.tone === "new" ? "ok" : "waiting"}>
-            {summary.chip}
-          </StatusChip>
-        }
-      />
-      <div className="mt-3 space-y-1 text-body">
-        <p className="text-foreground">{summary.counts}</p>
-        {summary.balances.tone === "verified" ? (
-          <div className="flex flex-wrap items-baseline gap-x-3">
-            <OutcomeLine tone="ok" className="text-foreground">
-              {summary.balances.text}
-            </OutcomeLine>
-            <span className="tnum font-mono text-row text-ink-soft">
-              {summary.balances.figures}
-            </span>
-          </div>
-        ) : (
-          <OutcomeLine tone="waiting">{summary.balances.text}</OutcomeLine>
-        )}
-        {summary.gpay && <p className="text-ink-soft">{summary.gpay}</p>}
-        {summary.categorized && (
-          <CategorizedLine
-            summary={summary.categorized}
-            accountId={group.result.base_account_id}
-          />
-        )}
-        {summary.categorization && (
-          <div>
-            <OutcomeLine tone="attention">
-              {summary.categorization.text}. Their new drafts are uncategorized
-              in Review.
-            </OutcomeLine>
-            <p className="text-meta text-ink-meta [overflow-wrap:anywhere]">
-              {summary.categorization.reason}
-            </p>
-          </div>
-        )}
+    <li className="overflow-hidden rounded-card border border-sap-border bg-card shadow-card">
+      <div className="flex items-center gap-3 border-b border-sap-border bg-sap-nested px-5 py-3 sm:px-6">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-sap-border bg-card text-ink-soft">
+          <Icon aria-hidden="true" className="size-[18px]" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-[16.5px] font-semibold text-foreground [overflow-wrap:anywhere]">
+            {summary.title}
+          </h2>
+          <p className="text-meta text-ink-meta">{summary.caption}</p>
+        </div>
       </div>
-      <div className="mt-1">
-        <Disclosure summary="Details">
-          <FactTable heading="Not new because" rows={summary.breakdown} />
-          <FactTable heading="Categorized as" rows={summary.categorizedAs} />
-          <FactTable rows={summary.details} />
-        </Disclosure>
+      <div className="space-y-3 px-5 pb-3 pt-4 sm:px-6">
+        {summary.kind === "new" ? (
+          <>
+            <Figures>
+              <Figure label="New" value={summary.fresh} note={summary.outOf} />
+              <CategorizationFigures
+                counts={summary.categories}
+                accountId={accountId}
+              />
+            </Figures>
+            {summary.problem && (
+              <CategorizationNote problem={summary.problem}>
+                Once that's fixed,{" "}
+                <Link
+                  to={reclassifyDraftsHref(accountId)}
+                  className="font-semibold text-attention-ink underline underline-offset-4"
+                >
+                  run the categoriser again
+                </Link>
+                .
+              </CategorizationNote>
+            )}
+          </>
+        ) : (
+          <p className="text-row text-ink-meta">{summary.text}</p>
+        )}
+        <ClosingLine closing={summary.closing} />
+        <div>
+          {summary.kind === "new" && summary.byCategory.length > 0 && (
+            <Disclosure summary={`By category (${summary.byCategory.length})`}>
+              <FactTable rows={summary.byCategory} />
+            </Disclosure>
+          )}
+          <Disclosure summary="Details">
+            <FactTable heading="Not new because" rows={summary.notNew} />
+            <FactTable rows={summary.details} />
+          </Disclosure>
+        </div>
       </div>
     </li>
+  );
+}
+
+// The statement's closing balance as a field: the figure, and that the
+// statement's transactions add up to it.
+function ClosingLine({ closing }: { closing: ClosingBalance }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 border-t border-line-inner pt-3 text-row">
+      <span className="text-ink-soft">{closing.label}</span>
+      {closing.verified ? (
+        <span className="flex flex-wrap items-baseline justify-end gap-x-2">
+          <span className="tnum font-mono font-medium text-foreground">
+            {closing.figure}
+          </span>
+          <span className="text-meta text-primary">
+            <span aria-hidden="true">✓ </span>Transactions add up
+          </span>
+        </span>
+      ) : (
+        <span className="text-meta text-ink-meta">{closing.text}</span>
+      )}
+    </div>
   );
 }
 

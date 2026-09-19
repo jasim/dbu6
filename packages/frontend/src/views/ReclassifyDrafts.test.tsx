@@ -16,9 +16,9 @@ import { ReclassifyDrafts, reclassifyDraftsHref } from "./ReclassifyDrafts";
 
 /*
  * Classify drafts opened from an account's Drafts tab: the account stays
- * chosen, with the mapping files its preset imports with, a run says who
- * categorized what and links to the ones that remain, and a second run
- * sends only those.
+ * chosen, with the mapping files its preset imports with, a run counts
+ * what it categorized, by category, and links to the ones that still need
+ * one, and a second run sends only those.
  */
 
 vi.mock("@sapporta/frontend/shell", () => ({
@@ -207,7 +207,7 @@ describe("Classify drafts opened on an account", () => {
     expect(text()).toContain("Classify 4 rows");
   });
 
-  it("says who categorized the drafts, per account, and links to the ones that remain", async () => {
+  it("counts what it categorized, by category, and links to the ones that still need one", async () => {
     await renderAt(reclassifyDraftsHref(5));
 
     const button = [...host.querySelectorAll("button")].find((b) =>
@@ -221,11 +221,11 @@ describe("Classify drafts opened on an account", () => {
       ids: [1, 2, 3, 4],
       custom_mappings_filenames: ["custom_mappings_sample.prompt"],
     });
-    expect(text()).toContain(
-      "Categorized 3 (2 by your rules, 1 by Claude Code). 1 remains.",
-    );
+    expect(text()).toContain("Categorized3");
+    expect(text()).toContain("Need a category1");
+    expect(text()).not.toMatch(/your rules|Claude Code/);
     const remain = [...host.querySelectorAll("a")].find(
-      (a) => a.textContent === "1 remains",
+      (a) => a.textContent === "Categorize",
     );
     expect(remain?.getAttribute("href")).toBe(
       "/review/5/drafts?filter%5Baccount_id%5D%5Bis%5D=null",
