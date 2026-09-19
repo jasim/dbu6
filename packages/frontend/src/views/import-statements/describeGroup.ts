@@ -14,7 +14,9 @@ import {
 } from "../../format";
 import {
   describeCategorizationProblem,
+  describeCategorizationTally,
   type CategorizationProblem,
+  type CategorizationSummary,
 } from "../categorization/describeCategorization";
 
 // A labelled fact, for the facts tables. Values are figures (money, dates,
@@ -43,12 +45,17 @@ export interface GroupSummary {
     | { tone: "unverified"; text: string; figures: null };
   // "Named 6 UPI payments from Google Pay", or null when none were named.
   gpay: string | null;
+  // Who categorized the new drafts, and how many remain; null when there are
+  // none.
+  categorized: CategorizationSummary | null;
   // Descriptions the LLM couldn't categorize, and why; null when it answered
   // for all of them, or when the import has no report to give.
   categorization: CategorizationProblem | null;
   // Collapsed under "Details": where the rows that were not new went (empty
-  // when everything was new), then the facts behind the import.
+  // when everything was new), the accounts the new drafts were given, then
+  // the facts behind the import.
   breakdown: Stat[];
+  categorizedAs: Stat[];
   details: Stat[];
 }
 
@@ -207,11 +214,21 @@ export function describeGroup(
       enriched > 0
         ? `Named ${plural(enriched, "UPI payment")} from Google Pay`
         : null,
+    categorized: describeCategorizationTally(
+      group.result.categorization_tally,
+      group.result.categorization?.agent ?? null,
+    ),
     categorization:
       group.result.categorization === null
         ? null
         : describeCategorizationProblem(group.result.categorization),
     breakdown: breakdown(group),
+    categorizedAs: group.result.categorization_tally.accounts.map(
+      (account) => ({
+        label: account.account_name,
+        value: String(account.count),
+      }),
+    ),
     details: details(group),
   };
 }

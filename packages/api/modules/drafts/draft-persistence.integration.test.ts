@@ -26,13 +26,14 @@ describe("draft persistence reconciliation", () => {
     const first = draftRows(transaction, SOFTWARE_ACCOUNT_ID);
     expect(
       persistDrafts(db, first.rows, first.expectedClosingByDate, auth),
-    ).toMatchObject({ inserted: 1, duplicates: 0 });
+    ).toMatchObject({ inserted: 1, insertedIndices: [0], duplicates: 0 });
 
     const second = draftRows(transaction, OFFICE_ACCOUNT_ID);
     expect(
       persistDrafts(db, second.rows, second.expectedClosingByDate, auth),
     ).toMatchObject({
       inserted: 0,
+      insertedIndices: [],
       duplicates: 1,
       draftDuplicates: 1,
     });
@@ -145,6 +146,33 @@ describe("draft persistence reconciliation", () => {
     expect(
       sqlite.prepare("SELECT COUNT(*) AS count FROM draft_transactions").get(),
     ).toEqual({ count: 1 });
+  });
+
+  it("says which rows of a batch were new, by their index", () => {
+    const { db } = setup();
+    const known = tx("known-key");
+    const once = draftRows(known, SOFTWARE_ACCOUNT_ID);
+    persistDrafts(db, once.rows, once.expectedClosingByDate, auth);
+
+    // The next day, so the known day's closing is unchanged.
+    const fresh: Abacus = {
+      ...tx("fresh-key"),
+      date: "2026-05-08",
+      narration: "Second",
+      withdrawal: 10,
+      deposit: 0,
+      balance: null,
+    };
+    const batch = toDraftRows(
+      unsafeAsChrono([
+        { transaction: known, accountId: SOFTWARE_ACCOUNT_ID },
+        { transaction: fresh, accountId: OFFICE_ACCOUNT_ID },
+      ]),
+      BASE_ACCOUNT_ID,
+    );
+    expect(
+      persistDrafts(db, batch.rows, batch.expectedClosingByDate, auth),
+    ).toMatchObject({ inserted: 1, insertedIndices: [1], duplicates: 1 });
   });
 
   it("places one assertion on the final effective draft only after dedupe", () => {

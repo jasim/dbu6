@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
 import type { ImportPreset } from "dbu6-shared";
 import { importPresetsApi } from "../api";
@@ -26,8 +26,12 @@ export function AccountImportInputs({
   onMappingsInputChange,
   disabled,
 }: Props) {
-  const [presets, setPresets] = useState<ImportPreset[]>([]);
+  // Null until they load.
+  const [presets, setPresets] = useState<ImportPreset[] | null>(null);
   const accountLookup = useTableLookup("accounts");
+  // The account whose mapping files are filled in, so each account fills
+  // them once and a preset's own choice stands.
+  const filledFor = useRef<string | null>(null);
 
   useEffect(() => {
     importPresetsApi
@@ -36,15 +40,33 @@ export function AccountImportInputs({
       .catch(() => setPresets([]));
   }, []);
 
+  // A chosen account, picked or opened from its Drafts tab, gets the mapping
+  // files its presets import with, so it is categorized as its imports were.
+  useEffect(() => {
+    if (baseAccountId === null || filledFor.current === baseAccountId) return;
+    const account = accounts.find((a) => String(a.id) === baseAccountId);
+    if (!account || presets === null) return;
+    filledFor.current = baseAccountId;
+    const filenames = new Set(
+      presets
+        .filter((p) => p.base_account === account.name)
+        .flatMap((p) => p.custom_mappings_filenames),
+    );
+    onMappingsInputChange([...filenames].join(", "));
+  }, [accounts, presets, baseAccountId, onMappingsInputChange]);
+
   function applyPreset(p: ImportPreset) {
     const match = accounts.find((a) => a.name === p.base_account);
-    if (match) onBaseAccountIdChange(String(match.id));
+    if (match) {
+      filledFor.current = String(match.id);
+      onBaseAccountIdChange(String(match.id));
+    }
     onMappingsInputChange(p.custom_mappings_filenames.join(", "));
   }
 
   return (
     <div className="space-y-5">
-      {presets.length > 0 && (
+      {presets && presets.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 text-row">
           <span className="text-ink-meta">Presets</span>
           {presets.map((p) => (

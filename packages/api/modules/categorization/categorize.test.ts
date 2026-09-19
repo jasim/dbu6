@@ -16,7 +16,7 @@ import {
   loadCategorizer,
   type CategorizerSettings,
 } from "./load-categorizer.js";
-import { categorize } from "./categorize.js";
+import { categorize, tallyCategorization } from "./categorize.js";
 import {
   categorizeViaLLM,
   type CategorizationLlm,
@@ -117,6 +117,7 @@ describe("categorize", () => {
           transaction: txns[0],
           account: parseAccount("Food"),
           accountId: 11,
+          outcome: "rule",
         },
       ],
       sameAccountSkips: [],
@@ -283,7 +284,7 @@ describe("categorize", () => {
     }
   });
 
-  it("gives each answer's ledger account id, and none for an account the ledger doesn't hold", async () => {
+  it("gives each answer's ledger account id and who answered, and none for an account the ledger doesn't hold", async () => {
     llmMock.mockResolvedValue(
       answered({
         MYSTERY: parseAccount("Other Expenses"),
@@ -292,15 +293,25 @@ describe("categorize", () => {
     );
 
     const result = await categorizeRows(
-      [withdrawal("STARBUCKS"), withdrawal("MYSTERY"), withdrawal("UNKNOWN")],
+      [
+        withdrawal("STARBUCKS"),
+        withdrawal("MYSTERY"),
+        withdrawal("UNKNOWN"),
+        withdrawal("UNANSWERED"),
+      ],
       baseConfig(),
     );
     expect(
-      result.rows.map(({ account, accountId }) => ({ account, accountId })),
+      result.rows.map(({ account, accountId, outcome }) => ({
+        account,
+        accountId,
+        outcome,
+      })),
     ).toEqual([
-      { account: "Food", accountId: 11 },
-      { account: "Other Expenses", accountId: 12 },
-      { account: "Not In Ledger", accountId: null },
+      { account: "Food", accountId: 11, outcome: "rule" },
+      { account: "Other Expenses", accountId: 12, outcome: "llm" },
+      { account: "Not In Ledger", accountId: null, outcome: "uncategorized" },
+      { account: UNCATEGORIZED, accountId: null, outcome: "uncategorized" },
     ]);
   });
 
@@ -325,8 +336,14 @@ describe("categorize", () => {
         transaction: onTheBank,
         account: "Sample Bank",
         accountId: null,
+        outcome: "same-account",
       },
-      { transaction: onACard, account: "Sample Bank", accountId: 21 },
+      {
+        transaction: onACard,
+        account: "Sample Bank",
+        accountId: 21,
+        outcome: "llm",
+      },
     ]);
     expect(result.sameAccountSkips).toEqual([
       {
@@ -335,5 +352,48 @@ describe("categorize", () => {
         account: "Sample Bank",
       },
     ]);
+  });
+});
+
+describe("tallyCategorization", () => {
+  it("counts each row once by who categorized it, and each account's rows, most first", async () => {
+    llmMock.mockResolvedValue(
+      answered({
+        MYSTERY: parseAccount("Other Expenses"),
+        "to my sample": parseAccount("Sample Bank"),
+      }),
+    );
+    const result = await categorize(
+      await loadCategorizer(baseConfig(), dir),
+      [
+        withdrawal("STARBUCKS"),
+        withdrawal("MYSTERY"),
+        withdrawal("MYSTERY", 200),
+        withdrawal("to my sample"),
+        withdrawal("UNANSWERED"),
+      ].map((transaction) => ({ transaction, baseAccountId: 21 })),
+      ACCOUNTS,
+    );
+
+    expect(tallyCategorization(result.rows)).toEqual({
+      by_rule: 1,
+      by_llm: 2,
+      same_account: 1,
+      uncategorized: 1,
+      accounts: [
+        { account_id: 12, account_name: "Other Expenses", count: 2 },
+        { account_id: 11, account_name: "Food", count: 1 },
+      ],
+    });
+  });
+
+  it("is all zero for no rows", () => {
+    expect(tallyCategorization([])).toEqual({
+      by_rule: 0,
+      by_llm: 0,
+      same_account: 0,
+      uncategorized: 0,
+      accounts: [],
+    });
   });
 });

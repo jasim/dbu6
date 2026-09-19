@@ -102,6 +102,14 @@ function imported(count: number): StatementImportResult {
       failed_count: 0,
       error: null,
     },
+    categorization_tally: {
+      by_rule: 0,
+      by_llm: 0,
+      same_account: 0,
+      uncategorized: 0,
+      accounts: [],
+    },
+    base_account_id: 1,
     opening_balance: -2500,
     closing_balance_from_statement: -4000,
     balance_metadata: {

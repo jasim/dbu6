@@ -14,6 +14,8 @@ export {
   importSummarySchema,
   categorizationReportSchema,
   type CategorizationReport,
+  categorizationTallySchema,
+  type CategorizationTally,
   statementImportResultSchema,
   sameAccountSkipSchema,
   autoImportPlanFileSchema,

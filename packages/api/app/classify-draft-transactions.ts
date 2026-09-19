@@ -25,6 +25,7 @@ api.register(
         body: {
           transactions: result.transactions,
           categorization: result.categorization,
+          categorization_tally: result.categorizationTally,
         },
       };
     } catch (err) {
@@ -66,6 +67,7 @@ api.register(
           transactions: result.transactions,
           gpay_enriched_count: result.gpayEnrichedCount,
           categorization: result.categorization,
+          categorization_tally: result.categorizationTally,
         },
       };
     } catch (err) {

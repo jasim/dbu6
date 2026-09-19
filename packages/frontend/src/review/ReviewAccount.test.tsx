@@ -170,6 +170,18 @@ describe("the review account frame", () => {
     );
   });
 
+  it("runs the categoriser again on this account's drafts", async () => {
+    responses = [{ status: 200, body: detail() }];
+    await renderAt("/review/5/drafts");
+
+    const again = Array.from(host.querySelectorAll("a")).find(
+      (a) => a.textContent === "Run the categoriser again",
+    );
+    expect(again?.getAttribute("href")).toBe(
+      "/views/reclassify-drafts?account=5",
+    );
+  });
+
   it("sends a path that isn't a tab to Overview, for an account with no drafts too", async () => {
     responses = [
       { status: 200, body: detail({ drafts: 0, uncategorised: 0 }) },

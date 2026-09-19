@@ -4,7 +4,9 @@
 // applies it. Import from here rather than from the files.
 export {
   categorize,
+  tallyCategorization,
   type Categorization,
+  type CategorizationOutcome,
   type CategorizationRow,
   type CategorizedRow,
   type Categorizer,

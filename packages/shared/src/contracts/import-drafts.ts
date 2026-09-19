@@ -33,6 +33,31 @@ export const categorizationReportSchema = z.object({
 });
 export type CategorizationReport = z.infer<typeof categorizationReportSchema>;
 
+// What categorization did with the transactions it saved, each counted once
+// in one of the four counts: given an account by the mapping rules or by the
+// LLM, or left without one.
+export const categorizationTallySchema = z.object({
+  // Given an account by the user's mapping rules.
+  by_rule: z.number(),
+  // Given an account by the LLM: the coding agent the report names.
+  by_llm: z.number(),
+  // Answered with the statement's own account, which can't be the other side
+  // of its own entry, so left uncategorized.
+  same_account: z.number(),
+  // Left uncategorized: no rule matched, and the LLM gave no answer or one
+  // that names no ledger account.
+  uncategorized: z.number(),
+  // How many each account was given, most first.
+  accounts: z.array(
+    z.object({
+      account_id: z.number(),
+      account_name: z.string(),
+      count: z.number(),
+    }),
+  ),
+});
+export type CategorizationTally = z.infer<typeof categorizationTallySchema>;
+
 export const importSummarySchema = z.object({
   hledger_journal: z.string(),
   transaction_count: z.number(),
@@ -49,6 +74,11 @@ export const importSummarySchema = z.object({
   // rows already in Review or the ledger are dropped, so a report would be
   // about rows that weren't imported.
   categorization: categorizationReportSchema.nullable(),
+  // The drafts this import saved, by who categorized them; all zero when it
+  // saved none.
+  categorization_tally: categorizationTallySchema,
+  // The ledger account the drafts were saved under.
+  base_account_id: z.number(),
 });
 
 export const balanceSourceSchema = z.enum([

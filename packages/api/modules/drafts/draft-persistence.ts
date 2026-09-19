@@ -20,6 +20,8 @@ import type { LedgerAuth } from "../ledger-sql/index.js";
 
 export interface PersistSummary {
   inserted: number;
+  // Which of the rows were saved as new drafts, by their index.
+  insertedIndices: number[];
   duplicates: number;
   draftDuplicates: number;
   journalDuplicates: number;
@@ -103,6 +105,7 @@ export function persistDrafts(
 ): PersistSummary {
   const summary: PersistSummary = {
     inserted: 0,
+    insertedIndices: [],
     duplicates: 0,
     draftDuplicates: 0,
     journalDuplicates: 0,
@@ -111,7 +114,7 @@ export function persistDrafts(
   };
   db.transaction((tx: any) => {
     const access = auth.rowSecurity.forTable(draftTransactions);
-    for (const row of rows) {
+    for (const [index, row] of rows.entries()) {
       const existing = findDuplicate(
         tx,
         {
@@ -131,6 +134,7 @@ export function persistDrafts(
         const values = access.insertValuesSync(tx, row);
         tx.insert(draftTransactionsTable).values(values).run();
         summary.inserted++;
+        summary.insertedIndices.push(index);
         continue;
       }
       summary.duplicates++;

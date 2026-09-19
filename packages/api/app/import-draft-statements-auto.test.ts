@@ -117,6 +117,14 @@ function importedNothing(): StatementImportResult {
       failed_count: 0,
       error: null,
     },
+    categorization_tally: {
+      by_rule: 0,
+      by_llm: 0,
+      same_account: 0,
+      uncategorized: 0,
+      accounts: [],
+    },
+    base_account_id: 1,
     opening_balance: null,
     closing_balance_from_statement: null,
     balance_metadata: {

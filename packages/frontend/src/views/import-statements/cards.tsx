@@ -11,6 +11,7 @@ import {
   type StatusTone,
 } from "../../components/status-chip";
 import { joinNames } from "../../format";
+import { CategorizedLine } from "../categorization/CategorizedLine";
 import { describeGroup, type Stat } from "./describeGroup";
 import type { Problem, ProblemAction } from "./describeProblems";
 
@@ -172,6 +173,12 @@ function ResultRow({
           <OutcomeLine tone="waiting">{summary.balances.text}</OutcomeLine>
         )}
         {summary.gpay && <p className="text-ink-soft">{summary.gpay}</p>}
+        {summary.categorized && (
+          <CategorizedLine
+            summary={summary.categorized}
+            accountId={group.result.base_account_id}
+          />
+        )}
         {summary.categorization && (
           <div>
             <OutcomeLine tone="attention">
@@ -187,6 +194,7 @@ function ResultRow({
       <div className="mt-1">
         <Disclosure summary="Details">
           <FactTable heading="Not new because" rows={summary.breakdown} />
+          <FactTable heading="Categorized as" rows={summary.categorizedAs} />
           <FactTable rows={summary.details} />
         </Disclosure>
       </div>

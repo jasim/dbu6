@@ -37,6 +37,14 @@ vi.mock("./draft-import.js", () => ({
         failed_count: 0,
         error: null,
       },
+      categorization_tally: {
+        by_rule: 0,
+        by_llm: 0,
+        same_account: 0,
+        uncategorized: 0,
+        accounts: [],
+      },
+      base_account_id: input.baseAccountId,
     };
   },
 }));
