@@ -88,42 +88,24 @@ describe("homeState", () => {
     expect(view.card.action.to).toBe("/import");
   });
 
-  it("puts problems in the drafts before categories", () => {
+  it("says drafts are waiting, whatever they still need", () => {
     const view = homeState(
       summary([
-        account({
-          drafts: 12,
-          uncategorised: 5,
-          failing_checks: 2,
-          duplicates: 1,
-        }),
+        account({ drafts: 12, uncategorised: 5, failing_checks: 2 }),
       ]),
     );
-    expect(view.state).toBe("problems");
-    expect(view.greeting).toBe("A few things to fix first");
-    expect(view.card.count).toBe(3);
-    expect(view.card.title).toBe("A few things to fix in the drafts");
-    expect(view.card.action).toEqual({
-      label: "Review the drafts",
-      to: "/review/2",
+    expect(view.state).toBe("drafts");
+    expect(view.greeting).toBeUndefined();
+    expect(view.card).toEqual({
+      title: "There are draft entries waiting to be posted to your books",
+      action: { label: "Review transactions", to: "/review/2" },
     });
   });
 
-  it("names the one kind of problem when there is only one", () => {
-    expect(
-      homeState(summary([account({ drafts: 3, failing_checks: 1 })])).card
-        .title,
-    ).toBe("1 balance check fails in the drafts");
-    const duplicates = homeState(
-      summary([account({ drafts: 3, duplicates: 2 })]),
-    ).card;
-    expect(duplicates.title).toBe("2 possible duplicate entries in the drafts");
-  });
-
-  it("counts the drafts needing a category and says where they are", () => {
+  it("sends drafts on several accounts to the account picker", () => {
     const view = homeState(
       summary([
-        account({ drafts: 21, uncategorised: 12 }),
+        account({ drafts: 21 }),
         account({
           account_id: 1,
           path: "Sample Card",
@@ -133,48 +115,29 @@ describe("homeState", () => {
         }),
       ]),
     );
-    expect(view.state).toBe("uncategorised");
-    expect(view.card.count).toBe(12);
-    expect(view.card.title).toBe("12 transactions need a category");
-    expect(view.card.body).toBe(
-      "They're waiting in the drafts for Sample Savings. Nothing is added to your books until you've reviewed them.",
-    );
-    // Drafts on two accounts: the picker, not one account's Review.
-    expect(view.card.action).toEqual({
-      label: "Review transactions",
-      to: "/review",
-    });
+    expect(view.card.action.to).toBe("/review");
   });
 
-  it("does not name accounts when the drafts sit on unlisted ones", () => {
+  it("sends drafts on unlisted accounts to the account picker", () => {
     const view = homeState(
       summary([account()], {
         totals: {
           drafts: 3,
-          uncategorised: 1,
+          uncategorised: 0,
           duplicates: 0,
           balance_checks: 0,
           failing_checks: 0,
         },
       }),
     );
-    expect(view.state).toBe("uncategorised");
-    expect(view.card.title).toBe("1 transaction needs a category");
-    expect(view.card.body).toMatch(/^They're waiting in the drafts\. /);
+    expect(view.state).toBe("drafts");
     expect(view.card.action.to).toBe("/review");
   });
 
-  it("offers to post when every draft is categorised and clean", () => {
-    // An account the ledger doesn't have yet holds no drafts, so the only
-    // account with drafts still gets its own Review.
+  it("gives the only account with drafts its own Review", () => {
+    // An account the ledger doesn't have yet holds no drafts.
     const view = homeState(summary([account({ drafts: 21 }), missing]));
-    expect(view.state).toBe("ready");
-    expect(view.card.count).toBe(21);
-    expect(view.card.body).toBe("The entries are ready for posting.");
-    expect(view.card.action).toEqual({
-      label: "Add them to my books",
-      to: "/review/2",
-    });
+    expect(view.card.action.to).toBe("/review/2");
   });
 
   it("asks for new statements, without claiming up to date, when nothing is pending", () => {
