@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
-import { categorizationReportSchema } from "./import-drafts.js";
+import {
+  categorizationReportSchema,
+  categorizationTallySchema,
+} from "./import-drafts.js";
 
 const c = initContract();
 
@@ -24,11 +27,13 @@ const classifiedDraftTransactionSchema = z.object({
   account_name: z.string().nullable(),
 });
 
-// Classifying drafts again: each draft's narration and account, and how the
-// LLM fared on what the mapping rules didn't categorize.
+// Classifying drafts again: each draft's narration and account, how the LLM
+// fared on what the mapping rules didn't categorize, and the drafts by who
+// categorized them.
 export const draftClassificationSchema = z.object({
   transactions: z.array(classifiedDraftTransactionSchema),
   categorization: categorizationReportSchema,
+  categorization_tally: categorizationTallySchema,
 });
 export type DraftClassification = z.infer<typeof draftClassificationSchema>;
 

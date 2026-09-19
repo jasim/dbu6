@@ -80,6 +80,13 @@ describe("classifyDraftTransactions", () => {
         failed_count: 0,
         error: null,
       },
+      categorizationTally: {
+        by_rule: 1,
+        by_llm: 0,
+        same_account: 0,
+        uncategorized: 0,
+        accounts: [{ account_id: 2, account_name: "Coffee", count: 1 }],
+      },
     });
     expect(
       sqlite
@@ -188,13 +195,25 @@ describe("draft classification response contract", () => {
     const transactions = [
       { id: 1, narration: "NOPII SHOP", account_id: null, account_name: null },
     ];
+    const tally = {
+      by_rule: 0,
+      by_llm: 0,
+      same_account: 0,
+      uncategorized: 1,
+      accounts: [],
+    };
 
     expect(
       draftTransactionsContract.classifyDraftTransactions.responses[200].parse({
         transactions,
         categorization: report,
+        categorization_tally: tally,
       }),
-    ).toEqual({ transactions, categorization: report });
+    ).toEqual({
+      transactions,
+      categorization: report,
+      categorization_tally: tally,
+    });
     expect(() =>
       draftTransactionsContract.classifyDraftTransactions.responses[200].parse(
         transactions,
@@ -202,9 +221,19 @@ describe("draft classification response contract", () => {
     ).toThrow();
     expect(
       draftTransactionsContract.classifyDraftTransactionsWithGPay.responses[200].parse(
-        { transactions, gpay_enriched_count: 0, categorization: report },
+        {
+          transactions,
+          gpay_enriched_count: 0,
+          categorization: report,
+          categorization_tally: tally,
+        },
       ),
-    ).toEqual({ transactions, gpay_enriched_count: 0, categorization: report });
+    ).toEqual({
+      transactions,
+      gpay_enriched_count: 0,
+      categorization: report,
+      categorization_tally: tally,
+    });
   });
 });
 

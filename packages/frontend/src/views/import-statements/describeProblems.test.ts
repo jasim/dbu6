@@ -86,6 +86,17 @@ function importedGroup(
         failed_count: 0,
         error: null,
       },
+      categorization_tally: {
+        by_rule: 2,
+        by_llm: 3,
+        same_account: 0,
+        uncategorized: 1,
+        accounts: [
+          { account_id: 7, account_name: "Groceries", count: 3 },
+          { account_id: 8, account_name: "Dining", count: 2 },
+        ],
+      },
+      base_account_id: 1,
       opening_balance: 1000,
       closing_balance_from_statement: 2500,
       balance_metadata: {
@@ -396,7 +407,10 @@ describe("account import failures", () => {
   });
 
   it("puts a problem under the last of its files in the list, and points its other files there", () => {
-    const problem = balanceMismatch(false, ["bank-aug.xls", "bank-aug-copy.xls"]);
+    const problem = balanceMismatch(false, [
+      "bank-aug.xls",
+      "bank-aug-copy.xls",
+    ]);
     const placed = placeProblems(
       [problem],
       ["bank-aug-copy.xls", "notes.txt", "bank-aug.xls"],

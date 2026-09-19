@@ -9,6 +9,7 @@ import {
 } from "../../modules/values/index.js";
 import {
   categorize,
+  tallyCategorization,
   type AccountsByName,
   type CategorizedRow,
   type Categorizer,
@@ -116,5 +117,9 @@ export async function runDraftImport(
     // Categorization runs before the duplicates are dropped, so a report is
     // only about this import when it created drafts.
     categorization: persisted.inserted > 0 ? categorization.report : null,
+    categorization_tally: tallyCategorization(
+      persisted.insertedIndices.map((index) => categorization.rows[index]),
+    ),
+    base_account_id: baseAccountId,
   };
 }

@@ -1,11 +1,12 @@
 import { formatPlainDate } from "@sapporta/shared/temporal";
-import type { CategorizationReport } from "dbu6-shared";
+import type { CategorizationReport, CategorizationTally } from "dbu6-shared";
 import type { Abacus } from "../modules/statement/index.js";
 import { enrichWithGPay, parseGPayHtml } from "../modules/gpay/index.js";
 import { moneyFromColumns } from "../modules/values/index.js";
 import {
   categorize,
   loadCategorizer,
+  tallyCategorization,
 } from "../modules/categorization/index.js";
 import { categorizationLlm } from "../modules/coding-agent/index.js";
 import { loadAccountsByName } from "../modules/accounts/index.js";
@@ -27,6 +28,8 @@ export interface DraftClassificationResult {
   transactions: ClassifiedDraftTransaction[];
   gpayEnrichedCount: number;
   categorization: CategorizationReport;
+  // Every draft classified, by who categorized it.
+  categorizationTally: CategorizationTally;
 }
 
 // Categorize drafts again, as an import categorizes its rows, optionally
@@ -88,5 +91,6 @@ export async function classifyDraftTransactions(input: {
     transactions,
     gpayEnrichedCount: enrichment.matchCount,
     categorization: report,
+    categorizationTally: tallyCategorization(rows),
   };
 }

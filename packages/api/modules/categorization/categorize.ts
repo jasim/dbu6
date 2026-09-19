@@ -1,5 +1,9 @@
 import type { z } from "zod";
-import type { CategorizationReport, sameAccountSkipSchema } from "dbu6-shared";
+import type {
+  CategorizationReport,
+  CategorizationTally,
+  sameAccountSkipSchema,
+} from "dbu6-shared";
 import type { Abacus } from "../statement/index.js";
 import { type Account, UNCATEGORIZED } from "../values/index.js";
 import {
@@ -42,10 +46,17 @@ export interface CategorizationRow {
   baseAccountId: number | null;
 }
 
+// Who gave a row its ledger account, or why it has none: an answer that is
+// the row's own base account, or no answer that names a ledger account.
+export type CategorizationOutcome =
+  "rule" | "llm" | "same-account" | "uncategorized";
+
 export interface CategorizedRow extends CategorizedTransaction {
   // The ledger account `account` names, or null: uncategorized, an answer
   // that names no ledger account, or the row's own base account.
   accountId: number | null;
+  // "rule" or "llm" exactly when `accountId` is set.
+  outcome: CategorizationOutcome;
 }
 
 export type SameAccountSkip = z.infer<typeof sameAccountSkipSchema>;
@@ -68,29 +79,80 @@ export async function categorize(
   rows: readonly CategorizationRow[],
   accountsByName: AccountsByName,
 ): Promise<Categorization> {
-  const { accounts, report } = await answerAccounts(
+  const { answers, report } = await answerAccounts(
     categorizer,
     rows.map((row) => row.transaction),
     accountsByName,
   );
   const sameAccountSkips: SameAccountSkip[] = [];
-  const categorized = rows.map(({ transaction, baseAccountId }, index) => {
-    const account = accounts[index];
-    const { accountId, sameAccountSkip } = resolveAccountIdForCategorized(
-      account,
-      accountsByName,
-      baseAccountId,
-    );
-    if (sameAccountSkip) {
-      sameAccountSkips.push({
-        date: transaction.date,
-        narration: transaction.narration,
+  const categorized = rows.map(
+    ({ transaction, baseAccountId }, index): CategorizedRow => {
+      const { account, answeredBy } = answers[index];
+      const { accountId, sameAccountSkip } = resolveAccountIdForCategorized(
         account,
-      });
-    }
-    return { transaction, account, accountId };
-  });
+        accountsByName,
+        baseAccountId,
+      );
+      if (sameAccountSkip) {
+        sameAccountSkips.push({
+          date: transaction.date,
+          narration: transaction.narration,
+          account,
+        });
+      }
+      const outcome: CategorizationOutcome = sameAccountSkip
+        ? "same-account"
+        : accountId === null || answeredBy === null
+          ? "uncategorized"
+          : answeredBy;
+      return { transaction, account, accountId, outcome };
+    },
+  );
   return { rows: categorized, sameAccountSkips, report };
+}
+
+/** The rows by who categorized them, and how many each account was given. */
+export function tallyCategorization(
+  rows: readonly CategorizedRow[],
+): CategorizationTally {
+  const tally: CategorizationTally = {
+    by_rule: 0,
+    by_llm: 0,
+    same_account: 0,
+    uncategorized: 0,
+    accounts: [],
+  };
+  const byAccount = new Map<number, CategorizationTally["accounts"][number]>();
+  for (const { account, accountId, outcome } of rows) {
+    switch (outcome) {
+      case "rule":
+        tally.by_rule++;
+        break;
+      case "llm":
+        tally.by_llm++;
+        break;
+      case "same-account":
+        tally.same_account++;
+        break;
+      case "uncategorized":
+        tally.uncategorized++;
+        break;
+    }
+    if (accountId === null) continue;
+    const entry = byAccount.get(accountId);
+    if (entry) entry.count++;
+    // A row's account resolved by its name, so the answer is that name.
+    else
+      byAccount.set(accountId, {
+        account_id: accountId,
+        account_name: account,
+        count: 1,
+      });
+  }
+  tally.accounts = [...byAccount.values()].sort(
+    (a, b) => b.count - a.count || a.account_name.localeCompare(b.account_name),
+  );
+  return tally;
 }
 
 function need<T>(part: ConfigPart<T>): T {
@@ -109,6 +171,13 @@ function offeredAccounts(accountsByName: AccountsByName): string {
     .join("\n");
 }
 
+// The account a transaction's answer names, and who answered; null when
+// neither did.
+interface Answer {
+  account: Account;
+  answeredBy: "rule" | "llm" | null;
+}
+
 /**
  * The account each transaction's answer names:
  *   1. the mapping rules;
@@ -119,13 +188,13 @@ async function answerAccounts(
   categorizer: Categorizer,
   transactions: Abacus[],
   accountsByName: AccountsByName,
-): Promise<{ accounts: Account[]; report: CategorizationReport }> {
+): Promise<{ answers: Answer[]; report: CategorizationReport }> {
   const { llm } = categorizer;
   // Nothing to categorize: no config to use, and no LLM to ask. The imports
   // that have nothing new rely on this, rather than each deciding what an
   // unasked LLM reports.
   if (transactions.length === 0) {
-    return { accounts: [], report: nothingSentReport(llm) };
+    return { answers: [], report: nothingSentReport(llm) };
   }
 
   // 1. Apply the authoritative executable mappings before asking the LLM.
@@ -150,12 +219,18 @@ async function answerAccounts(
     ));
   }
 
-  // 3. Combine all mappings
-  const allMappings: Record<string, Account> = { ...mapped, ...llmMappings };
+  // 3. Combine all mappings. Both are keyed by narration, and a rule can
+  // match one direction only, so a narration can have both: the LLM's wins.
   return {
-    accounts: transactions.map(
-      (t) => allMappings[t.narration] ?? UNCATEGORIZED,
-    ),
+    answers: transactions.map(({ narration }): Answer => {
+      if (Object.hasOwn(llmMappings, narration)) {
+        return { account: llmMappings[narration], answeredBy: "llm" };
+      }
+      if (Object.hasOwn(mapped, narration)) {
+        return { account: mapped[narration], answeredBy: "rule" };
+      }
+      return { account: UNCATEGORIZED, answeredBy: null };
+    }),
     report,
   };
 }

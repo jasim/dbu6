@@ -23,6 +23,7 @@ import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
 import { formatDaySpan, formatShortDate, plural } from "../format";
+import { reclassifyDraftsHref } from "../views/ReclassifyDrafts";
 import {
   refreshDraftStatus,
   reviewAccountQuery,
@@ -143,7 +144,11 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
         {!empty && (
           <Tabs
             detail={detail}
-            action={gridTab ? <RecategoriseButton /> : null}
+            action={
+              gridTab ? (
+                <RecategoriseButton accountId={detail.account.account_id} />
+              ) : null
+            }
           />
         )}
       </div>
@@ -333,11 +338,11 @@ function Tabs({
   );
 }
 
-/** The Drafts tab's action. */
-function RecategoriseButton() {
+/** The Drafts tab's action, on this account's drafts. */
+function RecategoriseButton({ accountId }: { accountId: number }) {
   return (
     <Button
-      render={<Link to="/views/reclassify-drafts" />}
+      render={<Link to={reclassifyDraftsHref(accountId)} />}
       nativeButton={false}
       variant="outline"
       size="sm"

@@ -30,6 +30,17 @@ function group(
         failed_count: 0,
         error: null,
       },
+      categorization_tally: {
+        by_rule: 2,
+        by_llm: 3,
+        same_account: 0,
+        uncategorized: 1,
+        accounts: [
+          { account_id: 7, account_name: "Groceries", count: 3 },
+          { account_id: 8, account_name: "Dining", count: 2 },
+        ],
+      },
+      base_account_id: 1,
       opening_balance: 1000,
       closing_balance_from_statement: 2500,
       custom_statement_parser_paths: [
@@ -73,8 +84,17 @@ describe("describeGroup", () => {
       figures: "₹1,000.00 → ₹2,500.00",
     });
     expect(summary.gpay).toBeNull();
+    expect(summary.categorized).toEqual({
+      text: "Categorized 5 (2 by your rules, 3 by Claude Code).",
+      remain: "1 remains",
+      sameAccount: null,
+    });
     expect(summary.categorization).toBeNull();
     expect(summary.breakdown).toEqual([]);
+    expect(summary.categorizedAs).toEqual([
+      { label: "Groceries", value: "3" },
+      { label: "Dining", value: "2" },
+    ]);
     expect(summary.details).toEqual([
       { label: "Ledger account", value: "Sample Bank" },
       {
@@ -107,16 +127,25 @@ describe("describeGroup", () => {
     });
   });
 
-  it("says nothing about categorizing when the import gives no report", () => {
+  it("says nothing about categorizing when the import saved no drafts", () => {
     const summary = describeGroup(
       group({
         draft_transaction_count: 0,
         duplicate_count: 6,
         draft_duplicate_count: 6,
         categorization: null,
+        categorization_tally: {
+          by_rule: 0,
+          by_llm: 0,
+          same_account: 0,
+          uncategorized: 0,
+          accounts: [],
+        },
       }),
     );
+    expect(summary.categorized).toBeNull();
     expect(summary.categorization).toBeNull();
+    expect(summary.categorizedAs).toEqual([]);
   });
 
   it("captions with the period and files alone when the plan rows are missing", () => {

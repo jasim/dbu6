@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   AlertTriangle,
@@ -12,12 +13,18 @@ import { AppPage } from "@sapporta/frontend/shell";
 import {
   gpayDraftClassificationSchema,
   type CategorizationReport,
+  type CategorizationTally,
   type DraftClassification,
 } from "dbu6-shared";
 import { draftTransactionsApi } from "../api";
 import { Button } from "../components/ui/button";
+import { parseAccountId } from "../review/routes";
 import { AccountImportInputs } from "./AccountImportInputs";
-import { describeCategorizationProblem } from "./categorization/describeCategorization";
+import { CategorizedLine } from "./categorization/CategorizedLine";
+import {
+  describeCategorizationProblem,
+  describeCategorizationTally,
+} from "./categorization/describeCategorization";
 
 interface Account {
   id: number;
@@ -38,16 +45,40 @@ interface DraftRow {
 // parsed against the contract here.
 type ClassifyResult = DraftClassification["transactions"][number];
 
+const RECLASSIFY_DRAFTS_ROUTE = "/views/reclassify-drafts";
+// The account whose drafts are classified, kept in the URL.
+const ACCOUNT_PARAM = "account";
+
+/** Classify drafts, opened on one account's uncategorized drafts. */
+export function reclassifyDraftsHref(accountId: number): string {
+  const query = new URLSearchParams([[ACCOUNT_PARAM, String(accountId)]]);
+  return `${RECLASSIFY_DRAFTS_ROUTE}?${query}`;
+}
+
+// A run's tally, for the account it ran on.
+interface Classified {
+  accountId: number;
+  tally: CategorizationTally;
+  report: CategorizationReport;
+}
+
 export function ReclassifyDrafts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [baseAccountId, setBaseAccountId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const accountId = parseAccountId(
+    searchParams.get(ACCOUNT_PARAM) ?? undefined,
+  );
+  const baseAccountId = accountId === null ? null : String(accountId);
+  const setBaseAccountId = (id: string | null) =>
+    setSearchParams(id === null ? {} : { [ACCOUNT_PARAM]: id }, {
+      replace: true,
+    });
   const [mappingsInput, setMappingsInput] = useState("");
   const [gpayFile, setGpayFile] = useState<File | null>(null);
   const [gpayEnrichedCount, setGpayEnrichedCount] = useState<number | null>(
     null,
   );
-  const [categorization, setCategorization] =
-    useState<CategorizationReport | null>(null);
+  const [classified, setClassified] = useState<Classified | null>(null);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [classifying, setClassifying] = useState(false);
@@ -99,21 +130,29 @@ export function ReclassifyDrafts() {
       .finally(() => setLoadingRows(false));
   }, [baseAccountId]);
 
+  // What a run sends: the drafts still without an account. The table keeps
+  // the ones a run categorized, to show what it chose.
+  const uncategorized = rows.filter((row) => row.account_id === null);
+
   async function handleReclassify() {
-    if (rows.length === 0) return;
+    if (uncategorized.length === 0 || accountId === null) return;
     setClassifying(true);
     setError(null);
     setGpayEnrichedCount(null);
-    setCategorization(null);
+    setClassified(null);
     const customMappings = mappingsInput
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
     try {
-      let updated: { transactions: ClassifyResult[] };
+      let updated: {
+        transactions: ClassifyResult[];
+        categorization: CategorizationReport;
+        categorization_tally: CategorizationTally;
+      };
       if (gpayFile) {
         const form = new FormData();
-        rows.forEach((row) => form.append("ids", String(row.id)));
+        uncategorized.forEach((row) => form.append("ids", String(row.id)));
         customMappings.forEach((filename) =>
           form.append("custom_mappings_filenames", filename),
         );
@@ -136,17 +175,20 @@ export function ReclassifyDrafts() {
         );
         updated = result;
         setGpayEnrichedCount(result.gpay_enriched_count);
-        setCategorization(result.categorization);
       } else {
         const result = await draftTransactionsApi.classifyDraftTransactions({
           body: {
-            ids: rows.map((r) => r.id),
+            ids: uncategorized.map((r) => r.id),
             custom_mappings_filenames: customMappings,
           },
         });
         updated = result;
-        setCategorization(result.categorization);
       }
+      setClassified({
+        accountId,
+        tally: updated.categorization_tally,
+        report: updated.categorization,
+      });
 
       const byId = new Map(
         updated.transactions.map((transaction) => [
@@ -173,8 +215,13 @@ export function ReclassifyDrafts() {
     }
   }
 
+  // The last run, while its account is still the one chosen.
+  const shownRun = classified?.accountId === accountId ? classified : null;
+  const categorized =
+    shownRun &&
+    describeCategorizationTally(shownRun.tally, shownRun.report.agent);
   const categorizationProblem =
-    categorization && describeCategorizationProblem(categorization);
+    shownRun && describeCategorizationProblem(shownRun.report);
 
   // Why classifying can't start yet; undefined once it can.
   const classifyWaiting =
@@ -182,7 +229,7 @@ export function ReclassifyDrafts() {
       ? "Choose an account first"
       : loadingRows
         ? "Loading its drafts"
-        : rows.length === 0
+        : uncategorized.length === 0
           ? "Every draft already has an account"
           : undefined;
 
@@ -237,7 +284,7 @@ export function ReclassifyDrafts() {
             {classifying ? <Loader2 className="animate-spin" /> : <Wand2 />}
             {classifying
               ? "Classifying…"
-              : `Classify ${rows.length || ""} row${rows.length === 1 ? "" : "s"}`.trim()}
+              : `Classify ${uncategorized.length || ""} row${uncategorized.length === 1 ? "" : "s"}`.trim()}
           </Button>
         </div>
 
@@ -245,6 +292,32 @@ export function ReclassifyDrafts() {
           <div className="flex items-start gap-3 rounded-card border border-destructive/30 bg-destructive/10 p-4">
             <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
             <div className="text-row text-destructive break-words">{error}</div>
+          </div>
+        )}
+
+        {shownRun && categorized && (
+          <div className="space-y-3 rounded-card border bg-card p-4 text-body">
+            <CategorizedLine
+              summary={categorized}
+              accountId={shownRun.accountId}
+            />
+            {shownRun.tally.accounts.length > 0 && (
+              <dl className="divide-y divide-line-inner rounded-control border border-sap-border">
+                {shownRun.tally.accounts.map((account) => (
+                  <div
+                    key={account.account_id}
+                    className="flex items-baseline justify-between gap-x-6 px-4 py-2 text-row"
+                  >
+                    <dt className="min-w-0 text-ink-soft [overflow-wrap:anywhere]">
+                      {account.account_name}
+                    </dt>
+                    <dd className="tnum font-mono font-medium text-foreground">
+                      {account.count}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
           </div>
         )}
 
