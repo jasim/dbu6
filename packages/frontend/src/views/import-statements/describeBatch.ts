@@ -55,14 +55,13 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
         sum + categorizationCounts(group.result.categorization_tally).remaining,
       0,
     );
-    const from = `From ${plural(statements, "statement")}.`;
     return {
       tone: "ok",
       text: `${plural(fresh, "new transaction")} imported`,
       next:
         remaining === 0
-          ? `${from} All are categorized.`
-          : `${from} ${remaining} ${agree(remaining, "needs", "need")} a category before ${agree(remaining, "it", "they")} can go into your books.`,
+          ? `All entries categorized.`
+          : `${remaining} entries need to be categorized.`,
     };
   }
   const { failure } = outcome;
