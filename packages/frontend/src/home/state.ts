@@ -73,7 +73,7 @@ export function homeState(summary: HomeSummary): HomeView {
       greeting: "Nothing imported yet",
       card: {
         title: "Import your first statement",
-        body: `Drop in a statement for ${where}. Nothing reaches your books until you've reviewed it.`,
+        body: `Drop in a statement for ${where}. You can review them before posting to the books.`,
         action: { label: "Import statements", to: "/import" },
       },
     };
