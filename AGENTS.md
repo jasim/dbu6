@@ -16,6 +16,13 @@ npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --globa
 
 Load it for any change to the schema, API, auth, or UI.
 
+## Working with the books
+
+To answer questions about the user's accounts, review or post drafts, or fix
+entries in a running dbu6, read [DBU6-BOOKS.md](DBU6-BOOKS.md) first. It maps
+each common job to its endpoint, table or query, so skip OpenAPI discovery for
+those and use the Sapporta skill for the rest.
+
 ## No personally identifying information (PII)
 
 Tests, fixtures, documentation, comments, and code must never contain PII:
