@@ -1,13 +1,15 @@
 import { useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw, Scale } from "lucide-react";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
 import { CODING_AGENTS, type CodingAgent } from "../../../shared/index";
 import { apiErrorMessage, apiRefusalMessage, codingAgentApi } from "../../api";
+import { LinkCard } from "../../components/link-card";
 import { LoadError } from "../../components/load-error";
 import { Screen } from "../../components/screen";
 import { Button } from "../../components/ui/button";
+import { OPENING_BALANCES_ROUTE } from "../opening-balances/OpeningBalances";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { codingAgentSettingsQuery, refreshCodingAgent } from "../../queries";
 import {
@@ -22,7 +24,7 @@ const CHECKING_POLL_MS = 2000;
 /*
  * The coding agent dbu6 uses for everything AI, installed on the server's
  * machine, and the models it runs on. Until the user picks one, dbu6 uses the
- * first installed.
+ * first installed. Below it, the way to the accounts' opening balances.
  */
 export function Settings() {
   usePageTitle("Settings");
@@ -104,6 +106,17 @@ export function Settings() {
             )}
           </>
         )}
+      </section>
+      <section className="mt-10 space-y-3">
+        <h2 className="text-heading text-foreground">Accounts</h2>
+        <div className="max-w-[480px]">
+          <LinkCard
+            label="Opening balances"
+            description="What each bank, card and loan account started at"
+            to={OPENING_BALANCES_ROUTE}
+            icon={Scale}
+          />
+        </div>
       </section>
     </Screen>
   );

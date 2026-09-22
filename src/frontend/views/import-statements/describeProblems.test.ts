@@ -513,6 +513,25 @@ describe("account import failures", () => {
     expect(problem.agent?.prompt).toContain("closing_balance_unavailable");
   });
 
+  it("links a missing opening balance to the opening balances screen, not an agent", () => {
+    const [problem] = describeProblems(
+      refused(422, {
+        ...PAYLOADS.opening_balance_unavailable,
+        files: [],
+        failed_group: failedGroup,
+      }),
+    );
+    expect(problem.fix).toContain("Sample Bank");
+    expect(problem.actions).toEqual([
+      {
+        kind: "link",
+        label: "Record the opening balance",
+        to: "/opening-balances?account=Sample+Bank",
+      },
+    ]);
+    expect(problem.agent).toBeNull();
+  });
+
   it("points to Accounts and the preset when the ledger lacks the preset's account", () => {
     const [problem] = describeProblems(
       refused(422, {

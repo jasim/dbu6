@@ -337,26 +337,6 @@ Then re-run the import yourself or tell me and I will retry.
 ${rerunBlock(groupPaths(refusal))}`;
 }
 
-export function openingBalancePrompt(
-  refusal: RefusalOf<"opening_balance_unavailable">,
-): string {
-  const baseAccount = refusal.failed_group.base_account;
-  return `${groupIntro(refusal)} The statement prints no
-running balances and no opening balance, and the ledger has no reconciled
-balance for ${baseAccount} yet, so the importer cannot compute the
-balances.${quoted(refusal.message)}
-Ask me for the opening balance printed on the statement (or the balance the
-day before it starts). Then add a balance assertion for ${baseAccount}
-on the day before the statement's first transaction with that amount, as
-\`${guideCommand("books")}\` describes for an opening balance, and tell me what you
-added. If the parser could have emitted an opening balance the statement does
-print, fix the parser instead, with a sanitized fixture and test. ${PII_RULE}
-
-Then re-run the import yourself or tell me and I will retry.
-
-${rerunBlock(groupPaths(refusal))}`;
-}
-
 export function closingBalancePrompt(
   refusal: RefusalOf<"closing_balance_unavailable">,
 ): string {

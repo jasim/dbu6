@@ -125,6 +125,8 @@ describe("loadReviewAccount", () => {
         balance_checks: 2,
       },
       checkpoint: { date: "2026-02-10", balance: 1500 },
+      // Journal 10 opens it against Groceries, not Equity.
+      has_opening_entry: false,
       closing: { date: "2026-03-02", balance: 1460 },
       failing: [
         {
@@ -177,6 +179,7 @@ describe("loadReviewAccount", () => {
         draft_span: null,
       },
       checkpoint: null,
+      has_opening_entry: false,
       closing: null,
       failing: [],
       duplicates: [],

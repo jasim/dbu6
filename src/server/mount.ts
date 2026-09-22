@@ -25,6 +25,7 @@ import homeApi from "./app/home.js";
 import importDraftAbacusApi from "./app/import-draft-abacus.js";
 import importDraftStatementsAutoApi from "./app/import-draft-statements-auto.js";
 import importPresetsApi from "./app/import-presets.js";
+import openingBalancesApi from "./app/opening-balances.js";
 import postDraftsToJournalApi from "./app/post-drafts-to-journal.js";
 import renderDraftHledgerApi from "./app/render-draft-hledger.js";
 import renderJournalsHledgerApi from "./app/render-journals-hledger.js";
@@ -102,6 +103,7 @@ export function loadDbu6App(
   mountApi(api, postDraftsToJournalApi);
   mountApi(api, homeApi);
   mountApi(api, reviewApi);
+  mountApi(api, openingBalancesApi);
   mountApi(api, agentHandoffApi);
   mountApi(api, codingAgentApi);
 }

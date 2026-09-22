@@ -54,6 +54,7 @@ function detail(overrides: Partial<ReviewAccountDetail>): ReviewAccountDetail {
       draft_span: { first_date: "2026-09-01", last_date: "2026-09-13" },
     },
     checkpoint: { date: "2026-08-31", balance: 250000 },
+    has_opening_entry: true,
     closing: { date: "2026-09-13", balance: 330000 },
     failing: [],
     duplicates: [],

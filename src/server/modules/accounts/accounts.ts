@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   accounts,
   accountsTable,
@@ -61,4 +62,70 @@ export function loadLedgerAccounts(
     auth,
     `SELECT id, name, account_type FROM scoped_accounts`,
   );
+}
+
+/** The Equity account opening entries post against by default. */
+export const OPENING_BALANCES_ACCOUNT = "Opening Balances";
+
+/** An account by id and name. */
+export type NamedAccount = { id: number; name: string };
+
+/**
+ * The account named Opening Balances, whatever its type, or null when the
+ * books have none. Names are unique, so there is at most one.
+ */
+export function findOpeningBalancesAccount(
+  db: any,
+  auth: LedgerAuth,
+): (NamedAccount & { account_type: AccountType }) | null {
+  const access = auth.rowSecurity.forTable(accounts);
+  return (
+    db
+      .select({
+        id: accountsTable.id,
+        name: accountsTable.name,
+        account_type: accountsTable.account_type,
+      })
+      .from(accountsTable)
+      .where(
+        and(
+          access.ownedRows(),
+          eq(accountsTable.name, OPENING_BALANCES_ACCOUNT),
+        ),
+      )
+      .get() ?? null
+  );
+}
+
+/**
+ * Creates the Opening Balances account, as an Equity account under the one
+ * Equity root; with no Equity root, or more than one, as a root of its own.
+ * Runs inside the caller's transaction.
+ */
+export function createOpeningBalancesAccount(
+  tx: any,
+  auth: LedgerAuth,
+): NamedAccount {
+  const access = auth.rowSecurity.forTable(accounts);
+  const roots: { id: number }[] = tx
+    .select({ id: accountsTable.id })
+    .from(accountsTable)
+    .where(
+      and(
+        access.ownedRows(),
+        eq(accountsTable.account_type, "Equity"),
+        isNull(accountsTable.parent_id),
+      ),
+    )
+    .all();
+  const values = access.insertValuesSync(tx, {
+    name: OPENING_BALANCES_ACCOUNT,
+    account_type: "Equity",
+    parent_id: roots.length === 1 ? roots[0].id : null,
+  });
+  return tx
+    .insert(accountsTable)
+    .values(values)
+    .returning({ id: accountsTable.id, name: accountsTable.name })
+    .get();
 }

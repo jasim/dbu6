@@ -1,4 +1,7 @@
+import { Link } from "react-router-dom";
 import { postingCheck } from "../../shared/index";
+import { Button } from "../components/ui/button";
+import { openingBalanceHref } from "../views/opening-balances/OpeningBalances";
 import { reportsApi } from "../reports/client";
 import { EmptyState } from "../components/empty-state";
 import { formatMoney, formatShortDate } from "../format";
@@ -53,6 +56,9 @@ export function BalanceChecksTab() {
         </span>{" "}
         away from the statement's.
       </ReportSummary>
+      {!detail.has_opening_entry && (
+        <MissingOpeningBalance accountName={account.path} />
+      )}
       <AccountReport
         report="draft-balance-assertions"
         accountId={account.account_id}
@@ -67,5 +73,32 @@ export function BalanceChecksTab() {
         prompt={balanceChecksPrompt(detail)}
       />
     </ReportTab>
+  );
+}
+
+/**
+ * The usual cause when an account has no opening entry: every check is off by
+ * the balance it started at. The screen it links to suggests the amount.
+ */
+function MissingOpeningBalance({ accountName }: { accountName: string }) {
+  return (
+    <section className="mt-5 flex max-w-[760px] flex-wrap items-center gap-x-6 gap-y-3 rounded-card border border-attention-border bg-attention-bg px-5 py-4">
+      <div className="min-w-0 flex-1 basis-[280px]">
+        <h2 className="text-row font-semibold text-attention-ink">
+          No opening balance in your books
+        </h2>
+        <p className="mt-1 text-body text-ink-soft">
+          Until {accountName} has one, every balance check on it is off by what
+          it held or owed before its first transaction.
+        </p>
+      </div>
+      <Button
+        size="sm"
+        render={<Link to={openingBalanceHref(accountName)} />}
+        nativeButton={false}
+      >
+        Record the opening balance
+      </Button>
+    </section>
   );
 }

@@ -7,7 +7,13 @@ import {
 } from "@tanstack/react-query";
 import type { DateSpan } from "../shared/index";
 import { ApiError } from "@sapporta/shared/client";
-import { agentHandoffApi, codingAgentApi, homeApi, reviewApi } from "./api";
+import {
+  agentHandoffApi,
+  codingAgentApi,
+  homeApi,
+  openingBalancesApi,
+  reviewApi,
+} from "./api";
 
 /*
  * How the screens read the server: one TanStack query per request, with its
@@ -48,6 +54,18 @@ export function reviewAccountQuery(accountId: number) {
     ...FRESH_QUERY,
   });
 }
+
+/**
+ * Every asset and liability account and its opening entry. It has a key of
+ * its own, not the drafts': its screen fetches it on mount, and recording an
+ * opening balance leaves the grid's own rows alone while refreshing the
+ * screens that count drafts.
+ */
+export const openingBalancesQuery = queryOptions({
+  queryKey: ["opening-balances"],
+  queryFn: () => openingBalancesApi.list({ query: {} }),
+  ...FRESH_QUERY,
+});
 
 /** Every query that depends on the coding agent dbu6 uses. */
 const CODING_AGENT_KEY = ["coding-agent"] as const;

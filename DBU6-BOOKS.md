@@ -182,12 +182,28 @@ category ("Categorise these" above), and restart a server started with
      card.
   3. Record its opening balance.
 - **Opening balance.**
-  Add a journal dated the day before the first statement row.
-  - The account's line carries the opening balance: a debit for money held,
-    or a credit for money owed. The same signed amount goes in
-    `account_balance_assertion`: positive when held, negative when owed.
-  - The opposite line goes on an Equity account such as Opening Balances. Ask
-    which one; create it if none exists.
+  The Opening balances screen (`/opening-balances`, linked from Settings)
+  records it; send the user there. Its endpoint does the same:
+  `sapporta api get /api/opening-balances` lists every asset and liability
+  account with its first transaction, a default date, a suggested amount and
+  its opening entry, and
+  `sapporta api post /api/opening-balances --body '{"account_id":<id>,"date":"YYYY-MM-DD","amount":<signed>}'`
+  posts one.
+  - The screen is a table, a row per account, and it lists the accounts still
+    waiting for one until the box for the rest is ticked. Its button opens a
+    form asking three things: the date, the balance as a debit (money held)
+    or a credit (money owed), and a description of where it came from, which
+    names the journal. The endpoint's amount is the debit less the credit,
+    signed like the assertion. The date must be before the account's first
+    draft or entry; the default is the day before it.
+  - It posts one journal: the account's line, a debit for money held or a
+    credit for money owed, with the same amount in
+    `account_balance_assertion`, and the opposite line on the Equity account
+    Opening Balances, created on the first save.
+  - An account has an opening entry when one of its lines sits in a journal
+    with a line on an Equity account. The endpoint refuses a second one
+    (`already_recorded`); to change it, edit the account's line and the
+    Equity line in that journal, which moves every later balance check.
 
   Without an opening balance, every balance check fails by the same amount.
 - **"Rename or move an account."**
@@ -200,7 +216,7 @@ category ("Categorise these" above), and restart a server started with
   the parsers guide (`dbu6 docs parsers`), and failed uploads are kept in
   `tmp/statement-uploads/`. The common refusals:
   - `opening_balance_unavailable`: the account has no balance in the books
-    yet. Record the opening balance, then import again.
+    yet. Record the opening balance (above), then import again.
   - `reconciliation_match_failed`: nothing in the statement lands on the last
     statement balance in the books. A statement in between is probably
     missing.
@@ -226,7 +242,8 @@ minus the statement's balance.
 Usual causes:
 
 - **The same difference from the very first check:** no opening balance is in
-  the books.
+  the books. Record it on the Opening balances screen, which suggests the
+  amount from that first check.
 - **A difference that starts on one day:** a transfer or card payment is
   already in the books from the other account's statement, and a draft
   repeats it. `diff` equals its amount.

@@ -71,6 +71,7 @@ function detail(account: Partial<ReviewAccountDetail["account"]> = {}) {
       ...account,
     },
     checkpoint: { date: "2026-08-31", balance: 50505 },
+    has_opening_entry: true,
     closing: { date: "2026-09-15", balance: 50505 },
     failing: [],
     duplicates: [],
