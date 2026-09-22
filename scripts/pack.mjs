@@ -42,6 +42,9 @@
 // npm serves a tarball from its cache by lockfile integrity, so a rebuilt
 // tarball with the same version installs the old one. `--local-sapporta`
 // therefore defaults to a unique prerelease version; CI should pass its own.
+// The timestamp in it carries the `050505` marker, as the staged-tree scan
+// asks of any long digit run, joined by `-` rather than `.`: a numeric
+// prerelease identifier may not start with a zero.
 import { execFileSync } from "node:child_process";
 import {
   cpSync,
@@ -63,6 +66,12 @@ import {
   shippedFixturesAndTests,
 } from "./pii-scan.mjs";
 
+/**
+ * A refusal, which the top level prints; `finally` still removes the staging
+ * copy. Declared before the top level, whose `catch` reads it.
+ */
+class PackError extends Error {}
+
 const root = path.resolve(import.meta.dirname, "..");
 const { values: options } = parseArgs({
   options: {
@@ -81,7 +90,7 @@ const linked = linkedPackages(manifest.dependencies);
 const version =
   options.version ??
   (localSapporta
-    ? `${manifest.version}-local.${Date.now()}`
+    ? `${manifest.version}-local-050505${Date.now()}`
     : manifest.version);
 
 let staging = null;
@@ -234,9 +243,6 @@ function npm(args, cwd) {
     stdio: ["ignore", "pipe", "inherit"],
   });
 }
-
-/** A refusal, which the top level prints; `finally` still removes the staging copy. */
-class PackError extends Error {}
 
 function fail(message) {
   throw new PackError(message);

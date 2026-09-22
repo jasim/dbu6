@@ -25,8 +25,7 @@ import type {
 import { testLedgerAuth } from "./modules/ledger-sql/testing.js";
 import { parseAccount } from "./modules/values/index.js";
 import { loadDbu6App } from "./mount.js";
-import { packageDir } from "./paths.js";
-import { dbu6MigrationsDir } from "./runtime.js";
+import { dbu6MigrationsDir, packageDir } from "./paths.js";
 import { accountsTable } from "./schema/accounts.js";
 import { draftTransactionsTable } from "./schema/draft-journals.js";
 

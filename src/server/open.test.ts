@@ -4,8 +4,7 @@ import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { applyMigrations, connectProject } from "@sapporta/server";
 import { openDbu6 } from "./open.js";
-import { packageDir } from "./paths.js";
-import { dbu6MigrationsDir } from "./runtime.js";
+import { dbu6MigrationsDir, packageDir } from "./paths.js";
 
 // A scratch project under this repository's gitignored tmp/, so the bare
 // imports in its files resolve the way they do from a user's node_modules.

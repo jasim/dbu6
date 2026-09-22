@@ -1,9 +1,11 @@
 /**
  * `dbu6.lock`, beside the database: the pid of the one process that may write
- * the database's schema or serve it. The server holds it while it serves
- * (`serveDbu6`), and `migrateSafely` holds it while it swaps the file, so a
- * migration never runs under a live server and two servers never share a
- * folder.
+ * the database's schema or serve it. The `serve` command (`src/cli/main.ts`)
+ * takes it before it opens the database and `serveDbu6` releases it at
+ * shutdown; `migrateSafely` holds it while it swaps the file. So a migration
+ * never runs under a live server and two servers never share a folder.
+ * `dbu6 seed` writes rows beside a running server without it, which is
+ * allowed: it changes no schema.
  *
  * The lock is a file created with `wx`, which fails when the file exists. A
  * lock whose pid is no longer running was left by a crash or a kill and is

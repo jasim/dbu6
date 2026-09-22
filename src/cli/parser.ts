@@ -11,7 +11,7 @@ import {
   parserDirectory,
   parserProcessEnv,
 } from "../server/modules/statement-sources/index.js";
-import { parserRoots } from "../server/paths.js";
+import { parserRoots, projectRoot } from "../server/paths.js";
 
 /** Every `*_test.py` of the project's `custom-built-parsers/`, sorted. */
 export function projectParserTests(): string[] {
@@ -125,7 +125,8 @@ export async function runParser(name: string, input: string): Promise<number> {
   const { status, error } = spawnSync(
     "uv",
     ["run", join(directory, "parser.py"), resolve(input)],
-    { stdio: "inherit", env: parserProcessEnv() },
+    // From the project root, as the importer runs it.
+    { cwd: projectRoot(), stdio: "inherit", env: parserProcessEnv() },
   );
   if (error) return uvMissing(error);
   return status ?? 1;

@@ -9,7 +9,7 @@ import { acquireDataLock } from "../server/data-lock.js";
 import { migrateSafely, type MigrateSafelyResult } from "../server/migrate-safely.js";
 import { serveDbu6 } from "../server/mount.js";
 import { openDbu6 } from "../server/open.js";
-import { databaseFile } from "../server/runtime.js";
+import { databaseFile } from "../server/paths.js";
 import { runCheck } from "./check.js";
 import { runDev } from "./dev.js";
 import { printDocs } from "./docs.js";

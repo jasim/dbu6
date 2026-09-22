@@ -16,7 +16,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { packageDir } from "../server/paths.js";
+import { packageDir, userConfigDir } from "../server/paths.js";
 import { envFile, isSourceCheckout } from "./project.js";
 
 export async function setupProject(root: string): Promise<void> {
@@ -69,7 +69,7 @@ async function fillAuthSecret(root: string): Promise<void> {
 /** Fills `<root>/user-config/` from the package's example config. */
 async function seedUserConfig(root: string): Promise<void> {
   const exampleDir = packageDir("user-config.example");
-  const targetDir = join(root, "user-config");
+  const targetDir = userConfigDir(root);
   await mkdir(targetDir, { recursive: true });
 
   const copied: string[] = [];

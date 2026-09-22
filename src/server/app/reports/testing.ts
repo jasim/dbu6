@@ -5,7 +5,8 @@ import {
   type ReportLedger,
 } from "../../modules/ledger-sql/index.js";
 import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
-import { packageDir } from "../../paths.js";
+import { dbu6MigrationsDir } from "../../paths.js";
+import type { AccountType } from "../../schema/accounts.js";
 
 /** An empty set of books in memory, for a report's test to fill and read. */
 export interface TestLedger {
@@ -21,7 +22,7 @@ export interface TestLedger {
   /** Adds one of `owner`'s accounts and returns its id. */
   addAccount(account: {
     name: string;
-    account_type: "Asset" | "Liability" | "Equity" | "Revenue" | "Expense";
+    account_type: AccountType;
     parent_id?: number;
   }): number;
   /** Adds one of `owner`'s journals with its entries and returns its id. */
@@ -39,7 +40,7 @@ export interface TestLedger {
  */
 export function openTestLedger(): TestLedger {
   const sqlite = new Database(":memory:");
-  applyMigrations(sqlite, packageDir("migrations"));
+  applyMigrations(sqlite, dbu6MigrationsDir());
   const owner = { workspace_id: "workspace", scoped_to_user_id: "user" };
   const auth = testLedgerAuth(owner.scoped_to_user_id, owner.workspace_id);
   const stamp = {

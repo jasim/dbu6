@@ -41,7 +41,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { pendingMigrations } from "@sapporta/server";
-import { dbu6MigrationsDir } from "./runtime.js";
+import { dbu6MigrationsDir } from "./paths.js";
 
 export type FigureKind =
   | "account.parent"

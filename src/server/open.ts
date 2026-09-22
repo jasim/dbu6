@@ -47,15 +47,10 @@ export async function openDbu6(options: OpenDbu6Options): Promise<Dbu6App> {
   // The config is read before the runtime opens because a seam in it is an
   // input to the runtime; its `extend` runs later, once there is an app.
   const project = await loadProjectConfig(root);
-  let runtime;
-  try {
-    runtime = await openDbu6Runtime({
-      root,
-      loadCategorizer: project.config.loadCategorizer,
-    });
-  } catch (error) {
-    throw pendingMigrationsHint(error);
-  }
+  const runtime = await openDbu6Runtime({
+    root,
+    loadCategorizer: project.config.loadCategorizer,
+  });
   try {
     return await mountDbu6(runtime, project, options.appDir);
   } catch (error) {
@@ -83,7 +78,7 @@ async function mountDbu6(
   const api = new TsRestApi<SapportaEnv>();
   mount.loadDbu6App(api, runtime);
 
-  await mountProjectReports(api, hono, reportsDir());
+  await mountProjectReports(api, hono, reportsDir(runtime.root));
   const app: Dbu6App = { hono, api, runtime };
   if (config.extend) {
     const source = configFile ?? CONFIG_FILE;
@@ -125,19 +120,4 @@ function prefixed(
       }));
     },
   };
-}
-
-function pendingMigrationsHint(error: unknown): unknown {
-  // The message of Sapporta's migration guard, which the runtime runs.
-  if (
-    !(error instanceof Error) ||
-    !error.message.startsWith("Sapporta migrations are not ready")
-  ) {
-    return error;
-  }
-  return new Error(
-    `${error.message}\ndbu6 does not serve a database whose migrations are not exactly its own. ` +
-      "Run `dbu6 migrate`, or `dbu6 start`, which migrates safely before serving.",
-    { cause: error },
-  );
 }

@@ -21,7 +21,7 @@ import {
   seedBooksAtFirstLedgerSchema,
   tempDir,
 } from "./migrations.test.support.js";
-import { dbu6MigrationsDir } from "./runtime.js";
+import { dbu6MigrationsDir } from "./paths.js";
 
 let root: string;
 let dataDir: string;

@@ -5,6 +5,8 @@
  * back on the version it was on; `migrateSafely` has left the database as it
  * found it, so the two then match again.
  *
+ * It refuses a version older than the installed one.
+ *
  * The process running this is the old version. Once the new one is installed,
  * migrating and checking are the new version's job, so they run as its
  * commands, not as calls into code already loaded here. Every command goes
@@ -63,6 +65,15 @@ export async function upgradeProject(
     );
   }
   if (to === from && pin === to) return { status: "unchanged", version: to };
+  // A database the newer version migrated may hold migrations the older one
+  // does not have, and the older one refuses to serve it. dbu6 keeps no copy
+  // of the books to go back to, so it does not downgrade.
+  if (compareVersions(to, from) < 0) {
+    throw new Error(
+      `${PACKAGE} ${to} is older than ${from}, the version installed. dbu6 does not downgrade: ` +
+        `the database may hold migrations ${to} does not have.`,
+    );
+  }
 
   const rollBack = async (reason: string): Promise<UpgradeResult> => {
     remembered.restore();
