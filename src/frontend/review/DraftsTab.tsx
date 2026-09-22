@@ -18,6 +18,9 @@ import { useReviewAccount } from "./ReviewAccount";
 import { reviewHref } from "./routes";
 
 const DRAFT_TRANSACTIONS_TABLE = "draft_transactions";
+// The fixed filter makes this account every row's base account, so the
+// column would only repeat it. The table page still shows it.
+const DRAFTS_TAB_HIDDEN_COLUMNS = ["base_account_id"];
 
 /**
  * The Drafts tab (PLAN.md §11 P3): the draft table as it has always been,
@@ -70,6 +73,7 @@ export function DraftsTab() {
             route={route}
             registerAs={DRAFT_TRANSACTIONS_TABLE}
             actions={QuickFilterButtons}
+            hiddenColumns={DRAFTS_TAB_HIDDEN_COLUMNS}
             rootRows={rootRows}
             viewRelatedRows
           />
