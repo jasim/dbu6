@@ -238,6 +238,7 @@ describe("renderTemplate", () => {
       "AGENTS.md",
       "Dockerfile",
       "package.json",
+      "sapporta.json",
       "tsconfig.json",
     ]);
   });

@@ -2,7 +2,6 @@
   "name": "%%SAPPORTA:SLUG%%",
   "private": true,
   "type": "module",
-  "sapporta": {},
   "scripts": {
     "dev": "dbu6 dev",
     "start": "dbu6 start",

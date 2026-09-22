@@ -323,10 +323,11 @@ parser contract or the schema in a way a project has to act on gets a note in
 convention). `dbu6 upgrade` prints the notes between the two versions. Most
 releases need none.
 
-`sapporta.json` marks this repository's root for Sapporta and is not shipped.
-The alternative marker, a `"sapporta"` key in `package.json`, would ship, and
-Sapporta looks for a root starting from the running script, so an installed
-dbu6 would take `node_modules/dbu6` for the project.
+`sapporta.json` marks a project's root for Sapporta: this repository's is not
+shipped, and a user's project gets its own from the template. Sapporta looks
+for the marker starting from the running script, so nothing that ships inside
+the package may look like one, or an installed dbu6 would take
+`node_modules/dbu6` for the project.
 
 ### How `pnpm dev` runs the frontend
 
