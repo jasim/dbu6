@@ -31,10 +31,9 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
 - **Periods:** the app's periods use the financial year (1 April to 31 March).
   When the user says "this year", say which year you used, or ask.
 - **Link the screen** where the user can see it. The base URL is
-  `SAPPORTA_PUBLIC_APP_URL`, set in the project's `.env` (`.env.development`
-  in dbu6's own repository). Read it; do not assume a port: the template's
-  `http://localhost:2345` is only a default, and a second project on the same
-  machine is on other ports.
+  `SAPPORTA_PUBLIC_APP_URL`, set in the project's `.env`. Read it; do not
+  assume a port: the template's `http://localhost:2345` is only a default, and
+  a second project on the same machine is on other ports.
   - Home: `/`
   - Import statements: `/import`
   - Review: `/review/<account id>`, with the tabs `/drafts`, `/duplicates` and
@@ -279,7 +278,7 @@ FROM running WHERE date BETWEEN '<from>' AND '<to>';
   you can from SQLite.
   - `APP_SERVER_UNREACHABLE`: look at `target.apiUrl` in the error. If the
     port is right, dbu6 isn't running: ask the user to start it (`npx dbu6
-    dev` in the project; `pnpm dev` in dbu6's own repository), or offer to.
+    dev` in the project), or offer to.
     In a sandbox, ask for network access.
   - `unauthenticated`, `token_expired` or `token_revoked`: ask the user to
     open `<app URL>/account/profile?token=new`, create a token and choose

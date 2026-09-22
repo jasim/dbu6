@@ -48,7 +48,8 @@ export const PROJECT_FRONTEND_GLOBS = {
  *   repository, which has no node_modules/dbu6. `"dist"` is the compiled
  *   library, which `pnpm build` makes the prebuilt app from, so the app we ship
  *   went through the pipeline a user's build goes through. `"src"` is the
- *   sources, so `pnpm dev` hot-updates our own code.
+ *   sources, so `dbu6 dev` in a project linked to this checkout hot-updates
+ *   our own code.
  */
 export type OwnFrontend = "installed" | "dist" | "src";
 

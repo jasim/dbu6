@@ -1,5 +1,6 @@
-import { access, readFile, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import type { ImportPreset } from "../../shared/index.js";
@@ -133,13 +134,17 @@ function importedNothing(): StatementImportResult {
 }
 
 // A rejected batch keeps its uploads inside the project for the prompt the
-// screen offers, so the tests delete what they staged and leave tmp/ as they
-// found it.
-const staged = new Set<string>();
+// screen offers, so each test runs in a scratch project that is deleted after.
+let root: string;
+
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), "dbu6-auto-import-"));
+  vi.stubEnv("DBU6_ROOT", root);
+});
 
 afterEach(async () => {
-  for (const dir of staged) await rm(dir, { recursive: true, force: true });
-  staged.clear();
+  vi.unstubAllEnvs();
+  await rm(root, { recursive: true, force: true });
 });
 
 // Narrows the handler's response union to a rejection, so a test that expects
@@ -150,14 +155,7 @@ function rejection(
   if (response.status === 200) {
     throw new Error("expected the batch to be rejected, but it imported");
   }
-  const body = response.body;
-  if ("files" in body) {
-    for (const file of body.files) {
-      if (file.saved_path !== null)
-        staged.add(dirname(join(projectRoot(), file.saved_path)));
-    }
-  }
-  return body;
+  return response.body;
 }
 
 /** The batch refused before any account was imported. */

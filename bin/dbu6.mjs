@@ -3,11 +3,11 @@
 // The `dbu6` command. It is thin: the commands are compiled TypeScript in
 // dist/cli, and this file only gets them loaded.
 //
-// In dbu6's own repository there is one more step, because dist/ is a build
-// product there: `dev` starts from a clean dist/ with the Node side compiled
-// (stale compiled schema modules would otherwise be loaded), and any other
-// command compiles it when it is missing. A linked Sapporta checkout also
-// needs its resolution hook registered before anything imports Sapporta.
+// Run from dbu6's own repository, as a project whose node_modules/dbu6 links
+// to it does, there is one more step, because dist/ is a build product there:
+// the Node side is compiled when it is missing. `pnpm dev` in the repository
+// keeps it current. A linked Sapporta checkout also needs its resolution hook
+// registered before anything imports Sapporta.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -15,7 +15,6 @@ import { pathToFileURL } from "node:url";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const entry = path.join(packageDir, "dist/cli/main.js");
-const [command] = process.argv.slice(2);
 
 if (existsSync(path.join(packageDir, "src/server"))) {
   const node = (script, ...args) =>
@@ -23,7 +22,6 @@ if (existsSync(path.join(packageDir, "src/server"))) {
       cwd: packageDir,
       stdio: "inherit",
     });
-  if (command === "dev") node("scripts/clean-dist.mjs");
   if (!existsSync(entry)) node("scripts/build.mjs", "--node");
 
   const { dependencies } = JSON.parse(

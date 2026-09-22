@@ -6,7 +6,8 @@
 //   createProjectDevServer(root)  the Vite dev server for `dbu6 dev`
 //
 // `buildHost` and `startHostDevServer` are the same two operations with every
-// option open, for this repository's own build and `pnpm dev`.
+// option open, for this repository's own build and for `dbu6 dev` in a
+// project linked to it.
 import {
   build,
   createServer,

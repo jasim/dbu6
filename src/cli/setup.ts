@@ -17,7 +17,7 @@ import {
 } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { packageDir, userConfigDir } from "../server/paths.js";
-import { envFile, isSourceCheckout } from "./project.js";
+import { envFile } from "./project.js";
 
 export async function setupProject(root: string): Promise<void> {
   await createEnvFile(root);
@@ -25,25 +25,9 @@ export async function setupProject(root: string): Promise<void> {
   await seedUserConfig(root);
 }
 
-/** The example a new environment file is copied from. */
-function envExample(root: string): string {
-  if (isSourceCheckout(root)) return join(root, ".env.development.example");
-  const candidates = [
-    packageDir("template", ".env.example"),
-    // A scratch project run from dbu6's own repository, before there is a
-    // template to take it from.
-    packageDir(".env.development.example"),
-  ];
-  const found = candidates.find((file) => existsSync(file));
-  if (!found) {
-    throw new Error(`dbu6 has no environment example at ${candidates[0]}.`);
-  }
-  return found;
-}
-
 async function createEnvFile(root: string): Promise<void> {
   const target = envFile(root);
-  const example = envExample(root);
+  const example = packageDir("template", ".env.example");
   if (!(await copyUnlessPresent(example, target))) return;
   console.log(`Created ${basename(target)} from ${basename(example)}.`);
 }

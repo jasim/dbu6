@@ -10,9 +10,11 @@ import { projectRoot as sapportaProjectRoot } from "@sapporta/server";
  *   and data, and the tmp/ a coding agent is pointed at.
  * - The **package directory** is ours: the bundled parsers and the guides.
  *
- * In this repository the two are the same directory. In a user's project the
- * package sits under node_modules, so nothing of ours may be looked up from
- * the project root, and nothing of theirs from the package.
+ * In a user's project the package sits under node_modules, or links there to
+ * dbu6's repository while dbu6 is worked on, so nothing of ours may be looked
+ * up from the project root, and nothing of theirs from the package. The
+ * repository itself is not a project; only `dbu6 parser` runs with the two the
+ * same directory there.
  *
  * Everything is resolved per call rather than at module load, so DBU6_ROOT
  * stays effective whatever the import order, and a test can point the root at
@@ -121,7 +123,8 @@ export function packageParsersDir(): string {
 /**
  * The directories saved parsers are looked up in, in order: the user's, then
  * ours, so a user's parser shadows ours of the same name. One directory when
- * the two are the same (this repository), compared by real path.
+ * the two are the same (`dbu6 parser` in this repository), compared by real
+ * path.
  */
 export function parserRoots(): string[] {
   const roots = [join(projectRoot(), PARSERS_DIR), packageParsersDir()];

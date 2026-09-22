@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   parserProcessEnv,
   recognizeStatementFile,
@@ -15,6 +15,19 @@ const HDFC_BANK_PARSER = "hdfc-bank-xls";
 const HDFC_CC_PARSER = "hdfc-cc-xls";
 const FIXTURE =
   "custom-built-parsers/federal-bank-xls/fixtures/sanitized-statement.xls";
+
+// A project with no parsers of its own, so only the bundled ones are found.
+let projectRoot: string;
+
+beforeAll(async () => {
+  projectRoot = await mkdtemp(path.join(tmpdir(), "dbu6-parsers-"));
+  vi.stubEnv("DBU6_ROOT", projectRoot);
+});
+
+afterAll(async () => {
+  vi.unstubAllEnvs();
+  await rm(projectRoot, { recursive: true, force: true });
+});
 
 describe("Federal Bank statement XLS parser", () => {
   it("passes its deterministic parser fixtures under Python 3.9", () => {

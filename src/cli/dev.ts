@@ -3,10 +3,9 @@
  * imported changes, the project's `dbu6.config.ts` and report routes
  * included; and Vite when there is a frontend to hot-update.
  *
- * In dbu6's own repository the server runs compiled from dist/, so two
- * TypeScript watchers run beside it: one recompiles the Node side, which is
- * what restarts the server, and one typechecks the frontend, which Vite does
- * not.
+ * When node_modules/dbu6 links to dbu6's repository, the server runs compiled
+ * from that checkout's dist/, which `pnpm dev` there keeps current; each
+ * recompile restarts the server.
  *
  * Each child is started in a process group of its own and stopped by
  * signalling the group, so stopping `dev` by any signal leaves nothing
@@ -16,7 +15,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { packageDir } from "../server/paths.js";
 import { startFrontendDevServer } from "./frontend.js";
-import { runsFromSource } from "./project.js";
 
 /** Runs until a child stops or a signal arrives. Returns the exit code. */
 export async function runDev(root: string): Promise<number> {
@@ -51,25 +49,6 @@ export async function runDev(root: string): Promise<number> {
   const serve = [packageDir("bin", "dbu6.mjs"), "serve"];
   if (withVite) serve.push("--no-frontend");
   const started = [start("API server (node --watch)", ["--watch", ...serve])];
-  if (runsFromSource()) {
-    const tsc = packageDir("node_modules", "typescript", "bin", "tsc");
-    const watch = ["--watch", "--preserveWatchOutput"];
-    started.push(
-      start("Compile the Node side on change", [
-        tsc,
-        "-p",
-        packageDir("tsconfig.json"),
-        ...watch,
-      ]),
-      start("Typecheck the frontend on change", [
-        tsc,
-        "-p",
-        packageDir("src", "frontend"),
-        "--noEmit",
-        ...watch,
-      ]),
-    );
-  }
 
   const stopped = new Promise<number>((resolve) => {
     for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {

@@ -1,9 +1,11 @@
 # Development
 
 Technical reference for working on dbu6. This repository is the source of one
-npm package, `dbu6`, and its root doubles as a project folder for development:
-`pnpm dev` runs the package from source against the gitignored `data/` and
-`user-config/` here. For what dbu6 is and how a person uses it, see
+npm package, `dbu6`, and nothing else: it is not a project and holds no books.
+`pnpm dev` here only keeps `dist/` compiled. The app runs in a project folder
+beside the checkout, such as `../demo-dbu6`, whose `node_modules/dbu6` links
+to this checkout (see [A project linked to this checkout](#a-project-linked-to-this-checkout)).
+For what dbu6 is and how a person uses it, see
 [README.md](./README.md): they run `npx dbu6 init`, and never clone this
 repository. For running a books folder for real, see
 [DEPLOYMENT.md](./DEPLOYMENT.md).
@@ -18,23 +20,40 @@ With the [prerequisites](#prerequisites) installed:
    npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --global --yes
    ```
 
-2. Start the API and web UI in watch mode:
+2. Compile dbu6 and keep it compiled:
 
    ```bash
    pnpm install
    pnpm dev
    ```
 
-   The first `pnpm dev` sets the checkout up as a project: it creates
-   `.env.development` from `.env.development.example` with a generated
-   `BETTER_AUTH_SECRET`, fills `user-config/`, and creates the database by
-   applying the migrations. Every later start repeats those checks and changes
-   nothing that already exists. To do it without starting the app, run
-   `pnpm setup`.
+   `pnpm dev` cleans `dist/`, compiles the Node side, and then watches: one
+   TypeScript watcher recompiles the Node side, and one typechecks the
+   frontend. It starts no server.
 
-3. Open http://localhost:2340 (`SAPPORTA_FRONTEND_PORT` in `.env.development`)
-   and sign up. For sample data, run `pnpm seed` while `pnpm dev` is running and
-   sign in as `demo@example.com` / `demo-password`.
+3. In another terminal, make a project folder beside the checkout that runs
+   it, and start the app there:
+
+   ```bash
+   mkdir ../demo-dbu6 && cd ../demo-dbu6
+   echo '{ "name": "demo-dbu6" }' > sapporta.json
+   echo '{ "name": "demo-dbu6", "private": true, "type": "module", "scripts": { "dev": "dbu6 dev", "seed": "dbu6 seed" }, "dependencies": { "dbu6": "link:../dbu6" } }' > package.json
+   pnpm install
+   pnpm dev
+   ```
+
+   The first `dbu6 dev` sets the folder up as a project: it creates `.env`
+   from the template's `.env.example` with a generated `BETTER_AUTH_SECRET`,
+   fills `user-config/`, and creates the database by applying the migrations.
+   Every later start repeats those checks and changes nothing that already
+   exists.
+
+4. Open the frontend port, `SAPPORTA_FRONTEND_PORT` in that folder's `.env`
+   (http://localhost:2340 from the template), and sign up; set
+   `SAPPORTA_PUBLIC_APP_URL` to the same address (see
+   [Ports and environment](#ports-and-environment)). For sample data, run
+   `pnpm seed` in the project folder while its `pnpm dev` is running, and sign
+   in as `demo@example.com` / `demo-password`.
 
 `pnpm install` needs the Sapporta packages to resolve; see
 [Sapporta packages](#sapporta-packages) for the state this checkout is in.
@@ -42,10 +61,10 @@ With the [prerequisites](#prerequisites) installed:
 ## Prerequisites
 
 - Node 22+ and pnpm 11 (the version is pinned in `package.json`).
-- `mise` is optional. Everything the app needs has a working default in
-  `.env.development`; `mise.toml` only pins the Node version and holds personal
-  settings such as `NUABASE_API_KEY`. Copy `mise.toml.example` to `mise.toml` if
-  you want it.
+- `mise` is optional. Here `mise.toml` only pins the Node version and names a
+  local Sapporta checkout; copy `mise.toml.example` to `mise.toml` if you want
+  it. A project folder keeps its ports and personal settings, such as
+  `NUABASE_API_KEY`, in its own `.env` or `mise.toml`.
 - For automatic categorization and the Open in terminal buttons, Claude Code or
   Codex installed and logged in on this machine. See [LLM engine](#llm-engine).
 - `pdftotext` (poppler) for PDF imports.
@@ -84,38 +103,14 @@ Publishing Sapporta, then `pnpm package-sources:update-npm` and
 
 ## Commands
 
-The scripts that run dbu6 go through the `dbu6` command (`bin/dbu6.mjs`), the
-same one a user's project runs; see [The `dbu6` command](#the-dbu6-command).
-`pnpm dbu6 <command>` runs any of them.
-
-- `pnpm dev` — `dbu6 dev`: start backend and frontend in watch mode. It cleans
-  `dist/` and compiles the Node side, runs `setup`, and migrates the database
-  safely first. See
-  [How `pnpm dev` runs the frontend](#how-pnpm-dev-runs-the-frontend).
-- `pnpm setup` — `dbu6 setup`: create `.env.development` from
-  `.env.development.example` with a generated `BETTER_AUTH_SECRET`, and fill
-  `user-config/` from `user-config.example/`. Every step leaves an existing
-  file alone, so `dev` runs it on every start. It does not touch the database.
-- `pnpm migrate` — `dbu6 migrate`: `migrateSafely` alone (see
-  [Schema and migrations](#schema-and-migrations)). `dev` and `start` run it
-  too, and it creates the database when there is none.
-- `pnpm seed [YYYY-MM-DD]` — `dbu6 seed`: with `pnpm dev` running, create
-  `demo@example.com` (password `demo-password`) holding a year of sample
-  personal finances up to today, or up to the given date. The twelve months
-  before that month are posted journals, and that month so far is HDFC savings
-  drafts. Re-running replaces the demo account's ledger. With
-  `--statements <dir>`, that month is written to `<dir>` as the statement files
-  it would arrive in (HDFC savings XLS, HDFC credit card CSV, and an SBI PDF no
-  saved parser reads) instead of drafts, with an `import-presets.json` to copy
-  into `user-config/`. `--statements` draws the files with the parsers' fixture
-  generators, so it works only in this repository, not from an installed
-  package. The code is `src/server/seed/`.
+- `pnpm dev` — `scripts/dev.mjs`: clean `dist/`, compile the Node side, then
+  watch: recompile the Node side on change, and typecheck the frontend. It
+  serves nothing; a [linked project](#a-project-linked-to-this-checkout)'s
+  `dbu6 dev` restarts its server on each recompile.
 - `pnpm build` — typecheck, then `scripts/build.mjs`: compile the Node side
   (`tsc`) to `dist/server`, `dist/shared` and `dist/frontend-host`, build
   `dbu6/frontend` to `dist/frontend`, and build the prebuilt web app to
   `dist/app`. See [The package](#the-package).
-- `pnpm start` — `dbu6 start`: migrate safely, then serve API and SPA on one
-  port from `dist/` (run `pnpm build` first).
 - `pnpm typecheck` — both TypeScript projects: `tsconfig.json` (Node: server,
   shared, frontend host) and `src/frontend/tsconfig.json` (DOM: frontend,
   shared).
@@ -125,6 +120,11 @@ same one a user's project runs; see [The `dbu6` command](#the-dbu6-command).
   bundled parsers' Python tests, and needs `uv`; `pnpm dbu6 parser test
   hdfc-bank-xls` runs one parser's.
 - `pnpm test:watch`, `pnpm format`.
+- `pnpm dbu6 <command>` — the `dbu6` command (`bin/dbu6.mjs`), the same one a
+  user's project runs. Here it is for `docs` and `parser`. A command that
+  works on books belongs in a project folder: run here, it would take this
+  repository for the project and create `.env`, `user-config/` and `data/` in
+  it, all gitignored. See [The `dbu6` command](#the-dbu6-command).
 - `pnpm pii-scan` — the "No PII" scan of AGENTS.md over the tracked tree
   (`scripts/pii-scan.mjs`); `pnpm pii-scan:pack` scans what `npm pack` would
   ship and refuses `link:` dependencies. Both run in a release.
@@ -147,40 +147,87 @@ same one a user's project runs; see [The `dbu6` command](#the-dbu6-command).
   - `--through <folder>` makes every file outside the folder import its files
     through its `index.ts`.
 - `pnpm db:generate --name add_table` — generate
-  Drizzle SQL migrations from schema changes.
-- `pnpm db:migrate` — apply pending migrations with Drizzle Kit, in place and
-  unverified. It is for a migration still being written; `pnpm migrate` is what
-  everything else uses.
+  Drizzle SQL migrations from schema changes. It and `pnpm db:check` need no
+  database.
+- `pnpm db:migrate` — apply pending migrations with Drizzle Kit to the
+  database in `SAPPORTA_DATA_DIR` (relative to this repository, or absolute),
+  in place and unverified:
+  `SAPPORTA_DATA_DIR=../demo-dbu6/data pnpm db:migrate`. It is for a migration
+  still being written, against a database you can lose; `dbu6 migrate` in the
+  project is what everything else uses. `pnpm db:studio` opens the same way.
+
+### A project linked to this checkout
+
+dbu6 runs, while it is worked on, in a project folder beside the checkout,
+such as `../demo-dbu6`. Its `package.json` depends on `"dbu6":
+"link:../dbu6"`, so `pnpm install` there makes `node_modules/dbu6` a symlink
+to this checkout and `node_modules/.bin/dbu6` its command.
+[Getting started](#getting-started-from-a-clone) shows how to make one. It
+runs this checkout's `bin/dbu6.mjs` and the compiled `dist/`, which `pnpm dev`
+here keeps current, so start that first. Everything else about it is an
+ordinary project's: its `.env`, `data/`, `user-config/`, `sapporta.json`, and
+its own reports and parsers if it has any.
+
+In it, `pnpm <script>` runs what its `package.json` names and
+`pnpm exec dbu6 <command>` runs any command:
+
+- `dbu6 dev`: `setup`, migrate safely, then the API server under
+  `node --watch` and Vite, which hot-updates `src/frontend`. See
+  [How a linked project's `dbu6 dev` runs](#how-a-linked-projects-dbu6-dev-runs).
+- `dbu6 setup`: create `.env` from the template's `.env.example` with a
+  generated `BETTER_AUTH_SECRET`, and fill `user-config/` from
+  `user-config.example/`. Every step leaves an existing file alone, so `dev`
+  runs it on every start. It does not touch the database.
+- `dbu6 migrate`: `migrateSafely` alone (see
+  [Schema and migrations](#schema-and-migrations)). `dev` and `start` run it
+  too, and it creates the database when there is none.
+- `dbu6 seed [YYYY-MM-DD]`: with the project's `dbu6 dev` running, create
+  `demo@example.com` (password `demo-password`) holding a year of sample
+  personal finances up to today, or up to the given date. The twelve months
+  before that month are posted journals, and that month so far is HDFC savings
+  drafts. Re-running replaces the demo account's ledger. With
+  `--statements <dir>`, that month is written to `<dir>` as the statement files
+  it would arrive in (HDFC savings XLS, HDFC credit card CSV, and an SBI PDF no
+  saved parser reads) instead of drafts, with an `import-presets.json` to copy
+  into `user-config/`. `--statements` draws the files with the parsers' fixture
+  generators, so it works only when dbu6 runs from this repository, not from an
+  installed package. The code is `src/server/seed/`.
+- `dbu6 start`: migrate safely, then serve API and SPA on one port (run
+  `pnpm build` here first, for `dist/app`).
 
 ## Ports and environment
 
-The whole development environment lives in `.env.development`, which the
-`dbu6` command loads for every command and the `pnpm db:*` scripts load with
-Node's `--env-file`. (A user's project has `.env` instead; the command uses
-`.env.development` only when the project folder is this repository.)
-That ignored file is created from `.env.development.example` by `pnpm setup`,
-which also fills in `BETTER_AUTH_SECRET`. It holds the dev ports and the URLs
-derived from them, the data directory, and local-only auth and mail defaults —
+A project's environment lives in its `.env`, which the `dbu6` command loads
+for every command. `dbu6 setup` creates it from `template/.env.example` and
+fills in `BETTER_AUTH_SECRET`. It holds the ports and the URLs derived from
+them, the data directory, and local-only auth and mail defaults —
 `SAPPORTA_MAIL_TRANSPORT=stream` among them, so Nodemailer prints the full
-generated email source to the API console instead of delivering it.
+generated email source to the API console instead of delivering it. This
+repository has no env file: nothing here reads one.
 
 A value already in the environment wins over one from an env file, so a
 `mise.toml` entry or a plain shell export overrides any of these without
-editing the file. That is what makes mise optional here rather than required.
+editing the file. That is what makes mise optional rather than required.
 
-`SAPPORTA_DATA_DIR` in `.env.development` names the directory that holds
+A linked project's `dbu6 dev` always serves the app through Vite, on
+`SAPPORTA_FRONTEND_PORT`. The template's `.env.example` points
+`SAPPORTA_PUBLIC_APP_URL` at the API port, where a project with no reports is
+served, so in a linked project set it to the frontend port's address, as
+`../demo-dbu6/.env` does, and auth and email links reach the app.
+
+`SAPPORTA_DATA_DIR` in a project's `.env` names the directory that holds
 `sqlite.db`: an absolute path, or a path relative to the
 project root. When it is unset the database is `data/sqlite.db` in the project
-folder. The `dbu6` command and every `pnpm db:*` script load that file, so all
-of them open the same database. Point it somewhere else to keep, say, sample data apart from
-real data.
+folder. Point it somewhere else to keep, say, sample data apart from real
+data. `pnpm db:migrate` and `pnpm db:studio` here read the same variable, from
+the shell.
 
 ### Running multiple Sapporta projects on one machine
 
 Each backend binds to `SAPPORTA_API_PORT` and each Vite dev server binds to
-`SAPPORTA_FRONTEND_PORT` — `2345` and `2340` here, `3000` and `5173` when
-neither is set. To run several projects side-by-side, give each its own stable
-port pair, either by editing its `.env.development`:
+`SAPPORTA_FRONTEND_PORT` — `3000` and `5173` when neither is set. To run
+several projects side-by-side, give each its own stable port pair, either by
+editing its `.env`:
 
 ```sh
 SAPPORTA_FRONTEND_PORT=2341
@@ -189,9 +236,8 @@ SAPPORTA_PUBLIC_APP_URL=http://localhost:2341
 SAPPORTA_API_URL=http://localhost:2346
 ```
 
-or by overriding the same four variables from `mise.toml`, which
-`mise.toml.example` shows commented out. The frontend host
-(`src/frontend-host/config.ts`) points its `/api` proxy at the API port and
+or by overriding the same four variables from its `mise.toml`. The frontend
+host (`src/frontend-host/config.ts`) points its `/api` proxy at the API port and
 binds Vite to the frontend port. The API trusts the derived public app
 URL and uses it for auth/email callback links, so those links also go through
 Vite's `/api/*` proxy in development. `VITE_API_URL` is not needed because
@@ -217,8 +263,6 @@ custom-built-parsers/    saved Python parsers for known statement layouts
 docs/                    the guides `dbu6 docs` prints, their worked examples, upgrade-notes/
 template/                a user project's starting files, rendered by `dbu6 init`
 user-config.example/     the example config `dbu6 setup` fills user-config/ from
-data/                    gitignored — the SQLite database
-user-config/             gitignored — this checkout's own mappings, presets, prompts
 src/cli/                 the `dbu6` command's commands; bin/dbu6.mjs loads them from dist/cli
 bin/dbu6.mjs             the package's `bin`
 scripts/                 repository tooling: build, pack, release, PII scan, move-files, package sources
@@ -323,42 +367,44 @@ parser contract or the schema in a way a project has to act on gets a note in
 convention). `dbu6 upgrade` prints the notes between the two versions. Most
 releases need none.
 
-`sapporta.json` marks a project's root for Sapporta: this repository's is not
-shipped, and a user's project gets its own from the template. Sapporta looks
+`sapporta.json` marks a project's root for Sapporta: this repository has
+none, since it is not a project, and a user's project gets its own from the
+template. Sapporta looks
 for the marker starting from the running script, so nothing that ships inside
 the package may look like one, or an installed dbu6 would take
 `node_modules/dbu6` for the project.
 
-### How `pnpm dev` runs the frontend
+### How a linked project's `dbu6 dev` runs
 
 `dbu6 dev` (`src/cli/dev.ts`) starts the API under `node --watch`
-(`dbu6 serve --no-frontend`, from `dist/`), and, in this repository only, two
-TypeScript watchers: one compiles the Node side into `dist/`, which is what
-restarts the API, and one typechecks the frontend. Each is started in its own
-process group and stopped by signalling the group, so stopping `dev` leaves
-nothing running. Vite runs inside the `dev` process: the frontend host, as in a
-user's `dbu6 dev`, but with `ownFrontend: "src"`: `dbu6/frontend` is aliased to
+(`dbu6 serve --no-frontend`, from `dist/`), in its own process group, which is
+stopped by signalling the group, so stopping `dev` leaves nothing running.
+Nothing in it compiles: `pnpm dev` in this repository recompiles the Node side
+into `dist/`, and `node --watch` restarts the API when a file it imported
+changes. Vite runs inside the `dev` process: the frontend host, as in a user's
+`dbu6 dev`, but with `ownFrontend: "src"`: `dbu6/frontend` is aliased to
 `src/frontend/index.ts` and the stylesheet to `src/frontend/frontend.css`, so
 our own code hot-updates. A user's project gets the compiled `dist/frontend`
 from `node_modules` instead, pre-bundled. `pnpm build` uses the third mode,
 `"dist"`, for the prebuilt app.
 
 The host is Node code and runs compiled, from `dist/frontend-host`, which is
-why `bin/dbu6.mjs` compiles the Node side once before `dev` starts. Vite's root is
-this repository even when `DBU6_ROOT` points the server at another folder.
+why `bin/dbu6.mjs` compiles the Node side when `dist/` lacks it. Vite's root is
+this repository, not the project folder: Vite resolves react and the rest from
+its root's `node_modules`, and the project has only `node_modules/dbu6`.
 
 ### The `dbu6` command
 
 `bin/dbu6.mjs` is the package's `bin` and is thin: it imports
-`dist/cli/main.js` and calls `main(args)`. In this repository it first
-compiles the Node side when `dist/` lacks it (and always, from a clean `dist/`,
-for `dev`), and registers Sapporta's source-link hook when `@sapporta/server`
-is a `link:` dependency, which is why no script passes `--import` any more.
+`dist/cli/main.js` and calls `main(args)`. Run from this repository, as a
+linked project runs it, it first compiles the Node side when `dist/` lacks it,
+and registers Sapporta's source-link hook when `@sapporta/server` is a `link:`
+dependency, which is why no script passes `--import` any more.
 
 `src/cli/` holds one module per concern: `main.ts` (dispatch, and what a
 migration result prints), `project.ts` (the project folder: `DBU6_ROOT`, else
-the nearest `package.json` at or above the working directory; and its env
-file), `dev.ts`, `setup.ts`, `init.ts`, `upgrade.ts`, `check.ts`, `parser.ts`, `docs.ts`,
+the nearest `package.json` at or above the working directory; and its `.env`),
+`dev.ts`, `setup.ts`, `init.ts`, `upgrade.ts`, `check.ts`, `parser.ts`, `docs.ts`,
 and `frontend.ts`, the command's only contact with the frontend host. `src/cli`
 sits above the rest of the Node side: it alone may import both `src/server` and
 `src/frontend-host` (`scripts/import-boundaries.test.mjs`). `seed` is
@@ -366,7 +412,7 @@ sits above the rest of the Node side: it alone may import both `src/server` and
 
 | Command | Does |
 | --- | --- |
-| `dev` | `setup`, `migrateSafely`, then the server under `node --watch`, plus Vite when the project has reports or a `frontend.tsx` (always, in this repository) |
+| `dev` | `setup`, `migrateSafely`, then the server under `node --watch`, plus Vite when the project has reports or a `frontend.tsx` (always, when dbu6 runs from this repository) |
 | `start` | `migrateSafely`, build the project's web app if it has one, serve |
 | `serve [--no-frontend]` | serve only; what `dev` runs under `node --watch`. Refuses pending migrations |
 | `build` | build the project's web app into `<root>/dist/app` |
@@ -379,13 +425,10 @@ sits above the rest of the Node side: it alone may import both `src/server` and
 | `docs [name]` | print a packaged guide (`GUIDES` in `src/shared/guides.ts`); lists them with no name |
 | `init <directory> [--dbu6 <spec>]` | a new project: `template/` rendered (the name from the directory, dbu6 pinned to this package's exact version, `gitignore` written as `.gitignore`), `npm install`, then the installed package's `setup` and `migrate`, and a first commit when git is installed. Refuses a directory with anything in it. `--dbu6` installs another spec, such as a tarball, for an unpublished build |
 
-To run against a scratch project instead of this checkout's books, make a
-folder with a `package.json`, and from it run
-`node <repo>/bin/dbu6.mjs setup`, edit the ports in its `.env`, then
-`node <repo>/bin/dbu6.mjs dev`. A project's `dbu6.config.ts` and
-`reports/*/api.ts` import `dbu6/server`, which resolves through
-`node_modules`: in a scratch folder, symlink `node_modules/dbu6` to this
-repository. Here, the name resolves to this package's own `exports`, so to
+A scratch project, say to try a report, is made like
+[a linked project](#a-project-linked-to-this-checkout), on ports of its own.
+Its `dbu6.config.ts` and `reports/*/api.ts` import `dbu6/server`, which
+resolves through `node_modules/dbu6` to this package's `exports`, so to
 `dist/`, which is also what the running server loaded.
 
 #### `dbu6 check`
@@ -405,8 +448,8 @@ lines never fail the run. `dbu6 upgrade` runs it after migrating.
 | Parsers | every `*_test.py` of the project's `custom-built-parsers/`, under `uv` with `shared` on `PYTHONPATH`; a project parser that shadows a bundled one is named | a test fails or uv cannot run |
 | Config | `user-config/` read by the code the app reads it with: `transaction_mappings.mjs` (`readTransactionMappings`), `import-presets.json` (`readImportPresets`, plus that each preset's parser and prompt files exist), `settings.json` (`chosenCodingAgent`) | a file does not parse or names something missing |
 
-In this repository the project is the repository, so `check` typechecks the
-whole Node side and runs every bundled parser's tests. `src/cli/check.test.ts`
+In this repository, `pnpm typecheck` and `pnpm test:parsers` cover what
+`check` checks in a project. `src/cli/check.test.ts`
 builds a scratch project with a report that no longer typechecks, a failing
 parser test and a pending migration, and asserts that one run names all three.
 
@@ -478,8 +521,9 @@ client/server boundary: contracts, wire types and pure helpers.
 Everything specific to the user lives in the project root: the database in
 `data/` (`SAPPORTA_DATA_DIR`), their config in `user-config/`, their parsers
 in `custom-built-parsers/`, and the uploads an agent is pointed at in `tmp/`.
-`data/` and `user-config/` are gitignored here; in a user's project only
-`data/` is. The template's Dockerfile copies the project into the image and
+This repository holds none of it, and still gitignores `data/` and
+`user-config/`, so books put here by mistake stay out of git; in a user's
+project only `data/` is gitignored. The template's Dockerfile copies the project into the image and
 declares `/app/data` as its volume.
 
 dbu6 keeps no copy of the books beyond `data/sqlite.db`: `migrateSafely`'s
@@ -487,21 +531,23 @@ copy lives beside it and is gone when the command returns, whichever way it
 went, and there is no backup retention, no backup outside the project and no
 `restore` command. Backing up `data/` is the user's job, and the docs say so.
 
-### Moving the books kept in this checkout to a project
+### Moving the books out of an older clone
 
-This checkout was the way to run dbu6 before there was a package, so it may
-hold real books. They move by hand, once, and nothing here migrates the
+A clone from before this repository stopped being a project may hold real
+books in `data/`. They move by hand, once, and nothing here migrates the
 clone layout:
 
-1. `npx dbu6 init my-books` somewhere outside this repository. This needs
-   the package published: until then the only way to make a project is the
-   way `scripts/verify-init.mjs` does it, with the linked Sapporta's
-   overrides, and that project is a scratch one.
-2. Stop `pnpm dev` here, then copy `data/sqlite.db` to `my-books/data/`.
-   Before user-config moved to the project root it sat in `data/user-config/`;
-   copy that, or `user-config/`, to `my-books/user-config/`, over what `init`
-   filled in.
-3. Copy any private parser from this checkout's `custom-built-parsers/` (one
+1. Make a project folder outside this repository: `npx dbu6 init my-books`
+   once the package is published, or until then
+   [a linked project](#a-project-linked-to-this-checkout).
+2. With nothing running, move (not copy, so the books stay in one place)
+   `data/sqlite.db` to `my-books/data/`. Before user-config moved to the
+   project root it sat in `data/user-config/`; move that, or `user-config/`,
+   to `my-books/user-config/`, over what `init` filled in. Move
+   `.env.development` to `my-books/.env`, which keeps the auth secret and so
+   the sign-ins, and `tmp/statement-uploads/` and `tmp/agent-prompts/` to
+   `my-books/tmp/`.
+3. Copy any private parser from the clone's `custom-built-parsers/` (one
    the package does not ship) to `my-books/custom-built-parsers/<name>/`.
 4. In `my-books/user-config/import-presets.json`, each preset's
    `custom_statement_parser_path` is the parser's directory name alone
@@ -515,9 +561,9 @@ root (`userConfigDir()`, `userConfigPath()`, `dataDir()`, `databaseFile()`,
 `reportsDir()`, `uploadStagingDir()`); what is ours comes from the package directory
 (`packageDir(...)`), found by walking up from `paths.ts` to the `package.json`
 named `dbu6`, never from the project root. `parserRoots()` is the user's
-`custom-built-parsers/` and then ours. In this repository the project root and
-the package directory are the same directory; in a user's project the package
-is under `node_modules`. `DBU6_ROOT` overrides the project root, which is how a
+`custom-built-parsers/` and then ours. In a user's project the package is
+under `node_modules`, and in a linked project that is a symlink to this
+repository; only `dbu6 parser`, run here, has the two the same. `DBU6_ROOT` overrides the project root, which is how a
 test points it at a temporary directory (`vi.stubEnv("DBU6_ROOT", dir)`).
 `openDbu6Runtime(root)` refuses a `root` other than the one `DBU6_ROOT` names,
 because the functions above that take no root would read that other folder.
@@ -672,18 +718,17 @@ export const accounts = table({
 });
 ```
 
-Change the schema, run Drizzle Kit generate, review the SQL, then `pnpm
-migrate` (or just `pnpm dev`). The migrations are written to `migrations/` at
+Change the schema, run Drizzle Kit generate, review the SQL, then
+`dbu6 migrate` in a linked project (or just restart its `dbu6 dev`). The migrations are written to `migrations/` at
 the repository root, which is where the package ships them; Drizzle Kit is only
 a development dependency for generating them. `openDbu6` refuses to
 serve a database with pending migrations and never applies one; `dev` and
 `start` call `migrateSafely` before they open it.
 
 Avoid migrations that drop and recreate a table. SQLite cascades the drop to
-child rows. `pnpm db:migrate` applies in place and unverified, so copy
-`data/sqlite.db` aside yourself before running a migration that way for the
-first time; `pnpm migrate` needs no copy, because it makes and verifies its
-own.
+child rows. `pnpm db:migrate` applies in place and unverified, so point it
+only at a scratch database you can lose, never at real books;
+`dbu6 migrate` needs no copy, because it makes and verifies its own.
 
 A user's database is migrated only by `migrateSafely`
 (`src/server/migrate-safely.ts`): on a copy, one migration at a time, accepted
