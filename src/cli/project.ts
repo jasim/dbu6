@@ -2,7 +2,7 @@
  * The project folder a command works on, and its environment file. Every
  * command resolves both the same way before it does anything else.
  */
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { packageDir } from "../server/paths.js";
 
@@ -32,20 +32,9 @@ export function runsFromSource(): boolean {
   return existsSync(packageDir("src", "server"));
 }
 
-/**
- * Whether `root` is dbu6's own repository being used as a project folder,
- * which is how dbu6 is developed. A user's project has dbu6 in node_modules.
- */
-export function isSourceCheckout(root: string): boolean {
-  return runsFromSource() && realpathSync(root) === realpathSync(packageDir());
-}
-
-/**
- * The project's environment file: `.env`. In dbu6's own repository it is
- * `.env.development`, as it was before the repository became a project.
- */
+/** The project's environment file. */
 export function envFile(root: string): string {
-  return join(root, isSourceCheckout(root) ? ".env.development" : ".env");
+  return join(root, ".env");
 }
 
 /**

@@ -109,7 +109,7 @@ export function loadDbu6App(
 /**
  * Serves the built frontend in `distDir` from the same process. Three
  * deployment shapes work:
- *   (a) same-origin via this Hono process (default; `pnpm start`)
+ *   (a) same-origin via this Hono process (default; `dbu6 start`)
  *   (b) same-origin behind nginx - nginx serves the built frontend directly
  *       and proxies /api/ here; this becomes harmless dead code
  *   (c) split - SPA on a CDN, API here. Skip this call, set VITE_API_URL

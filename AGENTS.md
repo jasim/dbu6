@@ -19,8 +19,10 @@ Load it for any change to the schema, API, auth, or UI.
 ## This repository is the package
 
 The tracked tree is the source of the `dbu6` npm package; a person's books
-live in a folder made by `npx dbu6 init`, with dbu6 in `node_modules`, and
-this checkout only doubles as such a folder for development
+live in a folder made by `npx dbu6 init`, with dbu6 in `node_modules`. This
+checkout is not such a folder and holds no books: `pnpm dev` here only keeps
+`dist/` compiled, and the app runs in a project folder beside it, such as
+`../demo-dbu6`, whose `node_modules/dbu6` links here
 ([DEVELOPMENT.md](DEVELOPMENT.md)). What a project may import is
 `src/server/index.ts` and `src/frontend/index.ts`, and nothing is added to
 either by accident. Guides, prompts and `template/AGENTS.md` are read from an

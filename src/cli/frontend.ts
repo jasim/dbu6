@@ -70,8 +70,9 @@ export async function tryBuildingFrontend(
 
 /**
  * Starts Vite for `dev` when there is a frontend to hot-update: the project's
- * reports or `frontend.tsx`, or, in dbu6's repository, our own. Returns
- * whether it did; when it did not, the server serves the prebuilt app.
+ * reports or `frontend.tsx`, or, when dbu6 runs from its repository, our
+ * own. Returns whether it did; when it did not, the server serves the
+ * prebuilt app.
  */
 export async function startFrontendDevServer(root: string): Promise<boolean> {
   const host = await frontendHost();
@@ -82,9 +83,9 @@ export async function startFrontendDevServer(root: string): Promise<boolean> {
   if (runsFromSource()) {
     await host.startHostDevServer({
       ...ports,
-      // Vite's root is the repository even when DBU6_ROOT names a scratch
-      // folder: Vite resolves react and the rest from its root's
-      // node_modules, and a scratch folder has none.
+      // Vite's root is the repository, not the project DBU6_ROOT names:
+      // Vite resolves react and the rest from its root's node_modules, and
+      // a project linked to this checkout has only node_modules/dbu6.
       projectRoot: packageDir(),
       // `dbu6/frontend` is src/frontend, so our own code hot-updates.
       ownFrontend: "src",
