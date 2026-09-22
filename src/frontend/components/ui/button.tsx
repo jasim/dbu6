@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@sapporta/ui/cn";
 
 /*
- * dbu6's button (PLAN.md §4.6). Five styles, three sizes, and a waiting
+ * dbu6's button (PLAN.md §4.6). Six styles, three sizes, and a waiting
  * state. One primary button per screen.
  */
 export const buttonVariants = cva(
@@ -20,6 +20,11 @@ export const buttonVariants = cva(
           "border border-sap-border-strong bg-card text-foreground hover:bg-muted",
         /** Tertiary, reads as a link: "See the report", "Add an account". */
         ghost: "px-1 text-primary hover:underline hover:underline-offset-4",
+        /**
+         * Soft: the same action on every row of a list, where a primary on
+         * each would shout. A quiet green fill, dark green ink.
+         */
+        soft: "border border-money-in-border bg-money-in-bg text-money-in-ink hover:brightness-95",
         /** Rare: deleting a draft, removing an account. */
         destructive:
           "bg-destructive text-destructive-foreground hover:brightness-95",

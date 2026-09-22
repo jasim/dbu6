@@ -14,12 +14,12 @@ import {
     identifierRequiredPrompt,
     missingAccountPrompt,
     noPresetPrompt,
-    openingBalancePrompt,
     partInvalidPrompt,
     reconciliationPrompt,
     unrecognizedPrompt,
 } from "./agentPrompts";
 import type {StatusTone} from "../../components/status-chip";
+import {openingBalanceHref} from "../opening-balances/OpeningBalances";
 import type {Stat} from "./describeGroup";
 import type {AccountRefusal, ImportFailure} from "./outcome";
 import {
@@ -527,14 +527,17 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
             return {
                 ...base,
                 title: "Starting balance missing",
-                fix: "Set this account's starting balance.",
+                fix: `Record ${group.base_account}'s opening balance, then import again.`,
                 context:
-                    "The statement has no opening or running balances, and your books have no confirmed balance for this account yet. This only happens on an account's first import. It can be set using the following AI prompt.",
-                agent: {
-                    prompt: openingBalancePrompt(refusal),
-                    afterwards: RETRY_FROM_SCREEN,
-                    goal: "Set the starting balance",
-                },
+                    "The statement has no opening or running balances, and your books have no confirmed balance for this account yet. This only happens on an account's first import. Its opening balance is what it held or owed the day before the statement's first transaction.",
+                actions: [
+                    {
+                        kind: "link",
+                        label: "Record the opening balance",
+                        to: openingBalanceHref(group.base_account),
+                    },
+                ],
+                agent: null,
             };
         case "closing_balance_unavailable":
             return {

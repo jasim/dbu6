@@ -11,6 +11,8 @@ import {
 export interface InsertedJournals {
   journals: number;
   entries: number;
+  /** The new journals' ids, in the plan's order. */
+  journalIds: number[];
 }
 
 /**
@@ -25,7 +27,7 @@ export function insertJournalPlan(
 ): InsertedJournals {
   const journalAccess = auth.rowSecurity.forTable(journals);
   const entryAccess = auth.rowSecurity.forTable(journalEntries);
-  let journalCount = 0;
+  const journalIds: number[] = [];
   let entryCount = 0;
 
   for (const insert of plan) {
@@ -54,11 +56,11 @@ export function insertJournalPlan(
     );
     tx.insert(journalEntriesTable).values(entryValues).run();
 
-    journalCount++;
+    journalIds.push(journal.id);
     entryCount += insert.entries.length;
   }
 
-  return { journals: journalCount, entries: entryCount };
+  return { journals: journalIds.length, entries: entryCount, journalIds };
 }
 
 // Rounded as hledger prints it, so the books hold what the plan renders.

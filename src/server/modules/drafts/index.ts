@@ -1,6 +1,7 @@
 // The drafts module: draft rows from categorized statement rows, saving them
 // and placing their balance assertions, loading them back categorized,
-// reclassifying and clearing them, and what an account's drafts hold. Import
+// reclassifying and clearing them, what an account's drafts hold, and where
+// they begin. Import
 // from here rather than from the files.
 export {
   partitionByCategorization,
@@ -26,6 +27,7 @@ export {
   type DraftRow,
   type PersistSummary,
 } from "./draft-persistence.js";
+export { loadFirstDrafts, type FirstDrafts } from "./first-drafts.js";
 export {
   draftCounts,
   findDraftDuplicates,

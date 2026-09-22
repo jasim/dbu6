@@ -141,3 +141,14 @@ export {
   type ReviewDuplicate,
   type ReviewFailingCheck,
 } from "./review.js";
+export {
+  openingBalancesContract,
+  openingBalanceAccountSchema,
+  openingBalanceRefusalSchema,
+  openingBalancesSchema,
+  openingEntrySchema,
+  type OpeningBalanceAccount,
+  type OpeningBalanceRefusal,
+  type OpeningBalances,
+  type OpeningEntry,
+} from "./opening-balances.js";

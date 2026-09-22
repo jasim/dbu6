@@ -60,6 +60,9 @@ export const reviewAccountDetailSchema = z.object({
   account: reviewAccountSchema,
   // The last posted balance assertion on the account; null before the first.
   checkpoint: datedBalanceSchema.nullable(),
+  // Whether the books hold the account's opening entry (a line in a journal
+  // with a line on Equity). Without one every balance check is off by it.
+  has_opening_entry: z.boolean(),
   // The last balance the drafts carry from a statement; null when none does.
   closing: datedBalanceSchema.nullable(),
   failing: z.array(reviewFailingCheckSchema),

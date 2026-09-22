@@ -476,8 +476,8 @@ built, tested and understood without anything above it. Lowest first:
 | 1 | `modules/values/` | values | Money and its direction, amounts in paise and when two are the same, Account, Chrono, the text normalization transaction identity uses | I/O, statements, ledger tables |
 | 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
 | 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into a ledger account id, the same-account rule included; the Google Pay Takeout index and enrichment; transaction groups, the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan | Database access, coding-agent names, route concepts |
-| 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent | Accounts as the stores and screens look them up; posted journals, writing them from a plan, and the last reconciled checkpoint; matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter; draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status. The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
-| 5 | `workflows/` | statement-import, posting, reclassification | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
+| 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent | Accounts as the stores and screens look them up, and the Opening Balances account; posted journals, writing them from a plan, the last reconciled checkpoint, and each account's opening entry and first posted date (`opening-entries.ts`); matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter; draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status, and where an account's drafts begin (`first-drafts.ts`). The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
+| 5 | `workflows/` | statement-import, posting, reclassification, opening-balances | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
 | 6 | `app/`, `runtime.ts`, `mount.ts`, `open.ts`, `config.ts`, `project-reports.ts`, `route-collisions.ts`, `report-kit.ts`, `index.ts`, `seed/` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting; the project's reports and `dbu6.config.ts`; the promised exports; sample data | Queries or rules another module needs |
 
 - Only tier 4 orders its modules (accounts < journals < reconciliation <
@@ -511,7 +511,9 @@ module in `modules/<name>/` is imported through its `index.ts`: `ledger-sql`,
 ledger's tables. The workflows are
 `workflows/statement-import/` (one account's statement, the automatic batch,
 and freeform transactions; imported through its `index.ts`),
-`workflows/posting.ts` and `workflows/reclassification.ts`.
+`workflows/posting.ts`, `workflows/reclassification.ts` and
+`workflows/opening-balances.ts` (each asset and liability account's opening
+entry: listing them, and posting one against Opening Balances).
 
 `src/shared/` is imported by relative path (`../shared/index.js` from the
 server, `../shared/index` from the frontend). Both

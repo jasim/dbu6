@@ -21,6 +21,7 @@ import {
   homeContract,
   importPresetsContract,
   journalsContract,
+  openingBalancesContract,
   reviewContract,
 } from "../shared/index";
 
@@ -52,6 +53,10 @@ export const homeApi = createApiClient(homeContract, {
 });
 
 export const reviewApi = createApiClient(reviewContract, {
+  baseUrl: getApiBase,
+});
+
+export const openingBalancesApi = createApiClient(openingBalancesContract, {
   baseUrl: getApiBase,
 });
 

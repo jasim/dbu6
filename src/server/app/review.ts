@@ -12,6 +12,7 @@ import {
   type AccountStanding,
 } from "./account-standing.js";
 import { draftCounts } from "../modules/drafts/index.js";
+import { loadOpeningEntries } from "../modules/journals/index.js";
 import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
@@ -73,6 +74,7 @@ export function loadReviewAccount(
   return {
     account: reviewAccount(standing),
     checkpoint: standing.checkpoint,
+    has_opening_entry: loadOpeningEntries(sqlite, auth).has(accountId),
     closing: drafts?.closing ?? null,
     failing: (drafts?.failing ?? []).map(
       ({ date, draft_id, running_balance, assertion, diff }) => ({
