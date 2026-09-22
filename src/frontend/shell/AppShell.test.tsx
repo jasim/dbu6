@@ -100,6 +100,7 @@ afterEach(() => {
   useSchemaStore.getState().reset();
   useAuthStore.getState().reset();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("dbu6 app shell", () => {
@@ -116,39 +117,111 @@ describe("dbu6 app shell", () => {
     expect(scrollRegion().className).not.toContain("--sap-page-header-inset");
   });
 
-  it("keeps the desktop control inside the sidebar while it is expanded", async () => {
+  it("keeps the desktop control first in the sidebar, expanded or as the rail", async () => {
     installMedia({ desktop: true });
     await renderShell(page("Application content"));
 
-    const collapseToggle = toggleButton("Collapse sidebar");
-    expect(
-      collapseToggle.closest('[data-sidebar-toggle-location="sidebar"]'),
-    ).toBeInstanceOf(HTMLElement);
-    expect(collapseToggle.closest("aside")?.className).toContain("w-[248px]");
+    const toggle = toggleButton("Collapse sidebar");
+    const slot = toggle.closest('[data-sidebar-toggle-location="sidebar"]');
+    expect(slot?.parentElement?.firstElementChild).toBe(slot);
+    expect(toggle.closest("aside")?.className).toContain("w-[216px]");
     expect(scrollRegion().className).not.toContain("--sap-page-header-inset");
 
-    await click(collapseToggle);
+    toggle.focus();
+    await click(toggle);
 
-    const expandToggle = toggleButton("Expand sidebar");
+    // The same button, still first in the header of the rail, keeps focus.
+    expect(toggleButton("Expand sidebar")).toBe(toggle);
+    expect(document.activeElement).toBe(toggle);
+    expect(toggle.closest("aside")?.className).toContain("w-full");
     expect(
-      expandToggle.closest('[data-sidebar-toggle-location="content"]'),
-    ).toBeInstanceOf(HTMLElement);
-    expect(expandToggle.closest("[data-shell-content]")).toBeInstanceOf(
-      HTMLElement,
-    );
-    expect(scrollRegion().className).toContain(
-      "[--sap-page-header-inset:3rem]",
-    );
+      host.querySelector('[data-sidebar-toggle-location="content"]'),
+    ).toBeNull();
+    expect(scrollRegion().className).not.toContain("--sap-page-header-inset");
     expect(window.localStorage.getItem(SIDEBAR_EXPANDED_PREF_KEY)).toBe(
       "false",
     );
 
-    await click(expandToggle);
-    expect(
-      toggleButton("Collapse sidebar").closest(
-        '[data-sidebar-toggle-location="sidebar"]',
-      ),
-    ).toBeInstanceOf(HTMLElement);
+    await click(toggle);
+    expect(toggleButton("Collapse sidebar")).toBe(toggle);
+  });
+
+  it("shows icons, the control, and the account initials in the rail", async () => {
+    installMedia({ desktop: true });
+    needsCategory = 12;
+    window.localStorage.setItem(SIDEBAR_EXPANDED_PREF_KEY, "false");
+    await renderShell(page("Application content"));
+
+    const sidebar = host.querySelector("aside");
+    expect(sidebar?.textContent).not.toContain("Sample household");
+    // Labels stay in the links for assistive technology.
+    const label = Array.from(navLink("/import").querySelectorAll("span")).find(
+      (span) => span.textContent === "Import statements",
+    );
+    expect(label?.className).toContain("sr-only");
+    // The count becomes a dot, and the link still names it.
+    expect(navLink("/review").textContent).not.toContain("12");
+    expect(navLink("/review").getAttribute("aria-label")).toBe("Review, 12");
+    const account = host.querySelector(
+      'button[aria-label="Open account menu for Sample Owner"]',
+    );
+    expect(account?.textContent).not.toContain("Settings");
+  });
+
+  it("returns to the rail when a destination is chosen", async () => {
+    installMedia({ desktop: true });
+    window.localStorage.setItem(SIDEBAR_EXPANDED_PREF_KEY, "false");
+    await renderShell(page("Application content"));
+    const region = host.querySelector<HTMLElement>("[data-sidebar-region]");
+    const surface = host.querySelector<HTMLElement>("[data-sidebar-surface]");
+    if (!region || !surface) throw new Error("Expected the sidebar region.");
+    vi.useFakeTimers();
+
+    // Resting on the rail opens the sidebar over the page.
+    await pointerEnter(surface);
+    await advance(250);
+    expect(region.dataset.sidebarPeek).toBe("open");
+
+    const link = navLink("/review");
+    await pointerDown(link);
+    await act(async () => link.click());
+
+    expect(region.dataset.sidebarPeek).toBeUndefined();
+    await advance(1000);
+    expect(region.dataset.sidebarPeek).toBeUndefined();
+  });
+
+  it("returns to the rail when an account menu item is chosen", async () => {
+    installMedia({ desktop: true });
+    window.localStorage.setItem(SIDEBAR_EXPANDED_PREF_KEY, "false");
+    await renderShell(page("Application content"));
+    const region = host.querySelector<HTMLElement>("[data-sidebar-region]");
+    const surface = host.querySelector<HTMLElement>("[data-sidebar-surface]");
+    if (!region || !surface) throw new Error("Expected the sidebar region.");
+    vi.useFakeTimers();
+
+    await pointerEnter(surface);
+    await advance(250);
+    expect(region.dataset.sidebarPeek).toBe("open");
+
+    const account = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open account menu for Sample Owner"]',
+    );
+    if (!account) throw new Error("Expected the account menu trigger.");
+    await pointerDown(account);
+    await click(account);
+    // Opening the menu is not choosing anything: the sidebar stays open.
+    expect(region.dataset.sidebarPeek).toBe("open");
+
+    const profile = [
+      ...host.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.startsWith("Profile"));
+    if (!profile) throw new Error("Expected the Profile action.");
+    await click(profile);
+
+    expect(region.dataset.sidebarPeek).toBeUndefined();
+    await advance(1000);
+    expect(region.dataset.sidebarPeek).toBeUndefined();
   });
 
   it("keeps the drawer opener over an unwrapped page on a compact screen", async () => {
@@ -276,6 +349,8 @@ async function renderShell(
               Route,
               { element: createElement(AppShell, { navigation: NAVIGATION }) },
               createElement(Route, { index: true, element: content }),
+              // Choosing a destination keeps the shell: every path renders it.
+              createElement(Route, { path: "*", element: content }),
             ),
           ),
         ),
@@ -330,4 +405,32 @@ function navLink(to: string): HTMLAnchorElement {
 
 async function click(button: HTMLButtonElement): Promise<void> {
   await act(async () => button.click());
+}
+
+// React derives enter and leave from `pointerover` and `pointerout`, using the
+// element the pointer came from or went to.
+async function pointerEnter(element: Element): Promise<void> {
+  await act(async () => {
+    element.dispatchEvent(
+      new PointerEvent("pointerover", {
+        bubbles: true,
+        pointerType: "mouse",
+        relatedTarget: document.body,
+      }),
+    );
+  });
+}
+
+async function pointerDown(element: Element): Promise<void> {
+  await act(async () => {
+    element.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse" }),
+    );
+  });
+}
+
+async function advance(ms: number): Promise<void> {
+  await act(async () => {
+    vi.advanceTimersByTime(ms);
+  });
 }

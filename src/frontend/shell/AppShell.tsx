@@ -19,13 +19,15 @@ export interface AppShellProps {
 
 /**
  * dbu6's app shell, composed from Sapporta's sidebar behaviour (the remembered
- * collapse state, the compact drawer, the toggle) around dbu6's own sidebar.
+ * collapse state, the rail and the sidebar that opens from it, the compact
+ * drawer, the toggle) around dbu6's own sidebar.
  *
- * On desktop, the collapse control sits in the expanded sidebar; once
- * collapsed, the expand control moves to the content's top-left. Compact
- * screens keep the opener there for the drawer. While that content-side
- * control is present, the scroll region carries `--sap-page-header-inset`,
- * which Sapporta's `PageHeader` reads so its title stays clear of it.
+ * On desktop, the control is the first thing in the sidebar header, both in
+ * the expanded sidebar and in the rail, so it stays in one place on screen.
+ * Compact screens have no rail, so the drawer opener sits over the content's
+ * top-left. While it is there, the scroll region carries
+ * `--sap-page-header-inset`, which Sapporta's `PageHeader` reads so its title
+ * stays clear of it.
  *
  * `main` is the single scroll region. Navigation appears once a visitor has a
  * session; a public page renders on its own.
@@ -49,8 +51,7 @@ function AppShellLayout({ navigation }: AppShellProps) {
   const sidebar = useSidebar();
   const showNavigation = session.kind === "authenticated";
   const counts = useNavigationCounts(showNavigation);
-  const toggleInSidebar =
-    showNavigation && sidebar.isDesktop && sidebar.desktopExpanded;
+  const toggleInSidebar = showNavigation && sidebar.isDesktop;
   const toggleInContent = showNavigation && !toggleInSidebar;
   const toggle = (
     <SidebarToggle className="size-(--height-sap-ctl) rounded-control" />
