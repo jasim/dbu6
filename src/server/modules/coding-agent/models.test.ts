@@ -56,6 +56,9 @@ function askedModels(): string[] {
 
 beforeEach(async () => {
   vi.resetModules();
+  // A fresh dbu_config for each test, bound as the runtime binds the table.
+  const config = await import("../../dbu-config.js");
+  config.useDbuConfig(config.memoryDbuConfig());
   models = await import("./models.js");
   detectLocalAgents.mockReset();
   localAgent.mockClear();
@@ -186,16 +189,17 @@ describe("agentModels", () => {
     expect(askedModels()).toHaveLength(2);
   });
 
-  it("checks again when no model answered last time", async () => {
+  it("keeps a check where no model answered, until asked again", async () => {
     answering();
     expect((await models.agentModels(CODEX)).state).toBe("no_model");
     answering("gpt-5.6-terra");
 
-    expect(await models.agentModels(CODEX)).toMatchObject({
+    expect((await models.agentModels(CODEX)).state).toBe("no_model");
+    expect(askedModels()).toHaveLength(2);
+    expect(await models.checkAgentModelsAgain(CODEX)).toMatchObject({
       state: "ready",
       session: TERRA,
     });
-    expect(askedModels()).toHaveLength(4);
   });
 
   it("checks again when the executable moved", async () => {
@@ -271,6 +275,19 @@ describe("startCodingAgent", () => {
 
     expect(askedModels()).toEqual(["opus", "sonnet"]);
     expect(models.agentModelsNow(CLAUDE)).toMatchObject({ state: "ready" });
+  });
+
+  it("detects and checks nothing when dbu_config already has both", async () => {
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX]);
+    answering("opus", "sonnet");
+    await models.startCodingAgent();
+    detectLocalAgents.mockClear();
+    localAgent.mockClear();
+
+    await models.startCodingAgent();
+
+    expect(detectLocalAgents).not.toHaveBeenCalled();
+    expect(askedModels()).toEqual([]);
   });
 
   it("checks nothing when the agent isn't signed in", async () => {

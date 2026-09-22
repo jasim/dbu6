@@ -1,3 +1,4 @@
+import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig } from "drizzle-kit";
 
@@ -9,8 +10,12 @@ const dataDir = process.env.SAPPORTA_DATA_DIR;
 
 export default defineConfig({
   dialect: "sqlite",
+  // The schema folder's tables, without its tests, which import vitest and
+  // can't be loaded here.
   schema: [
-    "./src/server/schema/**/*.ts",
+    ...readdirSync("./src/server/schema")
+      .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+      .map((file) => `./src/server/schema/${file}`),
     "./src/server/project-auth/schema.ts",
   ],
   // The migrations ship in the package, at its root (`dbu6MigrationsDir()` in

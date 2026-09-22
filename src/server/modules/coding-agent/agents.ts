@@ -7,9 +7,11 @@ import {
   type AgentModel,
   type CodingAgent,
 } from "../../../shared/index.js";
+import { readDbuConfig, writeDbuConfig } from "../../dbu-config.js";
 import { userConfigPath } from "../../paths.js";
 import {
   detectAgents,
+  detectedAgentSchema,
   type DetectedAgent,
   type InstalledAgent,
 } from "./nuabase.js";
@@ -59,28 +61,39 @@ export const CODING_AGENT_RUN = {
   { models: readonly AgentModel[]; autoModeArgs: readonly string[] }
 >;
 
-const DETECTION_TTL_MS = 60_000;
+const detectedAgentsSchema = z.array(detectedAgentSchema);
 
-let detection: { at: number; agents: Promise<DetectedAgent[]> } | null = null;
+let detecting: Promise<DetectedAgent[]> | null = null;
+
+// Runs each agent's CLI, and keeps what it found in dbu_config. Callers during
+// a detection share it.
+function detectAndStore(): Promise<DetectedAgent[]> {
+  detecting ??= detectAgents()
+    .then((agents) => {
+      writeDbuConfig("coding_agent.agents", agents);
+      return agents;
+    })
+    .finally(() => {
+      detecting = null;
+    });
+  return detecting;
+}
 
 /**
  * Every agent dbu6 knows, Claude Code first, and whether each is installed and
- * logged in. Detection runs each CLI, so it is kept for a minute: an agent
- * installed later shows up without a restart, and a click doesn't wait on the
- * CLIs. `fresh` detects again now, for the Settings screen.
+ * logged in. Detection runs each CLI, so it runs once, when nothing is stored
+ * yet, and its result is kept in dbu_config across restarts: an agent
+ * installed or signed in since shows up when Settings detects again
+ * (`detectCodingAgentsAgain`).
  */
-export function detectCodingAgents({
-  fresh = false,
-}: { fresh?: boolean } = {}): Promise<DetectedAgent[]> {
-  const now = Date.now();
-  if (fresh || detection === null || now - detection.at >= DETECTION_TTL_MS) {
-    const agents = detectAgents();
-    agents.catch(() => {
-      if (detection?.agents === agents) detection = null;
-    });
-    detection = { at: now, agents };
-  }
-  return detection.agents;
+export function codingAgents(): Promise<DetectedAgent[]> {
+  const stored = readDbuConfig("coding_agent.agents", detectedAgentsSchema);
+  return stored === null ? detectAndStore() : Promise.resolve(stored);
+}
+
+/** Detects the agents again and keeps the result, for Settings. */
+export function detectCodingAgentsAgain(): Promise<DetectedAgent[]> {
+  return detectAndStore();
 }
 
 const SETTINGS_FILE = "settings.json";
@@ -138,7 +151,7 @@ export function activeCodingAgent(
 /** The agent dbu6 uses right now, or null when none is installed. */
 export async function currentCodingAgent(): Promise<InstalledAgent | null> {
   const [detected, chosen] = await Promise.all([
-    detectCodingAgents(),
+    codingAgents(),
     chosenCodingAgent(),
   ]);
   return activeCodingAgent(detected, chosen);

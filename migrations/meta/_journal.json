@@ -43,6 +43,13 @@
       "when": 1789764534238,
       "tag": "0005_unique_account_names",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790101793696,
+      "tag": "0006_dbu_config",
+      "breakpoints": true
     }
   ]
 }

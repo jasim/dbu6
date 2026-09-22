@@ -138,7 +138,7 @@ export const codingAgentContract = c.router({
     method: "POST",
     path: "/coding-agent/model-check",
     summary:
-      "Ask each of the active agent's models again whether it answers; the settings show the check running",
+      "Detect the coding agents again and ask the active agent's models whether they answer; the settings show the check running",
     body: z.object({}),
     responses: {
       200: codingAgentSettingsSchema,

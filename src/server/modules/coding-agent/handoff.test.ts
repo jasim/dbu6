@@ -79,6 +79,9 @@ async function choose(agent: string) {
 
 beforeEach(async () => {
   vi.resetModules();
+  // A fresh dbu_config for each test, bound as the runtime binds the table.
+  const config = await import("../../dbu-config.js");
+  config.useDbuConfig(config.memoryDbuConfig());
   handoff = await import("./handoff.js");
   detectLocalAgents.mockReset();
   localAgent.mockClear();

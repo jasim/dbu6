@@ -169,8 +169,9 @@ export function serveDbu6(
   // A bad LLM_ENGINE stops the server here rather than at the first import.
   llmEngineSetting();
   // Detecting the coding agents and asking which of the chosen one's models
-  // answer run their CLIs, so neither holds up startup. Settings shows what
-  // was found, and checks the other agents only when it shows them.
+  // answer run their CLIs, so neither holds up startup, and each runs only
+  // when dbu_config has no result yet. Settings shows what was found, checks
+  // the other agents only when it shows them, and detects again on request.
   startCodingAgent().catch((error: unknown) => {
     console.error("[coding-agent] startup check failed:", error);
   });

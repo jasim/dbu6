@@ -10,7 +10,9 @@ import type { AppAbility, AppAuthFacts } from "./types.js";
  * predicates through `auth.rowSecurity`.
  */
 export function buildAbility(ctx: AppAuthFacts): AppAbility {
-  const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
+  const { can, cannot, build } = new AbilityBuilder<AppAbility>(
+    createMongoAbility,
+  );
 
   if (ctx.principal.kind === "user") {
     can("read", "agent_access_token");
@@ -25,6 +27,9 @@ export function buildAbility(ctx: AppAuthFacts): AppAbility {
     // This allows owner actions; row security still limits database rows to the
     // request's trusted ownership facts.
     can("manage", "all");
+    // dbu6 writes what it found out about the machine itself (dbu-config.ts);
+    // through the table API the owner can only look.
+    cannot(["create", "update", "delete"], "dbu_config");
   }
 
   return build();

@@ -38,7 +38,7 @@ export type DetectedAgent =
     };
 export type InstalledAgent = Extract<DetectedAgent, { installed: true }>;
 
-const detectedAgentSchema = z.discriminatedUnion("installed", [
+export const detectedAgentSchema = z.discriminatedUnion("installed", [
   z.object({
     agent: codingAgentSchema,
     installed: z.literal(false),

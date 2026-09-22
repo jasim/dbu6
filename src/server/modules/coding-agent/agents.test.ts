@@ -13,7 +13,7 @@ vi.mock("nuabase/local-agent", () => ({
 }));
 vi.mock("nuabase", () => ({ Nua: { direct: vi.fn(), gateway: vi.fn() } }));
 
-// The module keeps detection for a minute, so each test loads it afresh.
+// The module shares a detection under way, so each test loads it afresh.
 let agents: typeof import("./agents.js");
 
 const CLAUDE: DetectedAgent = {
@@ -43,6 +43,9 @@ let projectDir: string;
 
 beforeEach(async () => {
   vi.resetModules();
+  // A fresh dbu_config for each test, bound as the runtime binds the table.
+  const config = await import("../../dbu-config.js");
+  config.useDbuConfig(config.memoryDbuConfig());
   agents = await import("./agents.js");
   detectLocalAgents.mockReset();
   projectDir = await mkdtemp(join(tmpdir(), "dbu6-coding-agent-"));
@@ -101,26 +104,23 @@ describe("the chosen agent", () => {
   });
 });
 
-describe("detectCodingAgents", () => {
-  it("detects again once a minute has passed, or when asked", async () => {
-    vi.useFakeTimers();
-    try {
-      detectLocalAgents.mockResolvedValueOnce([NO_CLAUDE, NO_CODEX]);
-      detectLocalAgents.mockResolvedValueOnce([CLAUDE, NO_CODEX]);
-      detectLocalAgents.mockResolvedValueOnce([CLAUDE, CODEX]);
+describe("codingAgents", () => {
+  it("detects once, keeps the result in dbu_config, and detects again only when asked", async () => {
+    detectLocalAgents.mockResolvedValueOnce([NO_CLAUDE, NO_CODEX]);
+    detectLocalAgents.mockResolvedValueOnce([CLAUDE, CODEX]);
 
-      expect(await agents.detectCodingAgents()).toEqual([NO_CLAUDE, NO_CODEX]);
-      vi.advanceTimersByTime(59_000);
-      expect(await agents.detectCodingAgents()).toEqual([NO_CLAUDE, NO_CODEX]);
-      vi.advanceTimersByTime(1_000);
-      expect(await agents.detectCodingAgents()).toEqual([CLAUDE, NO_CODEX]);
-      expect(await agents.detectCodingAgents({ fresh: true })).toEqual([
-        CLAUDE,
-        CODEX,
-      ]);
-      expect(detectLocalAgents).toHaveBeenCalledTimes(3);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(await agents.codingAgents()).toEqual([NO_CLAUDE, NO_CODEX]);
+    expect(await agents.codingAgents()).toEqual([NO_CLAUDE, NO_CODEX]);
+    expect(await agents.detectCodingAgentsAgain()).toEqual([CLAUDE, CODEX]);
+    expect(await agents.codingAgents()).toEqual([CLAUDE, CODEX]);
+    expect(detectLocalAgents).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares a detection under way", async () => {
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX]);
+
+    await Promise.all([agents.codingAgents(), agents.codingAgents()]);
+
+    expect(detectLocalAgents).toHaveBeenCalledTimes(1);
   });
 });

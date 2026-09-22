@@ -22,6 +22,7 @@ import {
 } from "@sapporta/server";
 import { buildAbility } from "./authz/ability.js";
 import { resolveRequestDataAuthority } from "./authz/request-data-authority.js";
+import { sqliteDbuConfig, useDbuConfig } from "./dbu-config.js";
 import { createSapportaMailer, type SapportaMailer } from "./mailer.js";
 import {
   loadCategorizer as loadOurCategorizer,
@@ -120,6 +121,8 @@ export async function openDbu6Runtime(
       migrationsDir: dbu6MigrationsDir(),
       conn,
     });
+
+    useDbuConfig(sqliteDbuConfig(conn.db));
 
     const env = readProjectAuthEnv();
     const mailer = createSapportaMailer(
