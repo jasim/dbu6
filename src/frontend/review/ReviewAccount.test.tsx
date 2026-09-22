@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, createElement } from "react";
+import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,6 +13,11 @@ import {
   vi,
 } from "vitest";
 import type { ReviewAccountDetail } from "../../shared/index";
+import type {
+  SchemaTableRowsByLevel,
+  TableGridActionsProps,
+} from "@sapporta/frontend";
+import { DraftsActions } from "./DraftsTab";
 import { ReviewAccount, useReviewAccount } from "./ReviewAccount";
 
 /*
@@ -92,7 +97,10 @@ function Where() {
   return createElement("code", null, useLocation().pathname);
 }
 
-async function renderAt(url: string) {
+async function renderAt(
+  url: string,
+  draftsTab: ReactElement = createElement(Tab, { name: "drafts" }),
+) {
   await act(async () => {
     root.render(
       createElement(
@@ -121,7 +129,7 @@ async function renderAt(url: string) {
               }),
               createElement(Route, {
                 path: "drafts",
-                element: createElement(Tab, { name: "drafts" }),
+                element: draftsTab,
               }),
               createElement(Route, { path: "*", element: null }),
             ),
@@ -171,9 +179,17 @@ describe("the review account frame", () => {
     );
   });
 
-  it("runs the categoriser again on this account's drafts", async () => {
+  it("runs the categoriser again on this account's drafts, from the Drafts toolbar", async () => {
     responses = [{ status: 200, body: detail() }];
-    await renderAt("/review/5/drafts");
+    // The grid hands its toolbar actions a live session; these ones read
+    // only the surface they are on.
+    const toolbar = {
+      surface: "toolbar",
+    } as TableGridActionsProps<SchemaTableRowsByLevel>;
+    await renderAt(
+      "/review/5/drafts",
+      createElement(DraftsActions, toolbar),
+    );
 
     const again = Array.from(host.querySelectorAll("a")).find(
       (a) => a.textContent === "Run the categoriser again",

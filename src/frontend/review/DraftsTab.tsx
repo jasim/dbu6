@@ -1,5 +1,10 @@
 import { useMemo } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import {
   SchemaTableGridView,
   useSchemaStore,
@@ -9,6 +14,7 @@ import {
 } from "@sapporta/frontend";
 import { eqCondition } from "@sapporta/shared/filter";
 import { Button } from "../components/ui/button";
+import { reclassifyDraftsHref } from "../views/ReclassifyDrafts";
 import {
   draftTransactionQuickFilters,
   findActiveDraftTransactionQuickFilter,
@@ -19,14 +25,20 @@ import { reviewHref } from "./routes";
 
 const DRAFT_TRANSACTIONS_TABLE = "draft_transactions";
 // The fixed filter makes this account every row's base account, so the
-// column would only repeat it. The table page still shows it.
-const DRAFTS_TAB_HIDDEN_COLUMNS = ["base_account_id"];
+// column would only repeat it; the timestamps say when the importer ran, not
+// anything about the transaction. The table page still shows all three.
+const DRAFTS_TAB_HIDDEN_COLUMNS = [
+  "base_account_id",
+  "created_at",
+  "updated_at",
+];
 
 /**
  * The Drafts tab (PLAN.md §11 P3): the draft table as it has always been,
  * locked to this account. The lock is a fixed filter, so it is neither a
  * chip nor removable; the user's own filters, search and page stay in the
- * tab's URL.
+ * tab's URL. The frame names the account and counts its drafts, so the grid
+ * keeps only its toolbar: filters, the quick filters, the categoriser, search.
  */
 export function DraftsTab() {
   const { detail } = useReviewAccount();
@@ -64,26 +76,48 @@ export function DraftsTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* The frame's header already clears the sidebar toggle, and carries
-          this tab's "Run the categoriser again". */}
-      <div className="mt-3 min-h-0 flex-1 border-t border-sap-border [--sap-page-header-inset:0px]">
+      {/* The frame's header already clears the sidebar toggle. */}
+      <div className="min-h-0 flex-1 [--sap-page-header-inset:0px]">
         {source ? (
           <SchemaTableGridView
             source={source}
             route={route}
             registerAs={DRAFT_TRANSACTIONS_TABLE}
-            actions={QuickFilterButtons}
+            header="toolbar"
+            actions={DraftsActions}
             hiddenColumns={DRAFTS_TAB_HIDDEN_COLUMNS}
             rootRows={rootRows}
             viewRelatedRows
           />
         ) : (
-          <p className="px-5 py-8 text-body text-ink-meta sm:px-8 lg:px-14">
+          <p className="px-3 py-5 text-body text-ink-meta sm:px-4">
             We could not find the schema for "draft_transactions".
           </p>
         )}
       </div>
     </div>
+  );
+}
+
+/** The quick filters, then the categoriser, on the grid's toolbar. */
+export function DraftsActions(props: TableGridActionsProps<SchemaTableRowsByLevel>) {
+  const { detail } = useReviewAccount();
+  const inSheet = props.surface === "action-sheet";
+  return (
+    <>
+      <QuickFilterButtons {...props} />
+      <Button
+        render={
+          <Link to={reclassifyDraftsHref(detail.account.account_id)} />
+        }
+        nativeButton={false}
+        variant="outline"
+        size="sm"
+        className={inSheet ? "w-full justify-start" : undefined}
+      >
+        Run the categoriser again
+      </Button>
+    </>
   );
 }
 
