@@ -1,6 +1,5 @@
 // Deterministic transaction mappings, applied before the LLM is consulted.
-// Pure data — the matching engine lives in
-// packages/api/modules/categorization/mapping-rules.ts.
+// Pure data — the matching engine is dbu6's.
 //
 // Narrations are normalized before matching: Unicode NFKC, runs of whitespace
 // collapsed to one space, trimmed, upper-cased. Write patterns in whatever

@@ -1,8 +1,10 @@
 """Shared foundation for the deterministic statement parsers.
 
-Each `<bank-slug>/parser.py` stays a standalone `uv run` script; it reaches
-this package by putting `custom-built-parsers/` on `sys.path`:
+Each `<bank-slug>/parser.py` stays a standalone `uv run` script and imports
+this package by name:
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from shared import abacus
+
+dbu6 runs parsers with this directory's parent on PYTHONPATH, so the import
+works for a bundled parser and for one in a user's project alike.
 """

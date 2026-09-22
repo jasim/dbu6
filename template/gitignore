@@ -1,0 +1,12 @@
+# Your books. Never commit them; back them up yourself.
+data/
+node_modules/
+# The web app, built when you have reports or a frontend.tsx
+dist/
+# Statements that did not import, kept for a coding agent to read
+tmp/
+.env
+*.log
+.DS_Store
+__pycache__/
+*.pyc

@@ -1,0 +1,102 @@
+[
+  {
+    "file": "custom-built-parsers/hdfc-cc-*",
+    "token": "1,000.37",
+    "reason": "Invented opening balance with paise: the fixture proves the parsers keep paise."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-cc-*",
+    "token": "1000.37",
+    "reason": "The same invented opening balance, as the tests assert it."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-cc-*",
+    "token": "1,630.37",
+    "reason": "Invented total dues derived from the 1,000.37 opening balance."
+  },
+  {
+    "file": "custom-built-parsers/*",
+    "token": "1630.37",
+    "reason": "The same invented total, as the parser and abacus tests assert it."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-cc-*/parser_test.py",
+    "token": "1,001.37",
+    "reason": "Invented mutation of the 1,000.37 opening balance, to break the equation."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-cc-csv/fixtures/sanitized-statement.csv",
+    "token": "99.67",
+    "reason": "Invented current dues with paise, paired with the 1,000.37 opening balance."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-cc-csv/fixtures/sanitized-statement.csv",
+    "token": "505.05",
+    "reason": "Invented figure built from the 0505 marker."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-cc-csv/fixtures/sanitized-statement.csv",
+    "token": "1,05,050.50",
+    "reason": "Invented figure built from the 0505 marker."
+  },
+  {
+    "file": "custom-built-parsers/shared/abacus_test.py",
+    "token": "899.50",
+    "reason": "Invented paise amount: the abacus is tested to the paisa."
+  },
+  {
+    "file": "custom-built-parsers/shared/abacus_test.py",
+    "token": "949.50",
+    "reason": "Invented paise amount: the abacus is tested to the paisa."
+  },
+  {
+    "file": "custom-built-parsers/shared/abacus_test.py",
+    "token": "100.50",
+    "reason": "Invented paise amount: the abacus is tested to the paisa."
+  },
+  {
+    "file": "custom-built-parsers/stanc-cc-pdf/parser_test.py",
+    "token": "125.50",
+    "reason": "Invented paise amount in an inline statement excerpt."
+  },
+  {
+    "file": "custom-built-parsers/stanc-cc-pdf/parser_test.py",
+    "token": "745.50",
+    "reason": "Invented paise amount in an inline statement excerpt."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-cc-*",
+    "token": "560001",
+    "reason": "Bangalore GPO PIN code standing in for the customer's: a placeholder, not an address."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-cc-csv/fixtures/sanitized-statement.csv",
+    "token": "600058",
+    "reason": "PIN code of the bank's own registered office, printed on every statement."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-cc-csv/fixtures/sanitized-statement.csv",
+    "token": "997113",
+    "reason": "HSN/SAC code for credit-card services, printed on every statement."
+  },
+  {
+    "file": "custom-built-parsers/hdfc-bank-xls/fixtures/*",
+    "token": "400013",
+    "reason": "PIN code of the bank's own registered office, printed on every statement."
+  },
+  {
+    "file": "custom-built-parsers/federal-bank-xls/parser_test.py",
+    "token": "143265",
+    "reason": "Closing balance the test derives from the fixture's round amounts."
+  },
+  {
+    "file": "custom-built-parsers/*_test.py",
+    "token": "05000012",
+    "reason": "Tail of a 050505-marked account number after the parser masks it."
+  },
+  {
+    "file": "custom-built-parsers/federal-bank-xls/parser_test.py",
+    "token": "50505000012",
+    "reason": "A 050505-marked account number with its leading zero stripped, as Excel does."
+  }
+]

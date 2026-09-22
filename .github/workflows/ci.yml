@@ -1,0 +1,92 @@
+name: ci
+
+# Typecheck, the tests, and the two proofs of the package a user installs
+# (PLAN.md R3 and N5). Every job below installs dependencies, which a fresh
+# clone cannot do while package.json and pnpm-workspace.yaml carry `link:`
+# overrides to a local Sapporta checkout, where the changes dbu6 needs are not
+# published yet. Until Sapporta is published and the sources are back on npm
+# (`pnpm package-sources:use-npm`), `sources` finds the links and the jobs
+# that install are skipped, so this workflow neither fails nor pretends to
+# pass. pii-scan.yml is a workflow of its own and does not depend on this one.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    outputs:
+      installable: ${{ steps.links.outputs.installable }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: links
+        run: |
+          if grep -q 'link:' package.json pnpm-workspace.yaml; then
+            echo "Sapporta is linked from a local checkout; the jobs that install are skipped until it is published."
+            echo "installable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "installable=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    needs: sources
+    if: needs.sources.outputs.installable == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      # The parsers' tests run under uv, and the PDF parsers need pdftotext.
+      - uses: astral-sh/setup-uv@v6
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      # vitest (server and frontend projects), then scripts/*.test.mjs.
+      - run: pnpm test
+      - run: pnpm test:parsers
+
+  # The user's path, from the tarball `npm publish` would upload, under npm:
+  # never from this checkout.
+  package:
+    needs: sources
+    if: needs.sources.outputs.installable == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      # `dbu6 check` looks for the tools a project needs.
+      - uses: astral-sh/setup-uv@v6
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # npm serves a tarball from its cache by version, so each run packs its
+      # own; the shrinkwrap is resolved from the registry as at publish time.
+      - run: node scripts/pack.mjs --out tmp/pack --version "0.0.0-ci.${{ github.run_id }}.${{ github.run_attempt }}"
+
+      # R3: a scratch project with only the tarball installed imports
+      # `dbu6/server` and `dbu6/frontend`, and the worked report of
+      # docs/examples/report, copied in as reports/spending-by-weekday/,
+      # typechecks, passes its test and builds. That is the contract test for
+      # the two export lists: remove an export the example uses and it fails.
+      - name: The tarball's exports, and the example report as a user's
+        run: node scripts/verify-tarball.mjs tmp/pack tmp/pack-project
+      - name: dbu6 check and dbu6 build in that project
+        working-directory: tmp/pack-project
+        run: |
+          node node_modules/dbu6/bin/dbu6.mjs setup
+          node node_modules/dbu6/bin/dbu6.mjs check
+          node node_modules/dbu6/bin/dbu6.mjs build
+
+      # N5: `dbu6 init` from the tarball makes a project, `setup` and
+      # `migrate` run from the installed package, the first commit is made,
+      # `dbu6 check` passes, and `dbu6 start` answers /health.
+      - name: dbu6 init in a scratch directory, and the app it starts
+        run: node scripts/verify-init.mjs tmp/pack tmp/init-project --api-port 2400 --frontend-port 2401

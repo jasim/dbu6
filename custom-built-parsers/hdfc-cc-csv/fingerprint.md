@@ -118,9 +118,9 @@ parsers are kept apart.
 
 ## How to run
 
-    uv run custom-built-parsers/hdfc-cc-csv/parser.py <hdfc-billed-statement.csv>
+    PYTHONPATH=custom-built-parsers uv run custom-built-parsers/hdfc-cc-csv/parser.py <hdfc-billed-statement.csv>
 
 Writes `<input-basename>.abacus.json` next to the input. The parser is stdlib
 only. Run its tests with:
 
-    python3 -m unittest discover -s custom-built-parsers/hdfc-cc-csv -p 'parser_test.py'
+    PYTHONPATH=custom-built-parsers python3 -m unittest discover -s custom-built-parsers/hdfc-cc-csv -p 'parser_test.py'

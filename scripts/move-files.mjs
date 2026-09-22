@@ -14,8 +14,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Move code inside packages/api and rewrite every relative import of it, so a
-// move is one command. Paths are relative to packages/api.
+// Move code inside src/server and rewrite every relative import of it, so a
+// move is one command. Paths are relative to src/server.
 //
 //   node scripts/move-files.mjs <from> <to> [<from> <to> …] [--dry-run]
 //
@@ -43,8 +43,8 @@ import { fileURLToPath } from "node:url";
 // Prettier on them.
 
 const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const apiRoot = path.join(projectRoot, "packages/api");
-const ts = createRequire(path.join(apiRoot, "package.json"))("typescript");
+const serverRoot = path.join(projectRoot, "src/server");
+const ts = createRequire(path.join(projectRoot, "package.json"))("typescript");
 
 // Folders that hold no source of ours.
 const SKIPPED_DIRECTORIES = new Set(["node_modules", "dist", "migrations"]);
@@ -72,7 +72,7 @@ const USAGE =
   "usage: node scripts/move-files.mjs <from> <to> [<from> <to> …] [--dry-run]\n" +
   "       node scripts/move-files.mjs --symbols <file> <name>[,<name>…] <to> [--dry-run]\n" +
   "       node scripts/move-files.mjs --through <folder> [--dry-run]\n" +
-  "Paths are relative to packages/api.";
+  "Paths are relative to src/server.";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -83,7 +83,7 @@ const command = parseCommand(args.filter((arg) => arg !== "--dry-run"));
 
 // current path -> { text, version, originalText, created? }
 const files = new Map();
-for (const file of sourceFiles(apiRoot)) {
+for (const file of sourceFiles(serverRoot)) {
   const text = readFileSync(file, "utf8");
   files.set(file, { text, version: 0, originalText: text });
 }
@@ -108,7 +108,7 @@ for (const move of moves) console.log(`git mv ${move.from} ${move.to}`);
 
 if (dryRun) {
   for (const { file, text, originalText, created } of changed) {
-    console.log(`\n${api(file)}${created ? " (new)" : ""}`);
+    console.log(`\n${inServer(file)}${created ? " (new)" : ""}`);
     printChangedLines(originalText, text);
   }
   printLeftovers();
@@ -120,14 +120,14 @@ if (dryRun) {
 }
 
 for (const move of moves) {
-  mkdirSync(path.dirname(path.join(apiRoot, move.to)), { recursive: true });
+  mkdirSync(path.dirname(path.join(serverRoot, move.to)), { recursive: true });
   execFileSync("git", ["mv", move.from, move.to], {
-    cwd: apiRoot,
+    cwd: serverRoot,
     stdio: "inherit",
   });
   // git leaves the folders it empties behind.
-  let emptied = path.dirname(path.join(apiRoot, move.from));
-  while (emptied !== apiRoot && readdirSync(emptied).length === 0) {
+  let emptied = path.dirname(path.join(serverRoot, move.from));
+  while (emptied !== serverRoot && readdirSync(emptied).length === 0) {
     rmdirSync(emptied);
     emptied = path.dirname(emptied);
   }
@@ -138,8 +138,8 @@ for (const { file, text } of changed) {
 }
 const created = changed.filter((entry) => entry.created);
 if (created.length > 0) {
-  execFileSync("git", ["add", "--", ...created.map(({ file }) => api(file))], {
-    cwd: apiRoot,
+  execFileSync("git", ["add", "--", ...created.map(({ file }) => inServer(file))], {
+    cwd: serverRoot,
     stdio: "inherit",
   });
 }
@@ -152,7 +152,7 @@ if (changed.length > 0) {
 }
 console.log(`\nEdited ${changed.length} file(s):`);
 for (const { file, created } of changed) {
-  console.log(`  ${api(file)}${created ? " (new)" : ""}`);
+  console.log(`  ${inServer(file)}${created ? " (new)" : ""}`);
 }
 printLeftovers();
 printMentionsLeft();
@@ -199,7 +199,7 @@ function moveFiles(pairs) {
         .some((p) => overlaps(from, p.from) || overlaps(from, p.to))
     ) {
       fail(
-        `${api(from)} is moved by an earlier pair; run it as a separate command`,
+        `${inServer(from)} is moved by an earlier pair; run it as a separate command`,
       );
     }
     const kind = checkMove(from, to);
@@ -219,21 +219,21 @@ function moveFiles(pairs) {
       files.delete(file);
       files.set(target, { ...entry, version: ++version });
     }
-    moves.push({ from: api(from), to: api(to) });
+    moves.push({ from: inServer(from), to: inServer(to) });
   }
 }
 
 // Each name moves on its own, with the statements that declare it (all of a
 // function's overloads), and keeps a comment that sat directly above it.
 function moveSymbols({ from, names, to }) {
-  if (!files.has(from)) fail(`${api(from)} isn't a .ts file of packages/api`);
+  if (!files.has(from)) fail(`${inServer(from)} isn't a .ts file of src/server`);
   if (!to.endsWith(".ts") || to.endsWith(".d.ts")) {
-    fail(`${api(to)} isn't a .ts file`);
+    fail(`${inServer(to)} isn't a .ts file`);
   }
   if (to === from) fail("the file to move into is the file to move from");
   if (names.length === 0) fail("name at least one declaration to move");
   if (!files.has(to)) {
-    if (existsSync(to)) fail(`${api(to)} exists but isn't a source file`);
+    if (existsSync(to)) fail(`${inServer(to)} exists but isn't a source file`);
     files.set(to, { text: "", version: ++version, originalText: "" });
     files.get(to).created = true;
   }
@@ -243,7 +243,7 @@ function moveSymbols({ from, names, to }) {
       declaredNames(statement).includes(name),
     );
     if (statements.length === 0) {
-      fail(`${api(from)} has no top-level declaration of ${name}`);
+      fail(`${inServer(from)} has no top-level declaration of ${name}`);
     }
     const first = statements[0];
     const last = statements.at(-1);
@@ -268,7 +268,7 @@ function moveSymbols({ from, names, to }) {
       { targetFile: to },
     );
     if (refactor === undefined) {
-      fail(`TypeScript can't move ${name} to ${api(to)}`);
+      fail(`TypeScript can't move ${name} to ${inServer(to)}`);
     }
     applyEdits(refactor.edits);
     // The refactor puts a blank line between a moved comment and its
@@ -325,7 +325,7 @@ function attachedComment(source, statement) {
 // test.
 function routeThrough(folder) {
   const entry = path.join(folder, "index.ts");
-  if (!files.has(entry)) fail(`${api(folder)} has no index.ts`);
+  if (!files.has(entry)) fail(`${inServer(folder)} has no index.ts`);
   const inside = (file) => file.startsWith(`${folder}/`);
   const mocked = [];
   for (const [file, { text }] of [...files]) {
@@ -358,7 +358,7 @@ function routeThrough(folder) {
         const target = resolveSpecifier(file, mock.text);
         if (target !== undefined && inside(target.file)) {
           mocked.push(
-            `${api(file)}: vi.${node.expression.name.text}("${mock.text}")`,
+            `${inServer(file)}: vi.${node.expression.name.text}("${mock.text}")`,
           );
         }
       }
@@ -368,7 +368,7 @@ function routeThrough(folder) {
     applyEdits([{ fileName: file, textChanges }]);
   }
   if (mocked.length > 0) {
-    console.log(`\nMocks of files inside ${api(folder)}, left as they are:`);
+    console.log(`\nMocks of files inside ${inServer(folder)}, left as they are:`);
     for (const line of mocked) console.log(`  ${line}`);
   }
 }
@@ -508,7 +508,7 @@ function typeErrors(changedFiles) {
         diagnostic.messageText,
         "\n",
       );
-      return `${api(file)}:${line + 1}: ${message}`;
+      return `${inServer(file)}:${line + 1}: ${message}`;
     }),
   );
 }
@@ -540,10 +540,10 @@ function sourceFiles(directory) {
 }
 
 function apiPath(argument) {
-  const full = path.resolve(apiRoot, argument).replace(/\/+$/, "");
-  const inside = path.relative(apiRoot, full);
+  const full = path.resolve(serverRoot, argument).replace(/\/+$/, "");
+  const inside = path.relative(serverRoot, full);
   if (inside === "" || inside.startsWith("..") || path.isAbsolute(inside)) {
-    fail(`${argument} is not inside packages/api`);
+    fail(`${argument} is not inside src/server`);
   }
   if (SKIPPED_DIRECTORIES.has(inside.split(path.sep)[0])) {
     fail(`${argument} is in a folder this tool doesn't manage`);
@@ -551,8 +551,8 @@ function apiPath(argument) {
   return full;
 }
 
-function api(file) {
-  return path.relative(apiRoot, file);
+function inServer(file) {
+  return path.relative(serverRoot, file);
 }
 
 function fail(message) {
@@ -569,37 +569,37 @@ function checkMove(from, to) {
   let kind;
   if (files.has(from) || onDisk?.isFile()) kind = "file";
   else if (holdsSource(from) || onDisk?.isDirectory()) kind = "directory";
-  else fail(`${api(from)} doesn't exist`);
+  else fail(`${inServer(from)} doesn't exist`);
   if (files.has(to) || holdsSource(to) || existsSync(to)) {
-    fail(`${api(to)} already exists`);
+    fail(`${inServer(to)} already exists`);
   }
   if (kind === "directory" && to.startsWith(`${from}/`)) {
-    fail(`can't move ${api(from)} into itself`);
+    fail(`can't move ${inServer(from)} into itself`);
   }
   if (onDisk !== null) {
-    const tracked = execFileSync("git", ["ls-files", "--", api(from)], {
-      cwd: apiRoot,
+    const tracked = execFileSync("git", ["ls-files", "--", inServer(from)], {
+      cwd: serverRoot,
       encoding: "utf8",
     });
-    if (tracked.trim() === "") fail(`${api(from)} isn't tracked by git`);
+    if (tracked.trim() === "") fail(`${inServer(from)} isn't tracked by git`);
   }
   return kind;
 }
 
 function languageServiceHost() {
   const { config, error } = ts.readConfigFile(
-    path.join(apiRoot, "tsconfig.json"),
+    path.join(projectRoot, "tsconfig.json"),
     ts.sys.readFile,
   );
   if (error) fail(ts.flattenDiagnosticMessageText(error.messageText, "\n"));
-  const { options } = ts.parseJsonConfigFileContent(config, ts.sys, apiRoot);
+  const { options } = ts.parseJsonConfigFileContent(config, ts.sys, projectRoot);
 
   // Our .ts files answer from memory; everything else (package.json files,
   // node_modules, TypeScript's libs) from disk.
   const ours = (file) =>
     file.endsWith(".ts") &&
-    file.startsWith(`${apiRoot}/`) &&
-    !SKIPPED_DIRECTORIES.has(api(file).split(path.sep)[0]);
+    file.startsWith(`${serverRoot}/`) &&
+    !SKIPPED_DIRECTORIES.has(inServer(file).split(path.sep)[0]);
   const readFile = (file) =>
     ours(file) ? files.get(file)?.text : ts.sys.readFile(file);
 
@@ -615,7 +615,7 @@ function languageServiceHost() {
         ? undefined
         : ts.ScriptSnapshot.fromString(text);
     },
-    getCurrentDirectory: () => apiRoot,
+    getCurrentDirectory: () => serverRoot,
     getDefaultLibFileName: (settings) => ts.getDefaultLibFilePath(settings),
     fileExists: (file) =>
       ours(file) ? files.has(file) : ts.sys.fileExists(file),
@@ -782,7 +782,7 @@ function printLeftovers() {
   console.log(
     "\nLeft behind beside a moved file (move them too if they belong to it):",
   );
-  for (const file of left) console.log(`  ${api(file)}`);
+  for (const file of left) console.log(`  ${inServer(file)}`);
 }
 
 // Text that still names what moved: an old path (docs, prompts), or a moved
@@ -792,14 +792,14 @@ function printMentionsLeft() {
     command.kind === "files"
       ? command.pairs.map(({ from }) => ({
           options: ["-F"],
-          needle: api(from).replace(/\.ts$/, ""),
+          needle: inServer(from).replace(/\.ts$/, ""),
           scope: [],
         }))
       : command.kind === "symbols"
         ? command.names.map((name) => ({
             options: ["-w", "-F"],
             needle: name,
-            scope: [":(exclude,glob)packages/api/**/*.ts"],
+            scope: [":(exclude,glob)src/server/**/*.ts"],
           }))
         : [];
   const lines = searches.flatMap(({ options, needle, scope }) => {

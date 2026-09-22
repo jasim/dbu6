@@ -1,7 +1,7 @@
 # Standard Chartered Bank (savings/current) — PDF, tabular
 
 **Source:** Standard Chartered Bank India, savings/current account
-**File type:** PDF → CSV via `~/m/a/code/tools/pdf-extract/extract-table-from-pdf.py`
+**File type:** PDF → CSV via `extract_table_from_pdf.py`, which ships beside the parser
 **Input extensions:** `.pdf`
 **CC sign flip:** no
 
@@ -27,6 +27,6 @@
 - Description cell has newlines from pdfplumber's cell extraction; collapse whitespace runs.
 
 ## How to run
-    uv run parser.py <stanc-statement.pdf>
+    PYTHONPATH=.. uv run parser.py <stanc-statement.pdf>
 
-Internally calls `extract-table-from-pdf.py`, then parses the resulting CSV. Writes `<basename>.abacus.json` next to the PDF.
+Internally calls `extract_table_from_pdf.py`, then parses the resulting CSV. Writes `<basename>.abacus.json` next to the PDF.

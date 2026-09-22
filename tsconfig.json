@@ -1,0 +1,18 @@
+{
+  // The Node side: the server, the contracts both sides share, the frontend
+  // host (Vite run programmatically) and the `dbu6` command. Compiles src/ to dist/.
+  // The browser side has its own config in src/frontend/tsconfig.json.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "sourceMap": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/server", "src/shared", "src/frontend-host", "src/cli"]
+}

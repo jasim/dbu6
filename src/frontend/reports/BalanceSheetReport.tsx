@@ -1,0 +1,62 @@
+import {
+  accountLedgerRow,
+  DateInput,
+  type GridDataset,
+  type LedgerLinkInput,
+  type ReportCellLinkResolvers,
+  ReportResultBody,
+  ReportRunButton,
+  ReportScreenFrame,
+  ReportToolbar,
+  today,
+  useReportResult,
+  useSearchParams,
+} from "../report-kit";
+import { reportsApi } from "./client";
+
+const links = {
+  accounts: { cell: { name: accountLedgerRow() } },
+} satisfies ReportCellLinkResolvers<LedgerLinkInput>;
+
+export function BalanceSheetReport() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const asOfDate = searchParams.get("as_of_date") ?? today();
+  const report = useReportResult(["balance-sheet", asOfDate], () =>
+    callReport({ as_of_date: asOfDate }),
+  );
+
+  const setParam = (key: string, value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next, { replace: true });
+  };
+
+  return (
+    <ReportScreenFrame title="Balance Sheet">
+      <ReportToolbar
+        actions={
+          <ReportRunButton loading={report.loading} onClick={report.run} />
+        }
+      >
+        <DateInput
+          label="as of"
+          value={asOfDate}
+          onChange={(value) => setParam("as_of_date", value)}
+        />
+      </ReportToolbar>
+      <ReportResultBody<LedgerLinkInput>
+        error={report.error}
+        result={report.result}
+        links={links}
+        linkContext={{ input: { to_date: asOfDate } }}
+      />
+    </ReportScreenFrame>
+  );
+}
+
+function callReport(params: { as_of_date: string }): Promise<GridDataset> {
+  return reportsApi.balanceSheet({
+    query: { as_of_date: params.as_of_date },
+  });
+}

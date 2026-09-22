@@ -1,7 +1,7 @@
 """The Abacus statement: the one shape every deterministic parser emits.
 
-This module is the Python home of the Abacus JSON contract that
-`packages/api/modules/statement/` consumes. A parser turns its
+This module is the Python home of the Abacus JSON contract that dbu6's
+importer consumes. A parser turns its
 bank-specific reading of a statement into an `AbacusStatement`; everything
 that is true of every parser lives here instead of being repeated per bank:
 

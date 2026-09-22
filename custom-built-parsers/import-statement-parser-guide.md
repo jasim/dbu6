@@ -1,12 +1,12 @@
 # Deterministic statement parsers
 
-The Import statements screen imports a statement only when a deterministic parser under `custom-built-parsers/` recognises it. For a statement format no parser reads yet, ask a coding agent to create one. The agent should inspect the real source file, identify a stable fingerprint, write a standalone `parser.py`, and validate row counts, totals, opening and closing balances, and every running balance it can check.
+The Import statements screen imports a statement only when a deterministic parser recognises it: one in the project's `custom-built-parsers/`, or one bundled with dbu6 (`dbu6 docs parsers` lists those and gives the full conventions). For a statement format no parser reads yet, ask a coding agent to create one. The agent should inspect the real source file, identify a stable fingerprint, write a standalone `parser.py`, and validate row counts, totals, opening and closing balances, and every running balance it can check.
 
-- Check the existing parser fingerprints in `custom-built-parsers/` first.
-- Create or update `custom-built-parsers/<parser-name>/fingerprint.md`.
-- Create `custom-built-parsers/<parser-name>/parser.py`.
-- Build the output through `custom-built-parsers/shared/abacus.py`: rows with `abacus.row`, the document with `abacus.statement`, and the command line with `abacus.run_cli`, which writes `<input-basename>.abacus.json` next to the input.
-- Keep parser output in the Abacus JSON shape accepted by the importer; the shared module is its Python definition and `packages/api/modules/statement/` its TypeScript one.
+- Check the existing parser fingerprints first, the project's and the bundled ones.
+- Create or update `custom-built-parsers/<parser-name>/fingerprint.md` in the project. Never write under `node_modules`.
+- Create `custom-built-parsers/<parser-name>/parser.py` beside it.
+- Build the output through the bundled `shared` package (`from shared import abacus`): rows with `abacus.row`, the document with `abacus.statement`, and the command line with `abacus.run_cli`, which writes `<input-basename>.abacus.json` next to the input.
+- Keep parser output in the Abacus JSON shape accepted by the importer; the shared module (`shared/abacus.py`) is its Python definition, and dbu6's importer validates the same shape.
 - For credit cards, pass printed balances through `abacus.ledger_balance` so the emitted values are ledger-semantic.
 - Make the parser emit the account or card number the statement prints about itself as a top-level `account` object, and the institution's name as printed as a top-level `institution` string (see below).
 
@@ -36,11 +36,11 @@ Alongside `account`, a parser emits the bank or card issuer's name as a top-leve
 - Two statements from the same institution may print slightly different names, so `institution` is lookup text for finding a preset, never an identifier. Matching on it must tolerate those variations; the `account` identifier is the exact match.
 - Emit `null` (or omit the field) when the statement prints no institution name. Never infer it from the parser's own knowledge of which bank it handles.
 
-The same canonical value goes into `statement_account_identifier` on the matching preset in `data/user-config/import-presets.json`. When several presets share one parser, for example two cards from the same bank, each preset needs its identifier so the importer can tell the statements apart. When a preset carries an identifier and a parsed statement reports a different one, the upload is rejected.
+The same canonical value goes into `statement_account_identifier` on the matching preset in `user-config/import-presets.json`. When several presets share one parser, for example two cards from the same bank, each preset needs its identifier so the importer can tell the statements apart. When a preset carries an identifier and a parsed statement reports a different one, the upload is rejected.
 
-After the parser works, add its path to the matching preset in `data/user-config/import-presets.json`:
+After the parser works, name it in the matching preset in `user-config/import-presets.json`:
 
-- Set `custom_statement_parser_path` to the parser file path, such as `custom-built-parsers/stanc-bank-pdf-table/parser.py`.
+- Set `custom_statement_parser_path` to the parser's directory name alone, such as `stanc-bank-pdf-table`. The project's `custom-built-parsers/` is searched before the parsers bundled with dbu6.
 - Drop the statement into the Import statements screen again.
 
 The server scans only subdirectories that contain both `fingerprint.md` and `parser.py`, tries each parser whose fingerprint lists the upload's extension against a temporary copy of the file, and validates any generated Abacus JSON. A file imports only when exactly one parser recognises it and one preset claims that parser and the account it reports. Otherwise nothing in the batch is imported, and each file that could not be placed says why.

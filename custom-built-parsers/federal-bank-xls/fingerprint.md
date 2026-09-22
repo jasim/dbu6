@@ -70,10 +70,8 @@ identity no longer depends on the narration text at all.
 
 ## Narration is verbatim; VPA matching lives in the mapping layer
 
-The retired TypeScript parser (deleted; was
-`packages/api/bank-importer/parsers/federal-bank.ts`)
-reduced `UPIOUT` withdrawals to the bare payee VPA, which is why
-`data/user-config/transaction_mappings.mjs` has many `exact` keys that are
+The retired TypeScript parser (deleted) reduced `UPIOUT` withdrawals to the bare payee VPA, which is why
+`user-config/transaction_mappings.mjs` has many `exact` keys that are
 bare VPAs. This parser emits `Particulars` untouched. Those keys keep
 working because `exact` keys containing `@` are matched against any UPI VPA
 embedded in the narration (see `categorization/mapping-rules.ts`), for every
@@ -143,9 +141,9 @@ generator still reproduces the committed fixture. Regenerate with:
 
 ## How to run
 
-    uv run custom-built-parsers/federal-bank-xls/parser.py <OpTransactionHistoryTprDD-MM-YYYY.xls>
+    PYTHONPATH=custom-built-parsers uv run custom-built-parsers/federal-bank-xls/parser.py <OpTransactionHistoryTprDD-MM-YYYY.xls>
 
 Writes `<input-basename>.abacus.json` next to the input. `uv` installs the
 pinned `xlrd==2.0.2` dependency declared in the script metadata.
 
-    uv run --python 3.9 custom-built-parsers/federal-bank-xls/parser_test.py
+    PYTHONPATH=custom-built-parsers uv run --python 3.9 custom-built-parsers/federal-bank-xls/parser_test.py

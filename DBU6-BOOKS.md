@@ -31,9 +31,10 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
 - **Periods:** the app's periods use the financial year (1 April to 31 March).
   When the user says "this year", say which year you used, or ask.
 - **Link the screen** where the user can see it. The base URL is
-  `SAPPORTA_PUBLIC_APP_URL`, set in this checkout's `.env.development`. Read
-  it; do not assume a port. (`http://localhost:2340` is only the example in
-  `.env.development.example`, and a second checkout will be on other ports.)
+  `SAPPORTA_PUBLIC_APP_URL`, set in the project's `.env` (`.env.development`
+  in dbu6's own repository). Read it; do not assume a port: the template's
+  `http://localhost:2345` is only a default, and a second project on the same
+  machine is on other ports.
   - Home: `/`
   - Import statements: `/import`
   - Review: `/review/<account id>`, with the tabs `/drafts`, `/duplicates` and
@@ -132,7 +133,7 @@ Look up an account's id with
 The most frequent request. Two files, and the choice is whether a literal
 string in the narration settles it:
 
-- **Yes** → a rule in `data/user-config/transaction_mappings.mjs`; the file's
+- **Yes** → a rule in `user-config/transaction_mappings.mjs`; the file's
   comments have the shape. Prefer this: free, instant, and it applies to every
   account. An `account` that is not a name in Accounts silently leaves the row
   uncategorised.
@@ -141,7 +142,7 @@ string in the narration settles it:
 
 Neither is retroactive: re-run the categoriser over the drafts with no
 category ("Categorise these" above), and restart a server started with
-`pnpm start`.
+`dbu6 start`.
 
 ### Fixing the books
 
@@ -177,7 +178,7 @@ category ("Categorise these" above), and restart a server started with
      `sapporta rows create accounts --values '{"name":"…","account_type":"Asset","parent_id":<id>}'`.
      Its type is Asset or Liability. Names are unique, and a parent must have
      the same type.
-  2. Add a preset to `data/user-config/import-presets.json`: `name`,
+  2. Add a preset to `user-config/import-presets.json`: `name`,
      `base_account`, `custom_mappings_filenames`, and `is_credit_card` for a
      card.
   3. Record its opening balance.
@@ -193,11 +194,11 @@ category ("Categorise these" above), and restart a server started with
 - **"Rename or move an account."**
   `sapporta rows update accounts <id> --values '{…}'`. Rules, presets and
   prompt files name accounts by name, so make the same rename in
-  `data/user-config/`: `transaction_mappings.mjs`, `import-presets.json`
+  `user-config/`: `transaction_mappings.mjs`, `import-presets.json`
   (`base_account`), and the `custom_mappings_*.prompt` files.
 - **"This statement won't import."**
   The Import screen gives a prompt for each problem. Parser work follows
-  `custom-built-parsers/README.md`, and failed uploads are kept in
+  the parsers guide (`dbu6 docs parsers`), and failed uploads are kept in
   `tmp/statement-uploads/`. The common refusals:
   - `opening_balance_unavailable`: the account has no balance in the books
     yet. Record the opening balance, then import again.
@@ -263,22 +264,23 @@ FROM running WHERE date BETWEEN '<from>' AND '<to>';
 
 ## Reaching the app
 
-- **The CLI** ships in `packages/api`, so run it as
-  `pnpm --filter ./packages/api exec sapporta …`, which is written
-  `sapporta …` above. It finds the API port in `.env.development`.
+- **The CLI** comes with `@sapporta/server`, which dbu6 depends on, so run
+  it as `npx sapporta …` in the project (`pnpm exec sapporta …` in dbu6's own
+  repository); it is written `sapporta …` above. It finds the API port in the
+  project's env file.
 - **The token** must be in the environment as `SAPPORTA_API_TOKEN`.
-  - On the owner's machine it is in `mise.local.toml`, so put `mise exec --`
-    in front of each command.
-  - Elsewhere, keep `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` in a
-    gitignored `.env.agent`, and put `env $(cat .env.agent)` in front instead.
+  - Keep `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` in a gitignored
+    `.env.agent`, and put `env $(cat .env.agent)` in front of each command;
+    where the project uses mise for them, `mise exec --` instead.
   - Never put the token in a tracked file or show it in the chat.
 - **Check access** with `sapporta api get /api/auth-context`, which names the
   user.
 - **If you are blocked,** say so in one plain sentence. Meanwhile, answer what
   you can from SQLite.
   - `APP_SERVER_UNREACHABLE`: look at `target.apiUrl` in the error. If the
-    port is right, dbu6 isn't running: ask the user to start it (`pnpm dev` in
-    this folder), or offer to. In a sandbox, ask for network access.
+    port is right, dbu6 isn't running: ask the user to start it (`npx dbu6
+    dev` in the project; `pnpm dev` in dbu6's own repository), or offer to.
+    In a sandbox, ask for network access.
   - `unauthenticated`, `token_expired` or `token_revoked`: ask the user to
     open `<app URL>/account/profile?token=new`, create a token and choose
     **Copy prompt**. If they paste that prompt, only store its token as
@@ -298,7 +300,8 @@ FROM running WHERE date BETWEEN '<from>' AND '<to>';
 The owner allows reading SQLite directly for diagnosis:
 `sqlite3 -readonly -header -column data/sqlite.db "…"`.
 
-- `data/` is `SAPPORTA_DATA_DIR` in `.env.development`.
+- `data/` is under the project root, unless `SAPPORTA_DATA_DIR` in the
+  project's env file says otherwise.
 - `accounts` is the chart of accounts; `account` is sign-in data.
 - The file can hold more than one user's books, for example a seeded demo
   user. If `SELECT COUNT(DISTINCT scoped_to_user_id) FROM accounts` is above 1,

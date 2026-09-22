@@ -1,0 +1,15 @@
+{
+  "name": "%%SAPPORTA:SLUG%%",
+  "private": true,
+  "type": "module",
+  "sapporta": {},
+  "scripts": {
+    "dev": "dbu6 dev",
+    "start": "dbu6 start",
+    "check": "dbu6 check",
+    "upgrade": "dbu6 upgrade"
+  },
+  "dependencies": {
+    "dbu6": "%%SAPPORTA:DBU6_VERSION%%"
+  }
+}

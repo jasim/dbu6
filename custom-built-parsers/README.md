@@ -10,6 +10,15 @@ credit-card sign flip, JSON serialization, and the command-line driver.
 If a new statement matches a fingerprint exactly (same bank, same layout), reuse
 the parser. Otherwise add a new one.
 
+Parsers are found in two places, in this order: the project's own
+`custom-built-parsers/`, then the parsers bundled with dbu6 (the ones in the
+index below). A parser is known by its directory name, which is what an import
+preset names, and a project parser shadows a bundled one of the same name. New
+parsers, and changed copies of bundled ones, always go in the project's
+`custom-built-parsers/`; never edit anything under `node_modules`. `dbu6 docs`
+prints the bundled guides: `dbu6 docs parsers` is this file, `dbu6 docs
+parser-guide` and `dbu6 docs freeform-guide` the two beside it.
+
 The Import statements screen recognises uploads with these parsers. A directory
 becomes a recognition candidate only when it contains `parser.py` and a non-empty
 `fingerprint.md` with an `**Input extensions:**` line such as `.csv` or `.pdf`
@@ -21,7 +30,7 @@ matching parser.
 
 ## Index
 
-- [stanc-bank-pdf-table](stanc-bank-pdf-table/) — Standard Chartered savings/current PDF, tabular (extracted via `extract-table-from-pdf.py`)
+- [stanc-bank-pdf-table](stanc-bank-pdf-table/) — Standard Chartered savings/current PDF, tabular (extracted via the `extract_table_from_pdf.py` beside it)
 - [stanc-bank-csv](stanc-bank-csv/) — Standard Chartered savings/current CSV download (direct netbanking export)
 - [stanc-cc-pdf](stanc-cc-pdf/) — Standard Chartered credit card PDF (parsed via `pdftotext -layout`); applies CC sign flip
 - [hdfc-cc-xls](hdfc-cc-xls/) — HDFC credit card billed-statement BIFF8 XLS; applies CC sign flip and preserves exact paise closing
@@ -32,7 +41,8 @@ matching parser.
 ## Goal
 
 Produce one `<input-basename>.abacus.json` file next to each statement input, in
-the wire shape defined by `packages/api/modules/statement/Abacus.ts`.
+the wire shape given under [Abacus JSON Contract](#abacus-json-contract), which
+the shared Python module (`shared/abacus.py`) builds and validates.
 
 A parser never calls the import API itself: `parser.py` stops after writing the
 JSON. When you build a parser, report the output path, row count, opening/closing
@@ -127,23 +137,22 @@ If the statement is ambiguous, ask before generating JSON.
 
 ## PDF Workflow
 
-Try `extract-table` for clean table PDFs:
+Try `pdfplumber` for clean table PDFs, and look at the header of each table
+it finds to identify the transaction table:
 
 ```bash
-uv run ~/m/a/code/tools/pdf-extract/extract-table-from-pdf.py statement.pdf
+uv run --with pdfplumber python -c '
+import pdfplumber, sys
+for page in pdfplumber.open(sys.argv[1]).pages:
+    for table in page.extract_tables():
+        print(table[0])
+' statement.pdf
 ```
 
-Use the dry-run headers to identify the transaction table. Then run with a
-header filter and output prefix when needed:
-
-```bash
-uv run ~/m/a/code/tools/pdf-extract/extract-table-from-pdf.py \
-  -o statement \
-  -f '["date", "description", "withdrawal", "deposit", "balance"]' \
-  statement.pdf
-```
-
-The generated CSV feeds the tabular workflow.
+A parser for such a PDF keeps its table extraction in its own directory, as
+`stanc-bank-pdf-table` does with `extract_table_from_pdf.py`, which merges
+tables that share a header across pages into one CSV. The extracted table
+feeds the tabular workflow.
 
 Use `pdftotext -layout` for prose PDFs, wrapped narrations, or mixed layouts:
 
@@ -162,7 +171,7 @@ For CSV/TSV/XLS/XLSX:
 2. Decide whether the layout is stable enough for a parser. It is stable when
    every transaction row has the same populated columns, date and amount columns
    are unambiguous, and narration is not split across arbitrary rows.
-3. Write `custom-built-parsers/<bank-slug>/parser.py`.
+3. Write `custom-built-parsers/<bank-slug>/parser.py` in the project.
 4. Map source fields to Abacus fields.
 5. Extract opening/closing balances from explicit labels when present.
 6. Validate rows before writing JSON.
@@ -239,7 +248,7 @@ custom-built-parsers/
 
 ## How to run
 
-    uv run parser.py <input-path>
+    dbu6 parser run <bank-slug> <input-path>
 
 Writes `<input-basename>.abacus.json` next to the input.
 ```
@@ -250,13 +259,18 @@ Keep parsers small and dependency-light. Prefer stdlib `csv`, `re`,
 `datetime`, plus `xlrd`/`pandas` only when needed for spreadsheets. Run
 parsers through `uv run` when they need Python dependencies.
 
-Each parser is a standalone `uv run` script that reaches the shared module by
-putting this directory on `sys.path`:
+Each parser is a standalone `uv run` script that imports the shared module by
+name:
 
 ```python
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from shared import abacus
 ```
+
+`shared` is the package bundled with dbu6, whichever of the two places the
+parser lives in. dbu6 puts it on `PYTHONPATH` when it runs a parser, and so do
+`dbu6 parser run <bank-slug> <input-path>` and `dbu6 parser test [bank-slug]`;
+a parser never edits `sys.path` to find it. `dbu6 parser test` with no name
+runs the tests of every parser in the project's `custom-built-parsers/`.
 
 Each parser should:
 
@@ -278,6 +292,24 @@ Each parser should:
 
 `run_cli` writes `<input-basename>.abacus.json` next to the input only after
 the statement was built.
+
+## No Real Data In Fixtures And Tests
+
+A parser is written with a real statement open, and its fixtures and tests are
+committed. Nothing from the statement may reach them: no names, account, card,
+customer or reference numbers, phone numbers, emails, addresses, or real
+amounts.
+
+- **Amounts**: rounded whole numbers (`1000`, `2500`), never copied from the
+  statement.
+- **Numbers and numeric strings**: include the marker `050505`, preferably at
+  the start: `050505000012`, `0505055555`.
+- **Text**: `sample` or `NOPII` for the stripped parts: `NOPII CUSTOMER NAME`,
+  `UPI-sample-payee-050505`, `sample@example.com`.
+- **Structure**: keep the real input's columns, headers, delimiters, encoding
+  and quirks, so the parser is exercised faithfully; only values change.
+  Prefer generating a fixture from a script.
+- Keep opening and running balances positive.
 
 ## Hand-Off Checklist
 

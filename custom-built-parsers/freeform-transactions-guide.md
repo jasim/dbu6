@@ -57,7 +57,7 @@ agree.
 
 ## 3. Write the request
 
-Follow the "Abacus JSON Contract" in `custom-built-parsers/README.md`. For
+Follow the "Abacus JSON Contract" in the parsers guide (`dbu6 docs parsers`). For
 freeform transactions specifically:
 
 - `opening` and `closing` are required: the two balances from step 2, in
@@ -67,7 +67,7 @@ freeform transactions specifically:
 - `rows`: one per transaction you kept.
   - `date`: `YYYY-MM-DD`. When the content shows both a transaction date and a
     posting date, use the one the bank's statements for this account use. If
-    an entry in `data/user-config/import-presets.json` with this
+    an entry in `user-config/import-presets.json` with this
     `base_account` has a `custom_statement_parser_path`, that parser shows
     which date and narration form the statements carry; match it where the
     content gives you the same information.
@@ -85,7 +85,7 @@ freeform transactions specifically:
   content prints none.
 - `account`: only when the content prints the account or card number, in the
   canonical form described under "Emitted account identifier" in
-  `custom-built-parsers/import-statement-parser-guide.md`. Otherwise omit it;
+  the parser guide (`dbu6 docs parser-guide`). Otherwise omit it;
   never guess.
 
 Write the request body to
@@ -123,9 +123,9 @@ a short label that appears in the result and in error messages.
 ## 4. Import
 
 With the dev server running, post the request. `SAPPORTA_API_URL` and
-`SAPPORTA_API_TOKEN` come from the repository's mise environment. If the token
-is empty, ask the user to create an agent access token from their account page
-in the app.
+`SAPPORTA_API_TOKEN` come from the environment (`dbu6 docs books`, "Reaching
+the app", says where a project keeps them). If the token is empty, ask the
+user to create an agent access token from their account page in the app.
 
 ```bash
 curl -sS -X POST "$SAPPORTA_API_URL/api/import-draft/abacus" \

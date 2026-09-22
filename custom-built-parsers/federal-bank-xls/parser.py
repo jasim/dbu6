@@ -19,7 +19,6 @@ rejected rather than misread.
 """
 
 import re
-import sys
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -27,10 +26,8 @@ from typing import Any, Optional
 
 import xlrd
 
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared import abacus, xls  # noqa: E402
-from shared.xls import (  # noqa: E402
+from shared import abacus, xls
+from shared.xls import (
     cell_value,
     excel_location,
     is_blank,

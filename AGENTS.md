@@ -16,6 +16,17 @@ npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --globa
 
 Load it for any change to the schema, API, auth, or UI.
 
+## This repository is the package
+
+The tracked tree is the source of the `dbu6` npm package; a person's books
+live in a folder made by `npx dbu6 init`, with dbu6 in `node_modules`, and
+this checkout only doubles as such a folder for development
+([DEVELOPMENT.md](DEVELOPMENT.md)). What a project may import is
+`src/server/index.ts` and `src/frontend/index.ts`, and nothing is added to
+either by accident. Guides, prompts and `template/AGENTS.md` are read from an
+installed package, so they name guides by `dbu6 docs <name>`, never by a
+path in this repository.
+
 ## Working with the books
 
 To answer questions about the user's accounts, review or post drafts, or fix
@@ -42,8 +53,9 @@ Anonymize as follows:
   encoding, and quirks so the parser is exercised faithfully; only values
   change. Prefer generating fixtures from a script (see `generate_fixture.py`).
 
-Before committing, scan the diff for non-round amounts, long digit strings
-without `050505`, and names or narrations not based on `sample` / `NOPII`.
+Before committing, run `pnpm pii-scan` (the rules above as code, over the
+tracked tree; CI runs it too) and read the diff for names or narrations not
+based on `sample` / `NOPII`.
 Real statements never enter the tracked tree. An upload the importer could
 not read is staged under `tmp/statement-uploads/`, which is gitignored and is
 where an import prompt points you: read the statement there, and copy nothing

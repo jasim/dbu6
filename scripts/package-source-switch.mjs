@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
-import { readdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const CONFIG_FILE = ".package-source-switch.json";
 const WORKSPACE_FILE = "pnpm-workspace.yaml";
-const SOURCE_LINK_RUNTIME = "@sapporta/server/source-link-runtime";
 const SAPPORTA_ROOT_ENV = "SAPPORTA_PACKAGE_ROOT";
 const DEPENDENCY_KEYS = new Set([
   "dependencies",
@@ -13,14 +12,13 @@ const DEPENDENCY_KEYS = new Set([
   "optionalDependencies",
   "peerDependencies",
 ]);
-const IGNORED_DIRS = new Set([
-  ".git",
-  ".astro",
-  ".vite",
-  "data",
-  "dist",
-  "node_modules",
-]);
+// dbu6 is one package, so the root manifest is the only one that names
+// Sapporta. template/package.json is not ours to rewrite: it is the user's
+// starting manifest and pins dbu6 alone.
+const MANIFEST_FILES = ["package.json"];
+// Linked Sapporta packages run from their TypeScript sources, which needs
+// Sapporta's resolution hook; npm ones do not. No script is rewritten for it:
+// bin/dbu6.mjs registers the hook itself when @sapporta/server is a `link:`.
 const SAPPORTA_PACKAGE_DIRS = new Map([
   ["@sapporta/server", "core"],
   ["@sapporta/honest", "honest"],
@@ -148,7 +146,6 @@ async function switchSources(target, requestedSapportaRoot) {
     changedFiles.add(location.file);
   }
 
-  setApiSourceLinkRuntime(manifests, target === "local", changedFiles);
   const migratedOverrides = migrateRootPnpmOverrides(manifests, changedFiles);
 
   for (const manifest of manifests) {
@@ -308,29 +305,6 @@ function npmSources(config, locations) {
   return sources;
 }
 
-function setApiSourceLinkRuntime(manifests, enabled, changedFiles) {
-  const apiManifest = manifests.find(
-    (manifest) => manifest.file === "packages/api/package.json",
-  );
-  if (!apiManifest) return;
-
-  for (const scriptName of ["dev", "start"]) {
-    const script = apiManifest.json.scripts?.[scriptName];
-    if (typeof script !== "string") continue;
-    const withoutRuntime = script.replace(
-      `node --import ${SOURCE_LINK_RUNTIME}`,
-      "node",
-    );
-    const next = enabled
-      ? withoutRuntime.replace("node", `node --import ${SOURCE_LINK_RUNTIME}`)
-      : withoutRuntime;
-    if (next !== script) {
-      apiManifest.json.scripts[scriptName] = next;
-      changedFiles.add(apiManifest.file);
-    }
-  }
-}
-
 function migrateRootPnpmOverrides(manifests, changedFiles) {
   const rootManifest = manifests.find(
     (manifest) => manifest.file === "package.json",
@@ -348,26 +322,11 @@ function migrateRootPnpmOverrides(manifests, changedFiles) {
 
 async function readManifestFiles() {
   const files = [];
-  await walk(rootDir, async (file) => {
-    if (path.basename(file) !== "package.json") return;
-    const relativeFile = path.relative(rootDir, file);
-    const json = JSON.parse(await readFile(file, "utf8"));
-    files.push({ file: normalizePath(relativeFile), json });
-  });
-  return files.sort((a, b) => a.file.localeCompare(b.file));
-}
-
-async function walk(dir, onFile) {
-  const entries = await readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const absolute = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (IGNORED_DIRS.has(entry.name)) continue;
-      await walk(absolute, onFile);
-      continue;
-    }
-    if (entry.isFile()) await onFile(absolute);
+  for (const file of MANIFEST_FILES) {
+    const json = JSON.parse(await readFile(path.join(rootDir, file), "utf8"));
+    files.push({ file, json });
   }
+  return files;
 }
 
 function findSapportaLocations(manifests) {
@@ -607,10 +566,6 @@ function setPath(object, segments, value) {
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function normalizePath(file) {
-  return file.split(path.sep).join("/");
 }
 
 function escapeRegExp(value) {

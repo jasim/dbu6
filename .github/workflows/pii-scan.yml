@@ -1,0 +1,24 @@
+name: pii-scan
+
+# The AGENTS.md "No PII" scan over the tracked tree. It needs no install: the
+# script has no dependencies, which matters while pnpm-workspace.yaml links
+# Sapporta from a local checkout and a fresh clone cannot `pnpm install`.
+#
+# When the committed sources are back on npm (pnpm package-sources:use-npm),
+# add `--forbid-links` to the scan so a committed `link:` fails here too.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pii-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # File and line only: a CI log is one more place a real value could land.
+      - run: node scripts/pii-scan.mjs --tracked --hide-tokens
+      - run: node --test "scripts/*.test.mjs"

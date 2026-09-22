@@ -50,8 +50,7 @@ that placeholder is mapped to `null` so two interest rows on the same day
 never share a fabricated reference, and they fall back to the
 narration-based `semantic:` key instead.
 
-Rows imported through the retired TypeScript parser (deleted; was
-`packages/api/bank-importer/parsers/hdfc-bank.ts`) carry `semantic:` keys,
+Rows imported through the retired TypeScript parser (deleted) carry `semantic:` keys,
 so re-importing one of those statements through this parser would not
 recognise them as duplicates. Old statements are not expected to be
 re-imported, so no key migration is shipped.
@@ -121,9 +120,9 @@ fixture. Regenerate with:
 
 ## How to run
 
-    uv run custom-built-parsers/hdfc-bank-xls/parser.py <Acct_Statement_XXXXXXXX1234_DDMMYYYY.xls>
+    PYTHONPATH=custom-built-parsers uv run custom-built-parsers/hdfc-bank-xls/parser.py <Acct_Statement_XXXXXXXX1234_DDMMYYYY.xls>
 
 Writes `<input-basename>.abacus.json` next to the input. `uv` installs the
 pinned `xlrd==2.0.2` dependency declared in the script metadata.
 
-    uv run --python 3.9 custom-built-parsers/hdfc-bank-xls/parser_test.py
+    PYTHONPATH=custom-built-parsers uv run --python 3.9 custom-built-parsers/hdfc-bank-xls/parser_test.py
