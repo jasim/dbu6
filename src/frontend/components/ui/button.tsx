@@ -30,12 +30,14 @@ export const buttonVariants = cva(
         assist:
           "bg-assist text-assist-foreground shadow-pill hover:bg-assist-hover",
       },
+      // Heights follow the control tier (frontend.css, density): 44px on a
+      // touch screen, 32px with a mouse.
       size: {
-        /** 48px: page-level actions. */
-        default: "h-12 px-[22px]",
-        /** 44px, the smallest click target: in-row actions. */
-        sm: "h-11 px-4 text-meta",
-        lg: "h-[52px] px-7",
+        /** A step above the control tier (48px or 36px): page-level actions. */
+        default: "h-[calc(var(--height-sap-ctl)+4px)] px-[22px]",
+        /** The control tier, the smallest click target: in-row actions. */
+        sm: "h-sap-ctl px-4 text-meta",
+        lg: "h-[calc(var(--height-sap-ctl)+8px)] px-7",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

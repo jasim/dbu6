@@ -191,7 +191,7 @@ function AccountRow({ account }: { account: HomeAccount }) {
           (account.in_ledger && account.drafts > 0 ? (
             <Link
               to={reviewHref(account.account_id)}
-              className="-my-2 inline-flex min-h-11 items-center rounded-control no-underline outline-none hover:[&>span]:underline hover:[&>span]:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40"
+              className="-my-2 inline-flex min-h-sap-ctl items-center rounded-control no-underline outline-none hover:[&>span]:underline hover:[&>span]:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40"
             >
               <StatusChip tone={status.tone}>{status.label}</StatusChip>
             </Link>

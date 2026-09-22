@@ -52,7 +52,9 @@ function AppShellLayout({ navigation }: AppShellProps) {
   const toggleInSidebar =
     showNavigation && sidebar.isDesktop && sidebar.desktopExpanded;
   const toggleInContent = showNavigation && !toggleInSidebar;
-  const toggle = <SidebarToggle className="size-11 rounded-control" />;
+  const toggle = (
+    <SidebarToggle className="size-(--height-sap-ctl) rounded-control" />
+  );
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">

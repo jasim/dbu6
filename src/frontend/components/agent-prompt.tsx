@@ -111,7 +111,7 @@ export function AgentActions({
             className={
               goal === undefined
                 ? undefined
-                : "h-auto min-h-11 px-5 py-2.5 text-left"
+                : "h-auto min-h-sap-ctl px-5 py-2.5 text-left"
             }
             disabled={handoff.isPending}
             onClick={() => handoff.mutate(text)}
