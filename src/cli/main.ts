@@ -16,13 +16,13 @@ import { printDocs } from "./docs.js";
 import { appDir, buildFrontend } from "./frontend.js";
 import { initCommand } from "./init.js";
 import { runParser, testParsers } from "./parser.js";
-import { loadProjectEnv, resolveProjectRoot } from "./project.js";
+import { devFolder, loadProjectEnv, resolveProjectRoot } from "./project.js";
 import { setupProject } from "./setup.js";
 import { upgradeProject, type RunCommand } from "./upgrade.js";
 
 const USAGE = `dbu6 <command>
 
-  dev                          set up, migrate safely, then serve with reload
+  dev                          set up an empty folder, migrate safely, then serve with reload
   start                        migrate safely, build the web app if needed, serve
   build                        build the project's web app (its reports, frontend.tsx)
   migrate                      migrate the database safely
@@ -63,8 +63,10 @@ export async function main(args: string[]): Promise<number> {
 
   switch (command) {
     case "dev":
-      await setupProject(root);
-      loadProjectEnv(root);
+      if (devFolder(root) === "empty") {
+        await setupProject(root);
+        loadProjectEnv(root);
+      }
       if (!reportMigration(await migrateSafely(root))) return 1;
       return runDev(root);
     case "start":
