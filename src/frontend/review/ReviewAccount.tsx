@@ -22,8 +22,6 @@ import { apiErrorMessage } from "../api";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
-import { formatDaySpan, formatShortDate, plural } from "../format";
-import { reclassifyDraftsHref } from "../views/ReclassifyDrafts";
 import {
   refreshDraftStatus,
   reviewAccountQuery,
@@ -136,24 +134,12 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
         gridTab && !empty ? "overflow-hidden" : "overflow-y-auto",
       )}
     >
-      {/* Two lines, so the Drafts grid keeps the height: the account and its
-          drafts, then the tabs and the open tab's action. The header lines up
-          with the shell's content-side sidebar toggle. */}
-      <div className="shrink-0 px-5 pt-1 sm:px-8 lg:px-14">
-        <FrameHeader detail={detail} />
-        {!empty && (
-          <Tabs
-            detail={detail}
-            action={
-              gridTab ? (
-                <RecategoriseButton accountId={detail.account.account_id} />
-              ) : null
-            }
-          />
-        )}
-      </div>
+      {/* One thin bar, so the Drafts grid keeps the height: the account, then
+          its tabs. It lines up with the shell's content-side sidebar toggle,
+          and with the grid's toolbar below. */}
+      <FrameHeader detail={detail} tabs={!empty} />
       {empty ? (
-        <div className="px-5 py-8 sm:px-8 lg:px-14">
+        <div className="px-4 py-5 sm:px-6 lg:px-8">
           <EmptyState
             className="max-w-[760px]"
             title={`No drafts for ${detail.account.name}`}
@@ -188,7 +174,7 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
 
 function FramePadding({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex-1 overflow-y-auto bg-sap-surface px-5 py-8 sm:px-8 sm:py-10 lg:px-14">
+    <div className="flex-1 overflow-y-auto bg-sap-surface px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
       <div className="max-w-[760px] [padding-left:var(--sap-page-header-inset,0px)]">
         {children}
       </div>
@@ -197,61 +183,45 @@ function FramePadding({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * One line: "‹ All accounts / Sample Savings  21 drafts · …". Where it doesn't
- * fit, the drafts line wraps under the name, and on a phone the way back
- * shrinks to its chevron.
+ * One bar: the way back, the account, and its tabs, which sit on the bar's
+ * rule. On a phone the way back shrinks to its chevron and the tabs scroll.
  */
-function FrameHeader({ detail }: { detail: ReviewAccountDetail }) {
+function FrameHeader({
+  detail,
+  tabs,
+}: {
+  detail: ReviewAccountDetail;
+  tabs: boolean;
+}) {
   const { account } = detail;
   return (
-    <header className="flex min-h-sap-ctl flex-wrap content-center items-baseline gap-x-4 [padding-left:var(--sap-page-header-inset,0px)]">
-      <div className="flex min-w-0 items-baseline">
+    <header className="flex min-h-[calc(var(--height-sap-ctl)+0.5rem)] shrink-0 items-stretch gap-x-8 border-b border-sap-border pl-[calc(var(--sap-page-header-inset,0px)+0.75rem)] pr-3 sm:pl-[calc(var(--sap-page-header-inset,0px)+1.25rem)] sm:pr-5">
+      <div className="flex min-w-0 shrink items-center gap-2">
         {detail.other_accounts.length > 0 && (
           <>
-            <Button
-              className="-ml-2 min-w-(--height-sap-ctl) px-2"
-              render={<Link to={REVIEW_ROUTE} />}
-              nativeButton={false}
-              variant="ghost"
-              size="sm"
+            <Link
+              to={REVIEW_ROUTE}
+              title="All accounts"
+              className="shrink-0 text-meta text-ink-meta no-underline hover:text-foreground"
             >
               <span aria-hidden="true">‹</span>
-              <span className="max-sm:sr-only">All accounts</span>
-            </Button>
-            <span
-              aria-hidden="true"
-              className="pl-1 pr-2 text-heading font-normal text-ink-meta max-sm:hidden"
-            >
+              <span className="max-sm:sr-only"> All accounts</span>
+            </Link>
+            <span aria-hidden="true" className="text-meta text-ink-meta">
               /
             </span>
           </>
         )}
         <h1
           title={account.path}
-          className="truncate text-heading text-foreground"
+          className="truncate text-row font-semibold text-foreground"
         >
           {account.name}
         </h1>
       </div>
-      <p className="text-meta text-ink-meta">{headerLine(detail)}</p>
+      {tabs && <Tabs detail={detail} />}
     </header>
   );
-}
-
-/** "21 drafts · 1–13 Sep 2026 · last balance assertion 31 Aug". */
-function headerLine({ account, checkpoint }: ReviewAccountDetail): string {
-  const parts: string[] = [];
-  if (account.drafts > 0) parts.push(plural(account.drafts, "draft"));
-  if (account.draft_span) {
-    parts.push(formatDaySpan(account.draft_span, { withYear: true }));
-  }
-  parts.push(
-    checkpoint === null
-      ? "no balance assertion yet"
-      : `last balance assertion ${formatShortDate(checkpoint.date)}`,
-  );
-  const line = parts.join(" · ");
-  return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
 const TAB_LABELS: Record<ReviewTab, string> = {
@@ -268,18 +238,8 @@ interface TabLink {
   problems?: number;
 }
 
-/**
- * The tab bar, and the open tab's action at its end. Below `lg` the tabs
- * scroll edge to edge and the action takes the line under them; from `lg` the
- * action sits on the tabs' line, and drops under them when both don't fit.
- */
-function Tabs({
-  detail,
-  action,
-}: {
-  detail: ReviewAccountDetail;
-  action: React.ReactNode;
-}) {
+/** Text tabs on the header's rule, the open one underlined. */
+function Tabs({ detail }: { detail: ReviewAccountDetail }) {
   const { account } = detail;
   const tabs: TabLink[] = [
     { label: "Overview", to: reviewHref(account.account_id), end: true },
@@ -296,78 +256,58 @@ function Tabs({
     }),
   ];
   return (
-    <div className="mt-1.5 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-3">
-      <nav
-        aria-label={`Review ${account.name}`}
-        className="-mx-5 overflow-x-auto px-5 pb-1 sm:-mx-8 sm:px-8 lg:mx-0 lg:flex-1 lg:px-0"
-      >
-        <ul className="flex w-max gap-2.5">
-          {tabs.map((tab) => (
-            <li key={tab.label}>
-              <NavLink
-                to={tab.to}
-                end={tab.end}
-                className={({ isActive }) =>
-                  cn(
-                    "inline-flex min-h-sap-ctl items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[15.5px] font-semibold no-underline outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40",
-                    isActive
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-sap-border bg-card text-ink-soft hover:bg-muted",
-                  )
-                }
-              >
-                {tab.label}
-                {tab.count !== undefined && (
-                  <span className="tnum font-mono text-meta font-medium">
-                    {tab.count}
-                  </span>
-                )}
-                {tab.problems !== undefined && (
-                  <span className="tnum rounded-full bg-destructive px-2 py-px font-mono text-[13px] font-medium text-destructive-foreground">
-                    {tab.problems}
-                    <span className="sr-only"> to fix</span>
-                  </span>
-                )}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      {action && <div className="shrink-0 pb-1">{action}</div>}
-    </div>
-  );
-}
-
-/** The Drafts tab's action, on this account's drafts. */
-function RecategoriseButton({ accountId }: { accountId: number }) {
-  return (
-    <Button
-      render={<Link to={reclassifyDraftsHref(accountId)} />}
-      nativeButton={false}
-      variant="outline"
-      size="sm"
+    <nav
+      aria-label={`Review ${account.name}`}
+      className="-mb-px flex min-w-0 overflow-x-auto overflow-y-hidden"
     >
-      Run the categoriser again
-    </Button>
+      <ul className="flex w-max gap-6">
+        {tabs.map((tab) => (
+          <li key={tab.label} className="flex">
+            <NavLink
+              to={tab.to}
+              end={tab.end}
+              className={({ isActive }) =>
+                cn(
+                  "inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 text-meta font-medium no-underline outline-none transition-colors duration-150 focus-visible:text-foreground focus-visible:underline",
+                  isActive
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-ink-meta hover:text-foreground",
+                )
+              }
+            >
+              {tab.label}
+              {tab.count !== undefined && (
+                <span className="tnum font-mono text-label font-medium text-ink-meta">
+                  {tab.count}
+                </span>
+              )}
+              {tab.problems !== undefined && (
+                <span className="tnum rounded-full bg-destructive px-1.5 font-mono text-label font-medium text-destructive-foreground">
+                  {tab.problems}
+                  <span className="sr-only"> to fix</span>
+                </span>
+              )}
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }
 
 function FrameSkeleton() {
   return (
-    <div
-      aria-hidden="true"
-      className="flex-1 overflow-hidden bg-sap-surface px-5 pt-1 sm:px-8 lg:px-14"
-    >
-      <div className="flex h-sap-ctl items-center [padding-left:var(--sap-page-header-inset,0px)]">
-        <div className="h-7 w-[min(520px,100%)] rounded-control bg-sap-nested" />
-      </div>
-      <div className="mt-1.5 flex gap-2.5">
-        {["w-[112px]", "w-[104px]", "w-[132px]", "w-[156px]"].map((width) => (
-          <div
-            key={width}
-            className={cn("h-sap-ctl rounded-full bg-sap-nested", width)}
-          />
-        ))}
+    <div aria-hidden="true" className="flex-1 overflow-hidden bg-sap-surface">
+      <div className="flex h-[calc(var(--height-sap-ctl)+0.5rem)] items-center gap-8 border-b border-sap-border pl-[calc(var(--sap-page-header-inset,0px)+0.75rem)] pr-3 sm:pl-[calc(var(--sap-page-header-inset,0px)+1.25rem)] sm:pr-5">
+        <div className="h-4 w-[180px] rounded-control bg-sap-nested" />
+        <div className="flex gap-6">
+          {["w-[64px]", "w-[56px]", "w-[84px]", "w-[104px]"].map((width) => (
+            <div
+              key={width}
+              className={cn("h-4 rounded-control bg-sap-nested", width)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
