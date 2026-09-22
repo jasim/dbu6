@@ -125,10 +125,10 @@ describe("describeCodingAgent", () => {
       }),
     ).toEqual({
       tone: "attention",
-      text: "Codex isn't signed in. Run this in a terminal, then reload:",
+      text: "Codex isn't signed in. Run this in a terminal, then check again:",
       command: "codex login",
       details: [],
-      checkAgain: false,
+      checkAgain: true,
     });
   });
 
@@ -137,9 +137,9 @@ describe("describeCodingAgent", () => {
       describeCodingAgent({ agents: [NO_CLAUDE, NO_CODEX], active: null }),
     ).toEqual({
       tone: "attention",
-      text: "No coding agent found. Install Claude Code or Codex on the machine running dbu6. Without one, dbu6 can't categorize transactions, read new bank statements, or fix import problems. Reload once one is installed.",
+      text: "No coding agent found. Install Claude Code or Codex on the machine running dbu6. Without one, dbu6 can't categorize transactions, read new bank statements, or fix import problems. Check again once one is installed.",
       details: [],
-      checkAgain: false,
+      checkAgain: true,
     });
   });
 });

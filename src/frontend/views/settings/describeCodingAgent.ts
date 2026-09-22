@@ -15,7 +15,10 @@ export interface CodingAgentState {
   command?: string;
   /** Lines under the text: the models, and the ones that didn't answer. */
   details: string[];
-  /** The models were checked, so the user can ask for another check. */
+  /**
+   * Nothing is being checked, so the user can ask dbu6 to detect the agents
+   * and check their models again. dbu6 does neither on its own once it has.
+   */
   checkAgain: boolean;
 }
 
@@ -41,19 +44,19 @@ export function describeCodingAgent(
   if (active === undefined) {
     return {
       tone: "attention",
-      text: `${NO_CODING_AGENT_MESSAGE} Without one, dbu6 can't ${AGENT_JOBS}. Reload once one is installed.`,
+      text: `${NO_CODING_AGENT_MESSAGE} Without one, dbu6 can't ${AGENT_JOBS}. Check again once one is installed.`,
       details: [],
-      checkAgain: false,
+      checkAgain: true,
     };
   }
   const label = CODING_AGENTS[active.agent].label;
   if (!active.logged_in) {
     return {
       tone: "attention",
-      text: `${label} isn't signed in. Run this in a terminal, then reload:`,
+      text: `${label} isn't signed in. Run this in a terminal, then check again:`,
       command: CODING_AGENTS[active.agent].signInCommand,
       details: [],
-      checkAgain: false,
+      checkAgain: true,
     };
   }
   const { models } = active;

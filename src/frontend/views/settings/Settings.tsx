@@ -175,7 +175,7 @@ function AgentState({
             onClick={checkAgain}
           >
             <RefreshCw />
-            Check models again
+            Check again
           </Button>
         </div>
       )}

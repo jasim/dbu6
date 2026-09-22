@@ -50,6 +50,9 @@ let projectDir: string;
 
 beforeEach(async () => {
   vi.resetModules();
+  // A fresh dbu_config for each test, bound as the runtime binds the table.
+  const config = await import("../dbu-config.js");
+  config.useDbuConfig(config.memoryDbuConfig());
   detectLocalAgents.mockReset();
   localAgent.mockClear();
   direct.mockReset();
@@ -205,19 +208,30 @@ describe("/coding-agent", () => {
     expect(direct).toHaveBeenCalledTimes(4);
   });
 
-  it("can't check again without an installed agent", async () => {
+  it("detects the agents again when asked, even with none installed", async () => {
     detectLocalAgents.mockResolvedValue([
       { agent: "claude-code", installed: false, loggedIn: false },
       { agent: "codex", installed: false, loggedIn: false },
     ]);
+    const hono = await app();
+    await hono.request("/coding-agent");
+    detectLocalAgents.mockResolvedValue(BOTH);
 
-    const check = await checkAgain(await app());
+    const check = await checkAgain(hono);
 
-    expect(check.status).toBe(400);
-    expect(await check.json()).toEqual({
-      error: "no_coding_agent",
-      message:
-        "No coding agent found. Install Claude Code or Codex on the machine running dbu6.",
-    });
+    expect(check.status).toBe(200);
+    expect((await check.json()).active).toBe("claude-code");
+    expect(detectLocalAgents).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads the agents detected last, without detecting again", async () => {
+    detectLocalAgents.mockResolvedValue(BOTH);
+    const hono = await app();
+
+    await hono.request("/coding-agent");
+    await hono.request("/coding-agent");
+    await choose(hono, "claude-code");
+
+    expect(detectLocalAgents).toHaveBeenCalledTimes(1);
   });
 });

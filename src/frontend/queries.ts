@@ -72,7 +72,8 @@ const CODING_AGENT_KEY = ["coding-agent"] as const;
 
 /**
  * The coding agents on the server's machine and the one dbu6 uses, for
- * Settings. The server detects them afresh each time.
+ * Settings. The server answers with what it detected last; only checking
+ * again on Settings runs the agents' CLIs.
  */
 export const codingAgentSettingsQuery = queryOptions({
   queryKey: [...CODING_AGENT_KEY, "settings"],
