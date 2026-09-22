@@ -2,9 +2,9 @@ import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { cn } from "@sapporta/ui/cn";
 
 /*
- * A select on Base UI (PLAN.md D5): a 44px trigger drawn like dbu6's outline
- * controls, and a floating list on the elevation token. For short lists; a
- * long one wants a searchable combobox.
+ * A select on Base UI (PLAN.md D5): a trigger at the control tier drawn like
+ * dbu6's outline controls, and a floating list on the elevation token. For
+ * short lists; a long one wants a searchable combobox.
  */
 
 export const Select = SelectPrimitive.Root;
@@ -26,7 +26,7 @@ export function SelectLabel({
  * (a calendar) wears it too, so the pair reads as one set.
  */
 export const selectTriggerClassName =
-  "flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-control border border-sap-border-strong bg-card px-3.5 text-left text-row text-foreground outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 data-popup-open:bg-muted data-disabled:cursor-not-allowed data-disabled:border-waiting-border data-disabled:bg-waiting-bg data-disabled:text-waiting-fg";
+  "flex h-sap-ctl w-full min-w-0 items-center justify-between gap-3 rounded-control border border-sap-border-strong bg-card px-3.5 text-left text-row text-foreground outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 data-popup-open:bg-muted data-disabled:cursor-not-allowed data-disabled:border-waiting-border data-disabled:bg-waiting-bg data-disabled:text-waiting-fg";
 
 export function SelectTrigger({
   className,
@@ -94,7 +94,7 @@ export function SelectItem({
     <SelectPrimitive.Item
       {...props}
       className={cn(
-        "grid min-h-11 cursor-default select-none grid-cols-[1.25rem_1fr] items-center gap-2 rounded-[7px] py-2 pl-2.5 pr-4 text-row text-foreground outline-none data-disabled:text-ink-meta data-highlighted:bg-muted",
+        "grid min-h-sap-ctl cursor-default select-none grid-cols-[1.25rem_1fr] items-center gap-2 rounded-[7px] py-2 pl-2.5 pr-4 text-row text-foreground outline-none data-disabled:text-ink-meta data-highlighted:bg-muted",
         className,
       )}
     >

@@ -30,7 +30,8 @@
 
    Sections, in order. Later steps add to a section; they don't reorder them.
      1. Palette → Sapporta tokens
-     2. Extra tokens the design adds (money in, attention, waiting, hues)
+     2. Extra tokens the design adds (money in, attention, waiting, hues,
+        density)
      3. @theme inline: fonts, the type scale, heights, radii, shadows,
         utilities for the section 2 tokens
      4. Base rules
@@ -185,35 +186,66 @@
   --cat-other: #c3c6c6;
 }
 
+/* Density: how tall rows, grid headers and controls are, and the text in
+   them. A touch screen keeps every click target at 44px; a mouse or
+   trackpad (pointer: fine) gets the compact tier, so a screen holds more
+   rows. The height tiers and the row and data type tiers in section 3 point
+   here, so each of their utilities (h-sap-ctl, min-h-sap-ctl, text-row, …)
+   and the grid follow the pointer. A click target is sized by the control
+   tier, never in pixels. */
+:root {
+  --density-row: 48px;
+  --density-header: 44px;
+  --density-control: 44px;
+  --density-bar: 32px;
+  --density-row-text: 16px;
+  --density-data-text: 15px;
+}
+
+@media (pointer: fine) {
+  :root {
+    --density-row: 34px;
+    --density-header: 32px;
+    --density-control: 32px;
+    --density-bar: 24px;
+    --density-row-text: 15px;
+    --density-data-text: 14px;
+  }
+}
+
 /* ── 3. @theme inline ────────────────────────────────────────────────────
    Sizes, heights, fonts and shadows are fixed when Tailwind builds the CSS,
-   so Sapporta's tiers can only be changed here, not in :root. This block
-   comes after Sapporta's, so its values win. */
+   so Sapporta's tiers can only be changed here, not in :root. A tier that
+   must change at runtime is set to a section 2 variable instead of a value:
+   its utilities then read the variable. This block comes after Sapporta's,
+   so its values win. */
 @theme inline {
   --font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Sapporta's type tiers, remapped onto the design's scale. 16px is the
-     smallest text; 11px is only for sort glyphs. */
+  /* Sapporta's type tiers, remapped onto the design's scale. Row text
+     (grid rows, buttons, inputs) and data text follow the density; 11px is
+     only for sort glyphs. */
   --text-sap-tiny: 11px;
   --text-sap-micro: 13px;
   --text-sap-label: 13px;
   --text-sap-meta: 14px;
-  --text-sap-menu: 15px;
-  --text-sap-data: 15px;
-  --text-sap-emph: 16px;
-  --text-sap-body: 16px;
+  --text-sap-menu: var(--density-data-text);
+  --text-sap-data: var(--density-data-text);
+  --text-sap-emph: var(--density-row-text);
+  --text-sap-body: var(--density-row-text);
   --text-sap-mark: 16px;
   --text-sap-display: 23px;
 
-  /* Sapporta's heights. Click targets are never below 44px. */
-  --height-sap-row: 48px;
-  --height-sap-header: 44px;
-  --height-sap-ctl: 44px;
-  --height-sap-bar: 32px;
+  /* Sapporta's heights, from the density in section 2. */
+  --height-sap-row: var(--density-row);
+  --height-sap-header: var(--density-header);
+  --height-sap-ctl: var(--density-control);
+  --height-sap-bar: var(--density-bar);
 
   /* The design's type scale: size / line-height / weight / tracking.
-     text-row and text-label carry no weight; the component sets it. */
+     text-row and text-label carry no weight; the component sets it.
+     text-row is row text, so it follows the density. */
   --text-display: 40px;
   --text-display--line-height: 1.08;
   --text-display--font-weight: 600;
@@ -231,7 +263,7 @@
   --text-body: 17px;
   --text-body--line-height: 1.5;
   --text-body--font-weight: 400;
-  --text-row: 16px;
+  --text-row: var(--density-row-text);
   --text-row--line-height: 1.35;
   --text-meta: 14px;
   --text-meta--line-height: 1.45;
@@ -314,23 +346,25 @@ body {
 /* ── 6. Grid and tables (Step 4) ─────────────────────────────────────────
    The grid reads these from :root (the names are listed at the top of
    Sapporta's sapporta-preset.module.css). Row and header heights come from
-   the tiers in section 3; column widths are passed as props. */
+   the tiers in section 3, and a nested level's rows sit at the header tier,
+   which is Sapporta's tier for child rows; column widths are passed as
+   props. */
 :root {
   --sap-grid-cell-padding: 0 14px;
   --sap-grid-header-cell-padding: 0 14px;
   --sap-grid-header-font-weight: 600;
-  --sap-grid-nested-cell-min-height: 44px;
+  --sap-grid-nested-cell-min-height: var(--height-sap-header);
   --sap-grid-row-header-column-width: 48px;
   --sap-grid-nested-row-header-column-width: 36px;
 }
 
 /* The Accounts page's grid (App.tsx). Each depth of the account tree steps in
-   further than the preset's 18px, and the rows sit closer than the 48px row
-   tier, at the 44px click-target floor, with no rule between them. The header
-   keeps its rule. */
+   further than the preset's 18px, and the rows sit closer than the row tier,
+   at the control tier (a click target's floor), with no rule between them.
+   The header keeps its rule. */
 .accounts-grid {
   --sap-grid-tree-indent: 24px;
-  --grid-cell-min-height: 44px;
+  --grid-cell-min-height: var(--height-sap-ctl);
 }
 
 .accounts-grid [data-grid-part="row"] {

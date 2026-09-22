@@ -82,10 +82,8 @@ export function NavItem({
       aria-label={count === null ? undefined : `${item.label}, ${count}`}
       className={cn(
         ITEM_BASE,
-        "rounded-control",
-        secondary
-          ? "gap-2.5 px-[13px] py-2.5 text-[15px]"
-          : "gap-2.5 px-[13px] py-[11px] text-row",
+        "min-h-sap-ctl gap-2.5 rounded-control px-[13px] py-1",
+        secondary ? "text-[15px]" : "text-row",
         active ? ITEM_ACTIVE : ITEM_INACTIVE,
       )}
     >

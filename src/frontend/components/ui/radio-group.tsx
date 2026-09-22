@@ -48,7 +48,7 @@ export function RadioGroupItem<Value>({
       nativeButton
       render={<button type="button" />}
       className={cn(
-        "inline-flex h-11 min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-[7px] px-4 text-row font-normal text-ink-soft outline-none transition-colors duration-150 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 data-checked:bg-card data-checked:font-semibold data-checked:text-foreground data-checked:shadow-pill data-disabled:cursor-not-allowed",
+        "inline-flex h-sap-ctl min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-[7px] px-4 text-row font-normal text-ink-soft outline-none transition-colors duration-150 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 data-checked:bg-card data-checked:font-semibold data-checked:text-foreground data-checked:shadow-pill data-disabled:cursor-not-allowed",
         className,
       )}
     />

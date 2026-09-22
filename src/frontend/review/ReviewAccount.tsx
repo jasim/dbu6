@@ -204,12 +204,12 @@ function FramePadding({ children }: { children: React.ReactNode }) {
 function FrameHeader({ detail }: { detail: ReviewAccountDetail }) {
   const { account } = detail;
   return (
-    <header className="flex min-h-11 flex-wrap content-center items-baseline gap-x-4 [padding-left:var(--sap-page-header-inset,0px)]">
+    <header className="flex min-h-sap-ctl flex-wrap content-center items-baseline gap-x-4 [padding-left:var(--sap-page-header-inset,0px)]">
       <div className="flex min-w-0 items-baseline">
         {detail.other_accounts.length > 0 && (
           <>
             <Button
-              className="-ml-2 min-w-11 px-2"
+              className="-ml-2 min-w-(--height-sap-ctl) px-2"
               render={<Link to={REVIEW_ROUTE} />}
               nativeButton={false}
               variant="ghost"
@@ -309,7 +309,7 @@ function Tabs({
                 end={tab.end}
                 className={({ isActive }) =>
                   cn(
-                    "inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[15.5px] font-semibold no-underline outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40",
+                    "inline-flex min-h-sap-ctl items-center gap-2 whitespace-nowrap rounded-full border px-4 text-[15.5px] font-semibold no-underline outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40",
                     isActive
                       ? "border-foreground bg-foreground text-background"
                       : "border-sap-border bg-card text-ink-soft hover:bg-muted",
@@ -358,14 +358,14 @@ function FrameSkeleton() {
       aria-hidden="true"
       className="flex-1 overflow-hidden bg-sap-surface px-5 pt-1 sm:px-8 lg:px-14"
     >
-      <div className="flex h-11 items-center [padding-left:var(--sap-page-header-inset,0px)]">
+      <div className="flex h-sap-ctl items-center [padding-left:var(--sap-page-header-inset,0px)]">
         <div className="h-7 w-[min(520px,100%)] rounded-control bg-sap-nested" />
       </div>
       <div className="mt-1.5 flex gap-2.5">
         {["w-[112px]", "w-[104px]", "w-[132px]", "w-[156px]"].map((width) => (
           <div
             key={width}
-            className={cn("h-11 rounded-full bg-sap-nested", width)}
+            className={cn("h-sap-ctl rounded-full bg-sap-nested", width)}
           />
         ))}
       </div>

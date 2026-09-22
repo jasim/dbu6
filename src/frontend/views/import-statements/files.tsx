@@ -142,7 +142,7 @@ function RemoveButton({
       aria-label={`Remove ${fileName}`}
       disabled={disabled}
       onClick={onRemove}
-      className="size-11 shrink-0 px-0 text-ink-meta hover:bg-muted hover:text-foreground disabled:text-waiting-marker"
+      className="size-(--height-sap-ctl) shrink-0 px-0 text-ink-meta hover:bg-muted hover:text-foreground disabled:text-waiting-marker"
     >
       <X />
     </Button>

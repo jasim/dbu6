@@ -5,7 +5,7 @@ type DisclosureTone = "assist";
 
 function summaryClass(tone: DisclosureTone | undefined): string {
   return cn(
-    "inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control text-row font-semibold outline-none hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden",
+    "inline-flex min-h-sap-ctl cursor-pointer list-none items-center gap-2 rounded-control text-row font-semibold outline-none hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden",
     tone === "assist" ? "text-assist-ink" : "text-primary",
   );
 }

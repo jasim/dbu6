@@ -32,6 +32,10 @@ const TITLES: Record<Section, string> = {
   income: "Income",
 };
 
+// "›" is a column at the control tier. The section's total and a parent's own
+// row stop short of it by its width and the row's 12px, so amounts line up.
+const CLEAR_OF_LEDGER_LINK = "pr-[calc(var(--height-sap-ctl)+12px)]";
+
 export function AccountSection({
   section,
   total,
@@ -130,7 +134,12 @@ function SectionCard({
 }) {
   return (
     <section className="mt-5 rounded-card border border-sap-border bg-card pb-2 shadow-card">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 py-4 pl-[22px] pr-14">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-x-4 gap-y-1 py-4 pl-[22px]",
+          CLEAR_OF_LEDGER_LINK,
+        )}
+      >
         <h2 className="text-heading text-foreground">{TITLES[section]}</h2>
         {action}
         <span className="ml-auto">{total}</span>
@@ -216,7 +225,7 @@ function AccountRow({
             to={href}
             aria-label={`Account ledger for ${account.name}`}
             title="Account ledger"
-            className="flex w-11 shrink-0 items-center justify-center text-[22px] text-ink-meta no-underline outline-none transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
+            className="flex w-(--height-sap-ctl) shrink-0 items-center justify-center text-[22px] text-ink-meta no-underline outline-none transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
           >
             ›
           </Link>
@@ -242,7 +251,10 @@ function AccountRow({
             // No link: the parent's history includes its sub-accounts.
             <li>
               <div
-                className="flex min-h-[52px] items-center gap-3 border-t border-line-inner bg-muted py-3 pr-[56px]"
+                className={cn(
+                  "flex min-h-[52px] items-center gap-3 border-t border-line-inner bg-muted py-3",
+                  CLEAR_OF_LEDGER_LINK,
+                )}
                 style={{ paddingLeft: indent(depth + 1) }}
               >
                 <span aria-hidden="true" className="w-[18px] shrink-0" />
