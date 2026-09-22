@@ -3,8 +3,8 @@
  * other than a database (`dbu6 migrate`): the environment file, an auth
  * secret in it, and `user-config/`.
  *
- * It runs on every `dev`, so each step only fills in what is missing and
- * never overwrites a file someone has edited.
+ * `init` runs it, and `dev` does in an empty folder. Each step only fills in
+ * what is missing and never overwrites a file someone has edited.
  */
 import { randomBytes } from "node:crypto";
 import { constants, existsSync } from "node:fs";

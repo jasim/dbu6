@@ -39,14 +39,15 @@ With the [prerequisites](#prerequisites) installed:
    echo '{ "name": "demo-dbu6" }' > sapporta.json
    echo '{ "name": "demo-dbu6", "private": true, "type": "module", "scripts": { "dev": "dbu6 dev", "seed": "dbu6 seed" }, "dependencies": { "dbu6": "link:../dbu6" } }' > package.json
    pnpm install
+   pnpm exec dbu6 setup
+   pnpm exec dbu6 migrate
    pnpm dev
    ```
 
-   The first `dbu6 dev` sets the folder up as a project: it creates `.env`
-   from the template's `.env.example` with a generated `BETTER_AUTH_SECRET`,
-   fills `user-config/`, and creates the database by applying the migrations.
-   Every later start repeats those checks and changes nothing that already
-   exists.
+   `dbu6 setup` creates `.env` from the template's `.env.example` with a
+   generated `BETTER_AUTH_SECRET` and fills `user-config/`, and `dbu6 migrate`
+   creates the database. `dbu6 dev` would not: it sets up only an empty
+   folder, and this one already has files in it.
 
 4. Open the frontend port, `SAPPORTA_FRONTEND_PORT` in that folder's `.env`
    (http://localhost:2340 from the template), and sign up; set
@@ -121,10 +122,11 @@ Publishing Sapporta, then `pnpm package-sources:update-npm` and
   hdfc-bank-xls` runs one parser's.
 - `pnpm test:watch`, `pnpm format`.
 - `pnpm dbu6 <command>` — the `dbu6` command (`bin/dbu6.mjs`), the same one a
-  user's project runs. Here it is for `docs` and `parser`. A command that
-  works on books belongs in a project folder: run here, it would take this
-  repository for the project and create `.env`, `user-config/` and `data/` in
-  it, all gitignored. See [The `dbu6` command](#the-dbu6-command).
+  user's project runs. Here it is for `docs` and `parser`. `dbu6 dev` refuses
+  this repository, which has files but no database; `dbu6 setup` and
+  `dbu6 migrate`, which create a project's files when asked, would create
+  them here, so run them in a project folder. See
+  [The `dbu6` command](#the-dbu6-command).
 - `pnpm pii-scan` — the "No PII" scan of AGENTS.md over the tracked tree
   (`scripts/pii-scan.mjs`); `pnpm pii-scan:pack` scans what `npm pack` would
   ship and refuses `link:` dependencies. Both run in a release.
@@ -171,13 +173,14 @@ its own reports and parsers if it has any.
 In it, `pnpm <script>` runs what its `package.json` names and
 `pnpm exec dbu6 <command>` runs any command:
 
-- `dbu6 dev`: `setup`, migrate safely, then the API server under
-  `node --watch` and Vite, which hot-updates `src/frontend`. See
+- `dbu6 dev`: migrate safely, then the API server under `node --watch` and
+  Vite, which hot-updates `src/frontend`. It creates and overwrites nothing,
+  except in an empty folder, which it sets up first. See
   [How a linked project's `dbu6 dev` runs](#how-a-linked-projects-dbu6-dev-runs).
 - `dbu6 setup`: create `.env` from the template's `.env.example` with a
   generated `BETTER_AUTH_SECRET`, and fill `user-config/` from
-  `user-config.example/`. Every step leaves an existing file alone, so `dev`
-  runs it on every start. It does not touch the database.
+  `user-config.example/`. Every step leaves an existing file alone. It does
+  not touch the database.
 - `dbu6 migrate`: `migrateSafely` alone (see
   [Schema and migrations](#schema-and-migrations)). `dev` and `start` run it
   too, and it creates the database when there is none.
@@ -412,7 +415,7 @@ sits above the rest of the Node side: it alone may import both `src/server` and
 
 | Command | Does |
 | --- | --- |
-| `dev` | `setup`, `migrateSafely`, then the server under `node --watch`, plus Vite when the project has reports or a `frontend.tsx` (always, when dbu6 runs from this repository) |
+| `dev` | in an empty folder (nothing but hidden files) `setup` first; in any other it creates nothing and refuses one with no database (`devFolder` in `project.ts`). Then `migrateSafely`, the server under `node --watch`, plus Vite when the project has reports or a `frontend.tsx` (always, when dbu6 runs from this repository) |
 | `start` | `migrateSafely`, build the project's web app if it has one, serve |
 | `serve [--no-frontend]` | serve only; what `dev` runs under `node --watch`. Refuses pending migrations |
 | `build` | build the project's web app into `<root>/dist/app` |
