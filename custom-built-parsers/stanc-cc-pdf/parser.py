@@ -11,14 +11,11 @@ Writes <input-basename>.abacus.json next to the input.
 """
 import re
 import subprocess
-import sys
 import tempfile
 from datetime import date
 from pathlib import Path
 
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared import abacus  # noqa: E402
+from shared import abacus
 
 
 HEADER_RE = re.compile(

@@ -1,0 +1,19 @@
+{
+  // The browser side: the frontend and the contracts it shares with the
+  // server. Typechecked here; Vite compiles it (scripts/build.mjs), and the
+  // same config emits dist/frontend's declarations.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "rootDir": "..",
+    "types": ["vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": [".", "../shared"]
+}

@@ -1,0 +1,15 @@
+# What the Dockerfile must not copy into the image.
+.git
+node_modules
+# The books: a volume, never an image layer.
+data
+# Ports and secrets: the container's environment configures dbu6.
+.env
+.env.*
+# Built inside the image.
+dist
+tmp
+*.log
+.DS_Store
+__pycache__
+*.pyc

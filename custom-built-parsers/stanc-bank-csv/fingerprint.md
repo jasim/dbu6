@@ -46,6 +46,6 @@
 - `institution: null` — the export prints the product name (`... Savings a/c`) but not the bank's name.
 
 ## How to run
-    uv run parser.py <stanc-csv-path>
+    PYTHONPATH=.. uv run parser.py <stanc-csv-path>
 
 Writes `<basename>.abacus.json` next to the input.

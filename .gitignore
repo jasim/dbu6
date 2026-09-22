@@ -2,17 +2,19 @@ node_modules
 .DS_Store
 dist
 .env*
-!.env.production.example
 !.env.development.example
+!template/.env.example
 mise.toml
 mise.local.toml
 .mise.local.toml
-packages/api/dist
-packages/frontend/dist
-packages/shared/dist
-packages/shared/*.tsbuildinfo
-# Everything private lives here: SQLite database + user-config/
+*.tsbuildinfo
+# Tarballs from `pnpm pack:verify` and `npm pack`
+*.tgz
+# The SQLite database
 data
+# The user's own mappings, presets and prompts (user-config.example/ is the
+# tracked template)
+/user-config
 .vite
 *.log
 .idea

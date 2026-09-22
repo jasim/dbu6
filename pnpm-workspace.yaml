@@ -1,5 +1,5 @@
-packages:
-  - packages/*
+# dbu6 is one package at the repository root, so there is no `packages:` list.
+# This file stays for pnpm's settings: the build approvals and the overrides.
 
 confirmModulesPurge: false
 

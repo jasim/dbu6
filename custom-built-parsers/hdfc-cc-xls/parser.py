@@ -12,7 +12,6 @@ Writes <statement-basename>.abacus.json next to the input.
 """
 
 import re
-import sys
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
@@ -20,10 +19,8 @@ from typing import Any, Optional
 
 import xlrd
 
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared import abacus, xls  # noqa: E402
-from shared.xls import (  # noqa: E402
+from shared import abacus, xls
+from shared.xls import (
     cell_value,
     excel_location,
     require_matching_text,

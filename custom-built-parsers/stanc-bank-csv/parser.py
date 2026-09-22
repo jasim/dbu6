@@ -12,15 +12,12 @@ Writes <statement-basename>.abacus.json next to the input.
 
 import csv
 import re
-import sys
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared import abacus  # noqa: E402
+from shared import abacus
 
 
 HEADER = "\tDate,Transaction,Currency,Deposit,Withdrawal,Running Balance"

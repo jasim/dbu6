@@ -11,15 +11,15 @@ Writes <basename>.abacus.json next to the input PDF.
 import csv
 import re
 import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared import abacus  # noqa: E402
+from shared import abacus
 
 
-EXTRACT_TOOL = Path.home() / "m/a/code/tools/pdf-extract/extract-table-from-pdf.py"
+# The table extractor ships beside this parser, as its own `uv run` script
+# because it carries heavier dependencies (pandas).
+EXTRACT_TOOL = Path(__file__).resolve().with_name("extract_table_from_pdf.py")
 
 
 def num(s: str) -> float:

@@ -1,0 +1,18 @@
+{
+  // Typechecks the worked report against this repository's sources, under
+  // the compiler options a project's template/tsconfig.json has. `pnpm
+  // typecheck` runs it. The proof against the built package, the way a
+  // project sees it, is scripts/verify-tarball.mjs.
+  "extends": "../../template/tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"],
+    // The sources are not written for these two; a project's files are.
+    "verbatimModuleSyntax": false,
+    "erasableSyntaxOnly": false,
+    "paths": {
+      "dbu6/server": ["../../src/server/index.ts"],
+      "dbu6/frontend": ["../../src/frontend/index.ts"]
+    }
+  },
+  "include": ["report", "customizing"]
+}

@@ -102,7 +102,7 @@ imports the generator to build mutated workbooks in memory.
 
 ## How to run
 
-    uv run custom-built-parsers/hdfc-cc-xls/parser.py <hdfc-billed-statement.xls>
+    PYTHONPATH=custom-built-parsers uv run custom-built-parsers/hdfc-cc-xls/parser.py <hdfc-billed-statement.xls>
 
 Writes `<input-basename>.abacus.json` next to the input. `uv` installs the
 pinned `xlrd==2.0.2` dependency declared in the script metadata.

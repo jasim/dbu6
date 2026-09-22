@@ -1,0 +1,25 @@
+{
+  // For `dbu6 check` and your editor. Nothing is compiled: Node runs the
+  // server files as they are, and dbu6 builds the screens.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    // Node's own modules (node:test in a report's test). TypeScript 6 no
+    // longer includes @types packages unless they are named here.
+    "types": ["node"],
+    // These three keep what typechecks runnable under Node, which strips
+    // types without compiling: import "./contract.ts" by its real name, mark
+    // type-only imports with `import type`, and use no enum, namespace or
+    // constructor parameter property.
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["reports", "dbu6.config.ts", "frontend.tsx"]
+}

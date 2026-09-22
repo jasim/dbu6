@@ -20,6 +20,50 @@ models support.
 The user interface is a series of connected data-grids that lets you explore,
 drill-down and see related data easily.
 
+## Quick start
+
+You need Node 22 or newer, plus `uv` and `pdftotext` (from poppler) for the
+statement parsers.
+
+```bash
+npx dbu6 init my-books
+cd my-books
+npx dbu6 dev
+```
+
+`init` makes the folder, installs dbu6 into it, creates `.env` with a
+generated secret, fills `user-config/` from the examples, creates the database,
+and makes the first commit. Open http://localhost:2345 and sign up. For a
+year of sample data, run `npx dbu6 seed` while `dev` is running and sign in as
+`demo@example.com` / `demo-password`.
+
+The folder is yours; the program is the `dbu6` package in `node_modules`.
+`npx dbu6 upgrade` moves it to a newer version, migrating the database on a
+verified copy, and `npx dbu6 check` reports anything an upgrade broke.
+Nothing in the folder refers to dbu6's code until you add a report.
+
+```
+my-books/
+  package.json            one dependency: dbu6, pinned to an exact version
+  tsconfig.json           so your reports typecheck under `dbu6 check`
+  AGENTS.md               how a coding agent works in this folder
+  Dockerfile              the folder as a container, when you want one
+  user-config/            mapping rules, import presets, categorization prompts
+  custom-built-parsers/   your parsers for statements dbu6 cannot read yet
+  reports/                your reports, one folder each, with their own screens
+  data/                   sqlite.db, gitignored; back it up yourself
+  .env                    ports, mail, the auth secret; gitignored
+  dbu6.config.ts          optional: a categorizer of your own, extra routes
+  frontend.tsx            optional: extra pages and navigation entries
+```
+
+Install the Sapporta skill for your coding agent, and let it read
+`npx dbu6 docs` for the guides that ship with the installed version:
+
+```bash
+npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --global --yes
+```
+
 ### Double-entry books
 
 Every transaction is a journal entry between two accounts,
@@ -34,24 +78,22 @@ financial management like: net worth over time, monthly cashflow etc.
 
 ### Statement parsers for any bank
 
-You can add parsers for any bank / credit card using the custom-built-parsers
-approach.
+dbu6 ships deterministic parsers for statement layouts that have already been
+handled: several Indian banks and cards in PDF, CSV, and XLS form
+([custom-built-parsers/](./custom-built-parsers/)). The Import statements
+screen recognises which one matches each upload and which of your accounts it
+belongs to. A parser of your own goes in your folder's
+`custom-built-parsers/`, and shadows a bundled one of the same name.
 
-The directory `custom-built-parsers/` holds deterministic parsers for statement
-layouts
-that have already been handled. This currently several Indian banks and cards in
-PDF, CSV, and XLS form. The Import statements screen recognises which one
-matches each upload and which of your accounts it belongs to.
-
-For a layout that has no parser yet, you can ask the coding agent to write a
-parser for it. There is clear guide in the repo that lets the coding agent
-create an accurate parser in a single shot. The Import statements screen gives
-you the prompt: copy it, or, when Claude Code or Codex is installed on the
-machine running dbu6, click **Open in Claude Code** (or **Codex**, whichever
-Settings names) to start the agent on it in a new terminal window, in the
-repository. (On Linux the
-button gives you a command to run in a terminal instead.) Every prompt asks
-the agent to show you its steps first and to do nothing until you say go. See
+For a layout that has no parser yet, ask your coding agent to write one. The
+guide that ships with dbu6 (`npx dbu6 docs parser-guide`) lets the agent
+create an accurate parser in a single shot, and the Import statements screen
+gives you the prompt: copy it, or, when Claude Code or Codex is installed on
+the machine running dbu6, click **Open in Claude Code** (or **Codex**,
+whichever Settings names) to start the agent on it in a new terminal window,
+in your books folder. (On Linux the button gives you a command to run in a
+terminal instead.) Every prompt asks the agent to show you its steps first
+and to do nothing until you say go. The guides are
 [custom-built-parsers/README.md](./custom-built-parsers/README.md) and
 [custom-built-parsers/import-statement-parser-guide.md](./custom-built-parsers/import-statement-parser-guide.md).
 
@@ -110,19 +152,21 @@ setup.
 
 ## What you configure
 
-Everything specific to you lives under `data/`, which is gitignored:
+Everything specific to you lives in your books folder. The database is
+gitignored; the rest is worth committing, and `init` makes the first commit:
 
 ```
 data/
-  sqlite.db
-  user-config/
-    transaction_mappings.mjs     narration → account rules, applied before the LLM
-    custom_mappings_*.prompt     your categorization instructions for the LLM
-    import-presets.json          your banks and cards, and which parser and prompts each uses
+  sqlite.db                    the books; dbu6 keeps no other copy
+user-config/
+  transaction_mappings.mjs     narration → account rules, applied before the LLM
+  custom_mappings_*.prompt     your categorization instructions for the LLM
+  import-presets.json          your banks and cards, and which parser and prompts each uses
 ```
 
-`pnpm setup` seeds `data/user-config/` from `user-config.example/` and never
-overwrites files you have edited. A rule file looks like this:
+`init` fills `user-config/` from dbu6's examples (`npx dbu6 setup` does it
+again for a file that is missing, and never overwrites one you have edited).
+A rule file looks like this:
 
 ```js
 export const mappings = {
@@ -133,44 +177,24 @@ export const mappings = {
 };
 ```
 
-## Getting started
+## Reports of your own
 
-You need Node 22 or newer, pnpm 11, `uv`, and `pdftotext` (from poppler) for
-PDF statements. [mise](https://mise.jdx.dev) is optional; it only pins the Node
-version and holds personal settings.
-
-1. Install the Sapporta skill for your coding agent:
-
-   ```bash
-   npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --global --yes
-   ```
-
-2. Start the API and web UI in watch mode:
-
-   ```bash
-   pnpm install
-   pnpm dev
-   ```
-
-   The first `pnpm dev` sets the project up: it creates `.env.development` from
-   `.env.development.example` with a generated `BETTER_AUTH_SECRET`, seeds
-   `data/user-config/`, and creates the database by applying the migrations.
-   Every later start repeats those checks and changes nothing that already
-   exists. To do it without starting the app, run `pnpm setup`.
-
-3. Open http://localhost:2340 (`SAPPORTA_FRONTEND_PORT` in `.env.development`)
-   and sign up. For sample data, run `pnpm seed` while `pnpm dev` is running and
-   sign in as `demo@example.com` / `demo-password`.
-
-For a production build, run `pnpm build` then `pnpm start`, or use the included
-`Dockerfile`. [DEVELOPMENT.md](./DEVELOPMENT.md) has the full setup.
+A report is code in `reports/<id>/`, written the way dbu6's own reports are:
+a route that computes it and a React screen that shows it, with full control
+of the screen. dbu6 finds the folder, lists the report under "Your reports"
+and typechecks and tests it under `npx dbu6 check`. The Reports page has
+**Create a report**, which hands your coding agent the prompt; the guide is
+`npx dbu6 docs reports`, with one complete worked report. Pages and routes
+that are not reports go in `frontend.tsx` and `dbu6.config.ts`
+(`npx dbu6 docs customizing`).
 
 ## More
 
-- [DEVELOPMENT.md](./DEVELOPMENT.md): commands, ports, environment, project
-  layout, and how to extend the code.
-- [DEPLOYMENT.md](./DEPLOYMENT.md): supported deployment shapes and their
-  environment variables.
+- [DEPLOYMENT.md](./DEPLOYMENT.md): running your books folder for real:
+  `.env`, `dbu6 start`, the Dockerfile, upgrading, and why you back up
+  `data/` yourself.
+- [DEVELOPMENT.md](./DEVELOPMENT.md): this repository is the source of the
+  `dbu6` package; how to work on it, from a clone.
 
 ## License
 

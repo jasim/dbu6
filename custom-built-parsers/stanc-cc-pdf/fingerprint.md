@@ -51,6 +51,6 @@ that marks a wrapped narration, and the terms-section card-number decoys —
 with only the values anonymized.
 
 ## How to run
-    uv run parser.py <input.pdf>
+    PYTHONPATH=.. uv run parser.py <input.pdf>
 
 Writes `<input-basename>.abacus.json` next to the input.

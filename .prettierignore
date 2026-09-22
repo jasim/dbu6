@@ -4,4 +4,4 @@ dist
 *.tsbuildinfo
 
 # Drizzle-generated migration SQL and its JSON snapshots
-packages/api/migrations
+migrations

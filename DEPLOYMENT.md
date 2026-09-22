@@ -1,279 +1,185 @@
 # Deployment
 
-## Overview
+Running a books folder for real: the one `npx dbu6 init` made, with dbu6
+installed in its `node_modules`. This document is for that folder, not for
+dbu6's repository; working on dbu6 itself is [DEVELOPMENT.md](./DEVELOPMENT.md).
 
-Three production-valid deployment shapes. The code is identical; only SPA/API location and the browser's path to the API differ, so promotion needs no rewrite.
+## The shape
 
-- **(a) Single process** — one Hono process serves SPA and API on one port, via `pnpm start` by default.
-- **(b) Reverse proxy** — nginx/Caddy serves the SPA and proxies `/api/` to Hono, appearing same-origin to the browser.
-- **(c) Split topology** — SPA on a CDN, API on a separate host, cross-origin.
+One process serves the web app and its API on one port: `dbu6 start`. It
+migrates the database safely if anything is pending, builds the project's web
+app when the project has reports or a `frontend.tsx` and that build is stale,
+and then listens. The browser loads the app from that port and its API calls
+are relative (`/api/...`), so nothing about the API's location is configured
+in the frontend.
 
-Start with (a) unless you have a reason not to.
+Anything in front of it (nginx, Caddy, a platform's router, a load balancer)
+proxies one public origin to that port, for TLS and the rest. The proxy does
+not change the browser contract: `/` and `/api/*` still share one origin.
+Serving the SPA from a CDN on another origin than the API is not covered: the
+prebuilt app calls `/api` relatively, and a project without reports is served
+that prebuilt app.
 
-The generated `Dockerfile` implements shape (a): the image contains both
-`packages/api/dist/` and `packages/frontend/dist/`, then runs
-`node packages/api/dist/boot.js`. Hono serves `/api/*` and the built SPA from
-the same container port. There is no nginx/Caddy proxy inside the image; any
-proxy is outside the container for TLS, routing, or load balancing.
-
-## Same-origin vs. cross-origin
-
-The shapes split on one question: does the browser see the SPA and API on the same origin?
-
-- (a) and (b) are same-origin; they differ only in who serves the static assets (Hono or a proxy), which the browser can't see.
-- (c) is cross-origin.
-
-Same-origin means:
-
-- **No frontend env var for the API location** — relative `fetch("/api/foo")` works.
-- **No cross-origin API URL** — the browser does not need to know a separate API host.
-
-Shape (c) loses both; its extra configuration follows from that.
-
-## Environment files
-
-`sapporta init` creates two env files:
-
-- `.env.development` — loaded by `pnpm dev` with Node's built-in `--env-file`.
-  It contains local-only values, including a generated `BETTER_AUTH_SECRET`.
-- `.env.production.example` — placeholder production values. Copy the values
-  into your deployment environment; `pnpm start` does not load development env.
-
-`SAPPORTA_API_PORT` is the explicit application setting for the Hono listener.
-If it is absent, Sapporta accepts the conventional `PORT` value assigned by
-managed hosting platforms. The API defaults to `3000` when neither is set. If
-both variables are present, they must contain the same port so deployment
-configuration cannot silently disagree.
-
-`SAPPORTA_PUBLIC_APP_URL` is the public browser-facing app origin. Sapporta
-uses it as Better Auth's public base URL and as the server-owned return URL for
-auth emails. It must be an origin only, such as `https://app.example.com`, and
-`/api/auth/*` must be reachable from that origin.
-
-`SAPPORTA_FRONTEND_ORIGINS` is the list of browser origins allowed to make
-credentialed API/auth requests in addition to `SAPPORTA_PUBLIC_APP_URL`.
-
-In development, set `SAPPORTA_PUBLIC_APP_URL` to the Vite frontend-server origin
-and `SAPPORTA_FRONTEND_PORT` to the same port. Vite proxies `/api/*` to Hono, so
-auth links like `/api/auth/verify-email` work from the public dev origin. Set
-`SAPPORTA_FRONTEND_ORIGINS` only when you need additional browser origins.
-
-`VITE_API_URL` is different: it is baked into the browser bundle only when the
-SPA and API are deployed to different origins. It is not used in development or
-same-origin production.
-
-`SAPPORTA_API_URL` belongs to API clients such as the Sapporta CLI and
-automation. Set it in the client process, or pass `--api-url` for one command.
-The running application does not read it to choose its own port; that is the
-role of `SAPPORTA_API_PORT` or its hosting-compatible `PORT` fallback.
-
-## The `serveStatic` block
-
-`packages/api/boot.ts` serves `packages/frontend/dist/` with an SPA fallback for deep links. Its role shifts by shape:
-
-- **(a):** active — the mechanism that lets one Hono process answer both HTML and API.
-- **(b):** inert (the proxy intercepts static requests first), but **keep it** so `pnpm start` alone still works for prod smoke tests, proxy-less Docker images, etc.
-- **(c):** dead code — **delete it**; leaving it obscures what the API process does.
-
-## Shape (a) — Single process (default)
-
-One Hono process serves `/api/*` and the built SPA on a single
-`SAPPORTA_API_PORT`; no proxy in front.
+## Before the first start
 
 ```bash
-pnpm build                 # tsc → packages/api/dist/, vite build → packages/frontend/dist/
-export SAPPORTA_DATA_DIR=/srv/dbu6/data  # an existing directory
-pnpm --filter ./packages/api exec drizzle-kit migrate
-SAPPORTA_API_PORT=3000 pnpm start  # node packages/api/dist/boot.js
+npx dbu6 init my-books      # or the folder you already keep
+cd my-books
 ```
 
-Run Drizzle Kit directly here, not `pnpm db:migrate`: the `pnpm db:*` scripts
-load `.env.development`. Run the migration in the same environment as
-`pnpm start`, so both use the database in the same `SAPPORTA_DATA_DIR`.
+`init` wrote `.env` from the template with a generated `BETTER_AUTH_SECRET`
+and local defaults. For a server, set the values that differ:
 
-The browser loads the SPA from `http://your-host:3000/`, and its relative `fetch("/api/foo")` calls hit the same process.
+```sh
+# .env
+SAPPORTA_API_PORT=3000
+SAPPORTA_PUBLIC_APP_URL=https://books.example.com   # the origin the browser uses
+BETTER_AUTH_SECRET=...                               # keep the generated one
+SAPPORTA_REQUIRE_VERIFIED_EMAIL=true
+SAPPORTA_HEALTH_POLICY=authenticated
+SAPPORTA_MAIL_TRANSPORT=smtp
+SAPPORTA_MAIL_FROM="dbu6 <no-reply@books.example.com>"
+SMTP_URL=smtps://user:pass@smtp.example.com:465
+```
 
-- **Good for:** personal projects, small/medium deployments, Fly.io, Railway, a VPS, a single Docker container.
-- **Trade-off:** SPA and API tiers scale together. Rarely an issue; if it becomes one, promote to (b) or (c).
+A value already in the environment wins over `.env`, so a systemd unit, a
+container or a platform can set everything and the file can be absent. `.env`
+is gitignored; never commit it.
 
-### Docker image
-
-Scaffolded projects include a production `Dockerfile` for this same-origin
-shape. It builds the shared package, API, and frontend, installs production
-dependencies, copies the built SPA into `packages/frontend/dist/`, exposes
-port `3000`, and health-checks `/api/openapi.json`. At runtime the image accepts
-either `SAPPORTA_API_PORT` or the conventional `PORT` assigned by a host.
+Then:
 
 ```bash
-docker build -t dbu6 .
-docker run --rm -p 3000:3000 -v dbu6-data:/app/data dbu6
+npx dbu6 check              # tools, migrations, config, and the project's own code
+npx dbu6 start
 ```
 
-Then open `http://localhost:3000/`. The SPA and API are same-origin: browser
-requests to `/api/*` go to the Hono process in the same container. `VITE_API_URL`
-is not needed for this Docker shape.
+`check` says whether `uv` and `pdftotext` are installed (statement imports
+need them), whether better-sqlite3's native binding loads, and whether
+`user-config/` parses. `start` stays in the foreground; run it under systemd,
+a process manager or the container below. It handles `SIGINT` and `SIGTERM`:
+in-flight requests drain, the database is closed, then the process exits.
 
-The image has no coding agent in it, so a container has no automatic
-categorization, Settings says no coding agent was found, and the app offers
-only **Copy prompt** for the prompts it gives your coding agent. The deprecated
-Nuabase gateway still categorizes there: set `LLM_ENGINE=nuabase` and
-`NUABASE_API_KEY`.
+## The database, and backups
 
-Keep `/app/data` on a named volume or bind mount. Without that volume, SQLite
-data is tied to the container filesystem and disappears when the container is
-replaced.
+The books are `data/sqlite.db` under the project folder (or under
+`SAPPORTA_DATA_DIR`, absolute or relative to the folder, if set). It must be
+on a persistent filesystem: not `/tmp`, not a container's own filesystem.
 
-If you put nginx, Caddy, a platform router, or a load balancer in front of the
-container, proxy the public origin to the container port. That external proxy
-does not change the browser contract: `/` and `/api/*` still share one public
-origin, so frontend API calls remain relative.
+**dbu6 keeps no backups.** There is one `sqlite.db` and no other copy,
+anywhere: no backup retention, no copy outside the project, no `restore`
+command. The one copy dbu6 ever makes is `migrateSafely`'s, beside the
+database while a migration runs (`data/sqlite.db.migrating`), and it is gone
+when the command returns, whichever way it went: the verified copy takes the
+original's place, or the copy is deleted and the original is untouched.
 
-## Shape (b) — Reverse proxy (nginx, Caddy, etc.)
+Copying `data/` somewhere safe is therefore your job. SQLite gives a
+consistent snapshot even while dbu6 is writing:
 
-A reverse proxy serves `packages/frontend/dist/` directly and proxies `/api/`
-to Hono (still run via `SAPPORTA_API_PORT=3000 pnpm start`).
+```bash
+sqlite3 data/sqlite.db ".backup /backups/sqlite-$(date +%F).db"
+```
+
+Run it on a schedule and keep the copies off the machine. `user-config/`,
+your parsers and reports are in the folder's git repository; push it.
+
+## Upgrading
+
+```bash
+npx dbu6 upgrade            # to the latest version, or: npx dbu6 upgrade 1.4.0
+```
+
+`upgrade` moves the pin in `package.json`, runs `npm install`, prints the
+upgrade notes of every version between the old one and the new one (what a
+coding agent has to do about the release, when anything), migrates the
+database safely, then runs `check`. If the migration does not verify, the
+project is put back on the version it was on, reinstalled, and the database is
+as it was; the message says which migration and which figures. If `check`
+reports something, `upgrade` exits non-zero and the report says what to fix:
+a report or `dbu6.config.ts` that no longer typechecks, a parser test that
+fails. A coding agent is the intended reader of both.
+
+Back up `data/` before an upgrade all the same: the migration is verified
+against the ledger's figures, and a backup is what covers everything else.
+
+Restart `dbu6 start` afterwards; the running process is the old version.
+
+## The Dockerfile
+
+`init` put a `Dockerfile` and a `.dockerignore` in the folder. The image is
+built from the folder, so it holds this project: its `user-config/`, parsers,
+reports and optional files, with dbu6 installed by `npm ci` from the
+lockfile, and the project's web app built. It is unbuilt until dbu6 is on the
+registry.
+
+```bash
+docker build -t my-books .
+docker run -d --name my-books -p 3000:3000 \
+  -e BETTER_AUTH_SECRET="$(openssl rand -base64 32)" \
+  -e SAPPORTA_PUBLIC_APP_URL=http://localhost:3000 \
+  -v my-books-data:/app/data \
+  my-books
+```
+
+- The image has no `.env` (`.dockerignore` keeps it out), so the container's
+  environment configures dbu6. `BETTER_AUTH_SECRET` and
+  `SAPPORTA_PUBLIC_APP_URL` are required; the rest is the table below. The
+  port is `SAPPORTA_API_PORT`, or a platform's `PORT`, or 3000.
+- `/app/data` must be a volume, named or a bind mount, or the books vanish
+  with the container. A bind-mounted directory must be owned by uid 1000
+  (the image's `node` user). Back it up the same way as above, from the host.
+- `user-config/` is part of the image, so changing a mapping rule or a preset
+  is a rebuild. To edit it in place, bind-mount the folder:
+  `-v "$PWD/user-config":/app/user-config`.
+- Statement imports work: the image has `uv`, `python3` and `pdftotext`.
+  There is no coding agent in it, so nothing is categorized automatically,
+  Settings says no agent was found, and the app offers only **Copy prompt**
+  for the prompts it writes. The deprecated Nuabase gateway still categorizes
+  there: set `LLM_ENGINE=nuabase` and `NUABASE_API_KEY`.
+- The health check hits `/health` and treats any HTTP reply below 500 as
+  healthy, so it holds under every `SAPPORTA_HEALTH_POLICY`.
+- Upgrading is `npx dbu6 upgrade` in the folder, commit, rebuild the image,
+  replace the container; `start` in the new container migrates the volume's
+  database safely on its first run.
+
+## Environment variables
+
+| Variable | Purpose |
+| --- | --- |
+| `SAPPORTA_API_PORT` | The port dbu6 listens on. `PORT` is accepted instead, for platforms that assign one; if both are set they must agree. Default 3000. |
+| `SAPPORTA_PUBLIC_APP_URL` | The origin the browser uses, such as `https://books.example.com`. Auth cookies, email links and the default trusted origin come from it. Required. |
+| `SAPPORTA_FRONTEND_ORIGINS` | Extra browser origins allowed to make credentialed requests. Only when something other than the public origin serves the app. |
+| `SAPPORTA_FRONTEND_PORT` | Only `dbu6 dev`, in a project with reports or a `frontend.tsx`: the port the screens are served on with hot reload. |
+| `SAPPORTA_DATA_DIR` | The directory holding `sqlite.db`: absolute, or relative to the project folder. Default `data/`. |
+| `BETTER_AUTH_SECRET` | Signs session cookies. Generated by `init`; changing it signs everyone out. Required. |
+| `SAPPORTA_REQUIRE_VERIFIED_EMAIL` | Whether sign-up needs a verified email. `false` locally, `true` on a server with mail set up. |
+| `SAPPORTA_HEALTH_POLICY` | Who may read `/health`: `public`, `authenticated` or `disabled`. |
+| `SAPPORTA_MAIL_TRANSPORT` | `stream` prints outgoing mail to the terminal; `smtp` sends it; `disabled`. |
+| `SAPPORTA_MAIL_FROM` | The sender of verification and reset mail, on a domain your SMTP provider will send for. |
+| `SMTP_URL`, or `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | The SMTP connection, when the transport is `smtp`. `SMTP_URL` wins when both are given. |
+| `LLM_ENGINE`, `NUABASE_API_KEY` | Deprecated: categorize on the Nuabase gateway instead of a coding agent on the machine. |
+| `SAPPORTA_API_URL`, `SAPPORTA_API_TOKEN` | Not read by the server: they point the `sapporta` CLI and a coding agent at a running dbu6 (`npx dbu6 docs books`). |
+
+## A reverse proxy
+
+nginx, for one origin proxied to the process:
 
 ```nginx
 server {
-    listen 80;
-    server_name example.com;
-    root /var/www/dbu6/packages/frontend/dist;
+    listen 443 ssl;
+    server_name books.example.com;
 
-    location /api/ {
+    location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /assets/ {
-        try_files $uri =404;
-        add_header Cache-Control "public, max-age=31536000, immutable";
-    }
-
-    location = /index.html {
-        add_header Cache-Control "no-cache";
-    }
-
-    location / {
-        try_files $uri /index.html;   # SPA fallback for deep links
-        add_header Cache-Control "no-cache";
+        client_max_body_size 50m;   # statement uploads
     }
 }
 ```
 
-`/assets/*` is safe to cache immutably because Vite writes content hashes into
-asset filenames. `index.html` must revalidate because it points at the latest
-hashed JS and CSS files for the current deployment.
-
-- **Good for:** multi-site hosts, TLS via Let's Encrypt, HTTP/2, asset cache headers, gzip/brotli, standard ops hygiene.
-- **Trade-off:** extra config surface, but stock nginx carries over to any project.
-
-## Shape (c) — Split topology: SPA on a CDN, API on its own host
-
-The SPA ships to a CDN (Cloudflare Pages, Netlify, Vercel, S3 + CloudFront, …) and the Hono API runs on a separate host — e.g. `https://app.example.com` for the SPA and `https://api.example.com` for the API.
-
-### 1. Public app origin and trusted origins
-
-Set `SAPPORTA_PUBLIC_APP_URL` on the API server:
-
-```env
-SAPPORTA_PUBLIC_APP_URL=https://app.example.com
-```
-
-Sapporta includes that origin in Better Auth `trustedOrigins` and uses it for
-verification/reset email return URLs. Set `SAPPORTA_FRONTEND_ORIGINS` only for
-additional browser origins:
-
-```env
-SAPPORTA_FRONTEND_ORIGINS=https://preview.example.com
-```
-
-Sapporta's generated `boot.ts` installs exact-origin credentialed CORS and passes
-the public origin plus any extra origins to Better Auth as `trustedOrigins`.
-
-### 2. Absolute backend URL baked into the SPA
-
-Relative requests would hit the CDN and 404. Set `VITE_API_URL` in `packages/frontend/.env.production`:
-
-```
-VITE_API_URL=https://api.example.com
-```
-
-That's the only change needed in the SPA — application code is untouched. `@sapporta/frontend` reads `VITE_API_URL` at build time and exposes `${VITE_API_URL}/api` via `getApiBase()`; both the framework's `uiClient` and your project's client (`createApiClient(yourContract, { baseUrl: getApiBase })` in `packages/frontend/src/api.ts`) take `getApiBase` as their `baseUrl`, so every typed call becomes absolute automatically. Dev mode keeps using relative URLs through Vite's proxy (`packages/frontend/vite.config.ts`), so only the production bundle is affected.
-
-Only `VITE_`-prefixed env vars reach the client bundle — Vite's rule. Don't smuggle secrets through `VITE_*`; they ship in the JS.
-
-### 3. Route auth callbacks from the public origin
-
-Auth email links are generated on `SAPPORTA_PUBLIC_APP_URL`, for example
-`https://app.example.com/api/auth/verify-email`. In split topology, configure
-the CDN or frontend host to proxy `/api/auth/*` to the API host. This keeps
-email links and post-verification redirects on the app's public origin while the
-SPA can still call the full API at `VITE_API_URL`.
-
-### 4. Delete the `serveStatic` block
-
-Dead code in this shape (see the `serveStatic` section).
-
-### 5. Deploy in two halves
-
-- **SPA:** `vite build` → `packages/frontend/dist/`. Upload to the CDN and configure an SPA fallback (`/* → /index.html`) so React Router handles deep links on hard reload.
-- **API:** `tsc` → `packages/api/dist/`. Run `node packages/api/dist/boot.js` with `SAPPORTA_API_PORT`, `BETTER_AUTH_SECRET`, `SAPPORTA_PUBLIC_APP_URL`, and any extra `SAPPORTA_FRONTEND_ORIGINS` set.
-
-Fit:
-
-- **Good for:** global CDN delivery of the SPA, independent scaling of the static and API tiers, edge caching, separate frontend and backend deploy cadences.
-- **Trade-offs:** the most moving parts, and CORS misconfiguration is the single most common failure mode. Cookie-based auth gets awkward — `SameSite=None`, `Secure`, and matching origin lists are mandatory and strictly enforced. If you're not sure you need this shape, don't start here.
-
-## Environment variables, by shape
-
-| Variable                          | Read from            | Dev | (a)      | (b)      | (c)      | Purpose                                                                       |
-| --------------------------------- | -------------------- | --- | -------- | -------- | -------- | ----------------------------------------------------------------------------- |
-| `SAPPORTA_API_PORT`               | API host process env | yes | yes      | yes      | yes      | Port Hono binds to. Defaults to `3000`.                                       |
-| `PORT`                            | API host process env | —   | yes      | yes      | yes      | Hosting-platform fallback when `SAPPORTA_API_PORT` is absent.                 |
-| `SAPPORTA_FRONTEND_PORT`          | Dev process env      | yes | —        | —        | —        | Vite frontend-server port. Match it to `SAPPORTA_PUBLIC_APP_URL` in dev.      |
-| `BETTER_AUTH_SECRET`              | API host process env | yes | yes      | yes      | yes      | Better Auth signing secret. Generated only for local development.             |
-| `SAPPORTA_PUBLIC_APP_URL`         | API host process env | yes | yes      | yes      | yes      | Public app origin used for Better Auth links, callbacks, and default trust.   |
-| `SAPPORTA_FRONTEND_ORIGINS`       | API host process env | yes | yes      | yes      | yes      | Extra browser origins trusted for credentialed API/auth requests.             |
-| `SAPPORTA_REQUIRE_VERIFIED_EMAIL` | API host process env | yes | optional | optional | optional | Whether email/password sign-up requires verified email.                       |
-| `SAPPORTA_HEALTH_POLICY`          | API host process env | yes | optional | optional | optional | Access policy for health endpoints: `public`, `authenticated`, or `disabled`. |
-| `SAPPORTA_MAIL_TRANSPORT`         | API host process env | yes | yes      | yes      | yes      | Mail transport: `stream`, `smtp`, or `disabled`.                              |
-| `SAPPORTA_MAIL_FROM`              | API host process env | yes | yes      | yes      | yes      | Default sender address for Better Auth and custom app emails.                 |
-| `SMTP_URL`                        | API host process env | —   | optional | optional | optional | SMTP connection URL. Takes precedence over individual SMTP fields.            |
-| `SMTP_HOST`                       | API host process env | —   | optional | optional | optional | SMTP host when `SMTP_URL` is not set and mail transport is `smtp`.            |
-| `SMTP_PORT`                       | API host process env | —   | optional | optional | optional | SMTP port when `SMTP_URL` is not set and mail transport is `smtp`.            |
-| `SMTP_SECURE`                     | API host process env | —   | optional | optional | optional | Whether SMTP uses TLS from connection start. Must be `true` or `false`.       |
-| `SMTP_USER`                       | API host process env | —   | optional | optional | optional | SMTP username.                                                                |
-| `SMTP_PASS`                       | API host process env | —   | optional | optional | optional | SMTP password.                                                                |
-| `VITE_API_URL`                    | Frontend build env   | —   | —        | —        | yes      | Absolute API origin inlined into the SPA bundle for split deployments.        |
-
-### Email delivery
-
-Generated projects use Nodemailer from `packages/api/mailer.ts`. The development
-default is `SAPPORTA_MAIL_TRANSPORT=stream`, which does not deliver mail. It
-logs the complete generated email source to the API console for every message,
-including Better Auth verification/reset emails and custom app emails.
-
-Production should use `SAPPORTA_MAIL_TRANSPORT=smtp` with `SAPPORTA_MAIL_FROM`
-set to an address on a verified sending domain. Configure either `SMTP_URL` or
-the individual `SMTP_*` fields. Most providers expose SMTP settings; if you want
-a provider-specific SDK, edit `packages/api/mailer.ts` in the generated project.
-
-## Operational concerns (shape-independent)
-
-### Database persistence
-
-`better-sqlite3` stores the database as `sqlite.db` in the directory named by `SAPPORTA_DATA_DIR` (absolute, or relative to the project root; no default). The Docker image sets it to `/app/data`. In production that directory **must** be on a persistent volume, or the database vanishes on every restart — the single most common deployment bug.
-
-- **Docker:** named volume or bind mount at the data directory.
-- **systemd on a VPS:** the default filesystem is already persistent; just don't place the project under `/tmp` or a tmpfs mount.
-- **Fly.io / Railway / similar:** attach a persistent volume and point the project root at it.
-
-Back up out-of-band (e.g. `sqlite3 db.sqlite .backup /backups/db-$(date +%F).sqlite`, synced to object storage); SQLite gives a consistent snapshot even while Hono is writing.
-
-### Graceful shutdown
-
-`packages/api/boot.ts` handles `SIGINT` and `SIGTERM`: it closes the HTTP server and the SQLite connection, then re-raises the signal so the process exits with the right status. Docker's stop signal, systemd's `ExecStop`, and `Ctrl-C` all drain in-flight requests cleanly — nothing to change.
+Set `SAPPORTA_PUBLIC_APP_URL` to the proxy's origin. dbu6 serves its own
+static files with the right cache headers, so there is nothing to serve from
+disk.
