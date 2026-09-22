@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { applyNextMigration } from "./migrate-safely.js";
-import { dbu6MigrationsDir } from "./runtime.js";
+import { dbu6MigrationsDir } from "./paths.js";
 
 /** The migration that creates accounts, journals, entries and drafts. */
 export const FIRST_LEDGER_MIGRATION = "0001_organic_menace";

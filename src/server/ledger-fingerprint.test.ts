@@ -11,7 +11,7 @@ import {
   migrateUpTo,
   seedBooksAtFirstLedgerSchema,
 } from "./migrations.test.support.js";
-import { dbu6MigrationsDir } from "./runtime.js";
+import { dbu6MigrationsDir } from "./paths.js";
 
 function seededBooks(): Database.Database {
   const sqlite = new Database(":memory:");

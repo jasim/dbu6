@@ -165,6 +165,7 @@ export {
 } from "./context.js";
 export {
   readProjectAuthEnv,
+  resolveApiPort,
   type MailTransportKind,
   type ProjectAuthEnv,
   type ProjectMailConfig,

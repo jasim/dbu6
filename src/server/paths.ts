@@ -28,18 +28,32 @@ export function projectRoot(): string {
   return configured ? resolve(configured) : sapportaProjectRoot();
 }
 
-/**
- * The directory that holds `sqlite.db`. While SAPPORTA_DATA_DIR is set it
- * names the database's directory instead, for Drizzle Kit and the scripts
- * that read it; `runtime.ts` decides between the two.
- */
+/** The project's `data/`. `databaseFile` looks elsewhere while SAPPORTA_DATA_DIR is set. */
 export function dataDir(root: string = projectRoot()): string {
   return join(root, "data");
 }
 
+/**
+ * `sqlite.db` in the project's `data/`, or in SAPPORTA_DATA_DIR when that is
+ * set, because Drizzle Kit reads the same variable and every tool must open
+ * the same database. A relative SAPPORTA_DATA_DIR is resolved against `root`,
+ * which is what Sapporta means by it too; never against the checkout the
+ * running `dbu6` came from, which may hold someone's real books.
+ */
+export function databaseFile(root: string): string {
+  const configured = process.env.SAPPORTA_DATA_DIR;
+  const dir = configured ? resolve(root, configured) : dataDir(root);
+  return join(dir, "sqlite.db");
+}
+
+/** Our Drizzle migrations, which ship in the package. */
+export function dbu6MigrationsDir(): string {
+  return packageDir("migrations");
+}
+
 /** Where transaction_mappings.mjs, the prompts, and import-presets.json live. */
-export function userConfigDir(): string {
-  return join(projectRoot(), "user-config");
+export function userConfigDir(root: string = projectRoot()): string {
+  return join(root, "user-config");
 }
 
 export function userConfigPath(...segments: string[]): string {
@@ -47,8 +61,8 @@ export function userConfigPath(...segments: string[]): string {
 }
 
 /** The user's reports, one folder each. */
-export function reportsDir(): string {
-  return join(projectRoot(), "reports");
+export function reportsDir(root: string = projectRoot()): string {
+  return join(root, "reports");
 }
 
 /**

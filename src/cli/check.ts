@@ -38,13 +38,14 @@ import {
   readImportPresets,
 } from "../server/modules/statement-sources/index.js";
 import {
+  databaseFile,
+  dbu6MigrationsDir,
   packageDir,
   packageParsersDir,
   parserRoots,
   reportsDir,
   userConfigDir,
 } from "../server/paths.js";
-import { databaseFile, dbu6MigrationsDir } from "../server/runtime.js";
 import { tryBuildingFrontend } from "./frontend.js";
 import {
   projectParserTests,
@@ -254,7 +255,7 @@ export async function checkTypes(root: string): Promise<CheckLine[]> {
 
 export async function checkReports(root: string): Promise<CheckLine[]> {
   const lines: CheckLine[] = [];
-  const dir = reportsDir();
+  const dir = reportsDir(root);
   const folders = existsSync(dir)
     ? readdirSync(dir, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))

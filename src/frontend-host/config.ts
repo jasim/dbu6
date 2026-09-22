@@ -19,6 +19,11 @@ export {
 // dist/frontend-host/config.js -> the package directory.
 export const packageDir = path.resolve(import.meta.dirname, "../..");
 
+/** Where a project's own build of the web app goes. */
+export function projectAppDir(projectRoot: string): string {
+  return path.join(projectRoot, "dist/app");
+}
+
 export interface HostConfigOptions {
   projectRoot: string;
   apiPort?: number;
@@ -77,7 +82,7 @@ export function createHostViteConfig({
       proxy: { "/api": `http://localhost:${apiPort}` },
     },
     build: {
-      outDir: path.join(projectRoot, "dist/app"),
+      outDir: projectAppDir(projectRoot),
       emptyOutDir: true,
       rollupOptions: {
         output: {

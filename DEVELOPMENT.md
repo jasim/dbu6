@@ -371,7 +371,7 @@ sits above the rest of the Node side: it alone may import both `src/server` and
 | `serve [--no-frontend]` | serve only; what `dev` runs under `node --watch`. Refuses pending migrations |
 | `build` | build the project's web app into `<root>/dist/app` |
 | `migrate` | `migrateSafely` alone |
-| `upgrade [version]` | pin, `npm install`, print `docs/upgrade-notes/` between the versions, then the new version's `migrate` and `check`; restores `package.json` and the lockfile and reinstalls if the migration fails |
+| `upgrade [version]` | refuses a version older than the installed one; otherwise pin, `npm install`, print `docs/upgrade-notes/` between the versions, then the new version's `migrate` and `check`; restores `package.json` and the lockfile and reinstalls if the migration fails |
 | `check` | everything an upgrade can break, in one report; exit 1 when a line fails, and nothing is changed. See [`dbu6 check`](#dbu6-check) |
 | `setup` | the env file, an auth secret, `user-config/` |
 | `seed [date] [--statements <dir>]` | sample data for the demo account |
@@ -426,13 +426,13 @@ built, tested and understood without anything above it. Lowest first:
 
 | Tier | Where | Modules | Owns | Must not contain |
 | --- | --- | --- | --- | --- |
-| 0 | `schema/`, `paths.ts`, `modules/ledger-sql/` | schema, paths, ledger-sql | Tables; where everything is, in the project and in the package; row scoping for raw SQL, built from Sapporta's `rowSecurity`, and the auth type every store takes | Domain queries; a hand-written workspace/user filter |
+| 0 | `schema/`, `paths.ts`, `data-lock.ts`, `modules/ledger-sql/` | schema, paths, data-lock, ledger-sql | Tables; where everything is, in the project and in the package, the database file included; the data folder's lock; row scoping for raw SQL, built from Sapporta's `rowSecurity`, and the auth type every store takes | Domain queries; a hand-written workspace/user filter |
 | 1 | `modules/values/` | values | Money and its direction, amounts in paise and when two are the same, Account, Chrono, the text normalization transaction identity uses | I/O, statements, ledger tables |
 | 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
 | 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into a ledger account id, the same-account rule included; the Google Pay Takeout index and enrichment; transaction groups, the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan | Database access, coding-agent names, route concepts |
 | 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent | Accounts as the stores and screens look them up; posted journals, writing them from a plan, and the last reconciled checkpoint; matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter; draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status. The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
 | 5 | `workflows/` | statement-import, posting, reclassification | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
-| 6 | `app/`, `runtime.ts`, `mount.ts`, `open.ts` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting | Queries or rules another module needs |
+| 6 | `app/`, `runtime.ts`, `mount.ts`, `open.ts`, `config.ts`, `project-reports.ts`, `route-collisions.ts`, `report-kit.ts`, `index.ts`, `seed/` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting; the project's reports and `dbu6.config.ts`; the promised exports; sample data | Queries or rules another module needs |
 
 - Only tier 4 orders its modules (accounts < journals < reconciliation <
   drafts). Tier 3 modules never import each other, and neither do workflows: a
@@ -450,7 +450,13 @@ built, tested and understood without anything above it. Lowest first:
   dbu6 keeps them in `workflows/`, a tier of their own, on purpose; don't move
   them into `modules/`.
 
-Every file is in its tier ([PLAN.md](./PLAN.md) reshapes what remains). Each
+Beside the tiers, `migrate-safely.ts` and `ledger-fingerprint.ts` are the
+database's upgrade. They import only `paths.ts`, `data-lock.ts` and Sapporta,
+and read the ledger's tables with SQL of their own, because a fingerprint must
+read every schema a database has had.
+
+Every file is in its tier. No test checks it, so a new file gets its place in
+this table when it is added. Each
 module in `modules/<name>/` is imported through its `index.ts`: `ledger-sql`,
 `values`, `statement`; in tier 3 `transaction-identity`, `categorization`,
 `gpay`, `journal-plan` and `statement-sources`; and in tier 4 `accounts`,
@@ -505,14 +511,16 @@ clone layout:
 
 `src/server/paths.ts` is the one module that knows where things are, and no
 other file joins a path onto a root. What is the user's comes from the project
-root (`userConfigDir()`, `userConfigPath()`, `dataDir()`, `reportsDir()`,
-`uploadStagingDir()`); what is ours comes from the package directory
+root (`userConfigDir()`, `userConfigPath()`, `dataDir()`, `databaseFile()`,
+`reportsDir()`, `uploadStagingDir()`); what is ours comes from the package directory
 (`packageDir(...)`), found by walking up from `paths.ts` to the `package.json`
 named `dbu6`, never from the project root. `parserRoots()` is the user's
 `custom-built-parsers/` and then ours. In this repository the project root and
 the package directory are the same directory; in a user's project the package
 is under `node_modules`. `DBU6_ROOT` overrides the project root, which is how a
 test points it at a temporary directory (`vi.stubEnv("DBU6_ROOT", dir)`).
+`openDbu6Runtime(root)` refuses a `root` other than the one `DBU6_ROOT` names,
+because the functions above that take no root would read that other folder.
 
 ### transaction_mappings.mjs
 

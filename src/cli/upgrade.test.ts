@@ -151,6 +151,17 @@ describe("upgradeProject", () => {
   it("refuses a range", async () => {
     await expect(upgrade(runner(), "^1.2.0")).rejects.toThrow(/exact version/);
   });
+
+  it("refuses an older version, and changes nothing", async () => {
+    writeFileSync(join(root, "package.json"), manifestOf("1.2.0"));
+    installPinned();
+
+    await expect(upgrade(runner(), "1.1.0")).rejects.toThrow(
+      /1\.1\.0 is older than 1\.2\.0.*does not downgrade/,
+    );
+    expect(commands).toEqual([]);
+    expect(JSON.parse(read("package.json")).dependencies.dbu6).toBe("1.2.0");
+  });
 });
 
 describe("compareVersions", () => {

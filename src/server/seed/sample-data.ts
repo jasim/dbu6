@@ -31,6 +31,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { resolveApiPort } from "../project-auth/index.js";
 import { openDbu6Runtime } from "../runtime.js";
 
 const DEMO_ACCOUNT = { name: "Demo User", email: "demo@example.com", password: "demo-password" };
@@ -813,7 +814,7 @@ function commandLine(args) {
 
 /** Signs in to the demo account through the running API, creating it on the first run. */
 async function signInDemoAccount() {
-  const apiUrl = process.env.SAPPORTA_API_URL ?? `http://localhost:${process.env.SAPPORTA_API_PORT ?? 3000}`;
+  const apiUrl = process.env.SAPPORTA_API_URL ?? `http://localhost:${resolveApiPort(process.env)}`;
   const appOrigin = process.env.SAPPORTA_PUBLIC_APP_URL ?? apiUrl;
   if (!(await fetch(`${apiUrl}/health`).catch(() => null))) {
     throw new Error(`The API is not reachable at ${apiUrl}. Start it with dbu6 dev, or dbu6 start.`);

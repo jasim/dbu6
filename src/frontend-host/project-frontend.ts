@@ -6,6 +6,7 @@ import {
   createHostViteConfig,
   packageDir,
   PROJECT_FRONTEND_GLOBS,
+  projectAppDir,
 } from "./config.js";
 
 /*
@@ -44,6 +45,8 @@ export interface ProjectFrontend {
   stale: boolean;
   /** The directory to serve: `<root>/dist/app`, or the package's. */
   appDir: string;
+  /** The report definitions and frontend.tsx the entry loads, sorted. */
+  entries: string[];
 }
 
 /** Reads the project; builds nothing. */
@@ -54,10 +57,11 @@ export function projectFrontend(root: string): ProjectFrontend {
       needsBuild: false,
       stale: false,
       appDir: path.join(packageDir, "dist/app"),
+      entries,
     };
   }
   const appDir = projectAppDir(root);
-  return { needsBuild: true, stale: isStale(root, entries), appDir };
+  return { needsBuild: true, stale: isStale(root, entries), appDir, entries };
 }
 
 /**
@@ -100,7 +104,7 @@ export async function buildProjectFrontend(
   }
   const written: BuildRecord = {
     dbu6: dbu6Fingerprint(),
-    entries: entryFiles(root),
+    entries: before.entries,
     files,
   };
   fs.writeFileSync(
@@ -108,10 +112,6 @@ export async function buildProjectFrontend(
     JSON.stringify(written, null, 2) + "\n",
   );
   return { ...before, stale: false, built: true };
-}
-
-function projectAppDir(root: string): string {
-  return path.join(root, "dist/app");
 }
 
 function entryFiles(root: string): string[] {

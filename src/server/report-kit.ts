@@ -6,7 +6,7 @@
 // Our own reports import this module and no other in src/
 // (scripts/import-boundaries.test.mjs); if one of ours needs something, a
 // user's will, and it becomes an export here. They import this file rather
-// than index.ts because index.ts also exports the application, which imports
+// than index.ts because index.ts also exports `mountApi`, whose module mounts
 // the reports: through this module there is no cycle, whichever module Node
 // starts from. Keep it free of anything that imports a report.
 

@@ -11,11 +11,11 @@
  * `root`. What is ours, the compiled tables and the migrations, comes from the
  * package, so a project that holds no code of ours still opens.
  */
-import { join } from "node:path";
+import { resolve } from "node:path";
 import {
   connectProject,
-  databasePath,
   loadSapportaProject,
+  pendingMigrations,
   setProjectRoot,
   type ProjectDbConnection,
   type SapportaProject,
@@ -27,7 +27,7 @@ import {
   loadCategorizer as loadOurCategorizer,
   type LoadCategorizer,
 } from "./modules/categorization/index.js";
-import { dataDir, packageDir } from "./paths.js";
+import { databaseFile, dbu6MigrationsDir, projectRoot } from "./paths.js";
 import {
   createProjectAuth,
   readProjectAuthEnv,
@@ -77,22 +77,6 @@ export interface Dbu6Runtime {
   close: () => void;
 }
 
-/** Our Drizzle migrations, which ship in the package. */
-export function dbu6MigrationsDir(): string {
-  return packageDir("migrations");
-}
-
-/**
- * `sqlite.db` in the project's `data/`. SAPPORTA_DATA_DIR still names another
- * directory when it is set, because Drizzle Kit and `pnpm setup` read it and
- * every tool in this repository must open the same database.
- */
-export function databaseFile(root: string): string {
-  return process.env.SAPPORTA_DATA_DIR
-    ? databasePath()
-    : join(dataDir(root), "sqlite.db");
-}
-
 /**
  * Opens dbu6 on `root`. Throws when the database's migrations are not exactly
  * ours: this function never changes a schema.
@@ -102,47 +86,72 @@ export async function openDbu6Runtime(
 ): Promise<Dbu6Runtime> {
   const { root } = options;
   setProjectRoot(root);
+  // paths.ts answers from DBU6_ROOT while it is set, so a runtime on another
+  // folder would read that folder's config, parsers and reports.
+  if (projectRoot() !== resolve(root)) {
+    throw new Error(
+      `dbu6 was opened on ${root}, but DBU6_ROOT names ${projectRoot()}.`,
+    );
+  }
   const file = databaseFile(root);
   const conn = connectProject(file);
+  try {
+    const pending = pendingMigrations(conn.sqlite, dbu6MigrationsDir());
+    if (pending.length > 0) {
+      throw new Error(
+        [
+          `${file} has migrations this dbu6 has not applied:`,
+          ...pending.map((migration) => `  ${migration.tag}`),
+          "dbu6 does not serve a database whose migrations are not exactly its own. " +
+            "Run `dbu6 migrate`, or `dbu6 start`, which migrates safely before serving.",
+        ].join("\n"),
+      );
+    }
 
-  // The tables are the compiled `schema/` beside this file, and the migrations
-  // are the package's; neither is looked up under the project root.
-  const sapporta = await loadSapportaProject({
-    name: "dbu6",
-    slug: "dbu6",
-    projectRoot: root,
-    apiDistDir: import.meta.dirname,
-    migrationsDir: dbu6MigrationsDir(),
-    conn,
-  });
+    // The tables are the compiled `schema/` beside this file, and the
+    // migrations are the package's; neither is looked up under the project
+    // root. Sapporta's guard still refuses a database that has a migration
+    // this dbu6 does not have, or one whose file changed.
+    const sapporta = await loadSapportaProject({
+      name: "dbu6",
+      slug: "dbu6",
+      projectRoot: root,
+      apiDistDir: import.meta.dirname,
+      migrationsDir: dbu6MigrationsDir(),
+      conn,
+    });
 
-  const env = readProjectAuthEnv();
-  const mailer = createSapportaMailer(
-    options.sendMail === false
-      ? { from: env.mail.from, transport: "disabled" }
-      : env.mail,
-  );
-  // Auth needs the loaded table catalog so every request can apply row
-  // security before a handler reads or writes table-backed data.
-  const projectAuth = createProjectAuth({
-    conn,
-    env,
-    catalog: sapporta.catalog,
-    mailer,
-    buildAbility,
-    resolveRequestDataAuthority,
-    publicRoutes: options.publicRoutes,
-  });
+    const env = readProjectAuthEnv();
+    const mailer = createSapportaMailer(
+      options.sendMail === false
+        ? { from: env.mail.from, transport: "disabled" }
+        : env.mail,
+    );
+    // Auth needs the loaded table catalog so every request can apply row
+    // security before a handler reads or writes table-backed data.
+    const projectAuth = createProjectAuth({
+      conn,
+      env,
+      catalog: sapporta.catalog,
+      mailer,
+      buildAbility,
+      resolveRequestDataAuthority,
+      publicRoutes: options.publicRoutes,
+    });
 
-  return {
-    root,
-    databasePath: file,
-    conn,
-    sapporta,
-    env,
-    mailer,
-    projectAuth,
-    loadCategorizer: options.loadCategorizer ?? loadOurCategorizer,
-    close: () => conn.sqlite.close(),
-  };
+    return {
+      root,
+      databasePath: file,
+      conn,
+      sapporta,
+      env,
+      mailer,
+      projectAuth,
+      loadCategorizer: options.loadCategorizer ?? loadOurCategorizer,
+      close: () => conn.sqlite.close(),
+    };
+  } catch (error) {
+    conn.sqlite.close();
+    throw error;
+  }
 }

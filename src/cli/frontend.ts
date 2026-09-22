@@ -4,10 +4,11 @@
  * imported on demand because it brings Vite with it, and most commands never
  * need it.
  */
-import { globSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { packageDir } from "../server/paths.js";
+import { resolveApiPort } from "../server/project-auth/index.js";
 import { runsFromSource } from "./project.js";
 
 const frontendHost = () => import("../frontend-host/index.js");
@@ -50,10 +51,8 @@ export async function tryBuildingFrontend(
   root: string,
 ): Promise<string[] | null> {
   const host = await frontendHost();
-  if (!host.projectFrontend(root).needsBuild) return null;
-  const entries = Object.values(host.PROJECT_FRONTEND_GLOBS)
-    .flatMap((pattern) => globSync(pattern, { cwd: root }))
-    .sort();
+  const { needsBuild, entries } = host.projectFrontend(root);
+  if (!needsBuild) return null;
   const { build } = await import("vite");
   const config = host.createHostViteConfig({ projectRoot: root });
   const outDir = mkdtempSync(join(tmpdir(), "dbu6-check-build-"));
@@ -78,7 +77,7 @@ export async function startFrontendDevServer(root: string): Promise<boolean> {
   const host = await frontendHost();
   const ports = {
     port: integerEnv("SAPPORTA_FRONTEND_PORT", 5173),
-    apiPort: integerEnv("SAPPORTA_API_PORT", 3000),
+    apiPort: resolveApiPort(process.env),
   };
   if (runsFromSource()) {
     await host.startHostDevServer({

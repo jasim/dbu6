@@ -38,7 +38,7 @@ import {
   ledgerFingerprint,
   type FigureKind,
 } from "./ledger-fingerprint.js";
-import { databaseFile, dbu6MigrationsDir } from "./runtime.js";
+import { databaseFile, dbu6MigrationsDir } from "./paths.js";
 
 export type MigrateSafelyResult =
   | { status: "up-to-date" }

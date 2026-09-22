@@ -107,10 +107,10 @@ cpSync(
 writeFileSync(
   path.join(projectDir, "uses-dbu6.ts"),
   [
-    'import { openDbu6Runtime, type Dbu6Runtime } from "dbu6/server";',
+    'import { defineConfig, type Dbu6Config } from "dbu6/server";',
     'import { startDbu6Frontend } from "dbu6/frontend";',
     "",
-    "export const open: (options: { root: string }) => Promise<Dbu6Runtime> = openDbu6Runtime;",
+    "export const config: Dbu6Config = defineConfig({});",
     "export const start: () => void = startDbu6Frontend;",
     "",
   ].join("\n"),
@@ -124,7 +124,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const server = await import("dbu6/server");
-assert.equal(typeof server.openDbu6Runtime, "function");
+assert.equal(typeof server.defineConfig, "function");
+assert.equal(server.openDbu6, undefined, "the application is not exported");
 const frontend = await import("dbu6/frontend");
 assert.equal(typeof frontend.startDbu6Frontend, "function");
 
@@ -154,6 +155,7 @@ assert.deepEqual(host.projectFrontend(bare), {
   needsBuild: false,
   stale: false,
   appDir: path.join(packageDir, "dist/app"),
+  entries: [],
 });
 assert.ok(existsSync(path.join(packageDir, "dist/app/index.html")), "no prebuilt app");
 
@@ -161,6 +163,7 @@ assert.deepEqual(host.projectFrontend(root), {
   needsBuild: true,
   stale: true,
   appDir: path.join(root, "dist/app"),
+  entries: [path.join("reports", ${JSON.stringify(REPORT_ID)}, "report.ts")],
 });
 assert.equal((await host.buildProjectFrontend(root, { force: false })).built, true);
 assert.ok(existsSync("dist/app/index.html"), "the host wrote no dist/app/index.html");
