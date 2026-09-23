@@ -117,7 +117,7 @@ function RangeCalendarField({
         aria-label={`Custom range: ${span === null ? "none picked" : spanLabel(span)}`}
         className={cn(selectTriggerClassName, "w-auto justify-start gap-2.5")}
       >
-        <CalendarDays aria-hidden className="size-[18px] text-ink-meta" />
+        <CalendarDays aria-hidden className="size-4 text-ink-meta" />
         {span === null ? (
           <span className="text-ink-meta">Pick dates</span>
         ) : (
@@ -192,19 +192,19 @@ const RANGE_END_CLASS_NAME =
 const CALENDAR_CLASS_NAMES: Partial<ClassNames> = {
   root: "relative",
   months: "relative",
-  nav: "absolute inset-x-0 top-0 flex h-10 items-center justify-between",
+  nav: "absolute inset-x-0 top-0 flex h-8 items-center justify-between",
   button_previous:
-    "inline-flex size-10 items-center justify-center rounded-control text-ink-soft outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-disabled:opacity-40",
+    "inline-flex size-8 items-center justify-center rounded-control text-ink-soft outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-disabled:opacity-40",
   button_next:
-    "inline-flex size-10 items-center justify-center rounded-control text-ink-soft outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-disabled:opacity-40",
+    "inline-flex size-8 items-center justify-center rounded-control text-ink-soft outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-disabled:opacity-40",
   chevron: "size-4 fill-current",
-  month_caption: "flex h-10 items-center justify-center",
+  month_caption: "flex h-8 items-center justify-center",
   caption_label: "text-row font-semibold text-foreground",
   month_grid: "mt-2 border-separate border-spacing-0",
-  weekday: "size-10 text-meta font-normal text-ink-meta",
-  day: "size-10 p-0 text-center text-row",
+  weekday: "size-8 text-meta font-normal text-ink-meta",
+  day: "size-8 p-0 text-center text-row",
   day_button:
-    "tnum size-10 rounded-control text-foreground outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40",
+    "tnum size-8 rounded-control text-foreground outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40",
   today: "font-semibold not-data-selected:[&>button]:text-primary",
   outside: "[&>button]:text-waiting-marker",
   range_middle: "not-data-outside:bg-sap-brand-soft [&>button]:rounded-none",

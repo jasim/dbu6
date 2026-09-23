@@ -122,7 +122,7 @@ export function CategorizationNote({
   children?: ReactNode;
 }) {
   return (
-    <div className="space-y-0.5 rounded-control border border-attention-border bg-attention-bg px-4 py-3 text-attention-ink">
+    <div className="space-y-0.5 rounded-control border border-attention-border bg-attention-bg px-4 py-2 text-attention-ink">
       <p className="text-row font-semibold">{problem.text}.</p>
       <p className="text-meta [overflow-wrap:anywhere]">{problem.reason}</p>
       {children && <p className="text-meta">{children}</p>}

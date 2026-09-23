@@ -39,14 +39,14 @@ export function RenderDraftHledger() {
 
   return (
     <AppPage section="Advanced" title="Render Draft Hledger">
-      <div className="p-8 max-w-4xl space-y-6">
+      <div className="p-5 max-w-4xl space-y-4">
         <p className="text-body text-ink-soft">
           Pick a base account to render its current{" "}
           <code>draft_transactions</code> as an hledger journal. Reflects the
           latest state after any manual edits or reclassification.
         </p>
 
-        <div className="space-y-3 rounded-card border bg-card p-4">
+        <div className="space-y-3 rounded-card border bg-card p-3">
           <div className="space-y-1">
             <label
               htmlFor="render-draft-base-account"
@@ -68,7 +68,7 @@ export function RenderDraftHledger() {
         </div>
 
         {error && (
-          <div className="flex items-start gap-3 rounded-card border border-destructive/30 bg-destructive/10 p-4">
+          <div className="flex items-start gap-3 rounded-card border border-destructive/30 bg-destructive/10 p-3">
             <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
             <div className="text-row text-destructive break-words">{error}</div>
           </div>
@@ -82,7 +82,7 @@ export function RenderDraftHledger() {
         )}
 
         {result && !loading && (
-          <div className="rounded-card border bg-card p-4 space-y-3">
+          <div className="rounded-card border bg-card p-3 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-muted-foreground" />

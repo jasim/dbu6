@@ -26,7 +26,7 @@ export function Screen({
     <div className="flex-1 overflow-y-auto bg-sap-surface">
       <div
         className={cn(
-          "mx-auto px-5 py-8 sm:px-8 sm:py-10 lg:px-14",
+          "mx-auto px-4 py-5 sm:px-6 sm:py-6 lg:px-8",
           WIDTH[width],
         )}
       >

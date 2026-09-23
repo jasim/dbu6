@@ -142,8 +142,8 @@ all from `"dbu6/frontend"`:
 
 Style with Tailwind classes; dbu6's theme tokens work (`text-row`,
 `text-ink-meta`, `border-sap-border`, `bg-card`). Size a control with
-`h-sap-ctl` and a row with `min-h-sap-row`, not in pixels: they are 44px and
-48px on a touch screen, and 32px and 34px with a mouse. Classes are picked up
+`h-sap-ctl` and a row with `min-h-sap-row`, not in pixels: they are 38px and
+40px on a touch screen, and both 30px with a mouse. Classes are picked up
 from files under `reports/` and from `frontend.tsx`, so keep a screen's
 components inside its report folder.
 

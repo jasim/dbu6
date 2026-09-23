@@ -1,7 +1,10 @@
 import { Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { CreditCard, Landmark } from "lucide-react";
-import type { AutoImportGroupResult, AutoImportPlanFile } from "../../../shared/index";
+import type {
+  AutoImportGroupResult,
+  AutoImportPlanFile,
+} from "../../../shared/index";
 import { cn } from "@sapporta/ui/cn";
 import { AgentActions, PromptText } from "../../components/agent-prompt";
 import { Disclosure } from "../../components/disclosure";
@@ -98,18 +101,18 @@ function AccountResult({
   const Icon = summary.accountKind === "card" ? CreditCard : Landmark;
   return (
     <li className="overflow-hidden rounded-card border border-sap-border bg-card shadow-card">
-      <div className="flex items-center gap-3 border-b border-sap-border bg-sap-nested px-5 py-3 sm:px-6">
+      <div className="flex items-center gap-3 border-b border-sap-border bg-sap-nested px-4 py-2">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-sap-border bg-card text-ink-soft">
-          <Icon aria-hidden="true" className="size-[18px]" />
+          <Icon aria-hidden="true" className="size-4" />
         </span>
         <div className="min-w-0">
-          <h2 className="text-[16.5px] font-semibold text-foreground [overflow-wrap:anywhere]">
+          <h2 className="text-[14.5px] font-semibold text-foreground [overflow-wrap:anywhere]">
             {summary.title}
           </h2>
           <p className="text-meta text-ink-meta">{summary.caption}</p>
         </div>
       </div>
-      <div className="space-y-3 px-5 pb-3 pt-4 sm:px-6">
+      <div className="space-y-3 px-4 pb-3 pt-4">
         {summary.kind === "new" ? (
           <>
             <Figures>
@@ -289,10 +292,10 @@ export function ProblemApart({
 }) {
   return (
     <section className="overflow-hidden rounded-card border border-sap-border bg-card">
-      <p className="bg-tile-bg px-4 py-3 text-[16.5px] font-semibold text-foreground sm:px-5">
+      <p className="bg-tile-bg px-4 py-2 text-[14.5px] font-semibold text-foreground">
         {problem.subject}
       </p>
-      <div className="px-4 pb-1 pt-4 sm:px-5">
+      <div className="px-4 pb-1 pt-4">
         <ProblemDetail problem={problem} onAction={onAction} />
       </div>
     </section>

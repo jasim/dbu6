@@ -91,11 +91,11 @@
   --sap-shadow-elevated:
     0 8px 24px rgb(20 22 22 / 0.1), 0 1px 2px rgb(20 22 22 / 0.06);
 
-  /* Radii: 11px controls, 16px cards */
-  --sap-radius: 11px;
-  --sap-radius-sm: 6px;
-  --sap-radius-lg: 14px;
-  --sap-radius-xl: 16px;
+  /* Radii: 8px controls, 12px cards */
+  --sap-radius: 8px;
+  --sap-radius-sm: 5px;
+  --sap-radius-lg: 10px;
+  --sap-radius-xl: 12px;
 
   /* shadcn-style aliases that don't follow a canonical token */
   --primary: #2c6a4f;
@@ -187,29 +187,30 @@
 }
 
 /* Density: how tall rows, grid headers and controls are, and the text in
-   them. A touch screen keeps every click target at 44px; a mouse or
-   trackpad (pointer: fine) gets the compact tier, so a screen holds more
-   rows. The height tiers and the row and data type tiers in section 3 point
+   them. dbu6 is read for hours, over years, so both tiers favour a screen
+   full of rows over first-visit comfort. A touch screen keeps every click
+   target at 38px; a mouse or trackpad (pointer: fine) gets the compact
+   tier, close to Sapporta's own defaults. The height tiers and the row and data type tiers in section 3 point
    here, so each of their utilities (h-sap-ctl, min-h-sap-ctl, text-row, …)
    and the grid follow the pointer. A click target is sized by the control
    tier, never in pixels. */
 :root {
-  --density-row: 48px;
-  --density-header: 44px;
-  --density-control: 44px;
-  --density-bar: 32px;
-  --density-row-text: 16px;
-  --density-data-text: 15px;
+  --density-row: 40px;
+  --density-header: 38px;
+  --density-control: 38px;
+  --density-bar: 28px;
+  --density-row-text: 15px;
+  --density-data-text: 14px;
 }
 
 @media (pointer: fine) {
   :root {
-    --density-row: 34px;
-    --density-header: 32px;
-    --density-control: 32px;
-    --density-bar: 24px;
-    --density-row-text: 15px;
-    --density-data-text: 14px;
+    --density-row: 30px;
+    --density-header: 28px;
+    --density-control: 30px;
+    --density-bar: 22px;
+    --density-row-text: 14px;
+    --density-data-text: 13px;
   }
 }
 
@@ -227,15 +228,15 @@
      (grid rows, buttons, inputs) and data text follow the density; 11px is
      only for sort glyphs. */
   --text-sap-tiny: 11px;
-  --text-sap-micro: 13px;
-  --text-sap-label: 13px;
-  --text-sap-meta: 14px;
+  --text-sap-micro: 12px;
+  --text-sap-label: 12px;
+  --text-sap-meta: 13px;
   --text-sap-menu: var(--density-data-text);
   --text-sap-data: var(--density-data-text);
   --text-sap-emph: var(--density-row-text);
   --text-sap-body: var(--density-row-text);
-  --text-sap-mark: 16px;
-  --text-sap-display: 23px;
+  --text-sap-mark: 15px;
+  --text-sap-display: 20px;
 
   /* Sapporta's heights, from the density in section 2. */
   --height-sap-row: var(--density-row);
@@ -246,36 +247,36 @@
   /* The design's type scale: size / line-height / weight / tracking.
      text-row and text-label carry no weight; the component sets it.
      text-row is row text, so it follows the density. */
-  --text-display: 40px;
+  --text-display: 30px;
   --text-display--line-height: 1.08;
   --text-display--font-weight: 600;
   --text-display--letter-spacing: -0.02em;
-  --text-title: 34px;
-  --text-title--line-height: 1.12;
+  --text-title: 24px;
+  --text-title--line-height: 1.2;
   --text-title--font-weight: 600;
   --text-title--letter-spacing: -0.02em;
-  --text-heading: 23px;
-  --text-heading--line-height: 1.25;
+  --text-heading: 18px;
+  --text-heading--line-height: 1.3;
   --text-heading--font-weight: 600;
-  --text-subheading: 19px;
+  --text-subheading: 16px;
   --text-subheading--line-height: 1.3;
   --text-subheading--font-weight: 600;
-  --text-body: 17px;
-  --text-body--line-height: 1.5;
+  --text-body: 15px;
+  --text-body--line-height: 1.45;
   --text-body--font-weight: 400;
   --text-row: var(--density-row-text);
   --text-row--line-height: 1.35;
-  --text-meta: 14px;
-  --text-meta--line-height: 1.45;
+  --text-meta: 13px;
+  --text-meta--line-height: 1.4;
   --text-meta--font-weight: 400;
-  --text-label: 13px;
+  --text-label: 11.5px;
   --text-label--line-height: 1.2;
   --text-label--font-weight: 600;
-  --text-label--letter-spacing: 0.08em;
+  --text-label--letter-spacing: 0.07em;
 
   /* Radii and shadows */
-  --radius-control: 11px;
-  --radius-card: 16px;
+  --radius-control: 8px;
+  --radius-card: 12px;
   --shadow-card: 0 1px 2px rgb(20 22 22 / 0.06);
   --shadow-pill: 0 1px 2px rgb(20 22 22 / 0.07);
 
@@ -316,8 +317,8 @@
    Unlayered, because Sapporta's body rule is unlayered and would win over
    anything in @layer base. */
 body {
-  font-size: 17px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -350,12 +351,12 @@ body {
    which is Sapporta's tier for child rows; column widths are passed as
    props. */
 :root {
-  --sap-grid-cell-padding: 0 14px;
-  --sap-grid-header-cell-padding: 0 14px;
+  --sap-grid-cell-padding: 0 10px;
+  --sap-grid-header-cell-padding: 0 10px;
   --sap-grid-header-font-weight: 600;
   --sap-grid-nested-cell-min-height: var(--height-sap-header);
-  --sap-grid-row-header-column-width: 48px;
-  --sap-grid-nested-row-header-column-width: 36px;
+  --sap-grid-row-header-column-width: 38px;
+  --sap-grid-nested-row-header-column-width: 30px;
 }
 
 /* The Accounts page's grid (App.tsx). Each depth of the account tree steps in
@@ -363,7 +364,7 @@ body {
    at the control tier (a click target's floor), with no rule between them.
    The header keeps its rule. */
 .accounts-grid {
-  --sap-grid-tree-indent: 24px;
+  --sap-grid-tree-indent: 18px;
   --grid-cell-min-height: var(--height-sap-ctl);
 }
 

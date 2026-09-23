@@ -248,7 +248,7 @@ function HledgerDialog({
           </DialogDescription>
         </DialogHeader>
         {error ? (
-          <div className="rounded-card border border-destructive/30 bg-destructive/10 p-4 text-row text-destructive">
+          <div className="rounded-card border border-destructive/30 bg-destructive/10 p-3 text-row text-destructive">
             {error}
           </div>
         ) : text ? (
@@ -256,7 +256,7 @@ function HledgerDialog({
             {text}
           </pre>
         ) : (
-          <div className="rounded-card border p-4 text-row text-ink-meta">
+          <div className="rounded-card border p-3 text-row text-ink-meta">
             No visible journals to render.
           </div>
         )}

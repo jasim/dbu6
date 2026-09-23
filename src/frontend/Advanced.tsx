@@ -48,8 +48,8 @@ export function Advanced() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-sap-surface">
-      <div className="mx-auto max-w-[1080px] px-5 py-8 sm:px-8 lg:px-10">
-        <header className="max-w-[720px] border-b border-sap-border pb-7">
+      <div className="mx-auto max-w-[1080px] px-4 py-5 sm:px-6 lg:px-8">
+        <header className="max-w-[720px] border-b border-sap-border pb-4">
           <div className="flex items-center gap-2 text-label uppercase text-primary">
             <Settings2 className="size-4" strokeWidth={1.8} />
             All tools
@@ -63,7 +63,7 @@ export function Advanced() {
           </p>
         </header>
 
-        <main className="grid gap-10 py-8 lg:grid-cols-2">
+        <main className="grid gap-6 py-5 lg:grid-cols-2">
           <AdvancedSection
             title="Data tables"
             description="Open the source records directly. Changes here affect the books, so use the guided workflow for routine imports."

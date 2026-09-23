@@ -31,7 +31,7 @@ export function LinkCard({
       to={to}
       className={cn(
         "group flex gap-3 rounded-card border bg-card text-foreground no-underline transition-colors hover:bg-sap-row-hover",
-        tile ? "items-start px-5 py-5 shadow-card" : "items-center px-4 py-3",
+        tile ? "items-start px-4 py-3 shadow-card" : "items-center px-4 py-2",
       )}
     >
       {Icon && (

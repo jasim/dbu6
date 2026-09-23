@@ -117,7 +117,7 @@ export function IncomeExpensesPage() {
       }
     >
       {error ? (
-        <div className="mt-8">
+        <div className="mt-5">
           <LoadError
             title="Couldn't load income and expenses"
             message={error}
@@ -133,7 +133,7 @@ export function IncomeExpensesPage() {
         </>
       ) : isEmptyPeriod(report) ? (
         <EmptyState
-          className="mt-8"
+          className="mt-5"
           title="No income or spending in these months"
           body={emptyPeriodSentence(dates)}
         />
@@ -198,7 +198,7 @@ function PeriodReport({
         open={openIncome}
         onOpenChange={onOpenIncome}
       />
-      <div className="mt-6">
+      <div className="mt-4">
         <Button
           render={<Link to={`/reports/income-statement?${statement}`} />}
           nativeButton={false}
@@ -236,7 +236,7 @@ function PeriodControls({
 
   return (
     // One row at every width; on a phone it scrolls sideways.
-    <div className="-mx-5 max-w-[calc(100%+40px)] overflow-x-auto px-5 pb-1 sm:mx-0 sm:max-w-full sm:px-0">
+    <div className="-mx-4 max-w-[calc(100%+32px)] overflow-x-auto px-4 pb-1 sm:mx-0 sm:max-w-full sm:px-0">
       <div className="flex w-max gap-2">
         <ToggleGroup<Preset>
           aria-label="Period"
@@ -319,7 +319,7 @@ function MonthSelect({
 
 function FigureTiles({ figures }: { figures: Figures | null }) {
   return (
-    <div className="mt-8 grid gap-4 sm:grid-cols-3">
+    <div className="mt-5 grid gap-4 sm:grid-cols-3">
       <FigureTile
         label="Income"
         figure={figures?.income.figure ?? null}
@@ -360,7 +360,7 @@ function FigureTile({
   return (
     <section
       className={cn(
-        "@container rounded-card border px-[22px] py-5 shadow-card",
+        "@container rounded-card border px-[22px] py-3 shadow-card",
         panel
           ? "border-money-in-border bg-money-in-bg"
           : "border-sap-border bg-card",

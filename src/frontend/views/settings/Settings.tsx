@@ -57,7 +57,7 @@ export function Settings() {
       width="narrow"
       header={<h1 className="text-title text-foreground">Settings</h1>}
     >
-      <section className="mt-8 space-y-3">
+      <section className="mt-5 space-y-3">
         <h2 id={labelId} className="text-heading text-foreground">
           Coding agent
         </h2>

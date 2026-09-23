@@ -43,7 +43,7 @@ export function ReviewAccounts() {
         </ScreenTitle>
       }
     >
-      <div className="mt-8">
+      <div className="mt-5">
         {error ? (
           <LoadError
             title="Couldn't load the accounts to review"
@@ -58,9 +58,9 @@ export function ReviewAccounts() {
             {[0, 1].map((i) => (
               <li
                 key={i}
-                className="border-t border-line-inner px-6 py-3.5 first:border-t-0"
+                className="border-t border-line-inner px-4 py-2.5 first:border-t-0"
               >
-                <div className="h-[48px] rounded-control bg-sap-nested" />
+                <div className="h-sap-row rounded-control bg-sap-nested" />
               </li>
             ))}
           </ul>
@@ -97,12 +97,12 @@ function AccountRow({ account }: { account: ReviewAccount }) {
     <li className="border-t border-line-inner first:border-t-0">
       <Link
         to={reviewHref(account.account_id)}
-        className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-6 py-3.5 text-foreground no-underline outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
+        className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-2.5 text-foreground no-underline outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
       >
         <span className="min-w-0 flex-1 basis-[220px]">
           <span
             title={account.path}
-            className="block text-[16.5px] font-semibold"
+            className="block text-[14.5px] font-semibold"
           >
             {account.name}
           </span>
