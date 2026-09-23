@@ -83,6 +83,7 @@ describe("classifyDraftTransactions", () => {
         sent_count: 0,
         failed_count: 0,
         error: null,
+        failure: null,
       },
       categorizationTally: {
         by_rule: 1,
@@ -196,6 +197,7 @@ describe("draft classification response contract", () => {
       sent_count: 3,
       failed_count: 3,
       error: "sample failure",
+      failure: "partial",
     };
     const transactions = [
       { id: 1, narration: "NOPII SHOP", account_id: null, account_name: null },

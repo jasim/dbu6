@@ -298,3 +298,43 @@ describe("startCodingAgent", () => {
     expect(direct).not.toHaveBeenCalled();
   });
 });
+
+describe("categorization after a failed call", () => {
+  async function readyLlm() {
+    vi.stubEnv("LLM_ENGINE", "");
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX]);
+    answering("opus", "sonnet");
+    await models.startCodingAgent();
+    const { categorizationLlm } = await import("./categorization-llm.js");
+    const llm = await categorizationLlm();
+    if (!llm.caller.ready) throw new Error("Claude Code should be ready");
+    return { categorizationLlm, caller: llm.caller };
+  }
+
+  it("keeps the agent unusable when the model check fails too, so later runs skip it", async () => {
+    const { categorizationLlm, caller } = await readyLlm();
+    // The user's plan has expired since the check.
+    answering();
+    localAgent.mockClear();
+
+    const reason = await caller.confirmUnavailable();
+
+    expect(reason).toMatch(
+      /^Claude Code didn't answer on Claude Opus or Claude Sonnet/,
+    );
+    expect(askedModels()).toEqual(["opus", "sonnet"]);
+    localAgent.mockClear();
+    expect((await categorizationLlm()).caller).toEqual({
+      ready: false,
+      reason,
+    });
+    expect(askedModels()).toEqual([]);
+  });
+
+  it("keeps using the agent when the model check still answers", async () => {
+    const { categorizationLlm, caller } = await readyLlm();
+
+    expect(await caller.confirmUnavailable()).toBeNull();
+    expect((await categorizationLlm()).caller.ready).toBe(true);
+  });
+});

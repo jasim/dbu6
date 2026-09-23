@@ -1,8 +1,11 @@
-import { CODING_AGENTS, NO_CODING_AGENT_MESSAGE } from "../../../shared/index.js";
+import {
+  CODING_AGENTS,
+  NO_CODING_AGENT_MESSAGE,
+} from "../../../shared/index.js";
 import type { CategorizationLlm } from "../categorization/index.js";
 import { currentCodingAgent } from "./agents.js";
 import { noAgentModelReason } from "./errors.js";
-import { agentModels } from "./models.js";
+import { agentModels, checkAgentModelsAgain } from "./models.js";
 import {
   agentListClient,
   gatewayListClient,
@@ -70,8 +73,25 @@ export function gatewayLlm(apiKey: string | null): CategorizationLlm {
             ready: true,
             client: gatewayListClient(apiKey, GATEWAY_MODEL),
             maxRowsPerCall: null,
+            // The gateway has no check: a failed call is taken as passing.
+            confirmUnavailable: () => Promise.resolve(null),
           },
   };
+}
+
+/**
+ * After a failed call: asks the agent's models again, which keeps the result,
+ * and says why the agent can't be used when none answered. The kept no_model
+ * check makes later runs skip the agent (`categorizationLlm`) until Settings
+ * checks again.
+ */
+export async function confirmAgentUnavailable(
+  agent: InstalledAgent,
+): Promise<string | null> {
+  const models = await checkAgentModelsAgain(agent);
+  return models.state === "no_model"
+    ? noAgentModelReason(agent.agent, models.unavailable)
+    : null;
 }
 
 /** Categorization on a coding agent, on one of its models. */
@@ -86,6 +106,7 @@ export function localAgentLlm(
       ready: true,
       client: agentListClient(agent, model),
       maxRowsPerCall: LOCAL_AGENT_ROWS_PER_CALL,
+      confirmUnavailable: () => confirmAgentUnavailable(agent),
     },
   };
 }

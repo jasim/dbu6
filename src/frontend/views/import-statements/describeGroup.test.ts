@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { AutoImportGroupResult, AutoImportPlanFile } from "../../../shared/index";
+import type {
+  AutoImportGroupResult,
+  AutoImportPlanFile,
+} from "../../../shared/index";
 import { describeGroup } from "./describeGroup";
 
 function group(
@@ -29,6 +32,7 @@ function group(
         sent_count: 6,
         failed_count: 0,
         error: null,
+        failure: null,
       },
       categorization_tally: {
         by_rule: 2,
@@ -112,6 +116,7 @@ describe("describeGroup", () => {
           sent_count: 6,
           failed_count: 6,
           error: "Not logged in",
+          failure: "agent_unavailable",
         },
       }),
     );

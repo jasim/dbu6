@@ -17,6 +17,19 @@ export const sameAccountSkipSchema = z.object({
   account: z.string(),
 });
 
+// Why the LLM left descriptions unanswered:
+// - agent_unavailable: the engine can't be used at all. Either it couldn't run
+//   (no agent installed, or its stored model check found no model that
+//   answers), or a call failed and the one-word model check failed too, so
+//   dbu6 stopped sending it batches. Later runs skip it until the user checks
+//   the agents again on Settings.
+// - partial: some calls failed, but the agent still answers.
+export const categorizationFailureSchema = z.enum([
+  "agent_unavailable",
+  "partial",
+]);
+export type CategorizationFailure = z.infer<typeof categorizationFailureSchema>;
+
 // How the LLM fared on the descriptions the mapping rules didn't categorize.
 // A description is a distinct narration with its direction, sent once however
 // many transactions share it. When the rules map everything, or there is
@@ -31,6 +44,8 @@ export const categorizationReportSchema = z.object({
   failed_count: z.number(),
   // The first failure's message.
   error: z.string().nullable(),
+  // What kind of failure left some unanswered; null when none did.
+  failure: categorizationFailureSchema.nullable(),
 });
 export type CategorizationReport = z.infer<typeof categorizationReportSchema>;
 

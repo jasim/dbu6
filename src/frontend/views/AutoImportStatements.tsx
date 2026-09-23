@@ -7,6 +7,8 @@ import { Screen, ScreenTitle } from "../components/screen";
 import { Button } from "../components/ui/button";
 import { plural } from "../format";
 import { REVIEW_ROUTE } from "../review/routes";
+import { AgentUnavailableDialog } from "./categorization/AgentUnavailableDialog";
+import { agentUnavailable } from "./categorization/describeCategorization";
 import {
   OutcomeLine,
   ProblemApart,
@@ -287,6 +289,11 @@ export function AutoImportStatements() {
           <ResultsCard groups={groups} sources={planned} />
         </div>
       )}
+      <AgentUnavailableDialog
+        problem={agentUnavailable(
+          groups.map((group) => group.result.categorization),
+        )}
+      />
     </Screen>
   );
 }
