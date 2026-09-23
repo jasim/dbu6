@@ -190,6 +190,9 @@ that are not reports go in `frontend.tsx` and `dbu6.config.ts`
 
 ## More
 
+- [docs/migrating-from-a-clone.md](./docs/migrating-from-a-clone.md): if you
+  ran dbu6 from a clone of this repository, how to move your books, config,
+  parsers and changes into a project folder (`npx dbu6 docs from-clone`).
 - [DEPLOYMENT.md](./DEPLOYMENT.md): running your books folder for real:
   `.env`, `dbu6 start`, the Dockerfile, upgrading, and why you back up
   `data/` yourself.

@@ -46,6 +46,11 @@ export const GUIDES = {
       "docs/examples/customizing/frontend.tsx",
     ],
   },
+  "from-clone": {
+    file: "docs/migrating-from-a-clone.md",
+    title:
+      "Moving books from a clone of the dbu6 repository into a project folder",
+  },
 } as const satisfies Record<
   string,
   { file: string; title: string; examples?: readonly string[] }
