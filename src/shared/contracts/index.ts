@@ -72,8 +72,10 @@ export {
   type AbacusJson,
 } from "./abacus.js";
 export {
+  customMappingsFileSchema,
   importPresetsContract,
   importPresetSchema,
+  type CustomMappingsFile,
   type ImportPreset,
 } from "./import-presets.js";
 export {

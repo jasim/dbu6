@@ -27,6 +27,14 @@ export const importPresetSchema = z.object({
 });
 export type ImportPreset = z.infer<typeof importPresetSchema>;
 
+// One of a preset's instruction files for the LLM, as it would get it.
+export const customMappingsFileSchema = z.object({
+  filename: z.string(),
+  // Null when user-config/ has no such file: a run skips it.
+  content: z.string().nullable(),
+});
+export type CustomMappingsFile = z.infer<typeof customMappingsFileSchema>;
+
 export const importPresetsContract = c.router({
   listImportPresets: c.query({
     method: "GET",
@@ -34,6 +42,22 @@ export const importPresetsContract = c.router({
     summary: "List configured import presets",
     responses: {
       200: z.array(importPresetSchema),
+      403: z.object({ error: z.string() }),
+    },
+  }),
+  readCustomMappingsFile: c.query({
+    method: "GET",
+    path: "/import-presets/mapping-files/:filename",
+    summary: "Read one of the presets' instruction files in user-config/",
+    pathParams: z.object({
+      // A file directly in user-config/, never a path.
+      filename: z
+        .string()
+        .regex(/^[^/\\.][^/\\]*$/, "Name a file in user-config/, not a path."),
+    }),
+    responses: {
+      200: customMappingsFileSchema,
+      400: z.object({ error: z.string() }),
       403: z.object({ error: z.string() }),
     },
   }),

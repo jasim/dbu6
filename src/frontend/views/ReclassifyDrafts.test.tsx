@@ -16,7 +16,8 @@ import { ReclassifyDrafts, reclassifyDraftsHref } from "./ReclassifyDrafts";
 
 /*
  * Classify drafts opened from an account's Drafts tab: the account stays
- * chosen, with the mapping files its preset imports with, a run counts
+ * chosen, with the instructions its preset imports with, each file shown on
+ * a tab and another preset's a choice away, a run counts
  * what it categorized, by category, and links to the ones that still need
  * one, and a second run sends only those.
  */
@@ -107,9 +108,23 @@ const CLASSIFIED: DraftClassification = {
   },
 };
 
+// What the classify route answers; a test sets it to a failed run.
+let classifyAnswer: DraftClassification;
+
 function respond(method: string, url: URL): unknown {
   if (url.pathname.endsWith("/tables/accounts")) return { data: ACCOUNTS };
   if (url.pathname.endsWith("/import-presets")) return PRESETS;
+  const file = url.pathname.match(/\/import-presets\/mapping-files\/(.+)$/);
+  if (file) {
+    const filename = decodeURIComponent(file[1]!);
+    return {
+      filename,
+      content:
+        filename === "custom_mappings_sample.prompt"
+          ? "Sample cafes map to 'Dining'."
+          : null,
+    };
+  }
   if (url.pathname.endsWith("/tables/draft_transactions")) {
     return { data: DRAFTS };
   }
@@ -117,7 +132,7 @@ function respond(method: string, url: URL): unknown {
     method === "POST" &&
     url.pathname.endsWith("/draft-transactions/classify")
   ) {
-    return CLASSIFIED;
+    return classifyAnswer;
   }
   throw new Error(`Unexpected request: ${method} ${url}`);
 }
@@ -133,6 +148,7 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   requests = [];
+  classifyAnswer = CLASSIFIED;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -191,7 +207,7 @@ async function settle() {
 const text = () => host.textContent ?? "";
 
 describe("Classify drafts opened on an account", () => {
-  it("keeps the account chosen, with the mapping files its preset imports with", async () => {
+  it("keeps the account chosen, with the instructions its preset imports with", async () => {
     await renderAt(reclassifyDraftsHref(5));
 
     expect(
@@ -202,17 +218,21 @@ describe("Classify drafts opened on an account", () => {
         .find((r) => r.url.pathname.endsWith("/tables/draft_transactions"))
         ?.url.searchParams.get("filter[base_account_id][eq]"),
     ).toBe("5");
-    expect(host.querySelector<HTMLInputElement>("#mappings")?.value).toBe(
-      "custom_mappings_sample.prompt",
+    expect(text()).toContain("Sample Savings statement");
+    expect(
+      [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent),
+    ).toEqual(["custom_mappings_sample.prompt"]);
+    expect(host.querySelector("pre")?.textContent).toBe(
+      "Sample cafes map to 'Dining'.",
     );
-    expect(text()).toContain("Classify 4 rows");
+    expect(text()).toContain("Classify 4 drafts");
   });
 
   it("counts what it categorized, by category, and links to the ones that still need one", async () => {
     await renderAt(reclassifyDraftsHref(5));
 
     const button = [...host.querySelectorAll("button")].find((b) =>
-      b.textContent?.includes("Classify 4 rows"),
+      b.textContent?.includes("Classify 4 drafts"),
     );
     await act(async () => button!.click());
     await settle();
@@ -224,7 +244,9 @@ describe("Classify drafts opened on an account", () => {
     });
     expect(text()).toContain("Categorized3");
     expect(text()).toContain("Need a category1");
-    expect(text()).not.toMatch(/your rules|Claude Code/);
+    expect(
+      host.querySelector('[aria-label="What the run did"]')?.textContent,
+    ).not.toMatch(/rules|Claude Code/);
     const remain = [...host.querySelectorAll("a")].find(
       (a) => a.textContent === "Categorize",
     );
@@ -245,7 +267,7 @@ describe("Classify drafts opened on an account", () => {
     await act(async () => classifyButton()!.click());
     await settle();
 
-    expect(classifyButton()?.textContent).toBe("Classify 1 row");
+    expect(classifyButton()?.textContent).toBe("Classify 1 draft");
     expect(text()).toContain("NOPII SHOP ONE");
     await act(async () => classifyButton()!.click());
     await settle();
@@ -263,3 +285,50 @@ function classifyButton() {
     b.textContent?.startsWith("Classify"),
   );
 }
+
+describe("Classify drafts when the coding agent can't be used", () => {
+  const UNAVAILABLE: DraftClassification = {
+    ...CLASSIFIED,
+    categorization: {
+      agent: "claude-code",
+      sent_count: 2,
+      failed_count: 2,
+      error: "Claude Code didn't answer on Claude Sonnet. See Settings.",
+      failure: "agent_unavailable",
+    },
+  };
+
+  it("says so in a dialog that links to Settings", async () => {
+    classifyAnswer = UNAVAILABLE;
+    await renderAt(reclassifyDraftsHref(5));
+    await act(async () => classifyButton()!.click());
+    await settle();
+
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain("Claude Code isn't working");
+    expect(dialog?.textContent).toContain(
+      "Claude Code didn't answer on Claude Sonnet. See Settings.",
+    );
+    const settings = [...(dialog?.querySelectorAll("a") ?? [])].find(
+      (a) => a.textContent === "Open Settings",
+    );
+    expect(settings?.getAttribute("href")).toBe("/settings");
+  });
+
+  it("opens no dialog when only some calls failed", async () => {
+    classifyAnswer = {
+      ...UNAVAILABLE,
+      categorization: {
+        ...UNAVAILABLE.categorization,
+        failed_count: 1,
+        failure: "partial",
+      },
+    };
+    await renderAt(reclassifyDraftsHref(5));
+    await act(async () => classifyButton()!.click());
+    await settle();
+
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(text()).toContain("Claude Code couldn't categorize some of them");
+  });
+});

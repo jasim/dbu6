@@ -112,19 +112,29 @@ async function loadTransactionClassifier(
   };
 }
 
+/**
+ * One of the user's instruction files (custom_mappings_*.prompt), as the LLM
+ * would get it, or null when it is missing: a run skips a missing file, so
+ * Classify drafts shows it as missing rather than failing.
+ */
+export function readCustomMappingsFile(
+  filename: string,
+  configDir: string = userConfigDir(),
+): string | null {
+  try {
+    return readFileSync(join(configDir, filename), "utf-8");
+  } catch (error) {
+    if (isMissingFileError(error)) return null;
+    throw error;
+  }
+}
+
 function loadCustomMappings(
   filenames: readonly string[],
   configDir: string,
 ): string {
   return filenames
-    .flatMap((filename) => {
-      try {
-        return [readFileSync(join(configDir, filename), "utf-8")];
-      } catch (error) {
-        if (isMissingFileError(error)) return [];
-        throw error;
-      }
-    })
+    .flatMap((filename) => readCustomMappingsFile(filename, configDir) ?? [])
     .join("\n\n");
 }
 
