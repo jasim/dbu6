@@ -12,12 +12,20 @@ import {
 import type { Abacus } from "../statement/index.js";
 
 const listMock = vi.fn();
+// Whether the engine can be used, asked after a failed call; it answers by
+// default.
+const confirmUnavailableMock = vi.fn(async (): Promise<string | null> => null);
 
 function engine(overrides: Partial<CategorizationLlm> = {}): CategorizationLlm {
   return {
     agent: "claude-code",
     name: "Claude Code",
-    caller: { ready: true, client: { list: listMock }, maxRowsPerCall: null },
+    caller: {
+      ready: true,
+      client: { list: listMock },
+      maxRowsPerCall: null,
+      confirmUnavailable: confirmUnavailableMock,
+    },
     ...overrides,
   };
 }
@@ -27,6 +35,7 @@ const batchedCaller = {
   ready: true as const,
   client: { list: listMock },
   maxRowsPerCall: 50,
+  confirmUnavailable: confirmUnavailableMock,
 };
 
 const config: LLMCategorizationConfig = {
@@ -58,6 +67,8 @@ function deposit(narration: string, amount = 100): Abacus {
 
 beforeEach(() => {
   listMock.mockReset();
+  confirmUnavailableMock.mockReset();
+  confirmUnavailableMock.mockResolvedValue(null);
 });
 
 describe("buildPrompt", () => {
@@ -305,6 +316,7 @@ describe("categorizeViaLLM", () => {
         sent_count: 2,
         failed_count: 0,
         error: null,
+        failure: null,
       },
     });
     expect(listMock).toHaveBeenCalledTimes(1);
@@ -320,6 +332,7 @@ describe("categorizeViaLLM", () => {
         sent_count: 0,
         failed_count: 0,
         error: null,
+        failure: null,
       },
     });
     expect(listMock).not.toHaveBeenCalled();
@@ -344,6 +357,7 @@ describe("categorizeViaLLM", () => {
         sent_count: 2,
         failed_count: 2,
         error: "NUABASE_API_KEY is not set",
+        failure: "agent_unavailable",
       },
     });
     expect(listMock).not.toHaveBeenCalled();
@@ -360,6 +374,7 @@ describe("categorizeViaLLM", () => {
       sent_count: 1,
       failed_count: 1,
       error: "sample failure",
+      failure: "partial",
     });
   });
 
@@ -383,6 +398,7 @@ describe("categorizeViaLLM", () => {
       sent_count: 120,
       failed_count: 0,
       error: null,
+      failure: null,
     });
   });
 
@@ -414,10 +430,65 @@ describe("categorizeViaLLM", () => {
       sent_count: 120,
       failed_count: 50,
       error: "claude-code timed out",
+      failure: "partial",
     });
     expect(result.mappings.SHOP0).toBe("First Expense");
     expect(result.mappings.SHOP50).toBeUndefined();
     expect(result.mappings.SHOP100).toBe("Account SHOP100");
+    expect(Object.keys(result.mappings)).toHaveLength(70);
+    expect(confirmUnavailableMock).not.toHaveBeenCalled();
+  });
+
+  it("sends no other call once the first fails and the engine can't be used", async () => {
+    listMock.mockResolvedValueOnce({ ok: false, error: "Not logged in" });
+    confirmUnavailableMock.mockResolvedValueOnce(
+      "Claude Code didn't answer on Claude Sonnet. See Settings.",
+    );
+    const txns = Array.from({ length: 120 }, (_, i) => withdrawal(`SHOP${i}`));
+
+    const result = await categorizeViaLLM(
+      txns,
+      txns.map((_, i) => i),
+      { ...config, llm: engine({ caller: batchedCaller }) },
+    );
+
+    expect(listMock).toHaveBeenCalledTimes(1);
+    expect(confirmUnavailableMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      mappings: {},
+      report: {
+        agent: "claude-code",
+        sent_count: 120,
+        failed_count: 120,
+        error: "Claude Code didn't answer on Claude Sonnet. See Settings.",
+        failure: "agent_unavailable",
+      },
+    });
+  });
+
+  it("sends the other calls when the first fails but the engine still answers", async () => {
+    answerEveryRow();
+    listMock.mockImplementationOnce(async () => ({
+      ok: false,
+      error: "claude-code timed out",
+    }));
+    const txns = Array.from({ length: 120 }, (_, i) => withdrawal(`SHOP${i}`));
+
+    const result = await categorizeViaLLM(
+      txns,
+      txns.map((_, i) => i),
+      { ...config, llm: engine({ caller: batchedCaller }) },
+    );
+
+    expect(listMock).toHaveBeenCalledTimes(3);
+    expect(confirmUnavailableMock).toHaveBeenCalledTimes(1);
+    expect(result.report).toEqual({
+      agent: "claude-code",
+      sent_count: 120,
+      failed_count: 50,
+      error: "claude-code timed out",
+      failure: "partial",
+    });
     expect(Object.keys(result.mappings)).toHaveLength(70);
   });
 });

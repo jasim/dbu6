@@ -44,6 +44,7 @@ function answered(
       sent_count: Object.keys(mappings).length,
       failed_count: 0,
       error: null,
+      failure: null,
       ...report,
     },
   };
@@ -126,6 +127,7 @@ describe("categorize", () => {
         sent_count: 0,
         failed_count: 0,
         error: null,
+        failure: null,
       },
     });
     expect(llmMock).not.toHaveBeenCalled();
@@ -226,7 +228,15 @@ describe("categorize", () => {
 
   it("passes the LLM's report up with the categorized transactions", async () => {
     llmMock.mockResolvedValue(
-      answered({}, { sent_count: 1, failed_count: 1, error: "sample failure" }),
+      answered(
+        {},
+        {
+          sent_count: 1,
+          failed_count: 1,
+          error: "sample failure",
+          failure: "partial",
+        },
+      ),
     );
 
     const result = await categorizeRows(
@@ -240,6 +250,7 @@ describe("categorize", () => {
       sent_count: 1,
       failed_count: 1,
       error: "sample failure",
+      failure: "partial",
     });
   });
 
@@ -277,6 +288,7 @@ describe("categorize", () => {
           sent_count: 0,
           failed_count: 0,
           error: null,
+          failure: null,
         },
       });
     } finally {

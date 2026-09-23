@@ -1,5 +1,8 @@
 import { z } from "zod";
-import type { CategorizationReport, CodingAgent } from "../../../shared/index.js";
+import type {
+  CategorizationReport,
+  CodingAgent,
+} from "../../../shared/index.js";
 import type { Abacus } from "../statement/index.js";
 import { type Account, parseAccount, isWithdrawal } from "../values/index.js";
 
@@ -43,6 +46,12 @@ export interface CategorizationLlm {
         client: ListClient;
         /** The most descriptions one call carries; null sends them all. */
         maxRowsPerCall: number | null;
+        /**
+         * Asked after a call fails: the reason the engine can't be used, or
+         * null when it still answers. For a coding agent this is its one-word
+         * model check, whose result is kept, so later runs don't call it.
+         */
+        confirmUnavailable(): Promise<string | null>;
       }
     | { ready: false; reason: string };
 }
@@ -157,7 +166,13 @@ export function parseLLMResponse(
 export function nothingSentReport(
   llm: CategorizationLlm,
 ): CategorizationReport {
-  return { agent: llm.agent, sent_count: 0, failed_count: 0, error: null };
+  return {
+    agent: llm.agent,
+    sent_count: 0,
+    failed_count: 0,
+    error: null,
+    failure: null,
+  };
 }
 
 /** The narration→Account answers, and how the LLM fared. */
@@ -222,10 +237,15 @@ async function callList(
 
 /**
  * I/O shell: ask the LLM for the accounts of unmapped transactions, in calls
- * of at most `llm.maxRowsPerCall` descriptions run together. Returns a map
- * from original narration to Account with the answers of the calls that
- * succeeded, and a report counting the descriptions left unanswered because
- * a call failed or couldn't run. Failures are reported, never thrown.
+ * of at most `llm.maxRowsPerCall` descriptions. Returns a map from original
+ * narration to Account with the answers of the calls that succeeded, and a
+ * report counting the descriptions left unanswered because a call failed or
+ * couldn't run. Failures are reported, never thrown.
+ *
+ * The first call goes alone. When it fails, the engine is asked whether it can
+ * be used at all; if not, no other call is sent and the run is
+ * `agent_unavailable`. Otherwise the rest run together, and any failure is
+ * `partial`.
  */
 export async function categorizeViaLLM(
   transactions: Abacus[],
@@ -250,11 +270,7 @@ export async function categorizeViaLLM(
     );
     return {
       mappings: {},
-      report: {
-        ...report,
-        failed_count: rows.length,
-        error: llm.caller.reason,
-      },
+      report: unavailableReport(report, llm.caller.reason),
     };
   }
 
@@ -262,26 +278,52 @@ export async function categorizeViaLLM(
   console.log(prompt);
   const calls = splitIntoCalls(rows, llm.caller.maxRowsPerCall);
   const caller = llm.caller;
-  const outcomes = await Promise.all(
-    calls.map((callRows, index) =>
-      callList(
-        llm,
-        caller,
-        prompt,
-        callRows,
-        calls.length === 1 ? "" : ` (call ${index + 1} of ${calls.length})`,
-      ),
-    ),
+  const send = (callRows: ListRow[], index: number) =>
+    callList(
+      llm,
+      caller,
+      prompt,
+      callRows,
+      calls.length === 1 ? "" : ` (call ${index + 1} of ${calls.length})`,
+    );
+
+  const [firstRows, ...restRows] = calls;
+  const first = await send(firstRows, 0);
+  if (!first.ok) {
+    const unavailable = await caller.confirmUnavailable();
+    if (unavailable !== null) {
+      console.error(
+        `[${llm.name}] can't be used, so no further calls are sent: ${unavailable}`,
+      );
+      return { mappings: {}, report: unavailableReport(report, unavailable) };
+    }
+  }
+  const rest = await Promise.all(
+    restRows.map((callRows, index) => send(callRows, index + 1)),
   );
 
   const answered: LLMResponseRow[] = [];
-  for (const outcome of outcomes) {
+  for (const outcome of [first, ...rest]) {
     if (outcome.ok) {
       answered.push(...outcome.rows);
     } else {
       report.failed_count += outcome.rowCount;
       report.error ??= outcome.error;
+      report.failure = "partial";
     }
   }
   return { mappings: parseLLMResponse(answered, reverseMap), report };
+}
+
+// Every description unanswered, because the engine can't be used.
+function unavailableReport(
+  report: CategorizationReport,
+  reason: string,
+): CategorizationReport {
+  return {
+    ...report,
+    failed_count: report.sent_count,
+    error: reason,
+    failure: "agent_unavailable",
+  };
 }

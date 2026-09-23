@@ -14,6 +14,8 @@ export {
   importSummarySchema,
   categorizationReportSchema,
   type CategorizationReport,
+  categorizationFailureSchema,
+  type CategorizationFailure,
   categorizationTallySchema,
   type CategorizationTally,
   statementImportResultSchema,

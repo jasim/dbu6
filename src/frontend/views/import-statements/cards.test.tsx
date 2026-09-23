@@ -64,6 +64,7 @@ function group(result: {
         sent_count: 4,
         failed_count: 0,
         error: null,
+        failure: null,
       },
       categorization_tally: result.tally,
       base_account_id: 5,
@@ -195,6 +196,7 @@ describe("an account's card in the import results", () => {
           sent_count: 7,
           failed_count: 7,
           error: "Not logged in",
+          failure: "agent_unavailable",
         },
       }),
     );

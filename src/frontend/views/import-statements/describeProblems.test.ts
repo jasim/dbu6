@@ -87,6 +87,7 @@ function importedGroup(
         sent_count: 6,
         failed_count: 0,
         error: null,
+        failure: null,
       },
       categorization_tally: {
         by_rule: 2,

@@ -113,6 +113,7 @@ function importedNothing(): StatementImportResult {
       sent_count: 0,
       failed_count: 0,
       error: null,
+      failure: null,
     },
     categorization_tally: {
       by_rule: 0,
