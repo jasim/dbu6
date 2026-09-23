@@ -29,7 +29,7 @@ export function ProgressSteps({
           key={step.title}
           aria-current={step.status === "current" ? "step" : undefined}
           className={cn(
-            "rounded-[14px] px-[18px] py-4",
+            "rounded-card px-3 py-2",
             step.status === "done" && "border border-sap-border bg-card",
             step.status === "current" &&
               "border-[1.5px] border-attention-border bg-attention-surface px-[17px] py-[15px]",
@@ -57,7 +57,7 @@ export function ProgressSteps({
             </span>
             <span
               className={cn(
-                "text-[15.5px] font-semibold",
+                "text-[13.5px] font-semibold",
                 step.status === "waiting" && "text-ink-meta",
               )}
             >

@@ -82,7 +82,7 @@ export function BalanceChecksTab() {
  */
 function MissingOpeningBalance({ accountName }: { accountName: string }) {
   return (
-    <section className="mt-5 flex max-w-[760px] flex-wrap items-center gap-x-6 gap-y-3 rounded-card border border-attention-border bg-attention-bg px-5 py-4">
+    <section className="mt-4 flex max-w-[760px] flex-wrap items-center gap-x-6 gap-y-3 rounded-card border border-attention-border bg-attention-bg px-4 py-3">
       <div className="min-w-0 flex-1 basis-[280px]">
         <h2 className="text-row font-semibold text-attention-ink">
           No opening balance in your books

@@ -19,11 +19,11 @@ export function NextStepCard({
   action: ReactNode;
 }) {
   return (
-    <section className="flex flex-wrap items-center gap-x-[26px] gap-y-4 rounded-card border border-sap-border bg-card px-7 py-[26px] shadow-card">
+    <section className="flex flex-wrap items-center gap-x-[26px] gap-y-4 rounded-card border border-sap-border bg-card px-5 py-[26px] shadow-card">
       {count !== undefined && (
         <span
           aria-hidden="true"
-          className="tnum flex size-[52px] shrink-0 items-center justify-center rounded-full border border-attention-border bg-attention-bg font-mono text-[19px] font-semibold text-attention-ink"
+          className="tnum flex size-10 shrink-0 items-center justify-center rounded-full border border-attention-border bg-attention-bg font-mono text-[16px] font-semibold text-attention-ink"
         >
           {count}
         </span>

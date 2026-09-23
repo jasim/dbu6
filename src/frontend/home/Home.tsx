@@ -47,7 +47,7 @@ export function Home() {
           ) : (
             <div
               aria-hidden="true"
-              className="mt-3 h-[44px] w-[min(420px,100%)] rounded-control bg-sap-nested"
+              className="mt-3 h-sap-ctl w-[min(420px,100%)] rounded-control bg-sap-nested"
             />
           )}
           {workspaceName && (
@@ -56,7 +56,7 @@ export function Home() {
         </>
       }
     >
-      <div className="mt-8">
+      <div className="mt-5">
         {error ? (
           <LoadError
             title="Couldn't load where your books stand"
@@ -73,14 +73,14 @@ export function Home() {
         )}
       </div>
 
-      <section className="mt-6 rounded-card border border-sap-border bg-card shadow-card">
-        <div className="px-6 pb-3 pt-5">
+      <section className="mt-4 rounded-card border border-sap-border bg-card shadow-card">
+        <div className="px-4 pb-3 pt-5">
           <h2 className="text-heading text-foreground">Your accounts</h2>
         </div>
         {summary ? (
           <AccountTable accounts={summary.accounts} />
         ) : error ? null : (
-          <ul aria-hidden="true" className="px-6 pb-5">
+          <ul aria-hidden="true" className="px-4 pb-5">
             {[0, 1, 2].map((i) => (
               <li
                 key={i}
@@ -112,7 +112,7 @@ function StepCard({ card }: { card: HomeCard }) {
 function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
   if (accounts.length === 0) {
     return (
-      <div className="px-6 pb-6">
+      <div className="px-4 pb-6">
         <EmptyState
           title="No accounts set up yet"
           body="Add a bank or card account and an import preset, then import its first statement."
@@ -163,7 +163,7 @@ function AccountRow({ account }: { account: HomeAccount }) {
   const status = accountStatus(account);
   return (
     <tr className="border-t border-line-inner">
-      <td className="py-3.5 pl-6 pr-3 align-top">
+      <td className="py-2.5 pl-6 pr-3 align-top">
         {ledger ? (
           <Link
             to={ledger}
@@ -183,10 +183,10 @@ function AccountRow({ account }: { account: HomeAccount }) {
           </div>
         )}
       </td>
-      <td className="whitespace-nowrap px-3 py-3.5 align-top">
+      <td className="whitespace-nowrap px-3 py-2.5 align-top">
         <ImportedUntil account={account} />
       </td>
-      <td className="py-3.5 pl-3 pr-6 text-right align-top">
+      <td className="py-2.5 pl-3 pr-6 text-right align-top">
         {status &&
           (account.in_ledger && account.drafts > 0 ? (
             <Link

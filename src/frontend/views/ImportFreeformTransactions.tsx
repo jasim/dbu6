@@ -78,7 +78,7 @@ export function ImportFreeformTransactions() {
         </ScreenTitle>
       }
     >
-      <ol className="mt-8 space-y-8">
+      <ol className="mt-5 space-y-5">
         <Step number={1} title="Which account are they from?">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

@@ -21,7 +21,7 @@ export function CategoryLabel({
     <span
       title={name}
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border border-sap-border bg-category-bg py-[5px] pl-[10px] pr-[13px] text-[15px] text-foreground",
+        "inline-flex items-center gap-2 rounded-full border border-sap-border bg-category-bg py-[5px] pl-[10px] pr-[13px] text-[13px] text-foreground",
         className,
       )}
     >
@@ -48,7 +48,7 @@ export function NeedsCategory({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center rounded-full border border-dashed border-attention-border bg-attention-bg px-[14px] py-[6px] text-[15px] font-semibold text-attention-ink transition-colors duration-150 hover:bg-attention-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
+        "inline-flex items-center rounded-full border border-dashed border-attention-border bg-attention-bg px-[14px] py-[6px] text-[13px] font-semibold text-attention-ink transition-colors duration-150 hover:bg-attention-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
         className,
       )}
       {...props}

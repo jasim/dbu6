@@ -12,7 +12,7 @@ import { ReportResultBody, useReportResult } from "../reports/shared";
 
 /** The tab's content, clear of the frame's edges. */
 export function ReportTab({ children }: { children: ReactNode }) {
-  return <div className="px-5 pb-10 pt-6 sm:px-8 lg:px-14">{children}</div>;
+  return <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8">{children}</div>;
 }
 
 export function ReportSummary({ children }: { children: ReactNode }) {
@@ -33,7 +33,7 @@ export function AccountReport({
   const report = useReportResult([reportName, accountId], call);
   if (report.error) {
     return (
-      <div className="mt-5 max-w-[760px]">
+      <div className="mt-4 max-w-[760px]">
         <LoadError
           title="Couldn't load the report"
           message={report.error}
@@ -43,9 +43,9 @@ export function AccountReport({
     );
   }
   return (
-    <div className="mt-5 overflow-hidden rounded-card border border-sap-border bg-card">
+    <div className="mt-4 overflow-hidden rounded-card border border-sap-border bg-card">
       {report.result === null ? (
-        <div aria-hidden="true" className="space-y-2 p-4">
+        <div aria-hidden="true" className="space-y-2 p-3">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-[40px] rounded-control bg-sap-nested" />
           ))}
@@ -66,7 +66,7 @@ export function AskYourAgent({
   prompt: string;
 }) {
   return (
-    <div className="mt-8 max-w-[760px]">
+    <div className="mt-5 max-w-[760px]">
       <AgentPrompt
         title={title}
         prompt={prompt}

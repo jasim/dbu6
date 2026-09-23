@@ -26,8 +26,8 @@ export function ReportsIndex({
   const [creating, setCreating] = useState(false);
   return (
     <div className="flex-1 overflow-y-auto bg-sap-surface">
-      <div className="mx-auto max-w-[1080px] px-5 py-8 sm:px-8 lg:px-10">
-        <header className="max-w-[720px] border-b border-sap-border pb-7">
+      <div className="mx-auto max-w-[1080px] px-4 py-5 sm:px-6 lg:px-8">
+        <header className="max-w-[720px] border-b border-sap-border pb-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-title text-foreground sm:text-display">
               Reports
@@ -45,7 +45,7 @@ export function ReportsIndex({
           ) : null}
         </header>
 
-        <main className="space-y-12 py-8">
+        <main className="space-y-8 py-5">
           {reportSections.map((section) => (
             <ReportSectionView
               key={section.title}
@@ -85,7 +85,7 @@ function ReportSectionView({
           className="mt-4 lg:grid-cols-2 lg:gap-x-6"
         />
       ) : (
-        <div className="mt-4 grid gap-8 lg:grid-cols-2 lg:gap-6">
+        <div className="mt-4 grid gap-5 lg:grid-cols-2 lg:gap-6">
           {section.subgroups.map((subgroup) => (
             <div key={subgroup.id}>
               <h3 className="text-label uppercase text-ink-meta">

@@ -52,7 +52,7 @@ export function Dropzone({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        "rounded-[18px] border-2 border-dashed px-5 py-8 text-center transition-colors duration-150 sm:p-[38px]",
+        "rounded-card border-2 border-dashed px-4 py-5 text-center transition-colors duration-150 sm:p-6",
         disabled
           ? "cursor-not-allowed border-waiting-border bg-waiting-bg"
           : dragging
@@ -62,11 +62,11 @@ export function Dropzone({
     >
       <div
         aria-hidden="true"
-        className="mx-auto flex size-11 items-center justify-center rounded-[12px] bg-tile-bg text-[20px] text-ink-soft"
+        className="mx-auto flex size-11 items-center justify-center rounded-[12px] bg-tile-bg text-[17px] text-ink-soft"
       >
         ↑
       </div>
-      <p className="mt-3.5 text-[21px] font-semibold leading-tight text-foreground">
+      <p className="mt-3.5 text-[17px] font-semibold leading-tight text-foreground">
         Drop your statement files here
       </p>
       <p className="mt-1.5 text-row text-ink-meta">
@@ -149,7 +149,7 @@ function RemoveButton({
   );
 }
 
-const ROW = "flex items-center gap-3.5 px-4 py-3 sm:gap-[18px] sm:px-5";
+const ROW = "flex items-center gap-3.5 px-4 py-2 sm:gap-[18px]";
 
 /**
  * A chosen file: its type, name and size, and what became of it. A file with
@@ -184,7 +184,7 @@ export function FileRow({
           <div className="flex items-baseline gap-3">
             <span
               title={file.name}
-              className="min-w-0 flex-1 truncate text-[16.5px] font-semibold text-foreground"
+              className="min-w-0 flex-1 truncate text-[14.5px] font-semibold text-foreground"
             >
               {file.name}
             </span>
@@ -255,7 +255,7 @@ export function GooglePayRow({
             aria-hidden="true"
             className="flex size-[38px] shrink-0 items-center justify-center rounded-[10px] border border-dashed border-waiting-marker bg-waiting-bg text-ink-meta"
           >
-            <Plus className="size-[18px] transition-transform duration-150 group-open/gpay:rotate-45" />
+            <Plus className="size-4 transition-transform duration-150 group-open/gpay:rotate-45" />
           </span>
           <span className="text-row font-semibold text-foreground">
             Names from Google Pay{" "}

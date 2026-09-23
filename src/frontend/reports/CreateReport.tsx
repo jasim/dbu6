@@ -9,7 +9,7 @@ import { createReportPrompt } from "./createReportPrompt";
 export function CreateReport({ takenIds }: { takenIds: readonly string[] }) {
   const [wanted, setWanted] = useState("");
   return (
-    <div className="mt-6 max-w-[760px] space-y-4">
+    <div className="mt-4 max-w-[760px] space-y-4">
       <label className="block space-y-2">
         <span className="text-row text-foreground">
           What should the report show?

@@ -14,7 +14,7 @@ import { cn } from "@sapporta/ui/cn";
  * one set.
  */
 export const togglePillClassName =
-  "inline-flex min-h-sap-ctl shrink-0 items-center whitespace-nowrap rounded-full border border-sap-border bg-card px-4 text-[15.5px] font-semibold text-ink-soft outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 data-pressed:border-foreground data-pressed:bg-foreground data-pressed:text-background";
+  "inline-flex min-h-sap-ctl shrink-0 items-center whitespace-nowrap rounded-full border border-sap-border bg-card px-4 text-[13.5px] font-semibold text-ink-soft outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 data-pressed:border-foreground data-pressed:bg-foreground data-pressed:text-background";
 
 export interface ToggleGroupProps<Value extends string> extends Omit<
   ToggleGroupPrimitive.Props<Value>,

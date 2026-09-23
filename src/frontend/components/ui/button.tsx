@@ -8,7 +8,7 @@ import { cn } from "@sapporta/ui/cn";
  * state. One primary button per screen.
  */
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control text-row font-semibold outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none [&_svg]:size-[18px] [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-control text-row font-semibold outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -35,14 +35,14 @@ export const buttonVariants = cva(
         assist:
           "bg-assist text-assist-foreground shadow-pill hover:bg-assist-hover",
       },
-      // Heights follow the control tier (frontend.css, density): 44px on a
-      // touch screen, 32px with a mouse.
+      // Heights follow the control tier (frontend.css, density): 38px on a
+      // touch screen, 30px with a mouse.
       size: {
-        /** A step above the control tier (48px or 36px): page-level actions. */
-        default: "h-[calc(var(--height-sap-ctl)+4px)] px-[22px]",
+        /** A step above the control tier (40px or 32px): page-level actions. */
+        default: "h-[calc(var(--height-sap-ctl)+2px)] px-4",
         /** The control tier, the smallest click target: in-row actions. */
-        sm: "h-sap-ctl px-4 text-meta",
-        lg: "h-[calc(var(--height-sap-ctl)+8px)] px-7",
+        sm: "h-sap-ctl px-3 text-meta",
+        lg: "h-[calc(var(--height-sap-ctl)+6px)] px-5",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
@@ -90,7 +90,7 @@ export const Button = React.forwardRef<HTMLElement, ButtonProps>(
     );
     if (waiting === undefined) return button;
     return (
-      <span className="inline-flex flex-col items-start gap-4">
+      <span className="inline-flex flex-col items-start gap-2">
         {button}
         <span className="text-meta text-ink-meta">{waiting}</span>
       </span>

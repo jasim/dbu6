@@ -24,8 +24,8 @@ export function formatAmount(
 }
 
 const SIZES = {
-  row: "text-[18px] font-medium",
-  lg: "text-[20px] font-medium",
+  row: "text-[15px] font-medium",
+  lg: "text-[17px] font-medium",
   display: "text-[33px] font-semibold tracking-[-0.02em]",
 } as const;
 

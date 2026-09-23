@@ -159,7 +159,7 @@ export function AutoImportStatements() {
       }
     >
       {!imported && (
-        <div className="mt-8">
+        <div className="mt-5">
           <Dropzone disabled={loading} onFiles={addFiles} />
           <p className="mt-3 text-meta text-ink-meta">
             Transactions that aren't in a statement file?{" "}
@@ -176,7 +176,7 @@ export function AutoImportStatements() {
       {/* After an import that went through, the outcome replaces the list:
           each account's row says what came of its files. */}
       {!imported && (
-        <section className="mt-8">
+        <section className="mt-5">
           {(files.length > 0 || failure) && (
             <div className="mb-3 flex items-center justify-between gap-3">
               {outcome && failure ? (
@@ -219,7 +219,7 @@ export function AutoImportStatements() {
                   onRemove={imported ? undefined : () => removeFile(file)}
                 >
                   {flagged && (
-                    <div className="space-y-8">
+                    <div className="space-y-5">
                       {here.map((problem) => (
                         <ProblemDetail
                           key={problem.key}
@@ -256,7 +256,7 @@ export function AutoImportStatements() {
       )}
 
       {!imported && (
-        <div className="mt-6">
+        <div className="mt-4">
           <ImportButton
             statements={files.length}
             loading={loading}
@@ -266,7 +266,7 @@ export function AutoImportStatements() {
       )}
 
       {outcome && imported && (
-        <div className="mt-8 space-y-6">
+        <div className="mt-5 space-y-4">
           <div className="space-y-4">
             <Summary batch={describeBatch(outcome)} prominent />
             <DoneActions

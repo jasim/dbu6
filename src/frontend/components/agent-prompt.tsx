@@ -40,7 +40,7 @@ export function AgentPrompt({
   afterwards?: ReactNode;
 }) {
   return (
-    <section className="rounded-card border border-assist-border bg-assist-bg px-5 py-[18px] sm:px-6">
+    <section className="rounded-card border border-assist-border bg-assist-bg px-4 py-[18px]">
       <p className="flex items-center gap-1.5 text-label uppercase text-assist-ink">
         <Sparkles aria-hidden="true" className="size-[15px]" />
         AI assisted
@@ -111,7 +111,7 @@ export function AgentActions({
             className={
               goal === undefined
                 ? undefined
-                : "h-auto min-h-sap-ctl px-5 py-2.5 text-left"
+                : "h-auto min-h-sap-ctl px-4 py-2.5 text-left"
             }
             disabled={handoff.isPending}
             onClick={() => handoff.mutate(text)}

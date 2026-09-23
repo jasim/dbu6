@@ -68,7 +68,7 @@ export function AccountSection({
       total={
         <span
           className={cn(
-            "tnum font-mono text-[20px] font-medium",
+            "tnum font-mono text-[17px] font-medium",
             amountDirection(section, total) === "in"
               ? "text-money-in"
               : "text-foreground",
@@ -112,7 +112,7 @@ export function AccountSection({
 export function AccountSectionSkeleton({ section }: { section: Section }) {
   return (
     <SectionCard section={section}>
-      <ul aria-hidden="true" className="px-6 pb-4">
+      <ul aria-hidden="true" className="px-4 pb-4">
         {[0, 1, 2].map((i) => (
           <li key={i} className="my-2 h-[52px] rounded-control bg-sap-nested" />
         ))}
@@ -133,10 +133,10 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="mt-5 rounded-card border border-sap-border bg-card pb-2 shadow-card">
+    <section className="mt-4 rounded-card border border-sap-border bg-card pb-2 shadow-card">
       <div
         className={cn(
-          "flex flex-wrap items-center gap-x-4 gap-y-1 py-4 pl-[22px]",
+          "flex flex-wrap items-center gap-x-4 gap-y-1 py-3 pl-[22px]",
           CLEAR_OF_LEDGER_LINK,
         )}
       >
@@ -199,13 +199,13 @@ function AccountRow({
             type="button"
             aria-expanded={isOpen}
             onClick={() => onToggle(account.account_id)}
-            className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-3 text-left outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
+            className="flex min-w-0 flex-1 items-center gap-3 py-2 pr-3 text-left outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
             style={{ paddingLeft: indent(depth) }}
           >
             <ChevronRight
               aria-hidden="true"
               className={cn(
-                "size-[18px] shrink-0 text-ink-meta",
+                "size-4 shrink-0 text-ink-meta",
                 isOpen && "rotate-90",
               )}
             />
@@ -213,7 +213,7 @@ function AccountRow({
           </button>
         ) : (
           <div
-            className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-3"
+            className="flex min-w-0 flex-1 items-center gap-3 py-2 pr-3"
             style={{ paddingLeft: indent(depth) }}
           >
             <span aria-hidden="true" className="w-[18px] shrink-0" />
@@ -225,7 +225,7 @@ function AccountRow({
             to={href}
             aria-label={`Account ledger for ${account.name}`}
             title="Account ledger"
-            className="flex w-(--height-sap-ctl) shrink-0 items-center justify-center text-[22px] text-ink-meta no-underline outline-none transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
+            className="flex w-(--height-sap-ctl) shrink-0 items-center justify-center text-[18px] text-ink-meta no-underline outline-none transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
           >
             ›
           </Link>
@@ -252,7 +252,7 @@ function AccountRow({
             <li>
               <div
                 className={cn(
-                  "flex min-h-[52px] items-center gap-3 border-t border-line-inner bg-muted py-3",
+                  "flex min-h-[52px] items-center gap-3 border-t border-line-inner bg-muted py-2",
                   CLEAR_OF_LEDGER_LINK,
                 )}
                 style={{ paddingLeft: indent(depth + 1) }}

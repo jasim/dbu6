@@ -30,13 +30,13 @@ export function Overview() {
     );
     return (
       <OverviewColumn verdict={view.verdict}>
-        <div className="mt-4 flex items-start gap-3.5 rounded-card border border-sap-border bg-card px-6 py-4 shadow-card">
+        <div className="mt-4 flex items-start gap-3.5 rounded-card border border-sap-border bg-card px-4 py-3 shadow-card">
           <Marker tone="ok" />
           <p className="text-row font-semibold text-foreground">
             <PhraseText phrase={view.outcome} />
           </p>
         </div>
-        <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
           <Button render={<Link to={view.next.to} />} nativeButton={false}>
             {view.next.label}
           </Button>
@@ -81,19 +81,19 @@ export function Overview() {
         ))}
       </ul>
       {view.posting && (
-        <p className="mt-5 text-body text-ink-soft">
+        <p className="mt-4 text-body text-ink-soft">
           <PhraseText phrase={view.posting} />
         </p>
       )}
       {error && (
         <p
           role="alert"
-          className="mt-5 text-body text-destructive [overflow-wrap:anywhere]"
+          className="mt-4 text-body text-destructive [overflow-wrap:anywhere]"
         >
           {error}
         </p>
       )}
-      <div className="mt-5">
+      <div className="mt-4">
         <Button onClick={post} waiting={view.waiting} disabled={posting}>
           {posting && <Loader2 className="animate-spin" />}
           {posting ? "Adding…" : view.button}
@@ -111,7 +111,7 @@ function OverviewColumn({
   children: React.ReactNode;
 }) {
   return (
-    <div className="px-5 pb-10 pt-7 sm:px-8 lg:px-14">
+    <div className="px-4 pb-6 pt-5 sm:px-6 lg:px-8">
       <section className="max-w-[760px]">
         <h2 className="text-heading text-foreground">{verdict}</h2>
         {children}
@@ -122,7 +122,7 @@ function OverviewColumn({
 
 function Check({ row }: { row: CheckRow }) {
   return (
-    <li className="flex flex-wrap items-center gap-x-3.5 gap-y-1 border-t border-line-inner px-6 py-3 first:border-t-0">
+    <li className="flex flex-wrap items-center gap-x-3.5 gap-y-1 border-t border-line-inner px-4 py-2 first:border-t-0">
       <Marker tone={row.tone} />
       <span
         className={cn(

@@ -16,7 +16,7 @@ export function LoadError({
   return (
     <div
       role="alert"
-      className="rounded-card border border-sap-border bg-card px-7 py-[26px]"
+      className="rounded-card border border-sap-border bg-card px-5 py-[26px]"
     >
       <h2 className="text-heading text-foreground">{title}</h2>
       <p className="mt-[5px] text-body text-destructive [overflow-wrap:anywhere]">

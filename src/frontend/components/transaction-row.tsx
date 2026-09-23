@@ -46,11 +46,11 @@ export function TransactionRow({
         onCheckedChange={(checked) => onSelect?.(checked === true)}
         aria-label={`Select ${transaction.name}`}
       />
-      <span className="tnum font-mono text-[15px] text-ink-meta">
+      <span className="tnum font-mono text-[13px] text-ink-meta">
         {transaction.date}
       </span>
       <span className="min-w-0">
-        <span className="block text-[16.5px] font-semibold text-foreground">
+        <span className="block text-[14.5px] font-semibold text-foreground">
           {transaction.name}
         </span>
         <span className="block truncate font-mono text-meta text-ink-meta">

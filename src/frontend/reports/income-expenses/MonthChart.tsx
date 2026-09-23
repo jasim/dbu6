@@ -23,7 +23,7 @@ export function MonthChart({
   const scale = chartScale(bars);
   return (
     <ChartCard>
-      <div className="-mx-2 mt-5 overflow-x-auto px-2 pb-1">
+      <div className="-mx-2 mt-4 overflow-x-auto px-2 pb-1">
         <ol className="flex min-w-full">
           {bars.map((bar) => (
             <li key={bar.key} className="flex min-w-[42px] flex-1">
@@ -67,7 +67,7 @@ export function MonthChartSkeleton() {
     <ChartCard>
       <div
         aria-hidden="true"
-        className="mt-5 h-[132px] rounded-control bg-sap-nested"
+        className="mt-4 h-[132px] rounded-control bg-sap-nested"
       />
     </ChartCard>
   );
@@ -75,7 +75,7 @@ export function MonthChartSkeleton() {
 
 function ChartCard({ children }: { children: ReactNode }) {
   return (
-    <section className="mt-5 rounded-card border border-sap-border bg-card px-6 py-5 shadow-card">
+    <section className="mt-4 rounded-card border border-sap-border bg-card px-4 py-3 shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
         <h2 className="text-subheading text-foreground">Month by month</h2>
         <ul className="flex gap-5 text-meta text-ink-soft">
