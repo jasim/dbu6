@@ -25,6 +25,7 @@ export type {
 export {
   CategorizationConfigError,
   loadCategorizer,
+  readCustomMappingsFile,
   readTransactionMappings,
   TRANSACTION_MAPPINGS_FILENAME,
   type CategorizerSettings,

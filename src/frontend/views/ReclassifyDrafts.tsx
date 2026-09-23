@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Loader2, Upload, Wand2 } from "lucide-react";
+import { AlertCircle, Loader2, Wand2 } from "lucide-react";
+import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
 import { getApiBase } from "@sapporta/frontend/platform";
 import { AppPage } from "@sapporta/frontend/shell";
 import {
@@ -8,19 +9,25 @@ import {
   type CategorizationReport,
   type CategorizationTally,
   type DraftClassification,
+  type ImportPreset,
 } from "../../shared/index";
-import { draftTransactionsApi } from "../api";
+import { draftTransactionsApi, importPresetsApi } from "../api";
 import { FactTable } from "../components/fact-table";
 import { Button } from "../components/ui/button";
 import { plural } from "../format";
 import { parseAccountId } from "../review/routes";
-import { AccountImportInputs } from "./AccountImportInputs";
 import {
   CategorizationFigures,
   CategorizationNote,
   Figures,
 } from "./categorization/CategorizationFigures";
+import { AgentUnavailableDialog } from "./categorization/AgentUnavailableDialog";
 import {
+  accountPreset,
+  CategorizationInstructions,
+} from "./categorization/CategorizationInstructions";
+import {
+  agentUnavailable,
   categorizationCounts,
   describeCategorizationProblem,
 } from "./categorization/describeCategorization";
@@ -72,7 +79,15 @@ export function ReclassifyDrafts() {
     setSearchParams(id === null ? {} : { [ACCOUNT_PARAM]: id }, {
       replace: true,
     });
-  const [mappingsInput, setMappingsInput] = useState("");
+  const accountLookup = useTableLookup("accounts");
+  // Null until they load.
+  const [presets, setPresets] = useState<ImportPreset[] | null>(null);
+  // The preset the user chose for an account's run, null for none; until
+  // they choose, the account's own.
+  const [presetChoice, setPresetChoice] = useState<{
+    accountId: number;
+    name: string | null;
+  } | null>(null);
   const [gpayFile, setGpayFile] = useState<File | null>(null);
   const [gpayEnrichedCount, setGpayEnrichedCount] = useState<number | null>(
     null,
@@ -90,6 +105,13 @@ export function ReclassifyDrafts() {
       .catch((e) =>
         setError(e instanceof Error ? e.message : "Failed to load accounts"),
       );
+  }, []);
+
+  useEffect(() => {
+    importPresetsApi
+      .listImportPresets({})
+      .then(setPresets)
+      .catch(() => setPresets([]));
   }, []);
 
   const accountLookups = useMemo<Record<string, string>>(
@@ -133,16 +155,20 @@ export function ReclassifyDrafts() {
   // the ones a run categorized, to show what it chose.
   const uncategorized = rows.filter((row) => row.account_id === null);
 
+  const accountName =
+    accountId === null ? undefined : accountLookups[String(accountId)];
+  const chosenPreset =
+    presetChoice !== null && presetChoice.accountId === accountId
+      ? (presets?.find((p) => p.name === presetChoice.name) ?? null)
+      : accountPreset(presets ?? [], accountName);
+
   async function handleReclassify() {
     if (uncategorized.length === 0 || accountId === null) return;
     setClassifying(true);
     setError(null);
     setGpayEnrichedCount(null);
     setClassified(null);
-    const customMappings = mappingsInput
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const customMappings = chosenPreset?.custom_mappings_filenames ?? [];
     try {
       let updated: {
         transactions: ClassifyResult[];
@@ -225,52 +251,84 @@ export function ReclassifyDrafts() {
       ? "Choose an account first"
       : loadingRows
         ? "Loading its drafts"
-        : uncategorized.length === 0
-          ? "Every draft already has an account"
-          : undefined;
+        : presets === null
+          ? "Loading the presets"
+          : uncategorized.length === 0
+            ? "Every draft already has an account"
+            : undefined;
 
   return (
     <AppPage section="Review drafts" title="Classify draft entries">
-      <div className="p-8 max-w-6xl space-y-6">
-        <p className="text-body text-ink-soft">
-          Choose the bank or card account you imported. dbu6 will try the
-          configured categorization rules again for entries that do not have an
-          account yet. Anything it cannot classify stays in Draft entries for
-          you to edit.
-        </p>
-
-        <div className="space-y-3 rounded-card border bg-card p-4">
-          <AccountImportInputs
-            accounts={accounts}
-            baseAccountId={baseAccountId}
-            onBaseAccountIdChange={setBaseAccountId}
-            mappingsInput={mappingsInput}
-            onMappingsInputChange={setMappingsInput}
-            disabled={classifying}
-          />
-
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-row font-medium text-foreground">
-              <Upload className="h-4 w-4" />
-              Google Pay My Activities.html (optional)
+      <AgentUnavailableDialog
+        problem={agentUnavailable([shownRun?.report ?? null])}
+      />
+      <div className="p-5 max-w-6xl space-y-4">
+        <div className="space-y-5 rounded-card border bg-card p-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <label
+              htmlFor="classify-account"
+              className="text-row font-semibold text-foreground"
+            >
+              Drafts from
             </label>
-            <p className="text-meta text-ink-meta">
-              Matching withdrawal narrations are enriched before the
-              categorization rules run.
-            </p>
-            <input
-              type="file"
-              accept=".html,.htm"
+            <LookupPicker
+              id="classify-account"
+              lookup={accountLookup}
+              value={accountId}
+              onChange={(id) =>
+                setBaseAccountId(id === null ? null : String(id))
+              }
+              placeholder="Choose a bank or card account…"
               disabled={classifying}
-              onChange={(event) => {
-                setGpayFile(event.target.files?.[0] ?? null);
-                setGpayEnrichedCount(null);
-                setError(null);
-              }}
-              className="block w-full text-row file:mr-3 file:py-1.5 file:px-3 file:rounded-control file:border file:border-sap-border-strong file:bg-card file:text-row file:font-semibold file:text-foreground hover:file:bg-muted file:cursor-pointer"
+              className="w-72"
             />
-            {gpayFile && <FileSummary file={gpayFile} />}
+            {accountId !== null && !loadingRows && (
+              <span className="text-row text-ink-soft">
+                {uncategorized.length === 0
+                  ? "Every draft has a category."
+                  : `${plural(uncategorized.length, "draft")} without a category`}
+              </span>
+            )}
           </div>
+
+          {accountId !== null && presets !== null && (
+            <CategorizationInstructions
+              presets={presets}
+              accountName={accountName}
+              chosen={chosenPreset}
+              onChoose={(name) => setPresetChoice({ accountId, name })}
+              disabled={classifying}
+            />
+          )}
+
+          {accountId !== null && (
+            <div className="space-y-1">
+              <label
+                htmlFor="classify-gpay"
+                className="text-meta font-medium text-ink-soft"
+              >
+                Google Pay activity{" "}
+                <span className="font-normal text-ink-meta">
+                  (optional, My Activities.html)
+                </span>
+              </label>
+              <input
+                id="classify-gpay"
+                type="file"
+                accept=".html,.htm"
+                disabled={classifying}
+                onChange={(event) => {
+                  setGpayFile(event.target.files?.[0] ?? null);
+                  setGpayEnrichedCount(null);
+                  setError(null);
+                }}
+                className="block w-full text-meta text-ink-meta file:mr-3 file:cursor-pointer file:rounded-control file:border file:border-sap-border-strong file:bg-card file:px-3 file:py-1 file:text-meta file:font-semibold file:text-foreground hover:file:bg-muted"
+              />
+              <p className="text-meta text-ink-meta">
+                Names the payees of matching withdrawals before your rules run.
+              </p>
+            </div>
+          )}
 
           <Button
             onClick={handleReclassify}
@@ -280,19 +338,24 @@ export function ReclassifyDrafts() {
             {classifying ? <Loader2 className="animate-spin" /> : <Wand2 />}
             {classifying
               ? "Classifying…"
-              : `Classify ${uncategorized.length || ""} row${uncategorized.length === 1 ? "" : "s"}`.trim()}
+              : uncategorized.length === 0
+                ? "Classify"
+                : `Classify ${plural(uncategorized.length, "draft")}`}
           </Button>
         </div>
 
         {error && (
-          <div className="flex items-start gap-3 rounded-card border border-destructive/30 bg-destructive/10 p-4">
+          <div className="flex items-start gap-3 rounded-card border border-destructive/30 bg-destructive/10 p-3">
             <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
             <div className="text-row text-destructive break-words">{error}</div>
           </div>
         )}
 
         {shownRun && (
-          <div className="space-y-3 rounded-card border bg-card p-4">
+          <section
+            aria-label="What the run did"
+            className="space-y-3 rounded-card border bg-card p-3"
+          >
             <Figures>
               <CategorizationFigures
                 counts={categorizationCounts(shownRun.tally)}
@@ -318,7 +381,7 @@ export function ReclassifyDrafts() {
                   : `Named ${plural(gpayEnrichedCount, "payment")} from Google Pay first.`}
               </p>
             )}
-          </div>
+          </section>
         )}
 
         {baseAccountId !== null && (
@@ -382,14 +445,5 @@ export function ReclassifyDrafts() {
         )}
       </div>
     </AppPage>
-  );
-}
-
-function FileSummary({ file }: { file: File }) {
-  return (
-    <p className="text-meta text-ink-meta">
-      Selected: <span className="font-mono">{file.name}</span> (
-      <span className="tnum font-mono">{Math.round(file.size / 1024)}</span> KB)
-    </p>
   );
 }
