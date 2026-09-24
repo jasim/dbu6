@@ -12,6 +12,7 @@ import { parseAccount, moneyFromColumns } from "../../modules/values/index.js";
 import type { DraftImportInput, ImportSummary } from "./draft-import.js";
 import { runStatementImport, type ImportOptions } from "./statement-import.js";
 import { testImportLedger } from "./test-ledger.js";
+import { assignSourceTransactionKeys } from "../../modules/transaction-identity/index.js";
 
 // Stub the persistence tail so the test can inspect exactly what reaches it.
 // Everything before it (assembly, key assignment, balance validation and the
@@ -232,5 +233,50 @@ describe("runStatementImport over several parts", () => {
       ),
     ).rejects.toBeInstanceOf(BalanceMismatchError);
     expect(draftImportCalls).toHaveLength(0);
+  });
+});
+
+describe("runStatementImport on the checkpoint day", () => {
+  // The books were cut after the morning row, at 850. Salary and a transfer
+  // of the same amount then bring the balance back to 850.
+  const statement = bank(1000, [
+    ["2026-06-17", -100, "rent"],
+    ["2026-06-18", -50, "sample morning"],
+    ["2026-06-18", 500, "NOPII salary"],
+    ["2026-06-18", -500, "NOPII transfer"],
+    ["2026-06-19", 20, "interest"],
+  ]);
+  const morningKey = assignSourceTransactionKeys(
+    statement.transactions,
+    BASE_ACCOUNT,
+  ).find((t) => t.narration === "sample morning")!.source_transaction_key!;
+
+  const narrationsReachingTail = () =>
+    draftImportCalls.at(-1)!.transactions.map((t) => t.narration);
+
+  it("finds the day's new rows by the keys the books hold that day", async () => {
+    await runStatementImport(
+      [statement],
+      options(),
+      testImportLedger(BASE_ACCOUNT, {
+        date: "2026-06-18",
+        balance: 850,
+        keys: [morningKey],
+      }),
+    );
+    expect(narrationsReachingTail()).toEqual([
+      "NOPII salary",
+      "NOPII transfer",
+      "interest",
+    ]);
+  });
+
+  it("falls back to the balance when the day's journal has no key", async () => {
+    await runStatementImport(
+      [statement],
+      options(),
+      testImportLedger(BASE_ACCOUNT, { date: "2026-06-18", balance: 850 }),
+    );
+    expect(narrationsReachingTail()).toEqual(["interest"]);
   });
 });

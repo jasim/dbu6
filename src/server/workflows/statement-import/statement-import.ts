@@ -25,7 +25,10 @@ import {
   ClosingBalanceUnavailable,
 } from "../../modules/statement/index.js";
 import { newTransactionsSinceReconciliation } from "../../modules/reconciliation/index.js";
-import { lookupLastReconciled } from "../../modules/journals/index.js";
+import {
+  loadPostedKeysOn,
+  lookupLastReconciled,
+} from "../../modules/journals/index.js";
 import { loadAccountsByName } from "../../modules/accounts/index.js";
 import type { Ledger } from "../../modules/ledger-sql/index.js";
 import { runDraftImport, type ImportSummary } from "./draft-import.js";
@@ -223,6 +226,13 @@ export async function runStatementImport(
     withBalances,
     checkpoint,
     opening,
+    checkpoint &&
+      loadPostedKeysOn(
+        ledger.sqlite,
+        ledger.auth,
+        baseAccountId,
+        checkpoint.date,
+      ),
   );
   const filteredCount = withBalances.length - survivors.length;
   if (filteredCount > 0) {

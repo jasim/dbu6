@@ -6,6 +6,7 @@ export { renderVisibleJournalsAsHledger } from "./hledger.js";
 export { insertJournalPlan, type InsertedJournals } from "./insert-plan.js";
 export {
   loadLastReconciled,
+  loadPostedKeysOn,
   lookupLastReconciled,
   type LastReconciledRow,
   type ReconciledCheckpoint,

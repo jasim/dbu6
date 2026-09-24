@@ -1,6 +1,10 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { loadLastReconciled, lookupLastReconciled } from "./last-reconciled.js";
+import {
+  loadLastReconciled,
+  loadPostedKeysOn,
+  lookupLastReconciled,
+} from "./last-reconciled.js";
 import { testLedgerAuth } from "../ledger-sql/testing.js";
 
 describe("Last reconciled query", () => {
@@ -188,5 +192,74 @@ describe("the last reconciled checkpoint", () => {
       balance: 2000,
     });
     expect(lookupLastReconciled(sqlite, auth, "Missing Account")).toBeNull();
+  });
+});
+
+/*
+ * Sample Savings (1) on 10 May: journal 30 is one imported row, journal 31 a
+ * run of two (the grouped form, its keys on the category lines), journal 32 a
+ * transfer posted from Sample Card's (2) statement. Journal 33 is Sample
+ * Card's alone, journal 34 is on 11 May, and journal 35 belongs to another
+ * user. On 12 May, journal 36 was entered by hand, with no key.
+ */
+function keyedLedger(): Database.Database {
+  const sqlite = new Database(":memory:");
+  sqlite.exec(`
+    CREATE TABLE accounts (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT
+    );
+    CREATE TABLE journals (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT
+    );
+    CREATE TABLE journal_entries (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
+      account_id INTEGER, source_transaction_key TEXT
+    );
+    CREATE TABLE draft_transactions (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
+    );
+
+    INSERT INTO accounts VALUES
+      (1, 'workspace', 'user', 'Sample Savings'),
+      (2, 'workspace', 'user', 'Sample Card'),
+      (3, 'workspace', 'user', 'Groceries');
+    INSERT INTO journals VALUES
+      (30, 'workspace', 'user', '2026-05-10'),
+      (31, 'workspace', 'user', '2026-05-10'),
+      (32, 'workspace', 'user', '2026-05-10'),
+      (33, 'workspace', 'user', '2026-05-10'),
+      (34, 'workspace', 'user', '2026-05-11'),
+      (35, 'workspace', 'other-user', '2026-05-10'),
+      (36, 'workspace', 'user', '2026-05-12');
+    INSERT INTO journal_entries VALUES
+      (301, 'workspace', 'user', 30, 3, 'semantic:one'),
+      (302, 'workspace', 'user', 30, 1, NULL),
+      (311, 'workspace', 'user', 31, 3, 'ref:two'),
+      (312, 'workspace', 'user', 31, 3, 'ref:three'),
+      (313, 'workspace', 'user', 31, 1, NULL),
+      (321, 'workspace', 'user', 32, 1, 'ref:card-payment'),
+      (322, 'workspace', 'user', 32, 2, NULL),
+      (331, 'workspace', 'user', 33, 3, 'ref:card-only'),
+      (332, 'workspace', 'user', 33, 2, NULL),
+      (341, 'workspace', 'user', 34, 3, 'ref:next-day'),
+      (342, 'workspace', 'user', 34, 1, NULL),
+      (351, 'workspace', 'other-user', 35, 1, NULL),
+      (361, 'workspace', 'user', 36, 3, NULL),
+      (362, 'workspace', 'user', 36, 1, NULL);
+  `);
+  return sqlite;
+}
+
+describe("the keys posted on a day", () => {
+  const auth = testLedgerAuth();
+
+  it("gathers every key on the day's journals that touch the account", () => {
+    expect(loadPostedKeysOn(keyedLedger(), auth, 1, "2026-05-10")).toEqual(
+      new Set(["semantic:one", "ref:two", "ref:three", "ref:card-payment"]),
+    );
+  });
+
+  it("can't vouch for a day that holds a journal with no key", () => {
+    expect(loadPostedKeysOn(keyedLedger(), auth, 1, "2026-05-12")).toBeNull();
   });
 });
