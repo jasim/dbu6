@@ -1,9 +1,10 @@
 import path from "node:path";
+import type { ImportInstitution } from "../../../shared/index.js";
+import { loadLedgerAccounts } from "../../modules/accounts/index.js";
 import {
   planAutoImport,
   type AutoImportGroup,
   type FileRecognition,
-  type ImportPreset,
   type PlannedFile,
   recognizeStatementFile,
   savedCustomStatementParserNames,
@@ -14,7 +15,8 @@ import { parseGPayHtml, type GPayIndex } from "../../modules/gpay/index.js";
 import type { Ledger } from "../../modules/ledger-sql/index.js";
 import { isImportRefusal, type ImportRefusal } from "./refusals.js";
 import {
-  importOptionsFromPreset,
+  AccountNotFoundError,
+  importOptionsFromAccount,
   runStatementImport,
   type StatementImportResult,
 } from "./statement-import.js";
@@ -24,9 +26,9 @@ import {
 //
 //   per file: savedCustomStatementParserNames(ext)
 //             recognizeStatementFile(candidates, path)
-//     -> planAutoImport(recognitions, presets)   pure: groups, or a rejection
+//     -> planAutoImport(recognitions, institutions)   pure: groups, or a rejection
 //     -> parseGPayHtml(takeout), once
-//     -> per group: runStatementImport(statements, importOptionsFromPreset)
+//     -> per group: runStatementImport(statements, importOptionsFromAccount)
 //
 // The Takeout names UPI recipients in every account the batch imports.
 
@@ -40,16 +42,18 @@ export interface StagedStatement {
 export interface StatementBatch {
   statements: readonly StagedStatement[];
   gpayHtmlPath: string | null;
-  presets: readonly ImportPreset[];
+  institutions: readonly ImportInstitution[];
 }
 
 export interface ImportedGroup {
   group: AutoImportGroup;
+  // The ledger account's name the group imported into.
+  baseAccount: string;
   result: StatementImportResult;
 }
 
 // Every outcome carries what the plan decided for each file, whether or not
-// anything was imported, so the user can fix a preset and retry.
+// anything was imported, so the user can fix the presets and retry.
 export type BatchImportOutcome =
   // A file was unrecognized, ambiguous, or unplaced by the presets, so nothing
   // was imported: a partial import of a batch the user dropped as a unit is
@@ -62,6 +66,9 @@ export type BatchImportOutcome =
       files: PlannedFile[];
       imported: ImportedGroup[];
       failed: AutoImportGroup;
+      // The ledger account's name, or the preset's name when the ledger no
+      // longer has the account.
+      failedBaseAccount: string;
       error: ImportRefusal;
     };
 
@@ -71,14 +78,14 @@ export async function importStatementBatch(
   loadCategorizer: LoadCategorizer,
 ): Promise<BatchImportOutcome> {
   const recognitions = await recognizeStatements(batch.statements);
-  const plan = planAutoImport(recognitions, batch.presets);
+  const plan = planAutoImport(recognitions, batch.institutions);
   if (!plan.ok) return { kind: "unplanned", files: plan.files };
 
   console.log(
     `[auto-statement-upload] importing ${plan.groups.length} account(s): ${plan.groups
       .map(
         (group) =>
-          `${group.preset.name} <- ${group.statements.map((one) => one.file).join(", ")}`,
+          `${group.account.name} <- ${group.statements.map((one) => one.file).join(", ")}`,
       )
       .join("; ")}`,
   );
@@ -106,8 +113,10 @@ async function recognizeStatements(
   return recognitions;
 }
 
-// One preset is one account, so each group is one ordinary statement import.
-// Groups run in sequence and stop at the first that refuses.
+// Each group is one account's ordinary statement import, into the ledger
+// account its id names when the batch starts; an id the ledger no longer has
+// refuses that group. Groups run in sequence and stop at the first that
+// refuses.
 async function importGroups(
   files: PlannedFile[],
   groups: readonly AutoImportGroup[],
@@ -118,19 +127,45 @@ async function importGroups(
   const imported: ImportedGroup[] = [];
   // One engine for the batch: every group categorizes on the same agent.
   const llm = await categorizationLlm();
+  const ledgerNames = new Map(
+    loadLedgerAccounts(ledger.sqlite, ledger.auth).map((account) => [
+      account.id,
+      account.name,
+    ]),
+  );
 
   for (const group of groups) {
+    const ledgerName = ledgerNames.get(group.account.account_id);
     try {
+      if (ledgerName === undefined) {
+        throw new AccountNotFoundError(
+          group.account.name,
+          group.account.account_id,
+        );
+      }
       const result = await runStatementImport(
         group.statements.map((one) => one.statement),
-        await importOptionsFromPreset(group.preset, gpay, llm, loadCategorizer),
+        await importOptionsFromAccount(
+          group.account,
+          ledgerName,
+          gpay,
+          llm,
+          loadCategorizer,
+        ),
         ledger,
         group.statements.map((one) => one.file),
       );
-      imported.push({ group, result });
+      imported.push({ group, baseAccount: ledgerName, result });
     } catch (error) {
       if (!isImportRefusal(error)) throw error;
-      return { kind: "failed", files, imported, failed: group, error };
+      return {
+        kind: "failed",
+        files,
+        imported,
+        failed: group,
+        failedBaseAccount: ledgerName ?? group.account.name,
+        error,
+      };
     }
   }
   return { kind: "imported", files, imported };

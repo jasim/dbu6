@@ -1,4 +1,4 @@
-import type { StatementImportError } from "../../shared/index.js";
+import { guideCommand, type StatementImportError } from "../../shared/index.js";
 import type { CategorizationConfigError } from "../modules/categorization/index.js";
 import type {
   BalanceMismatchError,
@@ -30,7 +30,10 @@ export function importErrorResponse(err: ImportRefusal): ImportErrorResponse {
         body: {
           error: "import_account_not_found",
           message: err.message,
-          hint: "Name the account exactly as Accounts lists it, or add it there first.",
+          hint:
+            err.presetAccountId === null
+              ? "Name the account exactly as Accounts lists it, or add it there first."
+              : `The ledger account was deleted. Point the import preset's account at another ledger account, or remove it from its institution, with the preset calls \`${guideCommand("books")}\` describes.`,
         },
       };
     case "AbacusJsonParseError":

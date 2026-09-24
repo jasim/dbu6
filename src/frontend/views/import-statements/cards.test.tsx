@@ -43,7 +43,8 @@ function group(result: {
   categorization?: CategorizationReport;
 }): AutoImportGroupResult {
   return {
-    preset_name: "Sample Savings",
+    account_id: 5,
+    account_name: "Sample Savings",
     base_account: "Sample Savings",
     is_credit_card: false,
     file_names: ["sample-aug.xls"],
@@ -114,7 +115,8 @@ describe("an account's card in the import results", () => {
     const bank = group({ fresh: 0, total: 6, tally: NOTHING_CATEGORIZED });
     const card = {
       ...group({ fresh: 0, total: 6, tally: NOTHING_CATEGORIZED }),
-      preset_name: "Sample Card",
+      account_id: 6,
+      account_name: "Sample Card",
       is_credit_card: true,
     };
     render(bank, card);

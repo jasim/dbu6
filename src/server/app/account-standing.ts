@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { DatedBalance, ImportPreset } from "../../shared/index.js";
+import type { DatedBalance, ImportInstitution } from "../../shared/index.js";
 import { accountLabel, type AccountLabel } from "./account-names.js";
 import {
   loadDraftStatus,
@@ -32,7 +32,7 @@ export interface AccountStanding extends AccountLabel {
 export function loadAccountStandings(
   sqlite: Database.Database,
   auth: LedgerAuth,
-  presets: readonly ImportPreset[],
+  institutions: readonly ImportInstitution[],
 ): Map<number, AccountStanding> {
   const checkpoints = new Map(
     loadLastReconciled(sqlite, auth).map((row) => [
@@ -48,7 +48,7 @@ export function loadAccountStandings(
       {
         account_id: account.id,
         path: account.name,
-        ...accountLabel(account.name, account.account_type, presets),
+        ...accountLabel(account, institutions),
         checkpoint: checkpoints.get(account.id) ?? null,
         statement_differences: differences.get(account.id) ?? 0,
         drafts: drafts.get(account.id),

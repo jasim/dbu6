@@ -1,79 +1,84 @@
 import { describe, expect, it } from "vitest";
-import { accountLabel, importablePaths } from "./account-names.js";
+import type { ImportInstitution } from "../../shared/index.js";
+import { accountLabel, importableAccounts } from "./account-names.js";
 
-const presets = [
+const account = (id: number, name: string, isCreditCard = false) => ({
+  account_id: id,
+  name,
+  is_credit_card: isCreditCard,
+  account_identifiers: [],
+  custom_mappings_filenames: [],
+});
+
+const institutions: ImportInstitution[] = [
   {
-    name: "Bank PDF",
-    base_account: "Sample Bank",
-    custom_mappings_filenames: [],
+    id: 1,
+    name: "Sample Bank",
+    parsers: ["sample-bank-xls"],
+    accounts: [account(11, "Sample Savings Statement")],
   },
   {
-    name: "Bank XLS",
-    base_account: "Sample Bank",
-    custom_mappings_filenames: [],
-    is_credit_card: true,
-  },
-  {
-    name: "Only Card Statement",
-    base_account: "Only Card",
-    custom_mappings_filenames: [],
-    is_credit_card: true,
-  },
-  {
-    name: "Sample Savings Statement",
-    base_account: "Sample Savings",
-    custom_mappings_filenames: [],
+    id: 2,
+    name: "Sample Cards",
+    parsers: ["sample-cc-xls"],
+    accounts: [account(21, "Only Card Statement", true)],
   },
 ];
 
-describe("importablePaths", () => {
-  it("keeps one path per base account, in first-seen order", () => {
-    expect(importablePaths(presets)).toEqual([
-      "Sample Bank",
-      "Only Card",
-      "Sample Savings",
-    ]);
+describe("importableAccounts", () => {
+  it("lists every preset account, in table order", () => {
+    expect(
+      importableAccounts(institutions).map((one) => one.account_id),
+    ).toEqual([11, 21]);
   });
 });
 
 describe("accountLabel", () => {
-  it("takes the name and kind from the one preset importing into the account", () => {
-    expect(accountLabel("Only Card", "Liability", presets)).toEqual({
-      name: "Only Card Statement",
-      kind: "card",
-    });
-    expect(accountLabel("Sample Savings", "Asset", presets)).toEqual({
-      name: "Sample Savings Statement",
-      kind: "bank",
-    });
+  it("takes the name and kind from the preset account with the same id", () => {
+    expect(
+      accountLabel(
+        { id: 21, name: "Only Card", account_type: "Liability" },
+        institutions,
+      ),
+    ).toEqual({ name: "Only Card Statement", kind: "card" });
+    expect(
+      accountLabel(
+        { id: 11, name: "Sample Savings", account_type: "Asset" },
+        institutions,
+      ),
+    ).toEqual({ name: "Sample Savings Statement", kind: "bank" });
   });
 
-  it("keeps the account's own name when no single preset names it", () => {
-    expect(accountLabel("Sample Bank", "Asset", presets)).toEqual({
-      name: "Sample Bank",
-      kind: "card",
-    });
-    expect(accountLabel("No Preset Bank 050505", "Asset", [])).toEqual({
-      name: "No Preset Bank 050505",
-      kind: "bank",
-    });
+  it("says a preset account is a card or not whatever the ledger type", () => {
+    expect(
+      accountLabel(
+        { id: 21, name: "Only Card", account_type: "Asset" },
+        institutions,
+      ),
+    ).toEqual({ name: "Only Card Statement", kind: "card" });
   });
 
-  it("reads a Liability without a card preset as a card", () => {
-    expect(accountLabel("Sample Loan", "Liability", presets)).toEqual({
-      name: "Sample Loan",
-      kind: "card",
-    });
+  it("keeps an account's own name when no preset lists it, whatever its name", () => {
+    expect(
+      accountLabel(
+        { id: 99, name: "Sample Savings Statement", account_type: "Asset" },
+        institutions,
+      ),
+    ).toEqual({ name: "Sample Savings Statement", kind: "bank" });
+    expect(
+      accountLabel(
+        { id: 98, name: "No Preset Bank 050505", account_type: "Asset" },
+        [],
+      ),
+    ).toEqual({ name: "No Preset Bank 050505", kind: "bank" });
   });
 
-  it("reads an account the ledger doesn't have as a bank unless a preset says card", () => {
-    expect(accountLabel("Sample Savings", null, presets)).toEqual({
-      name: "Sample Savings Statement",
-      kind: "bank",
-    });
-    expect(accountLabel("Only Card", null, presets)).toEqual({
-      name: "Only Card Statement",
-      kind: "card",
-    });
+  it("reads a Liability no preset lists as a card", () => {
+    expect(
+      accountLabel(
+        { id: 97, name: "Sample Loan", account_type: "Liability" },
+        institutions,
+      ),
+    ).toEqual({ name: "Sample Loan", kind: "card" });
   });
 });

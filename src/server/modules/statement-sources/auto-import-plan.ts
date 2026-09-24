@@ -1,9 +1,12 @@
-import type { StatementAccount } from "../../../shared/index.js";
+import type {
+  ImportAccount,
+  ImportInstitution,
+  StatementAccount,
+} from "../../../shared/index.js";
 import type { AbacusStatement } from "../statement/index.js";
 import {
-  resolveImportPreset,
-  type ImportPreset,
-  type ImportPresetRejectionReason,
+  resolveImportAccount,
+  type ImportAccountRejectionReason,
 } from "./import-presets.js";
 import type { StatementRecognition } from "./statement-recognition.js";
 
@@ -12,7 +15,7 @@ import type { StatementRecognition } from "./statement-recognition.js";
 // temp path, so every row of the plan is one the user can point at.
 export interface RecognizedStatement {
   file: string;
-  // The parser's name, as presets declare it, e.g. `hdfc-cc-xls`.
+  // The parser's name, as institutions list it, e.g. `hdfc-cc-xls`.
   parserName: string;
   statement: AbacusStatement;
 }
@@ -23,36 +26,43 @@ export interface RecognizedStatement {
 export type FileRecognition = StatementRecognition & { file: string };
 
 // The account a recognized statement reports about itself, carried through the
-// plan so every row explains itself whether or not it resolved to a preset.
+// plan so every row explains itself whether or not it resolved to an account.
 interface ReportedAccount {
   parserName: string;
   account: StatementAccount | null;
   institution: string | null;
 }
 
-// One upload's place in the plan: the preset it will import into, or why it
-// has none. `unrecognized` and `ambiguous` come from detection; `unresolved`
-// means a parser read the file but no single preset claims it.
+// One upload's place in the plan: the preset account it will import into, or
+// why it has none. `unrecognized` and `ambiguous` come from detection;
+// `unresolved` means a parser read the file but no single account claims it.
 export type PlannedFile =
-  | ({ status: "resolved"; file: string; presetName: string } & ReportedAccount)
+  | ({
+      status: "resolved";
+      file: string;
+      accountId: number;
+      accountName: string;
+    } & ReportedAccount)
   | { status: "unrecognized"; file: string; candidateParserNames: string[] }
   | { status: "ambiguous"; file: string; matchingParserNames: string[] }
   | ({
       status: "unresolved";
       file: string;
-      reason: ImportPresetRejectionReason;
+      reason: ImportAccountRejectionReason;
       message: string;
-      candidatePresetNames: string[];
+      institutionName: string | null;
+      candidateAccountNames: string[];
     } & ReportedAccount);
 
-// One preset's share of the batch: the statements that resolved to it, in
-// upload order. One group is one account import.
+// One preset account's share of the batch: the statements that resolved to
+// it, in upload order. One group is one account import.
 export interface AutoImportGroup {
-  preset: ImportPreset;
+  institution: ImportInstitution;
+  account: ImportAccount;
   statements: RecognizedStatement[];
 }
 
-// Either every upload resolved to a preset and the groups say what to import,
+// Either every upload resolved to an account and the groups say what to import,
 // or at least one did not and nothing may be imported. `files` carries every
 // upload in both cases, so a rejection is as explanatory as a success.
 export type AutoImportPlan =
@@ -68,18 +78,18 @@ function reportedAccount(recognized: RecognizedStatement): ReportedAccount {
 }
 
 // Decide what a batch of recognized uploads would import, without touching the
-// ledger. Every file resolves through `resolveImportPreset`, and files sharing
-// a preset become one group because one preset is one account.
+// ledger. Every file resolves through `resolveImportAccount`, and files that
+// resolve to one account, by its account_id, become one group.
 //
 // The batch is all-or-nothing: a single file the presets cannot place rejects
 // the plan, so the user fixes their presets or drops the file rather than
 // importing part of what they dropped.
 export function planAutoImport(
   recognitions: readonly FileRecognition[],
-  presets: readonly ImportPreset[],
+  institutions: readonly ImportInstitution[],
 ): AutoImportPlan {
   const files: PlannedFile[] = [];
-  const groups = new Map<ImportPreset, RecognizedStatement[]>();
+  const groups = new Map<number, AutoImportGroup>();
 
   for (const recognition of recognitions) {
     if (recognition.outcome === "unrecognized") {
@@ -99,7 +109,7 @@ export function planAutoImport(
       continue;
     }
 
-    const resolution = resolveImportPreset(presets, {
+    const resolution = resolveImportAccount(institutions, {
       file: recognition.file,
       parserName: recognition.parserName,
       identifier: recognition.statement.account?.identifier ?? null,
@@ -110,7 +120,8 @@ export function planAutoImport(
         file: recognition.file,
         reason: resolution.reason,
         message: resolution.message,
-        candidatePresetNames: resolution.candidatePresetNames,
+        institutionName: resolution.institutionName,
+        candidateAccountNames: resolution.candidateAccountNames,
         ...reportedAccount(recognition),
       });
       continue;
@@ -119,24 +130,24 @@ export function planAutoImport(
     files.push({
       status: "resolved",
       file: recognition.file,
-      presetName: resolution.preset.name,
+      accountId: resolution.account.account_id,
+      accountName: resolution.account.name,
       ...reportedAccount(recognition),
     });
-    const statements = groups.get(resolution.preset);
     const { outcome: _outcome, ...recognized } = recognition;
-    if (statements) statements.push(recognized);
-    else groups.set(resolution.preset, [recognized]);
+    const group = groups.get(resolution.account.account_id);
+    if (group) group.statements.push(recognized);
+    else {
+      groups.set(resolution.account.account_id, {
+        institution: resolution.institution,
+        account: resolution.account,
+        statements: [recognized],
+      });
+    }
   }
 
   if (files.some((file) => file.status !== "resolved")) {
     return { ok: false, files };
   }
-  return {
-    ok: true,
-    files,
-    groups: Array.from(groups, ([preset, statements]) => ({
-      preset,
-      statements,
-    })),
-  };
+  return { ok: true, files, groups: [...groups.values()] };
 }

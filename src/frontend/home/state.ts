@@ -16,10 +16,7 @@ import { joinNames } from "../format";
  */
 
 export type HomeStateId =
-  | "no-accounts"
-  | "nothing-imported"
-  | "drafts"
-  | "import-new";
+  "no-accounts" | "nothing-imported" | "drafts" | "import-new";
 
 export interface HomeLink {
   label: string;
@@ -50,7 +47,7 @@ export function homeState(summary: HomeSummary): HomeView {
       greeting: "Let's set up your first account",
       card: {
         title: "Add your first account",
-        body: "dbu6 imports statements from the banks and cards you set up. Each needs an account and an import preset.",
+        body: "dbu6 imports statements from the banks and cards you set up. Each needs an account in your books, listed in its bank's import preset.",
         action: { label: "Open accounts", to: "/accounts" },
       },
     };

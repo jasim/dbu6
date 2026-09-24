@@ -76,11 +76,7 @@ export function ResultsCard({
   return (
     <ul className="space-y-4">
       {groups.map((group) => (
-        <AccountResult
-          key={group.preset_name + group.base_account}
-          group={group}
-          sources={sources}
-        />
+        <AccountResult key={group.account_id} group={group} sources={sources} />
       ))}
     </ul>
   );

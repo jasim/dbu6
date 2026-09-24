@@ -1,9 +1,9 @@
 import { readFile, rm } from "node:fs/promises";
 import { z } from "zod";
 import {
-  importPresetSchema,
+  parserNameSchema,
+  statementAccountIdentifierSchema,
   type ImportAccount,
-  type ImportPreset,
 } from "../../../shared/index.js";
 import { userConfigPath } from "../../paths.js";
 import type { PresetInstitution } from "./import-preset-changes.js";
@@ -17,6 +17,19 @@ import type { PresetInstitution } from "./import-preset-changes.js";
  * share a parser or an account become one institution, and the presets of
  * one account become one account.
  */
+
+// One preset of the file: one account and one statement format.
+const importPresetSchema = z.object({
+  name: z.string().min(1),
+  // The ledger account's name.
+  base_account: z.string().min(1),
+  custom_mappings_filenames: z.array(z.string()),
+  is_credit_card: z.boolean().optional(),
+  custom_statement_parser_path: parserNameSchema.optional(),
+  // The account or card number the preset's statements print.
+  statement_account_identifier: statementAccountIdentifierSchema.optional(),
+});
+export type ImportPreset = z.infer<typeof importPresetSchema>;
 
 const importPresetsFileSchema = z.array(importPresetSchema);
 

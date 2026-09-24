@@ -28,7 +28,8 @@ function group(
   categorization_tally: CategorizationTally,
 ): AutoImportGroupResult {
   return {
-    preset_name: "Sample Bank",
+    account_id: 1,
+    account_name: "Sample Bank",
     base_account: "Sample Bank",
     is_credit_card: false,
     file_names: [fileName],
@@ -67,7 +68,8 @@ function file(fileName: string): AutoImportPlanFile {
     parser_path: "sample-bank-xls",
     account: null,
     institution: null,
-    preset_name: "Sample Bank",
+    account_id: 1,
+    account_name: "Sample Bank",
   };
 }
 

@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Tabs } from "@base-ui/react/tabs";
 import { cn } from "@sapporta/ui/cn";
-import type { CustomMappingsFile, ImportPreset } from "../../../shared/index";
+import type {
+  CustomMappingsFile,
+  ImportAccountView,
+  ImportPresetsView,
+} from "../../../shared/index";
 import { importPresetsApi } from "../../api";
 import {
   Select,
@@ -12,45 +16,72 @@ import {
 } from "../../components/ui/select";
 
 /*
- * What the coding agent is told when it categorizes, on Classify drafts. A
- * preset is how an account's statements are imported; here only its
- * instruction files matter, so the user picks the preset whose instructions
- * to use (the account's own, unless they want another's) and reads them,
- * each file on a tab of its own.
+ * What the coding agent is told when it categorizes, on Classify drafts. An
+ * import preset lists an institution's accounts, each with its own
+ * instruction files; here only those files matter, so the user picks the
+ * preset account whose instructions to use (the drafts' own account, unless
+ * they want another's) and reads them, each file on a tab of its own.
  */
 
 // The Select's value for a run without instructions.
 const NO_PRESET = "";
 
-/** The preset an account imports with: the first that names it. */
+/** A preset account, with the institution whose preset lists it. */
+export interface PresetAccount {
+  institution: string;
+  account: ImportAccountView;
+}
+
+/** Every preset account, institution by institution. */
+export function presetAccounts(presets: ImportPresetsView): PresetAccount[] {
+  return presets.institutions.flatMap((institution) =>
+    institution.accounts.map((account) => ({
+      institution: institution.name,
+      account,
+    })),
+  );
+}
+
+/** The preset entry of the ledger account with this id, if any lists it. */
 export function accountPreset(
-  presets: readonly ImportPreset[],
-  accountName: string | undefined,
-): ImportPreset | null {
-  return presets.find((p) => p.base_account === accountName) ?? null;
+  presets: readonly PresetAccount[],
+  accountId: number,
+): PresetAccount | null {
+  return presets.find((p) => p.account.account_id === accountId) ?? null;
+}
+
+/** "Sample Bank · Sample Savings". */
+function presetLabel({ institution, account }: PresetAccount): string {
+  return `${institution} · ${account.name}`;
 }
 
 interface Props {
-  presets: readonly ImportPreset[];
-  // The account whose drafts are classified; undefined while it loads.
+  presets: readonly PresetAccount[];
+  // The ledger account whose drafts are classified.
+  accountId: number;
+  // Its name; undefined while it loads.
   accountName: string | undefined;
-  // The preset whose instructions a run sends, or null for none.
-  chosen: ImportPreset | null;
-  onChoose: (name: string | null) => void;
+  // The preset account whose instructions a run sends, or null for none.
+  chosen: PresetAccount | null;
+  // Called with the chosen preset account's account_id, or null for none.
+  onChoose: (accountId: number | null) => void;
   disabled?: boolean;
 }
 
 export function CategorizationInstructions({
   presets,
+  accountId,
   accountName,
   chosen,
   onChoose,
   disabled,
 }: Props) {
-  const own = accountPreset(presets, accountName);
+  const own = accountPreset(presets, accountId);
   const items: Record<string, string> = {
     [NO_PRESET]: "No instructions",
-    ...Object.fromEntries(presets.map((p) => [p.name, p.name])),
+    ...Object.fromEntries(
+      presets.map((p) => [String(p.account.account_id), presetLabel(p)]),
+    ),
   };
 
   return (
@@ -70,9 +101,9 @@ export function CategorizationInstructions({
 
       <Select<string>
         items={items}
-        value={chosen?.name ?? NO_PRESET}
+        value={chosen === null ? NO_PRESET : String(chosen.account.account_id)}
         onValueChange={(value) =>
-          onChoose(value === null || value === NO_PRESET ? null : value)
+          onChoose(value === null || value === NO_PRESET ? null : Number(value))
         }
         disabled={disabled}
       >
@@ -84,17 +115,20 @@ export function CategorizationInstructions({
           {accountName !== undefined && (
             <span className="text-meta text-ink-meta">
               {own === null
-                ? `${accountName} has no import preset.`
-                : chosen?.name === own.name
-                  ? `The preset ${accountName} imports with.`
-                  : `${accountName} imports with ${own.name}.`}
+                ? `${accountName} is in no import preset.`
+                : chosen?.account.account_id === own.account.account_id
+                  ? `The instructions ${accountName} imports with.`
+                  : `${accountName} imports with ${presetLabel(own)}.`}
             </span>
           )}
         </div>
         <SelectContent>
           {presets.map((p) => (
-            <SelectItem key={p.name} value={p.name}>
-              {p.name}
+            <SelectItem
+              key={p.account.account_id}
+              value={String(p.account.account_id)}
+            >
+              {presetLabel(p)}
             </SelectItem>
           ))}
           <SelectItem value={NO_PRESET}>No instructions</SelectItem>
@@ -105,23 +139,23 @@ export function CategorizationInstructions({
         <p className="rounded-control border border-dashed px-3 py-2 text-meta text-ink-meta">
           The coding agent will categorize from your account names alone.
         </p>
-      ) : chosen.custom_mappings_filenames.length === 0 ? (
+      ) : chosen.account.custom_mappings_filenames.length === 0 ? (
         <p className="rounded-control border border-dashed px-3 py-2 text-meta text-ink-meta">
-          {chosen.name} names no instruction files, so the coding agent will
-          categorize from your account names alone.
+          {presetLabel(chosen)} names no instruction files, so the coding agent
+          will categorize from your account names alone.
         </p>
       ) : (
         <InstructionFiles
-          // A new preset opens on its first file.
-          key={chosen.name}
-          filenames={chosen.custom_mappings_filenames}
+          // Another account's instructions open on their first file.
+          key={chosen.account.account_id}
+          filenames={chosen.account.custom_mappings_filenames}
         />
       )}
     </section>
   );
 }
 
-/** A preset's instruction files, one tab each, read-only. */
+/** A preset account's instruction files, one tab each, read-only. */
 function InstructionFiles({ filenames }: { filenames: readonly string[] }) {
   return (
     <Tabs.Root

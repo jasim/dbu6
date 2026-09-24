@@ -55,6 +55,27 @@ export function loadImportPresets(
     .map(institutionOf);
 }
 
+/**
+ * Every institution in the database, whoever's it is, for `dbu6 check`,
+ * which reads a project's books outside any request, and a project has one
+ * owner. Null when the database predates the table.
+ */
+export function readEveryImportPreset(
+  sqlite: import("better-sqlite3").Database,
+): ImportInstitution[] | null {
+  const table = sqlite
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'import_presets'",
+    )
+    .get();
+  if (table === undefined) return null;
+  return (
+    sqlite
+      .prepare("SELECT * FROM import_presets ORDER BY id")
+      .all() as PresetRow[]
+  ).map(institutionOf);
+}
+
 function columnsOf(institution: PresetInstitution) {
   return {
     name: institution.name,

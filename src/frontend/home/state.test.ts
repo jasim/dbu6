@@ -27,10 +27,11 @@ function account(
   };
 }
 
-const missing: HomeAccount = {
+// A preset account whose ledger account was deleted.
+const deleted: HomeAccount = {
   in_ledger: false,
-  path: "Missing Bank 050505",
-  name: "Not Yet Added",
+  account_id: 9,
+  name: "Sample Deleted",
   kind: "bank",
 };
 
@@ -58,7 +59,7 @@ function sum(accounts: HomeLedgerAccount[], key: keyof DraftCounts): number {
 }
 
 describe("homeState", () => {
-  it("asks for an account when no preset names one", () => {
+  it("asks for an account when no preset lists one", () => {
     const view = homeState(summary([]));
     expect(view.state).toBe("no-accounts");
     expect(view.greeting).toBe("Let's set up your first account");
@@ -91,9 +92,7 @@ describe("homeState", () => {
 
   it("says drafts are waiting, whatever they still need", () => {
     const view = homeState(
-      summary([
-        account({ drafts: 12, uncategorised: 5, failing_checks: 2 }),
-      ]),
+      summary([account({ drafts: 12, uncategorised: 5, failing_checks: 2 })]),
     );
     expect(view.state).toBe("drafts");
     expect(view.greeting).toBeUndefined();
@@ -136,8 +135,8 @@ describe("homeState", () => {
   });
 
   it("gives the only account with drafts its own Review", () => {
-    // An account the ledger doesn't have yet holds no drafts.
-    const view = homeState(summary([account({ drafts: 21 }), missing]));
+    // An account deleted from the ledger holds no drafts.
+    const view = homeState(summary([account({ drafts: 21 }), deleted]));
     expect(view.card.action.to).toBe("/review/2");
   });
 

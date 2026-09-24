@@ -10,7 +10,7 @@ import { z } from "zod";
 
 export const statementImportErrorSchema = z.discriminatedUnion("error", [
   // The import names an account the ledger doesn't have: a freeform request's
-  // account, or a preset's base_account.
+  // account, or a preset account whose ledger account was deleted.
   z.object({
     error: z.literal("import_account_not_found"),
     message: z.string(),

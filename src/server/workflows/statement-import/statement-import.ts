@@ -3,7 +3,7 @@ import {
   type AccountKind,
   type DatedBalance,
   type DateSpan,
-  type ImportPreset,
+  type ImportAccount,
 } from "../../../shared/index.js";
 import type {
   CategorizationLlm,
@@ -36,11 +36,20 @@ import { assignSourceTransactionKeys } from "../../modules/transaction-identity/
 
 // The import names an account the ledger doesn't have, so its drafts would
 // belong to no account.
+// A preset account names its ledger account by id; `presetAccountId` is set
+// when that account was deleted, and `account` is then the preset's name.
 export class AccountNotFoundError extends Error {
   override readonly name = "AccountNotFoundError";
 
-  constructor(readonly account: string) {
-    super(`The ledger has no account named ${account}.`);
+  constructor(
+    readonly account: string,
+    readonly presetAccountId: number | null = null,
+  ) {
+    super(
+      presetAccountId === null
+        ? `The ledger has no account named ${account}.`
+        : `The import preset's account "${account}" imports into ledger account ${presetAccountId}, which the ledger no longer has.`,
+    );
   }
 }
 
@@ -311,20 +320,23 @@ export async function runStatementImport(
   };
 }
 
-// How a preset decides an import, its categorization instructions included.
-// The Google Pay Takeout is the one choice made per upload rather than per
+// How a preset account decides an import, its categorization instructions
+// included. The import names its ledger account by `ledgerAccountName`, the
+// name its id has now, because transaction keys are built from it. The
+// Google Pay Takeout is the one choice made per upload rather than per
 // account, so it arrives alongside.
-export async function importOptionsFromPreset(
-  preset: ImportPreset,
+export async function importOptionsFromAccount(
+  account: ImportAccount,
+  ledgerAccountName: string,
   gpay: GPayIndex | null,
   llm: CategorizationLlm,
   loadCategorizer: LoadCategorizer,
 ): Promise<ImportOptions> {
   return {
-    baseAccount: parseAccount(preset.base_account),
-    accountKind: accountKindOf(preset.is_credit_card),
+    baseAccount: parseAccount(ledgerAccountName),
+    accountKind: accountKindOf(account.is_credit_card),
     categorizer: await loadCategorizer({
-      customMappingsFilenames: preset.custom_mappings_filenames,
+      customMappingsFilenames: account.custom_mappings_filenames,
       llm,
     }),
     gpay,

@@ -8,17 +8,17 @@ import { draftCountsSchema } from "./posting-checks.js";
 const c = initContract();
 
 const importableAccountFields = {
-  path: z.string(),
-  // The preset's name when one preset points here, else the account's name.
+  account_id: z.number(),
+  // The preset account's name.
   name: z.string(),
   kind: accountKindSchema,
 };
 
 /**
- * One importable account, as Home lists it: an account named as a base
- * account by at least one import preset. When the ledger has it, where its
- * books stand and what is waiting in its drafts; when a preset names an
- * account the ledger does not have, neither.
+ * One importable account, as Home lists it: an account of an import preset.
+ * When the ledger has it, where its books stand and what is waiting in its
+ * drafts. When the ledger account was deleted, the preset still names its id,
+ * and Home says so.
  */
 export const homeAccountSchema = z.discriminatedUnion("in_ledger", [
   z.object({
@@ -27,8 +27,9 @@ export const homeAccountSchema = z.discriminatedUnion("in_ledger", [
   }),
   z.object({
     in_ledger: z.literal(true),
-    account_id: z.number(),
     ...importableAccountFields,
+    // The ledger account's name.
+    path: z.string(),
     // The last posted balance assertion; null before the first.
     checkpoint: datedBalanceSchema.nullable(),
     // Posted balance assertions its books miss: an entry changed after the
@@ -43,7 +44,7 @@ export type HomeLedgerAccount = Extract<HomeAccount, { in_ledger: true }>;
 export const homeSummarySchema = z.object({
   // Oldest balance assertion first; accounts without one lead.
   accounts: z.array(homeAccountSchema),
-  // Over every draft, including ones on accounts no preset names.
+  // Over every draft, including ones on accounts no preset lists.
   totals: draftCountsSchema,
   // Whether any listed account has posted entries.
   has_journals: z.boolean(),

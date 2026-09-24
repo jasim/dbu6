@@ -4,29 +4,6 @@ import { statementAccountIdentifierSchema } from "./statement-account.js";
 
 const c = initContract();
 
-export const importPresetSchema = z.object({
-  name: z.string().min(1),
-  base_account: z.string().min(1),
-  custom_mappings_filenames: z.array(z.string()),
-  is_credit_card: z.boolean().optional(),
-  // The saved parser's directory name alone, e.g. `hdfc-bank-xls`. The
-  // project's custom-built-parsers/ is searched before the parsers bundled
-  // with dbu6, so the user's parser shadows ours of the same name.
-  custom_statement_parser_path: z
-    .string()
-    .regex(
-      /^[^/\\.][^/\\]*$/,
-      "Name the parser by its directory name alone, such as hdfc-bank-xls, not by a path.",
-    )
-    .optional(),
-  // The account or card number the preset's statements print, in the
-  // canonical form of `statementAccountSchema`. Lets several presets share
-  // one parser (two cards from the same bank) and lets the importer refuse a
-  // statement that names a different account.
-  statement_account_identifier: statementAccountIdentifierSchema.optional(),
-});
-export type ImportPreset = z.infer<typeof importPresetSchema>;
-
 // A name that is one entry of a directory, never a path: a saved parser's
 // directory, or a file directly in user-config/.
 const DIRECTORY_ENTRY_RE = /^[^/\\.][^/\\]*$/;
@@ -263,17 +240,6 @@ export const importPresetsContract = c.router({
       403: z.object({ error: z.string() }),
       404: z.object({ error: z.string(), code: z.literal("no_presets_file") }),
       422: importPresetsFileRefusalSchema,
-    },
-  }),
-  // The presets as user-config/import-presets.json still declares them, for
-  // the screens that read them until they read the table.
-  listImportPresetFile: c.query({
-    method: "GET",
-    path: "/import-presets/file",
-    summary: "List the presets in user-config/import-presets.json",
-    responses: {
-      200: z.array(importPresetSchema),
-      403: z.object({ error: z.string() }),
     },
   }),
   readCustomMappingsFile: c.query({

@@ -118,7 +118,7 @@ function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
       <div className="px-4 pb-6">
         <EmptyState
           title="No accounts set up yet"
-          body="Add a bank or card account and an import preset, then import its first statement."
+          body="Add a bank or card account, list it in its bank's import preset, then import its first statement."
           action={
             <Button
               render={<Link to="/accounts" />}
@@ -151,7 +151,7 @@ function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
         </thead>
         <tbody>
           {accounts.map((account) => (
-            <AccountRow key={account.path} account={account} />
+            <AccountRow key={account.account_id} account={account} />
           ))}
         </tbody>
       </table>
@@ -167,7 +167,7 @@ function AccountRow({ account }: { account: HomeAccount }) {
   return (
     <tr className="border-t border-line-inner">
       <td className="py-2.5 pl-6 pr-3 align-top">
-        {ledger ? (
+        {account.in_ledger && ledger ? (
           <Link
             to={ledger}
             title={account.path}
@@ -176,13 +176,12 @@ function AccountRow({ account }: { account: HomeAccount }) {
             {account.name}
           </Link>
         ) : (
-          <span title={account.path} className="font-semibold text-foreground">
-            {account.name}
-          </span>
+          <span className="font-semibold text-foreground">{account.name}</span>
         )}
         {!account.in_ledger && (
           <div className="mt-0.5 text-meta text-ink-meta">
-            {account.path} is not in your accounts yet
+            Its account was deleted from the books; point the preset at another
+            account.
           </div>
         )}
       </td>
@@ -227,7 +226,7 @@ function accountStatus(account: HomeAccount): {
   to?: string;
 } | null {
   if (!account.in_ledger) {
-    return { tone: "problem", label: "Account missing" };
+    return { tone: "problem", label: "Account deleted" };
   }
   const review = reviewHref(account.account_id);
   if (postingBlocks(account).some(isProblem)) {
