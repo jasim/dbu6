@@ -451,7 +451,7 @@ lines never fail the run. `dbu6 upgrade` runs it after migrating.
 | Types | `tsc --noEmit` with the project's `tsconfig.json`, when the project has any `.ts` (typescript is resolved from the package, not the project) | tsc reports an error, or there is TypeScript but no tsconfig |
 | Reports | `node --test` over each `reports/<id>/**/*.test.ts`; then a build of the web app when the project has `reports/*/report.ts` or a `frontend.tsx`, into a temporary directory that is removed, so `dist/app` is untouched (the build also runs `assertSingleCopies`) | a test or the build fails |
 | Parsers | every `*_test.py` of the project's `custom-built-parsers/`, under `uv` with `shared` on `PYTHONPATH`; a project parser that shadows a bundled one is named | a test fails or uv cannot run |
-| Config | `user-config/` read by the code the app reads it with: `transaction_mappings.mjs` (`readTransactionMappings`), `settings.json` (`chosenCodingAgent`); the import presets, every row of `import_presets` (`readEveryImportPreset`), with each listed parser, each instruction file and each account's ledger account; a leftover `import-presets.json` | a file does not parse, a preset names something missing, or `import-presets.json` is still there to convert |
+| Config | `user-config/` read by the code the app reads it with: `transaction_mappings.mjs` (`readTransactionMappings`), `settings.json` (`chosenCodingAgent`); the import presets, every row of `import_presets` (`readEveryImportPreset`), with each listed parser, each instruction file and each account's ledger account; an `import-presets.json` that migration 0008 has not moved (information while that migration is pending) | a file does not parse, a preset names something missing, or `import-presets.json` is left after 0008 kept it |
 
 In this repository, `pnpm typecheck` and `pnpm test:parsers` cover what
 `check` checks in a project. `src/cli/check.test.ts`
@@ -499,9 +499,12 @@ built, tested and understood without anything above it. Lowest first:
   them into `modules/`.
 
 Beside the tiers, `migrate-safely.ts` and `ledger-fingerprint.ts` are the
-database's upgrade. They import only `paths.ts`, `data-lock.ts` and Sapporta,
-and read the ledger's tables with SQL of their own, because a fingerprint must
-read every schema a database has had.
+database's upgrade. They import only `paths.ts`, `data-lock.ts`, Sapporta and
+`data-migrations/`, and read the ledger's tables with SQL of their own,
+because a fingerprint must read every schema a database has had. A data
+migration in `data-migrations/` may use tier 3's pure code to decide what to
+write, and writes it with SQL of its own (see
+[Schema and migrations](#schema-and-migrations)).
 
 Every file is in its tier. No test checks it, so a new file gets its place in
 this table when it is added. Each
@@ -563,10 +566,9 @@ clone layout:
    `custom_statement_parser_path` is the parser's directory name alone
    (`hdfc-bank-xls`), resolved against the project's parsers and then the
    package's; edit a value that is still a path.
-5. `cd my-books && npx dbu6 dev`, then convert the presets file into the
-   presets table: `sapporta api post /api/import-presets/import-json` with
-   `{"apply":false}` to see what it becomes, then `{"apply":true}`, which
-   deletes the file (DBU6-BOOKS.md, "Import presets").
+5. `cd my-books && npx dbu6 dev`. Its migration moves `import-presets.json`
+   into the presets table and deletes the file, or says why it kept it
+   (DBU6-BOOKS.md, "Import presets", has the conversion for a kept file).
 6. `npx dbu6 check`.
 
 `src/server/paths.ts` is the one module that knows where things are, and no
@@ -761,6 +763,21 @@ steps when it touches what the fingerprint reads:
 - A migration that is meant to change ledger figures names the kinds it
   changes in `FIGURES_A_MIGRATION_CHANGES`, and only those figures are
   skipped in the comparison for that step.
+
+Some moves need code: `0008_import_presets_from_file` turns
+`user-config/import-presets.json` into `import_presets` rows. Such a
+migration's SQL file is a marker (`SELECT 1;`, since an empty one fails;
+`pnpm db:generate --custom --name …` makes it), and its code is a data step
+in `src/server/data-migrations/`, registered in `DATA_STEPS` under the
+migration's tag. `migrateSafely` runs the step on the copy right after the
+SQL and compares the fingerprint after it, as after any migration. A step
+writes with SQL of its own, against the schema its migration leaves, so a
+later schema change can't change what it writes. It never refuses the
+migration for what it can't convert: it leaves the project's files alone and
+returns a note, which `dbu6 migrate` prints, and `dbu6 check` says what to do
+next. A file whose contents it moved into the copy it deletes in
+`afterCommit`, which runs only once the copy has taken the original's place,
+so a rejected migration leaves both the database and the file as they were.
 
 `ledger-fingerprint.test.ts` walks seeded books through every migration in
 the repository, one at a time, and fails until both are right; the rejection

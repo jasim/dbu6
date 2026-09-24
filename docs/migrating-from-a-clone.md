@@ -180,13 +180,10 @@ if (users !== 0) { console.error(`data/sqlite.db has ${users} user(s); it is not
 const source = new Database(process.argv[1], { readonly: true, fileMustExist: true });
 source.backup("data/sqlite.db").then(() => { source.close(); console.log("Copied."); });
 ' "$DATA/sqlite.db"
-npx dbu6 migrate
 ```
 
-`dbu6 migrate` applies the migrations dbu6 has added since `$BASE` to a copy,
-checks the ledger's figures are unchanged, and only then puts the copy in
-place. If it reports a failure, the database is left as the backup wrote it;
-**Stop** and show the person its output.
+The copy is at the clone's schema; step 6 migrates it, once the
+configuration and parsers the migration reads are in place.
 
 ## 5. Move the configuration
 
@@ -196,9 +193,9 @@ Copy your `user-config/` over the examples `init` put there:
 cp -R "$DATA"/user-config/. user-config/
 ```
 
-dbu6 no longer reads `user-config/import-presets.json`; step 8 converts it
-into the app's import presets. The conversion takes a parser by its directory
-name alone (`"hdfc-cc-xls"`) and refuses a path
+dbu6 no longer reads `user-config/import-presets.json`; step 6's migration
+moves the file into the app's import presets. The move takes a parser by its
+directory name alone (`"hdfc-cc-xls"`) and keeps the file when it names a path
 (`"custom-built-parsers/hdfc-cc-xls/parser.py"`), so rewrite the paths first:
 
 ```bash
@@ -244,6 +241,22 @@ Never put a parser under `node_modules/dbu6`. Your fixtures are now in your
 own project and may hold real statement data; that matters only if you share
 or push the project.
 
+Now migrate the books:
+
+```bash
+npx dbu6 migrate
+```
+
+`dbu6 migrate` applies the migrations dbu6 has added since `$BASE` to a copy,
+checks the ledger's figures are unchanged, and only then puts the copy in
+place. If it reports a failure, the database is left as the backup wrote it;
+**Stop** and show the person its output.
+
+One of those migrations moves `user-config/import-presets.json` into the
+app's import presets, one row per institution, and deletes the file once the
+migrated database is in place. The output says so, or says why it kept the
+file; step 8 converts a kept file.
+
 ## 7. Move, send upstream, or drop every other change
 
 A project can add to dbu6 but cannot change it: a route, report, page or
@@ -269,7 +282,7 @@ commits rebase onto dbu6's `main` with the files moved:
 `src/server`, `packages/frontend/src` to `src/frontend`, and
 `packages/shared/src` to `src/shared`.
 
-## 8. Convert the import presets, and verify
+## 8. Verify
 
 Start the app:
 
@@ -279,24 +292,11 @@ npx dbu6 dev
 
 Open http://localhost:2345 and sign in with the account you used in the clone.
 
-Import presets are now kept in the app, one row per institution. Convert
-`user-config/import-presets.json` into them through the API, with an agent
-access token as `npx dbu6 docs books` describes under "Reaching the app":
-
-```bash
-npx sapporta api post /api/import-presets/import-json --body '{"apply":false}'
-```
-
-This proposes the institutions and changes nothing. **Stop.** Show the person
-the proposal and its `warnings`. With their yes:
-
-```bash
-npx sapporta api post /api/import-presets/import-json --body '{"apply":true}'
-```
-
-It writes the presets, reads them back and deletes the file. If it refuses,
-the file is kept; the "Import presets" section of `npx dbu6 docs books` says
-what each refusal means.
+If step 6's migration kept `user-config/import-presets.json`, fix what it
+named in the file, and convert it through the API with an agent access token,
+as the "Import presets" section of `npx dbu6 docs books` describes:
+`import-json` with `{"apply":false}`, show the person the proposal, and with
+their yes `{"apply":true}`.
 
 ```bash
 npx dbu6 check

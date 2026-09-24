@@ -149,6 +149,7 @@ function reportMigration(result: MigrateSafelyResult): boolean {
           .map((tag) => `  ${tag}`)
           .join("\n")}`,
       );
+      for (const note of result.notes) console.log(note);
       return true;
     case "rejected":
       console.error(

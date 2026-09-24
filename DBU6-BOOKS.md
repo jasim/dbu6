@@ -387,21 +387,29 @@ refusal is about (null when it is the table the whole batch leaves):
 An instruction file may be listed before it exists; `npx dbu6 check` names
 the missing ones, and the ones a deleted account leaves behind.
 
-**Converting an old `user-config/import-presets.json`:** presets used to live
-in that file, and `npx dbu6 check` fails while one is left. The server reads
-and converts it:
+**An old `user-config/import-presets.json`:** presets used to live in that
+file. Upgrading moves them into the database by itself: the migration that
+does it writes them for the user whose accounts have every `base_account` the
+file names, reads them back, and deletes the file once the migrated database
+is in place. Presets that shared a parser or an account became one
+institution, named after the first; the presets of one account became one
+account, with every identifier and instruction file they had.
+
+When it can't (a `base_account` no account has, one account's presets
+disagreeing on `is_credit_card`, a parser that isn't saved, more than one user
+it could belong to), it keeps the file, `dbu6 migrate` prints why, and
+`npx dbu6 check` fails on the file. Fix what it named in the file, then:
 
 1. `sapporta api post /api/import-presets/import-json --body '{"apply":false}'`
-   proposes the institutions and changes nothing. Presets that share a parser
-   or an account become one institution, named after the first; the presets
-   of one account become one account, with every identifier and instruction
-   file they had. Show the user the proposal and its `warnings`.
+   proposes the institutions and changes nothing. Show the user the proposal
+   and its `warnings`.
 2. With their yes, `--body '{"apply":true}'` writes them, reads them back and
    deletes the file. It refuses when the presets already hold institutions
-   (`presets_already_in_table`), when a `base_account` names no ledger
-   account (`unresolved_base_accounts`, with the `names`), and when one
-   account's presets disagree on `is_credit_card`
-   (`conflicting_is_credit_card`); the file is kept after any refusal.
+   (`presets_already_in_table`; the file is left over, so delete it once the
+   presets are right), when a `base_account` names no ledger account
+   (`unresolved_base_accounts`, with the `names`), and when one account's
+   presets disagree on `is_credit_card` (`conflicting_is_credit_card`); the
+   file is kept after any refusal.
 
 ## Reaching the app
 

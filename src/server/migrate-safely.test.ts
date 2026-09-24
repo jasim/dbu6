@@ -75,6 +75,7 @@ describe("migrateSafely", () => {
     expect(result).toEqual({
       status: "migrated",
       applied: tags.slice(tags.indexOf(FIRST_LEDGER_MIGRATION) + 1),
+      notes: [],
     });
     expect(fingerprintOf(dbFile)).toEqual(before);
     expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
@@ -89,6 +90,7 @@ describe("migrateSafely", () => {
     expect(result).toEqual({
       status: "migrated",
       applied: journalTags(dbu6MigrationsDir()),
+      notes: [],
     });
     expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
     const sqlite = new Database(dbFile, { readonly: true });
@@ -308,3 +310,111 @@ async function deadPid(): Promise<number> {
   await new Promise((resolve) => child.once("exit", resolve));
   return child.pid!;
 }
+
+describe("migrateSafely and user-config/import-presets.json", () => {
+  const presetsFile = () => join(root, "user-config", "import-presets.json");
+  function writePresetsFile(presets: unknown[]): void {
+    mkdirSync(join(root, "user-config"), { recursive: true });
+    writeFileSync(presetsFile(), JSON.stringify(presets));
+  }
+  const bankPreset = {
+    name: "Sample Bank XLS",
+    base_account: "Sample Bank",
+    custom_mappings_filenames: ["custom_mappings_default.prompt"],
+    custom_statement_parser_path: "hdfc-bank-xls",
+    statement_account_identifier: "05050505050505",
+  };
+  function presetRows(): unknown[] {
+    const sqlite = new Database(dbFile, { readonly: true });
+    try {
+      return sqlite
+        .prepare(
+          "SELECT workspace_id, scoped_to_user_id, name, parsers, accounts FROM import_presets",
+        )
+        .all();
+    } finally {
+      sqlite.close();
+    }
+  }
+
+  it("writes the presets for the user whose accounts they name, then deletes the file", async () => {
+    seedProject();
+    writePresetsFile([bankPreset]);
+
+    const result = await migrateSafely(root);
+
+    expect(result.status === "migrated" && result.notes).toEqual([
+      expect.stringContaining(
+        "Moved user-config/import-presets.json into the import presets: 1 institution(s), 1 account(s)",
+      ),
+    ]);
+    expect(presetRows()).toEqual([
+      {
+        workspace_id: "workspace-sample",
+        scoped_to_user_id: "user-sample",
+        name: "Sample Bank XLS",
+        parsers: JSON.stringify(["hdfc-bank-xls"]),
+        accounts: JSON.stringify([
+          {
+            account_id: 2,
+            name: "Sample Bank XLS",
+            is_credit_card: false,
+            account_identifiers: ["05050505050505"],
+            custom_mappings_filenames: ["custom_mappings_default.prompt"],
+          },
+        ]),
+      },
+    ]);
+    expect(existsSync(presetsFile())).toBe(false);
+    expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
+  });
+
+  it("keeps the file, and says why, when it names an account the books lack", async () => {
+    seedProject();
+    writePresetsFile([
+      bankPreset,
+      { ...bankPreset, name: "Sample Card", base_account: "Sample Card" },
+    ]);
+
+    const result = await migrateSafely(root);
+
+    expect(result.status).toBe("migrated");
+    expect(result.status === "migrated" && result.notes).toEqual([
+      expect.stringMatching(
+        /^Kept user-config\/import-presets\.json.*"Sample Card".*dbu6 check/s,
+      ),
+    ]);
+    expect(presetRows()).toEqual([]);
+    expect(existsSync(presetsFile())).toBe(true);
+  });
+
+  it("deletes a file that holds no presets", async () => {
+    seedProject();
+    writePresetsFile([]);
+
+    const result = await migrateSafely(root);
+
+    expect(result.status === "migrated" && result.notes).toEqual([
+      "Deleted user-config/import-presets.json, which held no presets.",
+    ]);
+    expect(existsSync(presetsFile())).toBe(false);
+  });
+
+  it("keeps the file when a later migration is rejected", async () => {
+    seedProject();
+    writePresetsFile([bankPreset]);
+    const migrationsDir = migrationsDirWith(
+      "9000_sample_failure",
+      "UPDATE no_such_table SET x = 1;",
+    );
+
+    const result = await migrateSafely(root, { migrationsDir });
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      migration: "9000_sample_failure",
+    });
+    expect(existsSync(presetsFile())).toBe(true);
+    expect(dataFiles()).toEqual(["sqlite.db"]);
+  });
+});
