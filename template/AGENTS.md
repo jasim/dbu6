@@ -35,8 +35,10 @@ theirs: `user-config/`, `custom-built-parsers/`, `reports/`, and the ledger in
 Use the first of these that does the job. The first three need no wiring: a
 file in the right folder is found.
 
-1. **Configure.** Edit `user-config/`: the mapping rules, the import presets
-   and the categorization prompt. Each file explains itself.
+1. **Configure.** Edit `user-config/`: the mapping rules and the
+   categorization prompts. Each file explains itself. The import presets
+   (which parser reads each bank's statements, and which prompts each account
+   uses) are kept in the app and changed through its API. Guide: `books`.
 2. **Write a parser** for a statement dbu6 cannot read, in
    `custom-built-parsers/<name>/`. Guides: `parser-guide`, then `parsers`.
    For transactions that are not a statement: `freeform-guide`.
@@ -55,5 +57,6 @@ entry that dbu6 already has is an error, not a replacement.
 
 After any change to a parser, a report, `dbu6.config.ts` or `frontend.tsx`, run
 `npx dbu6 check`. It typechecks the project's TypeScript, runs each report's
-and parser's tests, builds the web app, and reads `user-config/` the way dbu6
-does; every failing line comes with the tool's output, and nothing is changed.
+and parser's tests, builds the web app, and reads `user-config/` and the
+import presets the way dbu6 does; every failing line comes with the tool's
+output, and nothing is changed.

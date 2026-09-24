@@ -15,8 +15,9 @@
 # DEPLOYMENT.md in dbu6's repository lists the rest. data/ is not in the
 # image either, and must be a volume, or the books vanish with the container.
 # user-config/ is copied in from this folder, so an edit to a mapping rule or
-# a preset is a rebuild; to edit it live, bind-mount the folder instead:
-# `-v "$PWD/user-config":/app/user-config`.
+# a prompt is a rebuild; to edit it live, bind-mount the folder instead:
+# `-v "$PWD/user-config":/app/user-config`. Import presets are kept in the
+# database, so changing one needs no rebuild.
 #
 # There is no coding agent in the image, so nothing is categorized
 # automatically and the app can only copy the prompts it writes for one.

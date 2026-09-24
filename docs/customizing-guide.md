@@ -69,8 +69,8 @@ already has stops startup with a message naming `dbu6.config.ts`.
 The one named seam. Reclassification, the statement import and the freeform
 import all categorize through it, so replacing it here reaches all three;
 replacing a route would not. Its type is `LoadCategorizer` from
-`"dbu6/server"`: given the preset's settings (its prompt file names and the
-LLM to use), return a categorizer.
+`"dbu6/server"`: given the account's settings (the prompt file names its
+import preset lists, and the LLM to use), return a categorizer.
 
 The seam is narrow today: dbu6's own categorizer is not exported, so a
 replacement stands in for it wholesale rather than wrapping it, and the

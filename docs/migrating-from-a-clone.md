@@ -196,9 +196,10 @@ Copy your `user-config/` over the examples `init` put there:
 cp -R "$DATA"/user-config/. user-config/
 ```
 
-Import presets now name a parser by its directory name alone
-(`"hdfc-cc-xls"`), not by a path (`"custom-built-parsers/hdfc-cc-xls/parser.py"`).
-A preset in the old form never matches its parser. Rewrite it:
+dbu6 no longer reads `user-config/import-presets.json`; step 8 converts it
+into the app's import presets. The conversion takes a parser by its directory
+name alone (`"hdfc-cc-xls"`) and refuses a path
+(`"custom-built-parsers/hdfc-cc-xls/parser.py"`), so rewrite the paths first:
 
 ```bash
 node -e '
@@ -268,26 +269,47 @@ commits rebase onto dbu6's `main` with the files moved:
 `src/server`, `packages/frontend/src` to `src/frontend`, and
 `packages/shared/src` to `src/shared`.
 
-## 8. Verify
+## 8. Convert the import presets, and verify
 
-```bash
-npx dbu6 check
-```
-
-It runs your parsers' tests and reads `user-config/`, among others. Every
-line should be `ok` or `info`; a failed line comes with the tool's output.
-
-Print step 3's figures from the new database, running the same command with
-`data/sqlite.db` in place of `"$DATA/sqlite.db"`. Every figure should equal
-the one you recorded.
-
-Then start the app:
+Start the app:
 
 ```bash
 npx dbu6 dev
 ```
 
 Open http://localhost:2345 and sign in with the account you used in the clone.
+
+Import presets are now kept in the app, one row per institution. Convert
+`user-config/import-presets.json` into them through the API, with an agent
+access token as `npx dbu6 docs books` describes under "Reaching the app":
+
+```bash
+npx sapporta api post /api/import-presets/import-json --body '{"apply":false}'
+```
+
+This proposes the institutions and changes nothing. **Stop.** Show the person
+the proposal and its `warnings`. With their yes:
+
+```bash
+npx sapporta api post /api/import-presets/import-json --body '{"apply":true}'
+```
+
+It writes the presets, reads them back and deletes the file. If it refuses,
+the file is kept; the "Import presets" section of `npx dbu6 docs books` says
+what each refusal means.
+
+```bash
+npx dbu6 check
+```
+
+It runs your parsers' tests, reads `user-config/` and checks the import
+presets, among others. Every line should be `ok` or `info`; a failed line
+comes with the tool's output.
+
+Print step 3's figures from the new database, running the same command with
+`data/sqlite.db` in place of `"$DATA/sqlite.db"`. Every figure should equal
+the one you recorded.
+
 Check that the Accounts page, the Balance sheet and your latest journals look
 as they did, and import a statement you have imported before: the importer
 should find its parser and its preset (it will then tell you the rows are

@@ -48,7 +48,7 @@ my-books/
   tsconfig.json           so your reports typecheck under `dbu6 check`
   AGENTS.md               how a coding agent works in this folder
   Dockerfile              the folder as a container, when you want one
-  user-config/            mapping rules, import presets, categorization prompts
+  user-config/            mapping rules, categorization prompts
   custom-built-parsers/   your parsers for statements dbu6 cannot read yet
   reports/                your reports, one folder each, with their own screens
   data/                   sqlite.db, gitignored; back it up yourself
@@ -70,7 +70,7 @@ Every transaction is a journal entry between two accounts,
 for example `HDFC Bank` and `Groceries`. Accounts are named in plain words and
 nest under one another: `Assets` holds `Bank`, which holds `HDFC Bank`, and
 `Expenses` holds `Food`, which holds `Dining Out`. Each name is unique in your
-books, so mapping rules and import presets refer to an account by its name
+books, so mapping rules refer to an account by its name
 alone. It follows GAAP approach
 and provides standard accounting reports like trial balance, balance
 sheet, account ledger and so on. It also has reports tuned for personal
@@ -125,8 +125,9 @@ says how many descriptions were left uncategorized, and why. See
 
 The sample instructions are in
 [user-config.example/custom_mappings_default.prompt](./user-config.example/custom_mappings_default.prompt).
-Different banks and cards can use different instruction files, configured in
-`import-presets.json`.
+Different banks and cards can use different instruction files, listed in
+their import presets, which dbu6 keeps in the database and your coding agent
+changes for you (`npx dbu6 docs books`).
 
 ### Reconciliation on every import
 
@@ -157,11 +158,12 @@ gitignored; the rest is worth committing, and `init` makes the first commit:
 
 ```
 data/
-  sqlite.db                    the books; dbu6 keeps no other copy
+  sqlite.db                    the books, and the import presets: your banks and cards,
+                               which parser reads each and which prompts it uses;
+                               dbu6 keeps no other copy
 user-config/
   transaction_mappings.mjs     narration → account rules, applied before the LLM
   custom_mappings_*.prompt     your categorization instructions for the LLM
-  import-presets.json          your banks and cards, and which parser and prompts each uses
 ```
 
 `init` fills `user-config/` from dbu6's examples (`npx dbu6 setup` does it

@@ -41,12 +41,12 @@ export const abacusJsonSchema = z.object({
   closing: z.number().nullable().optional(),
   // The account or card number the statement prints about itself, in the
   // canonical form defined by `statementAccountSchema`, so an import can be
-  // matched to the right preset. Omitted when nothing is printed.
+  // matched to the right preset account. Omitted when nothing is printed.
   account: statementAccountSchema.nullable().optional(),
   // The bank or card issuer's name exactly as the statement prints it,
   // trimmed. Two statements from one institution may print it differently
   // (a shortened form, a division name), so this is lookup text for finding
-  // a preset, not an identifier. Null or omitted when nothing is printed.
+  // an institution, never matched. Null or omitted when nothing is printed.
   institution: z.string().trim().min(1).nullable().optional(),
   rows: z.array(abacusRowSchema).min(1, "Transaction list is empty"),
 });
