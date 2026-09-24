@@ -87,7 +87,10 @@ Look up an account's id with
   date, plus the drafts still waiting in Review.
 - **"Show me this account's history."**
   `/api/reports/account-ledger` with `account_id`, `from_date` and `to_date`.
-  It includes sub-accounts and shows the balance after each transaction.
+  It includes sub-accounts. Each row is one entry on the account, with
+  `narration`, the account it was `against`, and the balance after it. An
+  older grouped journal gives one row per statement transaction in it; a
+  compound entry, such as a salary, lists every account on its other side.
 - **"Find the transaction …"**
   For transactions in the books: `sapporta rows list journal_entries --q "<words>"`
   (the `comment` holds the narration). For drafts waiting in Review:

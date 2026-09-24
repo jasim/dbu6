@@ -17,8 +17,9 @@ import {
 import { reportsApi } from "./client";
 
 const links = {
-  journal_entries: {
-    cell: { account_name: accountLedgerRow() },
+  // A row against one account links to that account's ledger.
+  entries: {
+    cell: { against: accountLedgerRow("against_account_id") },
   },
 } satisfies ReportCellLinkResolvers<LedgerLinkInput>;
 
