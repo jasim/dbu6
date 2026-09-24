@@ -374,8 +374,7 @@ body {
 
 /* A report's last rows, usually its net totals, can scroll up off the
    window's edge (reports/shared.tsx). A footer row takes no focus, so arrow
-   keys can't bring it up. The space is the report's own, in its background,
-   not the white scroll area around it. */
+   keys can't bring it up. */
 .report-result-body .sapporta-report-grid-dataset {
   padding-bottom: 8rem;
 }
