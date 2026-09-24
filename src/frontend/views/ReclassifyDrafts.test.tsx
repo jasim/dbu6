@@ -113,7 +113,7 @@ let classifyAnswer: DraftClassification;
 
 function respond(method: string, url: URL): unknown {
   if (url.pathname.endsWith("/tables/accounts")) return { data: ACCOUNTS };
-  if (url.pathname.endsWith("/import-presets")) return PRESETS;
+  if (url.pathname.endsWith("/import-presets/file")) return PRESETS;
   const file = url.pathname.match(/\/import-presets\/mapping-files\/(.+)$/);
   if (file) {
     const filename = decodeURIComponent(file[1]!);

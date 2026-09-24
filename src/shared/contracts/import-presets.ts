@@ -190,7 +190,33 @@ export const importPresetsContract = c.router({
   listImportPresets: c.query({
     method: "GET",
     path: "/import-presets",
-    summary: "List configured import presets",
+    summary:
+      "The import presets: each institution with its parsers and accounts, and each account's ledger account name (null once that account is deleted)",
+    responses: {
+      200: importPresetsViewSchema,
+      403: z.object({ error: z.string() }),
+    },
+  }),
+  changeImportPresets: c.mutation({
+    method: "POST",
+    path: "/import-presets/changes",
+    summary:
+      "Apply a batch of changes to the import presets, in order, whole or not at all",
+    description:
+      "Institutions are named by name, accounts by their ledger account_id. The whole table must keep the presets' rules after the batch, and every account_id and parser the batch adds must exist now. Returns the presets as GET /import-presets does.",
+    body: z.object({ changes: z.array(importPresetChangeSchema).min(1) }),
+    responses: {
+      200: importPresetsViewSchema,
+      403: z.object({ error: z.string() }),
+      422: importPresetRefusalSchema,
+    },
+  }),
+  // The presets as user-config/import-presets.json still declares them, for
+  // the screens that read them until they read the table.
+  listImportPresetFile: c.query({
+    method: "GET",
+    path: "/import-presets/file",
+    summary: "List the presets in user-config/import-presets.json",
     responses: {
       200: z.array(importPresetSchema),
       403: z.object({ error: z.string() }),
