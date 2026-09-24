@@ -4,7 +4,6 @@ import type { Abacus } from "../../modules/statement/index.js";
 import {
   type Account,
   type Chrono,
-  chronoMap,
   unsafeAsChrono,
 } from "../../modules/values/index.js";
 import {
@@ -75,23 +74,27 @@ export async function runDraftImport(
     categorization.rows,
   );
   const { sameAccountSkips } = categorization;
-  // The statement's running balance after every row, so each day asserts
-  // where it ends. Each row shows the account its answer named.
-  const hledgerJournal = formatHledger(
-    planJournals(
-      chronoMap(categorized, ({ transaction, account }) => ({
-        transaction,
-        account,
-        assertion: transaction.balance,
-      })),
-      baseAccount,
-    ),
-    loadHledgerAccountNames(db, auth),
-  );
-
   const { rows: draftRows, expectedClosingByDate } = toDraftRows(
     categorized,
     baseAccountId,
+  );
+  // Each day's closing on its last row, as the drafts will carry it. Each row
+  // shows the account its answer named.
+  const hledgerJournal = formatHledger(
+    planJournals(
+      unsafeAsChrono(
+        categorized.map(({ transaction, account }, index) => ({
+          transaction,
+          account,
+          assertion:
+            categorized[index + 1]?.transaction.date === transaction.date
+              ? null
+              : (expectedClosingByDate.get(transaction.date) ?? null),
+        })),
+      ),
+      baseAccount,
+    ),
+    loadHledgerAccountNames(db, auth),
   );
   const persisted = persistDrafts(db, draftRows, expectedClosingByDate, auth);
   console.log(

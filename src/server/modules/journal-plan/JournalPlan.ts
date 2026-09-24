@@ -3,7 +3,8 @@ import { type Chrono, isWithdrawal } from "../values/index.js";
 
 // A statement row on its way into the books. `account` is its counterparty;
 // `assertion` is the base account's balance after this row, which the plan
-// asserts when the row closes its day.
+// asserts. Callers set it on a day's last row only (the balance-check rule,
+// in reconciliation).
 export interface PlanRow<A> {
   transaction: Abacus;
   account: A;
@@ -34,23 +35,21 @@ export type JournalPlan<A> = PlannedJournal<A>[];
  * The journals a base account's statement rows become: one per row, in order,
  * described by the row's narration, as the statement is. A withdrawal lists
  * the counterparty and then the base account; a deposit lists the base
- * account first. The base account's line asserts the row's `assertion` only
- * when the row closes its day, since within a day the books' order can differ
- * from the statement's (the balance-check rule, in reconciliation). It carries
- * no source identity: the counterparty's line holds that, and the narration
- * too, where matching looks for it.
+ * account first. The base account's line asserts the row's `assertion`, in
+ * the same place the draft balance check tested it, and carries no source
+ * identity: the counterparty's line holds that, and the narration too, where
+ * matching looks for it.
  */
 export function planJournals<A>(
   rows: Chrono<PlanRow<A>>,
   baseAccount: A,
 ): JournalPlan<A> {
-  return rows.map((row, index) => {
+  return rows.map((row) => {
     const { transaction } = row;
-    const closesDay = rows[index + 1]?.transaction.date !== transaction.date;
     const base = (amount: number): PlannedEntry<A> => ({
       account: baseAccount,
       amount,
-      assertion: closesDay ? row.assertion : null,
+      assertion: row.assertion,
       comment: null,
       sourceReference: null,
       sourceTransactionKey: null,

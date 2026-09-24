@@ -29,4 +29,32 @@ describe("JournalPlan source identity", () => {
       sourceTransactionKey: null,
     });
   });
+
+  it("asserts a row's balance where the draft carries it, even mid-day", () => {
+    // A draft added in Review after the import can follow the one carrying
+    // the day's closing; the draft check tested the closing there, so the
+    // books keep it there.
+    const row = (
+      narration: string,
+      assertion: number | null,
+    ): PlanRow<number> => ({
+      transaction: {
+        date: "2026-05-07",
+        narration,
+        withdrawal: 100,
+        deposit: 0,
+        balance: null,
+      },
+      account: 2,
+      assertion,
+    });
+    const plan = planJournals(
+      unsafeAsChrono([row("NOPII first", 900), row("NOPII second", null)]),
+      1,
+    );
+    expect(plan.map((journal) => journal.entries[1].assertion)).toEqual([
+      900,
+      null,
+    ]);
+  });
 });
