@@ -127,9 +127,10 @@ docker run -d --name my-books -p 3000:3000 \
 - `/app/data` must be a volume, named or a bind mount, or the books vanish
   with the container. A bind-mounted directory must be owned by uid 1000
   (the image's `node` user). Back it up the same way as above, from the host.
-- `user-config/` is part of the image, so changing a mapping rule or a preset
-  is a rebuild. To edit it in place, bind-mount the folder:
-  `-v "$PWD/user-config":/app/user-config`.
+- `user-config/` is part of the image, so changing a mapping rule or a
+  prompt is a rebuild. To edit it in place, bind-mount the folder:
+  `-v "$PWD/user-config":/app/user-config`. Import presets are kept in the
+  database, so changing one needs no rebuild or redeploy.
 - Statement imports work: the image has `uv`, `python3` and `pdftotext`.
   There is no coding agent in it, so nothing is categorized automatically,
   Settings says no agent was found, and the app offers only **Copy prompt**

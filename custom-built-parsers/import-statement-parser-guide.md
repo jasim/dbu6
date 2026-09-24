@@ -12,7 +12,7 @@ The Import statements screen imports a statement only when a deterministic parse
 
 ## Emitted account identifier
 
-Every deterministic parser reports which account or card the statement belongs to, so an import can be matched to the right preset and a statement can never be imported into the wrong account by mistake. The parser already validates that the number is printed as part of its fingerprint; it emits the same value in one canonical form, produced by `abacus.bank_account(...)` or `abacus.card_account(...)`:
+Every deterministic parser reports which account or card the statement belongs to, so an import can be matched to the right account in the import presets and a statement can never be imported into the wrong account by mistake. The parser already validates that the number is printed as part of its fingerprint; it emits the same value in one canonical form, produced by `abacus.bank_account(...)` or `abacus.card_account(...)`:
 
 ```json
 { "kind": "abacus", "account": { "kind": "bank", "identifier": "050505000012" }, "rows": [] }
@@ -36,13 +36,14 @@ Alongside `account`, a parser emits the bank or card issuer's name as a top-leve
 - Two statements from the same institution may print slightly different names, so `institution` is lookup text for finding a preset, never an identifier. Matching on it must tolerate those variations; the `account` identifier is the exact match.
 - Emit `null` (or omit the field) when the statement prints no institution name. Never infer it from the parser's own knowledge of which bank it handles.
 
-The same canonical value goes into `statement_account_identifier` on the matching preset in `user-config/import-presets.json`. When several presets share one parser, for example two cards from the same bank, each preset needs its identifier so the importer can tell the statements apart. When a preset carries an identifier and a parsed statement reports a different one, the upload is rejected.
+The import presets group accounts by institution: each institution lists the `parsers` that read its statements and its `accounts`, and each account lists the identifiers its statements print in `account_identifiers`, in this same canonical form. A statement goes to the institution that lists its parser, then to the account there that lists the identifier it reported. When an institution has several accounts, for example two cards from the same bank, every account needs its identifiers so the importer can tell the statements apart; an institution with one account and no identifiers takes every statement its parsers read. A statement whose identifier no account of its institution lists is rejected.
 
-After the parser works, name it in the matching preset in `user-config/import-presets.json`:
+After the parser works, tie it to its account in the import presets (`dbu6 docs books` gives the calls, under "Import presets"):
 
-- Set `custom_statement_parser_path` to the parser's directory name alone, such as `stanc-bank-pdf-table`. The project's `custom-built-parsers/` is searched before the parsers bundled with dbu6.
+- Add the parser's directory name alone, such as `stanc-bank-pdf-table`, to the institution with `add_parser`, or create the institution with `add_institution` and its account with `add_account`. The project's `custom-built-parsers/` is searched before the parsers bundled with dbu6.
+- Put the identifier the parser emits in the account's `account_identifiers`, with `update_account` (sending the whole list) when the account is already there.
 - Drop the statement into the Import statements screen again.
 
-The server scans only subdirectories that contain both `fingerprint.md` and `parser.py`, tries each parser whose fingerprint lists the upload's extension against a temporary copy of the file, and validates any generated Abacus JSON. A file imports only when exactly one parser recognises it and one preset claims that parser and the account it reports. Otherwise nothing in the batch is imported, and each file that could not be placed says why.
+The server scans only subdirectories that contain both `fingerprint.md` and `parser.py`, tries each parser whose fingerprint lists the upload's extension against a temporary copy of the file, and validates any generated Abacus JSON. A file imports only when exactly one parser recognises it, one institution lists that parser, and one of its accounts claims the account the statement reports. Otherwise nothing in the batch is imported, and each file that could not be placed says why.
 
-The first parser build is still agentic and investigative. Later imports with that preset are deterministic.
+The first parser build is still agentic and investigative. Later imports of that account's statements are deterministic.

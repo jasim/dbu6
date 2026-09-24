@@ -12,9 +12,9 @@ the parser. Otherwise add a new one.
 
 Parsers are found in two places, in this order: the project's own
 `custom-built-parsers/`, then the parsers bundled with dbu6 (the ones in the
-index below). A parser is known by its directory name, which is what an import
-preset names, and a project parser shadows a bundled one of the same name. New
-parsers, and changed copies of bundled ones, always go in the project's
+index below). A parser is known by its directory name, which is what an
+institution in the import presets lists among its `parsers`, and a project
+parser shadows a bundled one of the same name. New parsers, and changed copies of bundled ones, always go in the project's
 `custom-built-parsers/`; never edit anything under `node_modules`. `dbu6 docs`
 prints the bundled guides: `dbu6 docs parsers` is this file, `dbu6 docs
 parser-guide` and `dbu6 docs freeform-guide` the two beside it.
@@ -46,10 +46,15 @@ the shared Python module (`shared/abacus.py`) builds and validates.
 
 A parser never calls the import API itself: `parser.py` stops after writing the
 JSON. When you build a parser, report the output path, row count, opening/closing
-values, and whether a saved parser was reused or a new parser was added, then let
-the user retry from the Import statements screen. When you are troubleshooting a
-failed import instead, you may re-run it yourself by posting the statement files
-to `POST /api/import-draft/statements/auto` with an agent access token.
+values, and whether a saved parser was reused or a new parser was added. A new
+parser's statements import nowhere until an institution in the import presets
+lists it and has the account they go to, which lists the identifier the parser
+emits when the institution has more than one account (`add_parser`, or
+`add_institution` and `add_account`; `dbu6 docs books` gives the calls). Then
+let the user retry from the Import statements screen. When you are
+troubleshooting a failed import instead, you may re-run it yourself by posting
+the statement files to `POST /api/import-draft/statements/auto` with an agent
+access token.
 
 ## Abacus JSON Contract
 

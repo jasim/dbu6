@@ -20,7 +20,8 @@ import {
  */
 
 export interface CategorizerSettings {
-  // The preset's instructions for the LLM, in the user-config directory.
+  // The account's instructions for the LLM, in the user-config directory, in
+  // the order they are joined.
   customMappingsFilenames: readonly string[];
   llm: CategorizationLlm;
 }

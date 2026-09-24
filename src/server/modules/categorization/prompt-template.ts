@@ -1,7 +1,7 @@
 /**
  * Scaffold for the LLM categorization prompt. llm-categorization.ts fills
  * `{accounts}` with the accounts `categorize` offers, from the ledger, and
- * `{custom_mapping}` with the preset's instructions.
+ * `{custom_mapping}` with the instructions the account's import preset lists.
  */
 export const PROMPT_TEMPLATE = `\
 I want to add all my transactions into my accounting system. I have a list of transaction details from my bank statement, and a list of the account names in my books. Please return the account name that best matches each transaction.

@@ -33,7 +33,7 @@ export interface Categorizer {
   // The mapping rules (transaction_mappings.mjs), needed as soon as there is a
   // row.
   classify: ConfigPart<(transaction: Abacus) => Account | null>;
-  // The preset's instructions (custom_mappings_*.prompt), needed once a row is
+  // The account's instructions (custom_mappings_*.prompt), needed once a row is
   // left for the LLM.
   customMappings: ConfigPart<string>;
   llm: CategorizationLlm;

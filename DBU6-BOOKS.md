@@ -113,8 +113,9 @@ Look up an account's id with
     `sapporta api post /api/draft-transactions/classify --body '{"ids":[…],"custom_mappings_filenames":[…]}'`.
     It overwrites every draft you pass, and leaves blank any it is unsure of.
     So pass only drafts with no category. Pass the account's own instruction
-    files: `custom_mappings_filenames` from the entry in
-    `sapporta api get /api/import-presets` whose `base_account` is this account.
+    files, in order: `custom_mappings_filenames` of the account in
+    `sapporta api get /api/import-presets` whose `account_id` is this account
+    (see [Import presets](#import-presets)).
   - Setting a draft by hand teaches the categoriser nothing. To make it stick,
     add a mapping (next section).
 - **"Is this a duplicate?"**
@@ -139,8 +140,10 @@ string in the narration settles it:
   comments have the shape. Prefer this: free, instant, and it applies to every
   account. An `account` that is not a name in Accounts silently leaves the row
   uncategorised.
-- **No** → a line in the preset's `custom_mappings_*.prompt`, read by the AI
-  after the rules miss. It applies only to accounts whose preset lists it.
+- **No** → a line in a `custom_mappings_*.prompt` file in `user-config/`,
+  read by the AI after the rules miss. It applies only to the accounts whose
+  import preset lists that file (`custom_mappings_filenames`; see
+  [Import presets](#import-presets)).
 
 Neither is retroactive: re-run the categoriser over the drafts with no
 category ("Categorise these" above), and restart a server started with
@@ -191,9 +194,9 @@ category ("Categorise these" above), and restart a server started with
      `sapporta rows create accounts --values '{"name":"…","account_type":"Asset","parent_id":<id>}'`.
      Its type is Asset or Liability. Names are unique, and a parent must have
      the same type.
-  2. Add a preset to `user-config/import-presets.json`: `name`,
-     `base_account`, `custom_mappings_filenames`, and `is_credit_card` for a
-     card.
+  2. Add it to the import presets with an `add_account` change, in its
+     bank's institution (`add_institution` first when the bank has none).
+     See [Import presets](#import-presets).
   3. Record its opening balance.
 - **Opening balance.**
   The Opening balances screen (`/opening-balances`, linked from Settings)
@@ -221,10 +224,10 @@ category ("Categorise these" above), and restart a server started with
 
   Without an opening balance, every balance check fails by the same amount.
 - **"Rename or move an account."**
-  `sapporta rows update accounts <id> --values '{…}'`. Rules, presets and
-  prompt files name accounts by name, so make the same rename in
-  `user-config/`: `transaction_mappings.mjs`, `import-presets.json`
-  (`base_account`), and the `custom_mappings_*.prompt` files.
+  `sapporta rows update accounts <id> --values '{…}'`. Rules and prompt files
+  name accounts by name, so make the same rename in `user-config/`:
+  `transaction_mappings.mjs` and the `custom_mappings_*.prompt` files. The
+  import presets name the account by its id and need no change.
 - **"This statement won't import."**
   The Import screen gives a prompt for each problem. Parser work follows
   the parsers guide (`dbu6 docs parsers`), and failed uploads are kept in
@@ -238,8 +241,14 @@ category ("Categorise these" above), and restart a server started with
     balance. `suspected_gap` means a period is missing.
   - `statement_boundary_mismatch` with `same-statement-twice`: the same
     statement was uploaded twice.
-  - `import_account_not_found`: the preset names an account that isn't in
-    Accounts.
+  - `import_account_not_found`: the import preset's account names a ledger
+    account that was deleted. Point it at another account: in one batch,
+    `remove_account` and then `add_account` with the new id and the same
+    fields (see [Import presets](#import-presets)).
+  - `auto_import_files_unresolved`: a file's parser is in no institution, or
+    no account of the institution lists the identifier the statement prints.
+    Each file's `reason` says which; fix the presets (see
+    [Import presets](#import-presets)).
 - **Categorisation rules** run before the AI, which is offered every account
   except Equity for whatever is left. To add or change one, see
   ["Always put this under X"](#always-put-this-under-x--adding-a-mapping).
@@ -291,6 +300,108 @@ SELECT date, kind, row_id, delta, assertion, running,
        ROUND(running - assertion, 2) AS diff, text
 FROM running WHERE date BETWEEN '<from>' AND '<to>';
 ```
+
+## Import presets
+
+An import preset says, for each statement the importer reads, which account
+it goes to and which instructions categorise it. They are kept in the app,
+one institution per row ("Sample Bank"), and change only through one
+endpoint. There is no file to edit.
+
+```json
+{
+  "id": 1,
+  "name": "Sample Bank",
+  "parsers": ["sample-bank-xls", "sample-bank-pdf"],
+  "accounts": [
+    {
+      "account_id": 12,
+      "name": "Sample Savings",
+      "is_credit_card": false,
+      "account_identifiers": ["0505050000123"],
+      "custom_mappings_filenames": ["custom_mappings_default.prompt"]
+    }
+  ]
+}
+```
+
+- `parsers` are saved parsers' directory names. A parser belongs to the one
+  institution that lists it.
+- An account names its ledger account by `account_id`. `name` is what the
+  everyday screens call it. `is_credit_card` is always given.
+- `account_identifiers` are the numbers its statements print, digits and
+  uppercase `X`, no spaces. A statement goes to the account that lists the
+  identifier it printed. An institution with one account may list none, and
+  then every statement its parsers read goes to that account.
+- `custom_mappings_filenames` are files directly in `user-config/`, joined in
+  this order for the AI. Many accounts may list the same file.
+
+**Reading them:** `sapporta api get /api/import-presets`. Each account also
+carries `ledger_account_name`, which is null when its ledger account was
+deleted.
+
+**Finding an account's id:**
+`sapporta rows list accounts --where '{"name":{"eq":"…"}}'`.
+
+**Changing them:**
+`sapporta api post /api/import-presets/changes --body '{"changes":[…]}'`.
+The changes are applied in order, and the batch is written whole or not at
+all: after it, the whole table must keep the rules below. Institutions are
+named by `name`, accounts by `account_id`. The reply is the presets, as the
+GET returns them. Each kind of change:
+
+```json
+{"kind":"add_institution","name":"Sample Bank","parsers":["sample-bank-xls"]}
+{"kind":"rename_institution","institution":"Sample Bank","new_name":"Sample Bank Ltd"}
+{"kind":"remove_institution","institution":"Sample Bank"}
+{"kind":"add_parser","institution":"Sample Bank","parser":"sample-bank-pdf"}
+{"kind":"remove_parser","institution":"Sample Bank","parser":"sample-bank-pdf"}
+{"kind":"add_account","institution":"Sample Bank","account_id":12,"name":"Sample Savings","is_credit_card":false,"account_identifiers":["0505050000123"],"custom_mappings_filenames":["custom_mappings_default.prompt"]}
+{"kind":"update_account","account_id":12,"custom_mappings_filenames":["custom_mappings_personal.prompt","custom_mappings_default.prompt"]}
+{"kind":"remove_account","account_id":12}
+```
+
+`update_account` takes any of `name`, `is_credit_card`,
+`account_identifiers` and `custom_mappings_filenames`, and replaces each list
+it is given whole: to reorder the instruction files, send them in the new
+order; to add an identifier, send the account's whole list with it. Show the
+user the change in their words and wait for a yes, as for any other change.
+
+**Refusals** are a 422 with `error`, `code` and `change_index`, the change the
+refusal is about (null when it is the table the whole batch leaves):
+
+| `code` | What to do |
+| --- | --- |
+| `unknown_institution`, `unknown_account`, `parser_not_listed` | The change names what the presets don't hold at that point in the batch. Read them again and name what is there. |
+| `institution_has_accounts` | Remove the institution's accounts first, in the same batch. |
+| `institution_name_empty`, `institution_name_taken` | Give the institution a name no other has. |
+| `parser_listed_twice`, `parser_in_two_institutions` | A parser is listed once, by one institution. Remove it from the other first. |
+| `account_listed_twice` | An account is in one institution once. To move it, `remove_account` then `add_account`. |
+| `account_name_empty`, `account_name_taken` | Give the account a name no other preset account has. |
+| `identifier_on_two_accounts` | Two accounts of one institution list the same identifier; one of them is wrong. |
+| `account_identifier_required` | An institution with more than one account needs every account's identifier, so a statement can be told apart. Add them in the same batch. |
+| `mapping_file_listed_twice` | List each instruction file once per account. |
+| `unknown_ledger_account` | No ledger account has that id. Look it up again, or create the account first. |
+| `unknown_parser` | No saved parser has that name, in the project's `custom-built-parsers/` or dbu6's (`dbu6 docs parsers`). |
+
+An instruction file may be listed before it exists; `npx dbu6 check` names
+the missing ones, and the ones a deleted account leaves behind.
+
+**Converting an old `user-config/import-presets.json`:** presets used to live
+in that file, and `npx dbu6 check` fails while one is left. The server reads
+and converts it:
+
+1. `sapporta api post /api/import-presets/import-json --body '{"apply":false}'`
+   proposes the institutions and changes nothing. Presets that share a parser
+   or an account become one institution, named after the first; the presets
+   of one account become one account, with every identifier and instruction
+   file they had. Show the user the proposal and its `warnings`.
+2. With their yes, `--body '{"apply":true}'` writes them, reads them back and
+   deletes the file. It refuses when the presets already hold institutions
+   (`presets_already_in_table`), when a `base_account` names no ledger
+   account (`unresolved_base_accounts`, with the `names`), and when one
+   account's presets disagree on `is_credit_card`
+   (`conflicting_is_credit_card`); the file is kept after any refusal.
 
 ## Reaching the app
 
@@ -346,6 +457,7 @@ The owner allows reading SQLite directly for diagnosis:
 | `draft_transactions` | Imported rows waiting in Review | `base_account_id`, `account_id` (the category; null when uncategorised), `date`, `narration`, `withdrawal`, `deposit`, `balance_assertion_base_account`, `source_transaction_key` |
 | `journals` | Transactions in the books | `date`, `description` (the narration when imported; `Expenses` or `Deposits` on older imports) |
 | `journal_entries` | A journal's lines | `journal_id`, `account_id`, `debit`, `credit`, `account_balance_assertion`, `comment`, `source_transaction_key` |
+| `import_presets` | The import presets, one institution per row; read only, change them through `/api/import-presets/changes` | `name`, `parsers` and `accounts` (JSON; see [Import presets](#import-presets)) |
 
 - Amounts are rupees, stored as REAL. In the tables, a balance is
   debit − credit, so money held is positive, and money owed and income are

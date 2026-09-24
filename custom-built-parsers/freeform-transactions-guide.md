@@ -67,10 +67,10 @@ freeform transactions specifically:
 - `rows`: one per transaction you kept.
   - `date`: `YYYY-MM-DD`. When the content shows both a transaction date and a
     posting date, use the one the bank's statements for this account use. If
-    an entry in `user-config/import-presets.json` with this
-    `base_account` has a `custom_statement_parser_path`, that parser shows
-    which date and narration form the statements carry; match it where the
-    content gives you the same information.
+    the import presets (`GET /api/import-presets`, `dbu6 docs books`) hold an
+    account with this ledger account's `account_id`, the `parsers` of its
+    institution show which date and narration form the statements carry;
+    match them where the content gives you the same information.
   - `narration`: the description exactly as the content shows it.
   - `withdrawal` and `deposit`: both non-negative, exactly one positive. On a
     credit card, purchases and fees are withdrawals; payments and refunds are

@@ -25,8 +25,8 @@ export const accountsTable = sqliteTable(
     workspace_id: text("workspace_id").notNull(),
     scoped_to_user_id: text("scoped_to_user_id").notNull(),
     // A plain name, such as "Dining Out", without its parents'. Mapping
-    // rules, import presets and the LLM name an account by it, so it is
-    // unique in a user's books.
+    // rules and the LLM name an account by it, so it is unique in a user's
+    // books. Import presets name an account by its id instead.
     name: text("name").notNull(),
     // Triggers (migrations/0004_account_tree_rules.sql) keep the parent in the
     // same workspace, user and account type, and refuse a loop.

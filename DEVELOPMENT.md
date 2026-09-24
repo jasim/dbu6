@@ -188,11 +188,13 @@ In it, `pnpm <script>` runs what its `package.json` names and
   `demo@example.com` (password `demo-password`) holding a year of sample
   personal finances up to today, or up to the given date. The twelve months
   before that month are posted journals, and that month so far is HDFC savings
-  drafts. Re-running replaces the demo account's ledger. With
+  drafts. The demo account gets an import preset institution for each
+  statement account, written with the ledger. Re-running replaces the demo
+  account's ledger and presets. With
   `--statements <dir>`, that month is written to `<dir>` as the statement files
   it would arrive in (HDFC savings XLS, HDFC credit card CSV, and an SBI PDF no
-  saved parser reads) instead of drafts, with an `import-presets.json` to copy
-  into `user-config/`. `--statements` draws the files with the parsers' fixture
+  saved parser reads, whose institution lists no parser) instead of drafts.
+  `--statements` draws the files with the parsers' fixture
   generators, so it works only when dbu6 runs from this repository, not from an
   installed package. The code is `src/server/seed/`.
 - `dbu6 start`: migrate safely, then serve API and SPA on one port (run
@@ -449,7 +451,7 @@ lines never fail the run. `dbu6 upgrade` runs it after migrating.
 | Types | `tsc --noEmit` with the project's `tsconfig.json`, when the project has any `.ts` (typescript is resolved from the package, not the project) | tsc reports an error, or there is TypeScript but no tsconfig |
 | Reports | `node --test` over each `reports/<id>/**/*.test.ts`; then a build of the web app when the project has `reports/*/report.ts` or a `frontend.tsx`, into a temporary directory that is removed, so `dist/app` is untouched (the build also runs `assertSingleCopies`) | a test or the build fails |
 | Parsers | every `*_test.py` of the project's `custom-built-parsers/`, under `uv` with `shared` on `PYTHONPATH`; a project parser that shadows a bundled one is named | a test fails or uv cannot run |
-| Config | `user-config/` read by the code the app reads it with: `transaction_mappings.mjs` (`readTransactionMappings`), `import-presets.json` (`readImportPresets`, plus that each preset's parser and prompt files exist), `settings.json` (`chosenCodingAgent`) | a file does not parse or names something missing |
+| Config | `user-config/` read by the code the app reads it with: `transaction_mappings.mjs` (`readTransactionMappings`), `settings.json` (`chosenCodingAgent`); the import presets, every row of `import_presets` (`readEveryImportPreset`), with each listed parser, each instruction file and each account's ledger account; a leftover `import-presets.json` | a file does not parse, a preset names something missing, or `import-presets.json` is still there to convert |
 
 In this repository, `pnpm typecheck` and `pnpm test:parsers` cover what
 `check` checks in a project. `src/cli/check.test.ts`
@@ -561,7 +563,11 @@ clone layout:
    `custom_statement_parser_path` is the parser's directory name alone
    (`hdfc-bank-xls`), resolved against the project's parsers and then the
    package's; edit a value that is still a path.
-5. `cd my-books && npx dbu6 check`, then `npx dbu6 dev`.
+5. `cd my-books && npx dbu6 dev`, then convert the presets file into the
+   presets table: `sapporta api post /api/import-presets/import-json` with
+   `{"apply":false}` to see what it becomes, then `{"apply":true}`, which
+   deletes the file (DBU6-BOOKS.md, "Import presets").
+6. `npx dbu6 check`.
 
 `src/server/paths.ts` is the one module that knows where things are, and no
 other file joins a path onto a root. What is the user's comes from the project
@@ -583,7 +589,7 @@ data; the matching engine is
 `src/server/modules/categorization/mapping-rules.ts`.
 
 `loadCategorizer` (`categorization/load-categorizer.ts`) reads this file and the
-preset's prompt files once for each import or reclassification; it is the only
+account's prompt files once for each import or reclassification; it is the only
 code that reads them. `categorize` (`categorization/categorize.ts`) applies what
 it read: the rules, then the LLM for the rest, choosing from the ledger's
 accounts, then the ledger account each answer names by its exact name in
@@ -602,7 +608,8 @@ optional and limits a rule to `"withdrawal"` or `"deposit"`.
 The categorization prompt template is in
 `src/server/modules/categorization/prompt-template.ts`. It is filled with
 the accounts the LLM may answer with and the `custom_mappings_*.prompt` files
-named by the matching entry in `import-presets.json`, which `loadCategorizer`
+the statement's account lists in the import presets
+(`custom_mappings_filenames`, joined in that order), which `loadCategorizer`
 reads. `categorize` supplies the accounts: every account in the Accounts table
 (row-scoped) except Equity, one name per line. Notes about what an account is
 for belong in the `custom_mappings_*.prompt` files. An `hledger_accounts.prompt`
@@ -776,7 +783,8 @@ parents' names in front. The tree comes only from `parent_id`, and each type
 has one top account (`Assets`, `Liabilities`, `Equity`, `Income`,
 `Expenses`) in the sample data. A name is unique in a user's books
 (`accounts_name_unique`, from `0005_unique_account_names.sql`), because
-mapping rules, import presets and the LLM name an account by it alone. The
+mapping rules and the LLM name an account by it alone. Import presets name
+an account by its id, so renaming one leaves them alone. The
 hledger export builds each account's colon path, `Expenses:Food:Dining Out`,
 from the tree (`hledgerAccountNames` in `modules/journal-plan/hledger.ts`).
 
