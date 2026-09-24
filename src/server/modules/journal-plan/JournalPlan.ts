@@ -38,7 +38,9 @@ export type JournalPlan<A> = PlannedJournal<A>[];
  * account first. The base account's line asserts the row's `assertion`, in
  * the same place the draft balance check tested it, and carries no source
  * identity: the counterparty's line holds that, and the narration too, where
- * matching looks for it.
+ * matching looks for it. The statement import tells its own rows from another
+ * account's by which line holds the key (`loadPostedRowsOn`,
+ * reconciliation/checkpoint-day.md), so moving the key breaks that.
  */
 export function planJournals<A>(
   rows: Chrono<PlanRow<A>>,

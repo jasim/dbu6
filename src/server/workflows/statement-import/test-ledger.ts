@@ -9,12 +9,16 @@ import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
  * writes nowhere; its raw queries read an in-memory SQLite that holds the
  * account and, when given, `checkpoint` as its one posted balance assertion.
  * The checkpoint's journal also holds a category line for each of its
- * `keys`, the statement rows it posted; without them it has no key, as a
- * journal entered by hand does.
+ * `rows`, the statement rows it posted: keyed as an import keys them, or
+ * with no key, as a journal entered by hand has.
  */
 export function testImportLedger(
   account: string,
-  checkpoint?: { date: string; balance: number; keys?: string[] },
+  checkpoint?: {
+    date: string;
+    balance: number;
+    rows?: Array<{ amount: number; narration: string; key?: string }>;
+  },
 ): Ledger {
   const sqlite = new Database(":memory:");
   sqlite.exec(`
@@ -22,12 +26,13 @@ export function testImportLedger(
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT
     );
     CREATE TABLE journals (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT,
+      description TEXT
     );
     CREATE TABLE journal_entries (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
-      account_id INTEGER, account_balance_assertion REAL,
-      source_transaction_key TEXT
+      account_id INTEGER, debit REAL, credit REAL, comment TEXT,
+      account_balance_assertion REAL, source_transaction_key TEXT
     );
     CREATE TABLE draft_transactions (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
@@ -37,18 +42,36 @@ export function testImportLedger(
     .prepare("INSERT INTO accounts VALUES (1, 'workspace', 'user', ?)")
     .run(account);
   if (checkpoint) {
-    sqlite
-      .prepare("INSERT INTO journals VALUES (1, 'workspace', 'user', @date)")
-      .run(checkpoint);
+    const rows = checkpoint.rows ?? [];
+    const total = rows.reduce((sum, row) => sum + row.amount, 0);
     sqlite
       .prepare(
-        "INSERT INTO journal_entries VALUES (1, 'workspace', 'user', 1, 1, @balance, NULL)",
+        "INSERT INTO journals VALUES (1, 'workspace', 'user', ?, 'sample checkpoint')",
       )
-      .run({ date: checkpoint.date, balance: checkpoint.balance });
-    const categoryLine = sqlite.prepare(
-      "INSERT INTO journal_entries VALUES (?, 'workspace', 'user', 1, 2, NULL, ?)",
+      .run(checkpoint.date);
+    const line = sqlite.prepare(
+      "INSERT INTO journal_entries VALUES (?, 'workspace', 'user', 1, ?, ?, ?, ?, ?, ?)",
     );
-    (checkpoint.keys ?? []).forEach((key, i) => categoryLine.run(i + 2, key));
+    line.run(
+      1,
+      1,
+      Math.max(total, 0),
+      Math.max(-total, 0),
+      null,
+      checkpoint.balance,
+      null,
+    );
+    rows.forEach((row, i) =>
+      line.run(
+        i + 2,
+        2,
+        Math.max(-row.amount, 0),
+        Math.max(row.amount, 0),
+        row.narration,
+        null,
+        row.key ?? null,
+      ),
+    );
   }
   return {
     db: stubDb({ id: 1, name: account, parent_id: null }),
