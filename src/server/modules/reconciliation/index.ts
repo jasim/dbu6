@@ -1,6 +1,7 @@
 // The reconciliation module: matching statement rows against stored drafts
 // and journals, the draft balance-check rule and the running balance behind
-// it, and the filter that keeps only what is new since the last checkpoint.
+// it, the balance checks the posted books miss, and the filter that keeps
+// only what is new since the last checkpoint.
 // Import from here rather than from the files.
 export {
   assertionFailsSql,
@@ -19,7 +20,9 @@ export {
 export { AmbiguousDuplicateError, findDuplicate } from "./duplicate-store.js";
 export {
   baseAccountRunningBalanceCtes,
+  countPostedAssertionFailures,
   failingDraftAssertionsSelect,
+  postedAssertionFailuresCtes,
 } from "./running-balance.js";
 export {
   newTransactionsSinceReconciliation,

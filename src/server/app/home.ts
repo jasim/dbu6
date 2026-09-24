@@ -67,6 +67,7 @@ export function loadHomeSummary(
         name: standing.name,
         kind: standing.kind,
         checkpoint: standing.checkpoint,
+        statement_differences: standing.statement_differences,
         ...draftCounts(standing.drafts),
       };
     })

@@ -8,7 +8,7 @@ import {
   TsRestApi,
 } from "../../report-kit.js";
 import { reportsContract } from "../../../shared/index.js";
-import { assertionFailsSql } from "../../modules/reconciliation/index.js";
+import { postedAssertionFailuresCtes } from "../../modules/reconciliation/index.js";
 import { assertionColumns } from "./assertion-grid.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -19,36 +19,19 @@ api.register(
   ({ c }) => {
     const ledger = reportLedger(c, "balance-assertions");
     const rows = ledger.all<BalanceAssertionRow>(`
-      , running AS (
-        SELECT
-          je.id AS entry_id,
-          je.account_id,
-          je.journal_id,
-          j.date,
-          a.name AS account_name,
-          je.account_balance_assertion,
-          SUM(je.debit - je.credit) OVER (
-            PARTITION BY je.account_id
-            ORDER BY j.date, j.id, je.id
-            ROWS UNBOUNDED PRECEDING
-          ) AS running_balance
-        FROM scoped_journal_entries je
-        JOIN scoped_journals j ON j.id = je.journal_id
-        JOIN scoped_accounts a ON a.id = je.account_id
-      )
+      ${postedAssertionFailuresCtes}
       SELECT
-        account_id,
-        entry_id,
-        account_name,
-        date,
-        journal_id,
-        running_balance,
-        account_balance_assertion AS assertion,
-        running_balance - account_balance_assertion AS diff
-      FROM running
-      WHERE account_balance_assertion IS NOT NULL
-        AND ${assertionFailsSql("running_balance", "account_balance_assertion")}
-      ORDER BY account_name, date, journal_id, entry_id`);
+        f.account_id,
+        f.entry_id,
+        a.name AS account_name,
+        f.date,
+        f.journal_id,
+        f.running_balance,
+        f.assertion,
+        f.diff
+      FROM posted_assertion_failures f
+      JOIN scoped_accounts a ON a.id = f.account_id
+      ORDER BY a.name, f.date, f.journal_id, f.entry_id`);
 
     return { status: 200, body: toBalanceAssertionsResult(rows) };
   },
