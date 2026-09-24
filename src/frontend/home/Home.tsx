@@ -11,7 +11,10 @@ import { Screen } from "../components/screen";
 import { NextStepCard } from "../components/next-step-card";
 import { StatusChip, type StatusTone } from "../components/status-chip";
 import { homeSummaryQuery } from "../queries";
-import { accountLedgerHref } from "../reports/links";
+import {
+  accountLedgerHref,
+  RECONCILIATION_DIFFERENCES_HREF,
+} from "../reports/links";
 import { reviewHref } from "../review/routes";
 import { formatDate, plural } from "../format";
 import { homeState, type HomeCard } from "./state";
@@ -188,9 +191,9 @@ function AccountRow({ account }: { account: HomeAccount }) {
       </td>
       <td className="py-2.5 pl-3 pr-6 text-right align-top">
         {status &&
-          (account.in_ledger && account.drafts > 0 ? (
+          (status.to ? (
             <Link
-              to={reviewHref(account.account_id)}
+              to={status.to}
               className="-my-2 inline-flex min-h-sap-ctl items-center rounded-control no-underline outline-none hover:[&>span]:underline hover:[&>span]:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40"
             >
               <StatusChip tone={status.tone}>{status.label}</StatusChip>
@@ -212,21 +215,36 @@ function ImportedUntil({ account }: { account: HomeAccount }) {
   return <span className="tnum">{formatDate(account.checkpoint.date)}</span>;
 }
 
-/** What waits on the account; nothing when nothing does. */
+/**
+ * What waits on the account, and where to see it; nothing when nothing does.
+ * Problems in its drafts come first, since Review shows them; then books that
+ * miss a statement balance, as an entry changed after its statement was
+ * added; then drafts waiting.
+ */
 function accountStatus(account: HomeAccount): {
   tone: StatusTone;
   label: string;
+  to?: string;
 } | null {
   if (!account.in_ledger) {
     return { tone: "problem", label: "Account missing" };
   }
+  const review = reviewHref(account.account_id);
   if (postingBlocks(account).some(isProblem)) {
-    return { tone: "problem", label: "Problems in drafts" };
+    return { tone: "problem", label: "Problems in drafts", to: review };
+  }
+  if (account.statement_differences > 0) {
+    return {
+      tone: "problem",
+      label: "Doesn't match statement",
+      to: RECONCILIATION_DIFFERENCES_HREF,
+    };
   }
   if (account.drafts > 0) {
     return {
       tone: "attention",
       label: `${plural(account.drafts, "draft")} waiting`,
+      to: review,
     };
   }
   return null;

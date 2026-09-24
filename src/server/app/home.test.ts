@@ -84,7 +84,8 @@ describe("Home summary", () => {
     const summary = loadHomeSummary(sqlite, auth, presets);
 
     // The account the ledger lacks has no assertion, so it leads; then
-    // Sample Savings (10 Feb) before Sample Card (20 Feb).
+    // Sample Savings (10 Feb) before Sample Card (20 Feb). The card's books
+    // come to -300 where its statement says 300, so it doesn't match.
     expect(summary.accounts).toEqual([
       {
         in_ledger: false,
@@ -99,6 +100,7 @@ describe("Home summary", () => {
         name: "Sample Savings Statement",
         kind: "bank",
         checkpoint: { date: "2026-02-10", balance: 1500 },
+        statement_differences: 0,
         drafts: 3,
         uncategorised: 1,
         duplicates: 1,
@@ -112,6 +114,7 @@ describe("Home summary", () => {
         name: "Sample Card Statement",
         kind: "card",
         checkpoint: { date: "2026-02-20", balance: 300 },
+        statement_differences: 1,
         drafts: 0,
         uncategorised: 0,
         duplicates: 0,

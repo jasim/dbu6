@@ -22,6 +22,9 @@ export function accountLedgerHref(
   });
 }
 
+/** Every posted balance check the books miss (Reconciliation Differences). */
+export const RECONCILIATION_DIFFERENCES_HREF = "/reports/balance-assertions";
+
 export function accountLedgerRow<
   TInput extends LedgerLinkInput = LedgerLinkInput,
 >(idColumn = "account_id") {

@@ -17,6 +17,7 @@ function account(
     name: "Sample Savings",
     kind: "bank",
     checkpoint: { date: "2026-08-31", balance: 250000 },
+    statement_differences: 0,
     drafts: 0,
     uncategorised: 0,
     duplicates: 0,

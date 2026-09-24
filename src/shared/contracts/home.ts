@@ -31,6 +31,9 @@ export const homeAccountSchema = z.discriminatedUnion("in_ledger", [
     ...importableAccountFields,
     // The last posted balance assertion; null before the first.
     checkpoint: datedBalanceSchema.nullable(),
+    // Posted balance assertions its books miss: an entry changed after the
+    // statement was added. The Reconciliation Differences report lists them.
+    statement_differences: z.number(),
     ...draftCountsSchema.shape,
   }),
 ]);
