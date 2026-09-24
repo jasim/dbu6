@@ -30,6 +30,9 @@ export function buildAbility(ctx: AppAuthFacts): AppAbility {
     // dbu6 writes what it found out about the machine itself (dbu-config.ts);
     // through the table API the owner can only look.
     cannot(["create", "update", "delete"], "dbu_config");
+    // Presets change only through POST /import-presets/changes, which checks
+    // the whole table (schema/import-presets.ts).
+    cannot(["create", "update", "delete"], "import_presets");
   }
 
   return build();

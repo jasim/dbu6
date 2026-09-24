@@ -2,6 +2,7 @@ import type { SapportaAuthContext } from "@sapporta/server";
 import { createTestAuthContext } from "@sapporta/server/testing";
 import { accounts } from "../../schema/accounts.js";
 import { draftTransactions } from "../../schema/draft-journals.js";
+import { importPresets } from "../../schema/import-presets.js";
 import { journalEntries, journals } from "../../schema/journals.js";
 
 /**
@@ -13,7 +14,13 @@ export function testLedgerAuth(
   workspaceId = "workspace",
 ): SapportaAuthContext {
   return createTestAuthContext({
-    tables: [accounts, draftTransactions, journals, journalEntries],
+    tables: [
+      accounts,
+      draftTransactions,
+      journals,
+      journalEntries,
+      importPresets,
+    ],
     workspaceId,
     userId,
   });

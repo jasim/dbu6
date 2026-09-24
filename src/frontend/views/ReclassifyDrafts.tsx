@@ -109,7 +109,7 @@ export function ReclassifyDrafts() {
 
   useEffect(() => {
     importPresetsApi
-      .listImportPresets({})
+      .listImportPresetFile({})
       .then(setPresets)
       .catch(() => setPresets([]));
   }, []);
