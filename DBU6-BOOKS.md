@@ -161,11 +161,14 @@ category ("Categorise these" above), and restart a server started with
   `sapporta rows create journals --values '{"date":"…","description":"…","$details":{"table":"journal_entries","fk":"journal_id","rows":[{"account_id":<a>,"debit":500,"comment":"…"},{"account_id":<b>,"credit":500}]}}'`.
   Debits must equal credits.
 - **"Undo that."**
-  There is no undo. Each journal groups one day's same-direction transactions
-  from a statement.
-  - To remove one transaction: delete its category entry, and reduce the
-    statement account's line by the same amount.
-  - To remove a whole journal: delete its entries first, then the journal.
+  There is no undo. An imported journal holds one statement transaction;
+  journals imported before 2026-09-24 hold a day's same-direction
+  transactions (see [The data](#the-data)).
+  - To remove a one-transaction journal: delete its entries first, then the
+    journal.
+  - To remove one transaction from an older, grouped journal: delete its
+    category entry, and reduce the statement account's line by the same
+    amount.
 
   Either way, every later balance check on that account moves. Check
   `balance-assertions` afterwards.
@@ -330,19 +333,23 @@ The owner allows reading SQLite directly for diagnosis:
 | --- | --- | --- |
 | `accounts` | The chart of accounts, one tree | `name` (unique), `parent_id`, `account_type`: Asset, Liability, Equity, Revenue or Expense |
 | `draft_transactions` | Imported rows waiting in Review | `base_account_id`, `account_id` (the category; null when uncategorised), `date`, `narration`, `withdrawal`, `deposit`, `balance_assertion_base_account`, `source_transaction_key` |
-| `journals` | Transactions in the books | `date`, `description` (only `Expenses` or `Deposits` when imported) |
+| `journals` | Transactions in the books | `date`, `description` (the narration when imported; `Expenses` or `Deposits` on older imports) |
 | `journal_entries` | A journal's lines | `journal_id`, `account_id`, `debit`, `credit`, `account_balance_assertion`, `comment`, `source_transaction_key` |
 
 - Amounts are rupees, stored as REAL. In the tables, a balance is
   debit − credit, so money held is positive, and money owed and income are
   negative. A statement balance uses the same sign.
 - A draft's `withdrawal` and `deposit` are both positive.
-- Adding drafts to the books makes one journal per run of same-day,
-  same-direction drafts:
-  - One entry per draft on its category, carrying the narration and
+- Adding drafts to the books makes one journal per draft, described by its
+  narration:
+  - One entry on its category, carrying the narration and
     `source_transaction_key`.
-  - One entry on the statement's account for the run's total. It carries the
-    run's last statement balance and no key.
+  - One entry on the statement's account, with no key. The day's last one
+    carries the day's closing statement balance.
+- Journals added before 2026-09-24 group a run of same-day, same-direction
+  drafts: one category entry per draft as above, and one entry on the
+  statement's account for the run's total, carrying the run's last statement
+  balance. Their description is `Expenses` or `Deposits`.
 - Reports show amounts the way people read them, not the way the tables store
   them:
   - The Balance Sheet and Trial Balance show liabilities as positive.

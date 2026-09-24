@@ -43,7 +43,8 @@ export function hledgerAccountNames(
  * account by its name in the ledger, and `hledgerNames`
  * (`hledgerAccountNames`) gives the name hledger writes for it; a name the
  * ledger doesn't have, such as an answer naming no account, is written as it
- * is.
+ * is. A comment that only repeats the description, as a statement row's
+ * narration does, is left out.
  *
  *   {date} {description}
  *       {account:<35} {amount:>10.2f}[ = {assertion:.2f}][ ; {comment}]
@@ -56,7 +57,9 @@ export function formatHledger(
     .map((journal) =>
       [
         `${journal.date} ${journal.description}`,
-        ...journal.entries.map((entry) => formatEntry(entry, hledgerNames)),
+        ...journal.entries.map((entry) =>
+          formatEntry(entry, journal.description, hledgerNames),
+        ),
       ].join("\n"),
     )
     .join("\n\n");
@@ -64,12 +67,14 @@ export function formatHledger(
 
 function formatEntry(
   entry: PlannedEntry<string>,
+  description: string,
   hledgerNames: ReadonlyMap<string, string>,
 ): string {
   const account = hledgerNames.get(entry.account) ?? entry.account;
   const assertion =
     entry.assertion === null ? "" : ` = ${entry.assertion.toFixed(2)}`;
-  const comment = entry.comment ? ` ; ${entry.comment}` : "";
+  const comment =
+    entry.comment && entry.comment !== description ? ` ; ${entry.comment}` : "";
   // hledger ends an account name at two spaces, since names hold single ones.
   return `    ${`${account} `.padEnd(35)} ${entry.amount.toFixed(2).padStart(10)}${assertion}${comment}`;
 }
