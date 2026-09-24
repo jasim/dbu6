@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { importPresetSchema, type ImportPreset } from "../../../shared/index.js";
-import { resolveImportPreset } from "./import-presets.js";
+import {
+  importPresetSchema,
+  type ImportAccount,
+  type ImportInstitution,
+  type ImportPreset,
+} from "../../../shared/index.js";
+import { resolveImportAccount, resolveImportPreset } from "./import-presets.js";
 
 const BANK_PARSER = "hdfc-bank-xls";
 const CARD_PARSER = "hdfc-cc-xls";
@@ -171,5 +176,132 @@ describe("importPresetSchema", () => {
         }),
       ).toThrow();
     }
+  });
+});
+
+function account(
+  overrides: Partial<ImportAccount> & { account_id: number; name: string },
+): ImportAccount {
+  return {
+    is_credit_card: false,
+    account_identifiers: [],
+    custom_mappings_filenames: [],
+    ...overrides,
+  };
+}
+
+const bankInstitution: ImportInstitution = {
+  id: 1,
+  name: "Sample Bank",
+  parsers: [BANK_PARSER],
+  accounts: [account({ account_id: 11, name: "Sample Savings" })],
+};
+const cardA = account({
+  account_id: 21,
+  name: "Sample Card A",
+  is_credit_card: true,
+  account_identifiers: ["050505XXXXXX0505"],
+});
+const cardB = account({
+  account_id: 22,
+  name: "Sample Card B",
+  is_credit_card: true,
+  account_identifiers: ["050505XXXXXX0506", "0505050000000506"],
+});
+const cardsInstitution: ImportInstitution = {
+  id: 2,
+  name: "Sample Cards",
+  parsers: [CARD_PARSER],
+  accounts: [cardA, cardB],
+};
+const emptyInstitution: ImportInstitution = {
+  id: 3,
+  name: "Sample Empty",
+  parsers: ["sample-empty-pdf"],
+  accounts: [],
+};
+const institutions = [bankInstitution, cardsInstitution, emptyInstitution];
+
+describe("resolveImportAccount", () => {
+  it("rejects a parser no institution lists", () => {
+    expect(
+      resolveImportAccount(institutions, statement("other", null)),
+    ).toMatchObject({
+      ok: false,
+      reason: "no_institution_for_parser",
+      institutionName: null,
+      candidateAccountNames: [],
+      parserName: "other",
+    });
+  });
+
+  it("rejects an institution with no accounts", () => {
+    expect(
+      resolveImportAccount(institutions, statement("sample-empty-pdf", null)),
+    ).toMatchObject({
+      ok: false,
+      reason: "institution_has_no_accounts",
+      institutionName: "Sample Empty",
+    });
+  });
+
+  it("gives every statement to a lone account without identifiers", () => {
+    for (const identifier of [null, "05050505050505"]) {
+      expect(
+        resolveImportAccount(institutions, statement(BANK_PARSER, identifier)),
+      ).toEqual({
+        ok: true,
+        institution: bankInstitution,
+        account: bankInstitution.accounts[0],
+      });
+    }
+  });
+
+  it("checks a lone account's identifiers", () => {
+    const one: ImportInstitution = { ...cardsInstitution, accounts: [cardB] };
+    expect(
+      resolveImportAccount([one], statement(CARD_PARSER, "0505050000000506")),
+    ).toMatchObject({ ok: true, account: cardB });
+    expect(
+      resolveImportAccount([one], statement(CARD_PARSER, null)),
+    ).toMatchObject({
+      ok: false,
+      reason: "statement_account_identifier_required",
+      candidateAccountNames: ["Sample Card B"],
+    });
+    expect(
+      resolveImportAccount([one], statement(CARD_PARSER, "050505XXXXXX0599")),
+    ).toMatchObject({
+      ok: false,
+      reason: "statement_account_identifier_mismatch",
+      identifier: "050505XXXXXX0599",
+    });
+  });
+
+  it("picks the one account of several that lists the identifier", () => {
+    expect(
+      resolveImportAccount(
+        institutions,
+        statement(CARD_PARSER, "050505XXXXXX0506"),
+      ),
+    ).toEqual({ ok: true, institution: cardsInstitution, account: cardB });
+    expect(
+      resolveImportAccount(institutions, statement(CARD_PARSER, null)),
+    ).toMatchObject({
+      ok: false,
+      reason: "statement_account_identifier_required",
+      institutionName: "Sample Cards",
+      candidateAccountNames: ["Sample Card A", "Sample Card B"],
+    });
+    expect(
+      resolveImportAccount(
+        institutions,
+        statement(CARD_PARSER, "050505XXXXXX0599"),
+      ),
+    ).toMatchObject({
+      ok: false,
+      reason: "statement_account_identifier_mismatch",
+      candidateAccountNames: ["Sample Card A", "Sample Card B"],
+    });
   });
 });
