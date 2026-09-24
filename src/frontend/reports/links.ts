@@ -25,6 +25,14 @@ export function accountLedgerHref(
 /** Every posted balance check the books miss (Reconciliation Differences). */
 export const RECONCILIATION_DIFFERENCES_HREF = "/reports/balance-assertions";
 
+/** The income statement over the days from `fromDate` to `toDate`. */
+export function incomeStatementHref(fromDate: string, toDate: string): string {
+  return createSnapshotUrl("/reports/income-statement", {
+    from_date: fromDate,
+    to_date: toDate,
+  });
+}
+
 export function accountLedgerRow<
   TInput extends LedgerLinkInput = LedgerLinkInput,
 >(idColumn = "account_id") {

@@ -4,6 +4,7 @@ import {
   ReportError,
   ReportGridDataset,
   type ReportCellLinkResolvers,
+  type ReportCellRenderers,
 } from "@sapporta/frontend/report";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { Temporal } from "@sapporta/shared/temporal";
@@ -55,11 +56,14 @@ export function ReportResultBody<TInput = unknown>({
   error,
   linkContext,
   links,
+  renderCell,
   result,
 }: {
   error: string | null;
   linkContext?: { input: TInput };
   links?: ReportCellLinkResolvers<TInput>;
+  /** Cells drawn by the report, by level and column; a stable reference. */
+  renderCell?: ReportCellRenderers;
   result: GridDataset | null;
 }) {
   return (
@@ -71,6 +75,7 @@ export function ReportResultBody<TInput = unknown>({
             dataset={result}
             links={links}
             linkContext={linkContext}
+            renderCell={renderCell}
             columnSizing={REPORT_COLUMN_SIZING}
           />
         ) : null}

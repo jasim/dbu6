@@ -362,5 +362,11 @@ The owner allows reading SQLite directly for diagnosis:
 - In tree reports (Expense Breakdown, Balance Sheet, Trial Balance, Income
   Statement), each account's row already includes its sub-accounts, so don't
   add rows up. Section totals are in `rollup`.
+- A Balance Sheet section keeps its account type in `account_type`; `section`
+  is only its label. Equity has no `rollup`: its total is net worth (assets
+  less liabilities), the `net-worth` footer row. Equity includes a computed
+  row, income less spending to date, with no `account_id`. A second footer
+  row, `out-of-balance`, appears only when the books are out, holding the
+  difference.
 - The account tree comes from `parent_id`, and report sections come from
   `account_type`, never from a name.

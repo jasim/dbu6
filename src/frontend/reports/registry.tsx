@@ -106,7 +106,7 @@ export const builtInReportDefinitions = [
   {
     id: "balance-sheet",
     label: "Balance Sheet",
-    description: "All assets and liabilities",
+    description: "What you own, what you owe, and your net worth",
     Component: BalanceSheetReport,
     subgroup: "balances",
     layout: "tile",
