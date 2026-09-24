@@ -79,24 +79,71 @@ export function lookupLastReconciled(
 }
 
 /**
- * The source keys of what the books hold on `date` for the account: every key
- * on a posted journal that has a line on that account and is dated `date`.
- * Null when one of those journals carries no key at all (entered by hand, or
- * imported before rows were keyed), since the keys then can't vouch for the
- * whole day. The statement import reads it for the checkpoint's date
- * (reconciliation/checkpoint-day.md).
+ * A statement row the books hold on an account's checkpoint day, as the
+ * account's statement shows it: `amount` is signed, a deposit positive.
+ * `origin` says how it reached the books:
+ * - "statement": this account's own import posted it, and `key` is the
+ *   statement row's source key;
+ * - "other-statement": another account's import posted it with this account
+ *   as its category, as a card payment or a transfer is, so this account's
+ *   statement keys it differently;
+ * - "unkeyed": its journal carries no key, entered by hand or imported
+ *   before rows were keyed.
+ *
+ * `counted` is true when the day's last posted balance check includes it:
+ * the check adds a day up in journal id order, and its journal is the
+ * check's own or an earlier one.
  */
-export function loadPostedKeysOn(
+export interface PostedRow {
+  origin: "statement" | "other-statement" | "unkeyed";
+  key: string | null;
+  amount: number;
+  narration: string;
+  counted: boolean;
+}
+
+type PostedLine = {
+  journal_id: number;
+  description: string;
+  account_id: number;
+  debit: number;
+  credit: number;
+  comment: string | null;
+  key: string | null;
+  counted: number | null;
+};
+
+/**
+ * The rows the books hold on `date` for the account, one for each statement
+ * row a posted journal that day stands for. The statement import reads it for
+ * the checkpoint's date (reconciliation/checkpoint-day.md).
+ */
+export function loadPostedRowsOn(
   sqlite: Parameters<typeof allRows>[0],
   auth: LedgerAuth,
   accountId: number,
   date: string,
-): ReadonlySet<string> | null {
-  const rows = allRows<{ journal_id: number; key: string | null }>(
+): PostedRow[] {
+  const lines = allRows<PostedLine>(
     sqlite,
     auth,
     `
-    SELECT j.id AS journal_id, je.source_transaction_key AS key
+    SELECT
+      j.id AS journal_id,
+      j.description,
+      je.account_id,
+      je.debit,
+      je.credit,
+      je.comment,
+      je.source_transaction_key AS key,
+      j.id <= (
+        SELECT MAX(j3.id)
+        FROM scoped_journals j3
+        JOIN scoped_journal_entries je3 ON je3.journal_id = j3.id
+        WHERE j3.date = @date
+          AND je3.account_id = @accountId
+          AND je3.account_balance_assertion IS NOT NULL
+      ) AS counted
     FROM scoped_journals j
     JOIN scoped_journal_entries je ON je.journal_id = j.id
     WHERE j.date = @date
@@ -104,17 +151,58 @@ export function loadPostedKeysOn(
         SELECT je2.journal_id
         FROM scoped_journal_entries je2
         WHERE je2.account_id = @accountId
-      )`,
+      )
+    ORDER BY j.id, je.id`,
     { accountId, date },
   );
-  const keysByJournal = new Map<number, string[]>();
-  for (const row of rows) {
-    const keys = keysByJournal.get(row.journal_id) ?? [];
-    if (row.key !== null) keys.push(row.key);
-    keysByJournal.set(row.journal_id, keys);
+  const byJournal = new Map<number, PostedLine[]>();
+  for (const line of lines) {
+    byJournal.set(line.journal_id, [
+      ...(byJournal.get(line.journal_id) ?? []),
+      line,
+    ]);
   }
-  const keys = [...keysByJournal.values()];
-  return keys.some((journalKeys) => journalKeys.length === 0)
-    ? null
-    : new Set(keys.flat());
+  return [...byJournal.values()].flatMap((journal) =>
+    postedRowsOf(journal, accountId),
+  );
+}
+
+// An import keys the category line of each row it posts, never its own
+// account's line (journal-plan). So a key on another account's line is this
+// account's own row, and a key on this account's line is another account's
+// row that has this account as its category. With no key, each line on
+// another account is one row, as an older grouped import wrote them.
+function postedRowsOf(journal: PostedLine[], accountId: number): PostedRow[] {
+  const counted = journal[0].counted === 1;
+  const narration = (line: PostedLine) => line.comment ?? line.description;
+  const elsewhere = journal.filter((line) => line.account_id !== accountId);
+  const own = elsewhere.filter((line) => line.key !== null);
+  if (own.length > 0) {
+    return own.map((line) => ({
+      origin: "statement",
+      key: line.key,
+      amount: line.credit - line.debit,
+      narration: narration(line),
+      counted,
+    }));
+  }
+  const other = journal.filter(
+    (line) => line.account_id === accountId && line.key !== null,
+  );
+  if (other.length > 0) {
+    return other.map((line) => ({
+      origin: "other-statement",
+      key: null,
+      amount: line.debit - line.credit,
+      narration: narration(line),
+      counted,
+    }));
+  }
+  return elsewhere.map((line) => ({
+    origin: "unkeyed",
+    key: null,
+    amount: line.credit - line.debit,
+    narration: narration(line),
+    counted,
+  }));
 }

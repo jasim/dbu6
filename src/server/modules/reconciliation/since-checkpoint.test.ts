@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { PostedRow } from "../journals/index.js";
 import type { Abacus } from "../statement/index.js";
 import { moneyFromColumns, unsafeAsChrono as chrono } from "../values/index.js";
 import {
@@ -166,16 +167,46 @@ function keyed(
   };
 }
 
+// A row the books hold on the checkpoint day. By default this account's own
+// import posted it, keyed as `keyed` keys it, and the checkpoint counted it.
+function posted(
+  narration: string,
+  amount: number,
+  row: Partial<PostedRow> = {},
+): PostedRow {
+  return {
+    origin: "statement",
+    key: narration,
+    amount,
+    narration,
+    counted: true,
+    ...row,
+  };
+}
+
+// A card payment or transfer the other account's import posted.
+const fromOtherStatement = (
+  narration: string,
+  amount: number,
+  counted = true,
+) =>
+  posted(narration, amount, { origin: "other-statement", key: null, counted });
+
+// A journal with no key: entered by hand, or imported before rows were keyed.
+const unkeyed = (narration: string, amount: number) =>
+  posted(narration, amount, { origin: "unkeyed", key: null });
+
 const newOnes = (
   txns: Abacus[],
-  posted: string[] | null,
+  rows: PostedRow[] | null,
   opening: number | null = null,
+  checkpoint = { date: "2026-05-10", balance: 5000 },
 ) =>
   newTransactionsSinceReconciliation(
     chrono(txns),
-    { date: "2026-05-10", balance: 5000 },
+    checkpoint,
     opening,
-    posted && new Set(posted),
+    rows,
   ).map((t) => t.narration);
 
 describe("newTransactionsSinceReconciliation — the checkpoint day by key", () => {
@@ -187,7 +218,7 @@ describe("newTransactionsSinceReconciliation — the checkpoint day by key", () 
       keyed("2026-05-10", "NOPII-RENT", -1000, 5000),
       keyed("2026-05-11", "sample-next", -100, 4900),
     ];
-    expect(newOnes(txns, ["sample-morning"])).toEqual([
+    expect(newOnes(txns, [posted("sample-morning", 1000)])).toEqual([
       "NOPII-SALARY",
       "NOPII-RENT",
       "sample-next",
@@ -203,7 +234,7 @@ describe("newTransactionsSinceReconciliation — the checkpoint day by key", () 
       keyed("2026-05-10", "UPI-sample-050505-reversal", 1000, 5000),
       keyed("2026-05-10", "sample-tea", -100, 4900),
     ];
-    expect(newOnes(txns, ["sample-morning"], 5000)).toEqual([
+    expect(newOnes(txns, [posted("sample-morning", 1000)], 5000)).toEqual([
       "UPI-sample-050505-debit",
       "UPI-sample-050505-reversal",
       "sample-tea",
@@ -219,7 +250,13 @@ describe("newTransactionsSinceReconciliation — the checkpoint day by key", () 
       keyed("2026-05-10", "d", 200, 5000),
       keyed("2026-05-11", "e", -100, 4900),
     ];
-    expect(newOnes(txns, ["a", "b", "c", "d"])).toEqual(["e"]);
+    const rows = [
+      posted("a", -500),
+      posted("b", 500),
+      posted("c", -200),
+      posted("d", 200),
+    ];
+    expect(newOnes(txns, rows)).toEqual(["e"]);
   });
 
   it("does not depend on the order the statement prints the day in", () => {
@@ -232,36 +269,118 @@ describe("newTransactionsSinceReconciliation — the checkpoint day by key", () 
       keyed("2026-05-10", "a", -100, 4800),
     ];
     const checkpoint = { date: "2026-05-10", balance: 4500 };
-    const survivors = newTransactionsSinceReconciliation(
-      chrono(txns),
-      checkpoint,
-      null,
-      new Set(["a", "b"]),
-    );
-    expect(survivors.map((t) => t.narration)).toEqual(["new"]);
+    const rows = [posted("a", -100), posted("b", -200)];
+    expect(newOnes(txns, rows, null, checkpoint)).toEqual(["new"]);
     // By balance alone, no row lands on 4500.
     expect(() =>
       newTransactionsSinceReconciliation(chrono(txns), checkpoint),
     ).toThrow(ReconciliationMatchError);
   });
 
-  it("falls back to the balance when a key posted that day is missing from a whole day", () => {
-    // The statement starts the day before, yet 'sample-morning' isn't in it:
-    // the bank reworded the row, and its new key would pass as new.
-    const txns = [
-      keyed("2026-05-09", "sample-prior", -100, 4000),
-      keyed("2026-05-10", "sample-morning-reworded", 1000, 5000),
-      keyed("2026-05-10", "sample-after", -100, 4900),
-    ];
-    expect(newOnes(txns, ["sample-morning"])).toEqual(["sample-after"]);
-  });
-
   it("falls back to the balance when the rows found don't reach the checkpoint", () => {
     // A paste that starts mid-day at 4700, after the posted row: a row the
     // books never had sits between them, so this is a gap.
     const txns = [keyed("2026-05-10", "sample-late", -100, 4600)];
-    expect(() => newOnes(txns, ["sample-morning"])).toThrow(
+    expect(() => newOnes(txns, [posted("sample-morning", 1000)])).toThrow(
       ReconciliationMatchError,
     );
+  });
+});
+
+describe("newTransactionsSinceReconciliation — the checkpoint day by amount", () => {
+  it("pairs a card payment posted from the card's statement", () => {
+    // The card's import posted the payment, keyed by the card's statement,
+    // so no row here carries its key.
+    const txns = [
+      keyed("2026-05-09", "sample-prior", -100, 5600),
+      keyed("2026-05-10", "CC-PAYMENT-050505", -500, 5100),
+      keyed("2026-05-10", "sample-groceries", -100, 5000),
+      keyed("2026-05-10", "NOPII-SALARY", 1000, 6000),
+      keyed("2026-05-10", "NOPII-RENT", -1000, 5000),
+    ];
+    const rows = [
+      fromOtherStatement("NOPII PAYMENT RECEIVED", -500),
+      posted("sample-groceries", -100),
+    ];
+    expect(newOnes(txns, rows)).toEqual(["NOPII-SALARY", "NOPII-RENT"]);
+    expect(newOnes(txns, null)).toEqual([]);
+  });
+
+  it("pairs a card payment posted after the checkpoint, outside its balance", () => {
+    // The payment reached this account after the last import's cut, and the
+    // card's import posted it later.
+    const txns = [
+      keyed("2026-05-09", "sample-prior", -100, 5100),
+      keyed("2026-05-10", "sample-groceries", -100, 5000),
+      keyed("2026-05-10", "CC-PAYMENT-050505", -500, 4500),
+      keyed("2026-05-10", "sample-tea", -50, 4450),
+    ];
+    const rows = [
+      posted("sample-groceries", -100),
+      fromOtherStatement("NOPII PAYMENT RECEIVED", -500, false),
+    ];
+    expect(newOnes(txns, rows)).toEqual(["sample-tea"]);
+    // By balance alone, the payment comes in a second time.
+    expect(newOnes(txns, null)).toEqual(["CC-PAYMENT-050505", "sample-tea"]);
+  });
+
+  it("pairs a row the bank reworded", () => {
+    const txns = [
+      keyed("2026-05-09", "sample-prior", -100, 4000),
+      keyed("2026-05-10", "sample-morning-reworded", 1000, 5000),
+      keyed("2026-05-10", "NOPII-SALARY", 2000, 7000),
+      keyed("2026-05-10", "NOPII-RENT", -2000, 5000),
+    ];
+    expect(newOnes(txns, [posted("sample-morning", 1000)])).toEqual([
+      "NOPII-SALARY",
+      "NOPII-RENT",
+    ]);
+  });
+
+  it("pairs a day posted before rows were keyed by amount and wording", () => {
+    const txns = [
+      keyed("2026-05-09", "sample-prior", -100, 4000),
+      keyed("2026-05-10", "sample-morning", 1000, 5000),
+      keyed("2026-05-10", "NOPII-SALARY", 1000, 6000),
+      keyed("2026-05-10", "NOPII-RENT", -1000, 5000),
+    ];
+    expect(newOnes(txns, [unkeyed("SAMPLE-MORNING", 1000)])).toEqual([
+      "NOPII-SALARY",
+      "NOPII-RENT",
+    ]);
+  });
+
+  it("falls back to the balance when two rows could be the one in the books", () => {
+    // Either -1000 could be the rent entered by hand, and each choice reaches
+    // the checkpoint, so the pairing doesn't guess.
+    const txns = [
+      keyed("2026-05-09", "sample-prior", -100, 6000),
+      keyed("2026-05-10", "NOPII-RENT-BY-NEFT", -1000, 5000),
+      keyed("2026-05-10", "NOPII-SALARY", 1000, 6000),
+      keyed("2026-05-10", "UPI-sample-050505", -1000, 5000),
+    ];
+    const rows = [unkeyed("NOPII rent", -1000)];
+    expect(newOnes(txns, rows)).toEqual(newOnes(txns, null));
+  });
+
+  it("falls back to the balance when a row in the books isn't in the whole day", () => {
+    const txns = [
+      keyed("2026-05-09", "sample-prior", -100, 4000),
+      keyed("2026-05-10", "sample-morning", 1000, 5000),
+      keyed("2026-05-10", "sample-after", -100, 4900),
+    ];
+    const rows = [posted("sample-morning", 1000), unkeyed("sample cash", -200)];
+    expect(newOnes(txns, rows)).toEqual(["sample-after"]);
+  });
+
+  it("falls back to the balance for a paste on a day with an unkeyed journal", () => {
+    // The paste may start after the journal's row, so amounts can't pair it.
+    const txns = [
+      keyed("2026-05-10", "UPI-sample-050505-debit", -1000, 4000),
+      keyed("2026-05-10", "UPI-sample-050505-reversal", 1000, 5000),
+      keyed("2026-05-10", "sample-tea", -100, 4900),
+    ];
+    const rows = [unkeyed("sample-morning", 1000)];
+    expect(newOnes(txns, rows, 5000)).toEqual(newOnes(txns, null, 5000));
   });
 });

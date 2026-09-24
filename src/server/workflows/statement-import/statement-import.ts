@@ -26,7 +26,7 @@ import {
 } from "../../modules/statement/index.js";
 import { newTransactionsSinceReconciliation } from "../../modules/reconciliation/index.js";
 import {
-  loadPostedKeysOn,
+  loadPostedRowsOn,
   lookupLastReconciled,
 } from "../../modules/journals/index.js";
 import { loadAccountsByName } from "../../modules/accounts/index.js";
@@ -227,7 +227,7 @@ export async function runStatementImport(
     checkpoint,
     opening,
     checkpoint &&
-      loadPostedKeysOn(
+      loadPostedRowsOn(
         ledger.sqlite,
         ledger.auth,
         baseAccountId,

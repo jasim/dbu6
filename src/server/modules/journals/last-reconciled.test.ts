@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import {
   loadLastReconciled,
-  loadPostedKeysOn,
+  loadPostedRowsOn,
   lookupLastReconciled,
 } from "./last-reconciled.js";
 import { testLedgerAuth } from "../ledger-sql/testing.js";
@@ -196,24 +196,27 @@ describe("the last reconciled checkpoint", () => {
 });
 
 /*
- * Sample Savings (1) on 10 May: journal 30 is one imported row, journal 31 a
- * run of two (the grouped form, its keys on the category lines), journal 32 a
- * transfer posted from Sample Card's (2) statement. Journal 33 is Sample
- * Card's alone, journal 34 is on 11 May, and journal 35 belongs to another
- * user. On 12 May, journal 36 was entered by hand, with no key.
+ * Sample Savings (1) on 10 May. Journal 30 is one row its import posted, and
+ * journal 31 two more in the older grouped form, its keys on the category
+ * lines; 31 asserts the day's balance. Journal 32 is a card payment posted
+ * later from Sample Card's (2) statement, its key on the Savings line, and
+ * journal 33 an entry by hand, with no key. Journal 34 is Sample Card's
+ * alone, journal 35 is on 11 May, and journal 36 belongs to another user.
  */
-function keyedLedger(): Database.Database {
+function postedLedger(): Database.Database {
   const sqlite = new Database(":memory:");
   sqlite.exec(`
     CREATE TABLE accounts (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT
     );
     CREATE TABLE journals (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT,
+      description TEXT
     );
     CREATE TABLE journal_entries (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
-      account_id INTEGER, source_transaction_key TEXT
+      account_id INTEGER, debit REAL, credit REAL, comment TEXT,
+      source_transaction_key TEXT, account_balance_assertion REAL
     );
     CREATE TABLE draft_transactions (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
@@ -222,44 +225,75 @@ function keyedLedger(): Database.Database {
     INSERT INTO accounts VALUES
       (1, 'workspace', 'user', 'Sample Savings'),
       (2, 'workspace', 'user', 'Sample Card'),
-      (3, 'workspace', 'user', 'Groceries');
+      (3, 'workspace', 'user', 'Groceries'),
+      (4, 'workspace', 'user', 'Salary');
     INSERT INTO journals VALUES
-      (30, 'workspace', 'user', '2026-05-10'),
-      (31, 'workspace', 'user', '2026-05-10'),
-      (32, 'workspace', 'user', '2026-05-10'),
-      (33, 'workspace', 'user', '2026-05-10'),
-      (34, 'workspace', 'user', '2026-05-11'),
-      (35, 'workspace', 'other-user', '2026-05-10'),
-      (36, 'workspace', 'user', '2026-05-12');
+      (30, 'workspace', 'user', '2026-05-10', 'sample one'),
+      (31, 'workspace', 'user', '2026-05-10', 'Expenses'),
+      (32, 'workspace', 'user', '2026-05-10', 'NOPII PAYMENT RECEIVED'),
+      (33, 'workspace', 'user', '2026-05-10', 'sample by hand'),
+      (34, 'workspace', 'user', '2026-05-10', 'sample card only'),
+      (35, 'workspace', 'user', '2026-05-11', 'sample next day'),
+      (36, 'workspace', 'other-user', '2026-05-10', 'sample other user');
     INSERT INTO journal_entries VALUES
-      (301, 'workspace', 'user', 30, 3, 'semantic:one'),
-      (302, 'workspace', 'user', 30, 1, NULL),
-      (311, 'workspace', 'user', 31, 3, 'ref:two'),
-      (312, 'workspace', 'user', 31, 3, 'ref:three'),
-      (313, 'workspace', 'user', 31, 1, NULL),
-      (321, 'workspace', 'user', 32, 1, 'ref:card-payment'),
-      (322, 'workspace', 'user', 32, 2, NULL),
-      (331, 'workspace', 'user', 33, 3, 'ref:card-only'),
-      (332, 'workspace', 'user', 33, 2, NULL),
-      (341, 'workspace', 'user', 34, 3, 'ref:next-day'),
-      (342, 'workspace', 'user', 34, 1, NULL),
-      (351, 'workspace', 'other-user', 35, 1, NULL),
-      (361, 'workspace', 'user', 36, 3, NULL),
-      (362, 'workspace', 'user', 36, 1, NULL);
+      (301, 'workspace', 'user', 30, 3, 100, 0, 'sample one', 'semantic:one', NULL),
+      (302, 'workspace', 'user', 30, 1, 0, 100, NULL, NULL, NULL),
+      (311, 'workspace', 'user', 31, 3, 200, 0, 'sample two', 'ref:two', NULL),
+      (312, 'workspace', 'user', 31, 4, 0, 1000, 'sample three', 'ref:three', NULL),
+      (313, 'workspace', 'user', 31, 1, 800, 0, NULL, NULL, 5000),
+      (321, 'workspace', 'user', 32, 1, 0, 500, 'NOPII PAYMENT RECEIVED', 'ref:card-payment', NULL),
+      (322, 'workspace', 'user', 32, 2, 500, 0, NULL, NULL, NULL),
+      (331, 'workspace', 'user', 33, 3, 50, 0, NULL, NULL, NULL),
+      (332, 'workspace', 'user', 33, 1, 0, 50, NULL, NULL, NULL),
+      (341, 'workspace', 'user', 34, 3, 70, 0, 'sample card only', 'ref:card-only', NULL),
+      (342, 'workspace', 'user', 34, 2, 0, 70, NULL, NULL, NULL),
+      (351, 'workspace', 'user', 35, 3, 10, 0, 'sample next day', 'ref:next-day', NULL),
+      (352, 'workspace', 'user', 35, 1, 0, 10, NULL, NULL, NULL),
+      (361, 'workspace', 'other-user', 36, 1, 0, 20, NULL, NULL, NULL);
   `);
   return sqlite;
 }
 
-describe("the keys posted on a day", () => {
+describe("the rows posted on a day", () => {
   const auth = testLedgerAuth();
 
-  it("gathers every key on the day's journals that touch the account", () => {
-    expect(loadPostedKeysOn(keyedLedger(), auth, 1, "2026-05-10")).toEqual(
-      new Set(["semantic:one", "ref:two", "ref:three", "ref:card-payment"]),
-    );
-  });
-
-  it("can't vouch for a day that holds a journal with no key", () => {
-    expect(loadPostedKeysOn(keyedLedger(), auth, 1, "2026-05-12")).toBeNull();
+  it("reads each journal's rows as the account's statement shows them", () => {
+    expect(loadPostedRowsOn(postedLedger(), auth, 1, "2026-05-10")).toEqual([
+      {
+        origin: "statement",
+        key: "semantic:one",
+        amount: -100,
+        narration: "sample one",
+        counted: true,
+      },
+      {
+        origin: "statement",
+        key: "ref:two",
+        amount: -200,
+        narration: "sample two",
+        counted: true,
+      },
+      {
+        origin: "statement",
+        key: "ref:three",
+        amount: 1000,
+        narration: "sample three",
+        counted: true,
+      },
+      {
+        origin: "other-statement",
+        key: null,
+        amount: -500,
+        narration: "NOPII PAYMENT RECEIVED",
+        counted: false,
+      },
+      {
+        origin: "unkeyed",
+        key: null,
+        amount: -50,
+        narration: "sample by hand",
+        counted: false,
+      },
+    ]);
   });
 });

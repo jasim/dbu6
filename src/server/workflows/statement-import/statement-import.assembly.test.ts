@@ -254,14 +254,14 @@ describe("runStatementImport on the checkpoint day", () => {
   const narrationsReachingTail = () =>
     draftImportCalls.at(-1)!.transactions.map((t) => t.narration);
 
-  it("finds the day's new rows by the keys the books hold that day", async () => {
+  it("pairs the day's rows with those the books hold by key", async () => {
     await runStatementImport(
       [statement],
       options(),
       testImportLedger(BASE_ACCOUNT, {
         date: "2026-06-18",
         balance: 850,
-        keys: [morningKey],
+        rows: [{ amount: -50, narration: "sample morning", key: morningKey }],
       }),
     );
     expect(narrationsReachingTail()).toEqual([
@@ -271,11 +271,32 @@ describe("runStatementImport on the checkpoint day", () => {
     ]);
   });
 
-  it("falls back to the balance when the day's journal has no key", async () => {
+  it("pairs a row posted with no key by its amount and wording", async () => {
     await runStatementImport(
       [statement],
       options(),
-      testImportLedger(BASE_ACCOUNT, { date: "2026-06-18", balance: 850 }),
+      testImportLedger(BASE_ACCOUNT, {
+        date: "2026-06-18",
+        balance: 850,
+        rows: [{ amount: -50, narration: "Sample Morning" }],
+      }),
+    );
+    expect(narrationsReachingTail()).toEqual([
+      "NOPII salary",
+      "NOPII transfer",
+      "interest",
+    ]);
+  });
+
+  it("falls back to the balance when the books hold a row the day lacks", async () => {
+    await runStatementImport(
+      [statement],
+      options(),
+      testImportLedger(BASE_ACCOUNT, {
+        date: "2026-06-18",
+        balance: 850,
+        rows: [{ amount: -30, narration: "sample cash" }],
+      }),
     );
     expect(narrationsReachingTail()).toEqual(["interest"]);
   });
