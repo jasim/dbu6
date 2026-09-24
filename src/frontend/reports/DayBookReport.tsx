@@ -10,9 +10,12 @@ import {
 import { reportsApi } from "./client";
 
 // The dataset declares its links: a journal opens itself, a line its
-// account's ledger up to that day.
+// account's ledger up to that day. It opens on this month: every line of
+// every journal makes all time long.
 export function DayBookReport() {
-  const { period, dates, setPeriod } = useReportPeriod();
+  const { period, dates, setPeriod } = useReportPeriod({
+    defaultPreset: "this-month",
+  });
   const report = useReportResult(["day-book", dates], () =>
     reportsApi.dayBook({ query: dates }),
   );

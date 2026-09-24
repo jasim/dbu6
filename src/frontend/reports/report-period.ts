@@ -39,11 +39,13 @@ const PERIOD_PARAMS = ["period", "from_date", "to_date"] as const;
 /**
  * The period a query string asks for. Any date parameter means picked dates,
  * which count only when both are valid and in order; then a known `period`;
- * otherwise all time, which is what a report with no dates has always shown.
+ * otherwise the report's default: all time, which is what a report with no
+ * dates has always shown, unless it names a preset.
  */
 export function readReportPeriod(
   search: URLSearchParams,
   today: string,
+  defaultPreset: PeriodPreset | null = null,
 ): ReportPeriod {
   const from = search.get("from_date");
   const to = search.get("to_date");
@@ -52,20 +54,28 @@ export function readReportPeriod(
   }
   const period = search.get("period");
   if (period === "custom") return { kind: "custom", span: null };
-  const preset = parsePreset(period);
+  if (period === "all-time") return { kind: "all-time" };
+  const preset = parsePreset(period) ?? defaultPreset;
   return preset === null
     ? { kind: "all-time" }
     : { kind: "preset", preset, span: presetSpan(preset, today) };
 }
 
-/** `search` with the period replaced and every other parameter kept. */
+/**
+ * `search` with the period replaced and every other parameter kept. All time
+ * is left out of the query string, unless the report defaults to a preset:
+ * then it is named, so that choosing it sticks.
+ */
 export function writeReportPeriod(
   search: URLSearchParams,
   period: ReportPeriod,
+  defaultPreset: PeriodPreset | null = null,
 ): URLSearchParams {
   const next = new URLSearchParams(search);
   for (const key of PERIOD_PARAMS) next.delete(key);
-  if (period.kind === "preset") {
+  if (period.kind === "all-time") {
+    if (defaultPreset !== null) next.set("period", "all-time");
+  } else if (period.kind === "preset") {
     next.set("period", period.preset);
   } else if (period.kind === "custom") {
     if (period.span === null) {

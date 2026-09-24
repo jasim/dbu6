@@ -89,6 +89,36 @@ describe("writing the query string", () => {
   });
 });
 
+describe("a report that defaults to a preset", () => {
+  const readDefault = (query: string) =>
+    readReportPeriod(new URLSearchParams(query), day, "this-month");
+  const writeDefault = (period: ReportPeriod) =>
+    writeReportPeriod(new URLSearchParams(), period, "this-month").toString();
+
+  it("opens on the preset when the query string names no period", () => {
+    expect(readDefault("")).toEqual({
+      kind: "preset",
+      preset: "this-month",
+      span: dates("2026-09-01", "2026-09-16"),
+    });
+    expect(readDefault("period=last-month")).toMatchObject({
+      preset: "last-month",
+    });
+  });
+
+  it("names all time, so choosing it sticks", () => {
+    expect(writeDefault({ kind: "all-time" })).toBe("period=all-time");
+    expect(readDefault("period=all-time")).toEqual({ kind: "all-time" });
+  });
+
+  it("round-trips every choice", () => {
+    for (const { value } of PERIOD_CHOICES) {
+      const period = choosePeriod(value, { kind: "all-time" }, day);
+      expect(readDefault(writeDefault(period))).toEqual(period);
+    }
+  });
+});
+
 describe("the dates a report is asked for", () => {
   it("are none for all time or an unpicked range", () => {
     expect(reportDates({ kind: "all-time" })).toEqual({});

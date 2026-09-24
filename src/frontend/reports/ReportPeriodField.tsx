@@ -15,6 +15,7 @@ import {
   selectTriggerClassName,
 } from "../components/ui/select";
 import { formatDaySpan } from "../format";
+import type { PeriodPreset } from "./periods";
 import {
   choosePeriod,
   PERIOD_CHOICES,
@@ -29,13 +30,17 @@ import { today } from "./shared";
 
 /**
  * The period in the query string, the dates to ask the report for, and a
- * setter that keeps the other parameters.
+ * setter that keeps the other parameters. With no period in the query
+ * string it is all time, or `defaultPreset` for a report that would be too
+ * long over all time.
  */
-export function useReportPeriod() {
+export function useReportPeriod({
+  defaultPreset = null,
+}: { defaultPreset?: PeriodPreset | null } = {}) {
   const [search, setSearch] = useSearchParams();
-  const period = readReportPeriod(search, today());
+  const period = readReportPeriod(search, today(), defaultPreset);
   const setPeriod = (next: ReportPeriod) =>
-    setSearch((current) => writeReportPeriod(current, next), {
+    setSearch((current) => writeReportPeriod(current, next, defaultPreset), {
       replace: true,
     });
   return { period, dates: reportDates(period), setPeriod };

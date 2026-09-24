@@ -132,7 +132,9 @@ all from `"dbu6/frontend"`:
 - `ReportScreenFrame`, `ReportToolbar`, `ReportRunButton` and
   `ReportResultBody` are the frame, the toolbar, Run and the grid.
 - `useReportPeriod()` with `ReportPeriodField` keeps a period in the URL and
-  gives `dates` (`{ from_date?, to_date? }`); `DateInput` with `today()` is a
+  gives `dates` (`{ from_date?, to_date? }`). It opens on all time;
+  `useReportPeriod({ defaultPreset: "this-month" })` opens on a preset
+  instead, for a report too long over all time. `DateInput` with `today()` is a
   single date. Keep every input in the URL (`useSearchParams`), so a report
   can be linked to and reloaded.
 - Formatters (`formatMoney`, `formatDate`, `formatMonth`, …), `Amount`,
