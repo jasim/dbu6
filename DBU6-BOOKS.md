@@ -168,7 +168,15 @@ category ("Categorise these" above), and restart a server started with
   journals imported before 2026-09-24 hold a day's same-direction
   transactions (see [The data](#the-data)).
   - To remove a one-transaction journal: delete its entries first, then the
-    journal.
+    journal. If its statement-account line has an
+    `account_balance_assertion`, that is the day's closing balance from the
+    statement, and deleting it takes the day's balance check with it. Move it,
+    unchanged, onto the statement-account line of that day's previous journal
+    first. When no other journal is on that day, say so: the day loses its
+    check, and if it was the account's last, the next import starts from the
+    day before and brings back whatever that statement still shows. If the
+    transaction is real but misfiled, change its category instead of
+    deleting it.
   - To remove one transaction from an older, grouped journal: delete its
     category entry, and reduce the statement account's line by the same
     amount.
