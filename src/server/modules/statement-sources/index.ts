@@ -15,7 +15,14 @@ export {
   type ImportPreset,
 } from "./import-presets.js";
 export {
+  convertImportPresetsFile,
+  deleteImportPresetsFile,
+  readImportPresetsFile,
+  type ImportPresetsFileConversion,
+} from "./import-presets-file.js";
+export {
   applyImportPresetChanges,
+  changesAdding,
   presetAdditions,
   validateImportPresets,
   type AppliedPresetChanges,

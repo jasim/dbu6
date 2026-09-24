@@ -3,6 +3,8 @@ import {
   importPresetsContract,
   type ImportPresetChange,
   type ImportPresetRefusal,
+  type ImportPresetsFileConversionBody,
+  type ImportPresetsFileRefusal as ImportPresetsFileRefusalBody,
   type ImportPresetsView,
 } from "../../shared/index.js";
 import { readCustomMappingsFile } from "../modules/categorization/index.js";
@@ -10,6 +12,7 @@ import type { Ledger } from "../modules/ledger-sql/index.js";
 import { readImportPresets } from "../modules/statement-sources/index.js";
 import {
   changeImportPresets,
+  convertImportPresetsFileInto,
   loadImportPresetsView,
 } from "../workflows/import-presets.js";
 import { requireOwner, requireWorkflowLedger } from "./workflow-auth.js";
@@ -35,6 +38,16 @@ api.register(
   importPresetsContract.changeImportPresets,
   async ({ c, request }) =>
     changeImportPresetsResponse(requireWorkflowLedger(c), request.body.changes),
+);
+
+api.register(
+  "convertImportPresetsFile",
+  importPresetsContract.convertImportPresetsFile,
+  async ({ c, request }) =>
+    convertImportPresetsFileResponse(
+      requireWorkflowLedger(c),
+      request.body.apply,
+    ),
 );
 
 api.register(
@@ -80,4 +93,58 @@ export async function changeImportPresetsResponse(
       change_index: outcome.problem.changeIndex,
     },
   };
+}
+
+export async function convertImportPresetsFileResponse(
+  ledger: Ledger,
+  apply: boolean,
+): Promise<
+  | { status: 200; body: ImportPresetsFileConversionBody }
+  | { status: 404; body: { error: string; code: "no_presets_file" } }
+  | { status: 422; body: ImportPresetsFileRefusalBody }
+> {
+  const outcome = await convertImportPresetsFileInto(ledger, { apply });
+  if (outcome.ok) {
+    return {
+      status: 200,
+      body: {
+        applied: outcome.applied,
+        institutions: outcome.institutions,
+        warnings: outcome.warnings,
+      },
+    };
+  }
+  const { refusal } = outcome;
+  switch (refusal.code) {
+    case "no_presets_file":
+      return {
+        status: 404,
+        body: { error: refusal.message, code: refusal.code },
+      };
+    case "unresolved_base_accounts":
+    case "conflicting_is_credit_card":
+      return {
+        status: 422,
+        body: {
+          error: refusal.message,
+          code: refusal.code,
+          names: refusal.names,
+        },
+      };
+    case "presets_already_in_table":
+    case "read_back_mismatch":
+      return {
+        status: 422,
+        body: { error: refusal.message, code: refusal.code },
+      };
+    default:
+      return {
+        status: 422,
+        body: {
+          error: refusal.message,
+          code: refusal.code,
+          change_index: refusal.changeIndex,
+        },
+      };
+  }
 }

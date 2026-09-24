@@ -358,3 +358,21 @@ export function presetAdditions(
       })),
   };
 }
+
+/** The batch that adds `institutions`, with their accounts, to a table. */
+export function changesAdding(
+  institutions: readonly PresetInstitution[],
+): ImportPresetChange[] {
+  return institutions.flatMap((institution): ImportPresetChange[] => [
+    {
+      kind: "add_institution",
+      name: institution.name,
+      parsers: [...institution.parsers],
+    },
+    ...institution.accounts.map((account): ImportPresetChange => ({
+      kind: "add_account",
+      institution: institution.name,
+      ...account,
+    })),
+  ]);
+}
