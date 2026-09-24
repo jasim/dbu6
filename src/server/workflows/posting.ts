@@ -25,8 +25,8 @@ export type PostingOutcome =
     };
 
 /**
- * Adds one account's drafts to the books: a journal per date and type, the
- * drafts deleted. Refuses while the draft status shows anything that blocks.
+ * Adds one account's drafts to the books: a journal per draft, the drafts
+ * deleted. Refuses while the draft status shows anything that blocks.
  */
 export function postDrafts(
   { db, sqlite, auth }: Ledger,

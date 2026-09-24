@@ -383,8 +383,10 @@ export function toAccountLedgerResult(
 
 /**
  * Until 2026-09-24 the importer wrote a day's same-direction statement rows
- * as one journal, and described it only by that direction. Nothing else
- * writes these descriptions, and those journals stay in the books as written.
+ * as one journal, and described it only by that direction; those journals
+ * stay in the books as written. A narration can now be the same word, but a
+ * journal the importer writes today has one line opposite the statement's,
+ * so it never reaches the split this marks.
  */
 function isGroupedImport(journal: AccountLedgerJournalRow): boolean {
   return (
