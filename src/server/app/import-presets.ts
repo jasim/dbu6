@@ -9,7 +9,6 @@ import {
 } from "../../shared/index.js";
 import { readCustomMappingsFile } from "../modules/categorization/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
-import { readImportPresets } from "../modules/statement-sources/index.js";
 import {
   changeImportPresets,
   convertImportPresetsFileInto,
@@ -48,15 +47,6 @@ api.register(
       requireWorkflowLedger(c),
       request.body.apply,
     ),
-);
-
-api.register(
-  "listImportPresetFile",
-  importPresetsContract.listImportPresetFile,
-  async ({ c }) => {
-    requireOwner(c);
-    return { status: 200, body: await readImportPresets() };
-  },
 );
 
 api.register(

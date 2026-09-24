@@ -53,7 +53,7 @@ export function dbu6MigrationsDir(): string {
   return packageDir("migrations");
 }
 
-/** Where transaction_mappings.mjs, the prompts, and import-presets.json live. */
+/** Where transaction_mappings.mjs, the prompts and settings.json live. */
 export function userConfigDir(root: string = projectRoot()): string {
   return join(root, "user-config");
 }

@@ -10,7 +10,8 @@ function group(
   extra: Partial<AutoImportGroupResult> = {},
 ): AutoImportGroupResult {
   return {
-    preset_name: "Sample Bank",
+    account_id: 1,
+    account_name: "Sample Bank",
     base_account: "Sample Bank",
     is_credit_card: false,
     file_names: ["Acct_Statement_050505_09092026.xls"],
@@ -67,7 +68,8 @@ const source: AutoImportPlanFile = {
   parser_path: "hdfc-bank-xls",
   account: { kind: "bank", identifier: "05050505050505" },
   institution: "HDFC BANK Ltd.",
-  preset_name: "Sample Bank",
+  account_id: 1,
+  account_name: "Sample Bank",
 };
 
 describe("describeGroup", () => {
@@ -228,7 +230,7 @@ describe("describeGroup", () => {
             },
           },
         },
-        { is_credit_card: true, preset_name: "Sample Card" },
+        { is_credit_card: true, account_id: 2, account_name: "Sample Card" },
       ),
     );
     expect(summary).toMatchObject({

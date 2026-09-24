@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { ImportPreset, StatementAccount } from "../../../shared/index.js";
+import type {
+  ImportAccount,
+  ImportInstitution,
+  StatementAccount,
+} from "../../../shared/index.js";
 import { unsafeAsChrono } from "../values/index.js";
 import type { AbacusStatement } from "../statement/index.js";
 import {
@@ -11,34 +15,45 @@ import {
 const BANK_PARSER = "hdfc-bank-xls";
 const CARD_PARSER = "hdfc-cc-xls";
 
-function preset(
-  overrides: Partial<ImportPreset> & { name: string },
-): ImportPreset {
+const BANK_PDF_PARSER = "hdfc-bank-pdf";
+
+function account(
+  overrides: Partial<ImportAccount> & { account_id: number; name: string },
+): ImportAccount {
   return {
-    base_account: `Sample ${overrides.name}`,
+    is_credit_card: false,
+    account_identifiers: [],
     custom_mappings_filenames: [],
     ...overrides,
   };
 }
 
-const bank = preset({
-  name: "Bank",
-  custom_statement_parser_path: BANK_PARSER,
-});
-const cardA = preset({
+const bankAccountPreset = account({ account_id: 11, name: "Bank" });
+const bank: ImportInstitution = {
+  id: 1,
+  name: "Sample Bank",
+  parsers: [BANK_PARSER, BANK_PDF_PARSER],
+  accounts: [bankAccountPreset],
+};
+const cardA = account({
+  account_id: 21,
   name: "Card A",
-  base_account: "Sample Card A",
   is_credit_card: true,
-  custom_statement_parser_path: CARD_PARSER,
-  statement_account_identifier: "050505XXXXXX0505",
+  account_identifiers: ["050505XXXXXX0505"],
 });
-const cardB = preset({
+const cardB = account({
+  account_id: 22,
   name: "Card B",
-  base_account: "Sample Card B",
   is_credit_card: true,
-  custom_statement_parser_path: CARD_PARSER,
-  statement_account_identifier: "050505XXXXXX0506",
+  account_identifiers: ["050505XXXXXX0506"],
 });
+const cards: ImportInstitution = {
+  id: 2,
+  name: "Sample Cards",
+  parsers: [CARD_PARSER],
+  accounts: [cardA, cardB],
+};
+const cardAOnly: ImportInstitution = { ...cards, accounts: [cardA] };
 
 function statement(
   account: StatementAccount | null,
@@ -74,13 +89,13 @@ const cardAccountB = { kind: "card", identifier: "050505XXXXXX0506" } as const;
 function groupNames(plan: AutoImportPlan) {
   if (!plan.ok) throw new Error("expected an importable plan");
   return plan.groups.map((group) => [
-    group.preset.name,
+    group.account.name,
     group.statements.map((one) => one.file),
   ]);
 }
 
 describe("planAutoImport", () => {
-  it("groups files by the preset they resolve to, one group per account", () => {
+  it("groups files by the account they resolve to", () => {
     const plan = planAutoImport(
       [
         recognized("bank-jan.xls", BANK_PARSER, bankAccount),
@@ -88,7 +103,7 @@ describe("planAutoImport", () => {
         recognized("bank-feb.xls", BANK_PARSER, bankAccount),
         recognized("card-other.xls", CARD_PARSER, cardAccountB),
       ],
-      [bank, cardA, cardB],
+      [bank, cards],
     );
 
     expect(groupNames(plan)).toEqual([
@@ -108,14 +123,15 @@ describe("planAutoImport", () => {
           "NOPII Bank Cards Division",
         ),
       ],
-      [cardA],
+      [cardAOnly],
     );
 
     expect(plan.files).toEqual([
       {
         status: "resolved",
         file: "card-jan.xls",
-        presetName: "Card A",
+        accountId: 21,
+        accountName: "Card A",
         parserName: CARD_PARSER,
         account: cardAccountA,
         institution: "NOPII Bank Cards Division",
@@ -123,14 +139,14 @@ describe("planAutoImport", () => {
     ]);
   });
 
-  it("carries a statement that reports no account into its lone preset", () => {
+  it("carries a statement that reports no account into its lone account", () => {
     const plan = planAutoImport(
       [recognized("bank-jan.xls", BANK_PARSER, null)],
       [bank],
     );
 
     expect(groupNames(plan)).toEqual([["Bank", ["bank-jan.xls"]]]);
-    expect(plan.files[0]).toMatchObject({ account: null, presetName: "Bank" });
+    expect(plan.files[0]).toMatchObject({ account: null, accountName: "Bank" });
   });
 
   it("rejects the whole batch when one file is unrecognized, and still plans the rest", () => {
@@ -143,7 +159,7 @@ describe("planAutoImport", () => {
           candidateParserNames: [CARD_PARSER],
         },
       ],
-      [bank, cardA],
+      [bank, cardAOnly],
     );
 
     expect(plan.ok).toBe(false);
@@ -151,7 +167,8 @@ describe("planAutoImport", () => {
       {
         status: "resolved",
         file: "bank-jan.xls",
-        presetName: "Bank",
+        accountId: 11,
+        accountName: "Bank",
         parserName: BANK_PARSER,
         account: bankAccount,
         institution: null,
@@ -173,7 +190,7 @@ describe("planAutoImport", () => {
           matchingParserNames: [BANK_PARSER, CARD_PARSER],
         },
       ],
-      [bank, cardA],
+      [bank, cardAOnly],
     );
 
     expect(plan).toEqual({
@@ -188,7 +205,7 @@ describe("planAutoImport", () => {
     });
   });
 
-  it("rejects the batch with the resolver's reason when no preset claims a file", () => {
+  it("rejects the batch with the resolver's reason when no institution lists the parser", () => {
     const plan = planAutoImport(
       [recognized("card-jan.xls", CARD_PARSER, cardAccountA)],
       [bank],
@@ -198,17 +215,18 @@ describe("planAutoImport", () => {
     expect(plan.files[0]).toMatchObject({
       status: "unresolved",
       file: "card-jan.xls",
-      reason: "no_preset_for_parser",
+      reason: "no_institution_for_parser",
       parserName: CARD_PARSER,
       account: cardAccountA,
-      candidatePresetNames: [],
+      institutionName: null,
+      candidateAccountNames: [],
     });
     expect((plan.files[0] as { message: string }).message).toContain(
       "card-jan.xls",
     );
   });
 
-  it("rejects a file whose identifier none of the presets sharing its parser carry", () => {
+  it("rejects a file whose identifier none of the institution's accounts list", () => {
     const plan = planAutoImport(
       [
         recognized("card-third.xls", CARD_PARSER, {
@@ -216,14 +234,15 @@ describe("planAutoImport", () => {
           identifier: "050505XXXXXX0599",
         }),
       ],
-      [cardA, cardB],
+      [cards],
     );
 
     expect(plan.ok).toBe(false);
     expect(plan.files[0]).toMatchObject({
       status: "unresolved",
       reason: "statement_account_identifier_mismatch",
-      candidatePresetNames: ["Card A", "Card B"],
+      institutionName: "Sample Cards",
+      candidateAccountNames: ["Card A", "Card B"],
     });
   });
 
@@ -235,26 +254,24 @@ describe("planAutoImport", () => {
     });
   });
 
-  it("keeps presets with the same name apart", () => {
-    const twin = preset({
-      name: "Card A",
-      base_account: "Sample Twin Card",
-      is_credit_card: true,
-      custom_statement_parser_path: CARD_PARSER,
-      statement_account_identifier: "050505XXXXXX0506",
-    });
+  it("puts one account's statements from two parsers in one group", () => {
     const plan = planAutoImport(
       [
-        recognized("card-jan.xls", CARD_PARSER, cardAccountA),
-        recognized("twin-jan.xls", CARD_PARSER, cardAccountB),
+        recognized("bank-jan.xls", BANK_PARSER, bankAccount),
+        recognized("bank-feb.pdf", BANK_PDF_PARSER, bankAccount),
       ],
-      [cardA, twin],
+      [bank],
     );
 
     if (!plan.ok) throw new Error("expected an importable plan");
-    expect(plan.groups.map((group) => group.preset.base_account)).toEqual([
-      "Sample Card A",
-      "Sample Twin Card",
+    expect(plan.groups).toHaveLength(1);
+    expect(plan.groups[0]).toMatchObject({
+      institution: { name: "Sample Bank" },
+      account: { account_id: 11 },
+    });
+    expect(plan.groups[0].statements.map((one) => one.parserName)).toEqual([
+      BANK_PARSER,
+      BANK_PDF_PARSER,
     ]);
   });
 });

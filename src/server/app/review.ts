@@ -2,11 +2,11 @@ import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   reviewContract,
-  type ImportPreset,
+  type ImportInstitution,
   type ReviewAccount,
   type ReviewAccountDetail,
 } from "../../shared/index.js";
-import { readImportPresets } from "../modules/statement-sources/index.js";
+import { loadImportPresets } from "../modules/import-presets/index.js";
 import {
   loadAccountStandings,
   type AccountStanding,
@@ -26,20 +26,21 @@ const api = new TsRestApi<SapportaEnv>();
 
 api.register("accounts", reviewContract.accounts, async ({ c }) => {
   const auth = requireWorkflowAuth(c);
-  const presets = await readImportPresets();
+  const institutions = loadImportPresets(c.get("db"), auth);
   return {
     status: 200,
-    body: { accounts: listReviewAccounts(c.get("sqlite"), auth, presets) },
+    body: {
+      accounts: listReviewAccounts(c.get("sqlite"), auth, institutions),
+    },
   };
 });
 
 api.register("account", reviewContract.account, async ({ c, request }) => {
   const auth = requireWorkflowAuth(c);
-  const presets = await readImportPresets();
   const detail = loadReviewAccount(
     c.get("sqlite"),
     auth,
-    presets,
+    loadImportPresets(c.get("db"), auth),
     request.params.accountId,
   );
   if (detail === null) {
@@ -54,19 +55,19 @@ export default api;
 export function listReviewAccounts(
   sqlite: Database.Database,
   auth: LedgerAuth,
-  presets: readonly ImportPreset[],
+  institutions: readonly ImportInstitution[],
 ): ReviewAccount[] {
-  return accountsWithDrafts(loadAccountStandings(sqlite, auth, presets));
+  return accountsWithDrafts(loadAccountStandings(sqlite, auth, institutions));
 }
 
 /** One account's review, or null when the account isn't in scope. */
 export function loadReviewAccount(
   sqlite: Database.Database,
   auth: LedgerAuth,
-  presets: readonly ImportPreset[],
+  institutions: readonly ImportInstitution[],
   accountId: number,
 ): ReviewAccountDetail | null {
-  const standings = loadAccountStandings(sqlite, auth, presets);
+  const standings = loadAccountStandings(sqlite, auth, institutions);
   const standing = standings.get(accountId);
   if (!standing) return null;
   const { drafts } = standing;

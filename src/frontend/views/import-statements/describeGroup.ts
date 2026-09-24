@@ -29,7 +29,7 @@ export type Stat = Fact;
 // category, whether the balance agrees with the bank, and, folded away, the
 // categories and the facts behind the import.
 export type GroupSummary = {
-  // The account the statement went into: the preset's name.
+  // The account the statement went into, by the name the presets give it.
   title: string;
   // A bank account or a credit card, for the card's icon.
   accountKind: AccountKind;
@@ -169,7 +169,7 @@ export function describeGroup(
 ): GroupSummary {
   const r = group.result;
   const common = {
-    title: group.preset_name,
+    title: group.account_name,
     accountKind: accountKindOf(group.is_credit_card),
     caption: caption(group, sources),
     closing: closing(group),

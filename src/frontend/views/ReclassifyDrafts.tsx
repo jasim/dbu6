@@ -9,7 +9,6 @@ import {
   type CategorizationReport,
   type CategorizationTally,
   type DraftClassification,
-  type ImportPreset,
 } from "../../shared/index";
 import { draftTransactionsApi, importPresetsApi } from "../api";
 import { FactTable } from "../components/fact-table";
@@ -25,6 +24,8 @@ import { AgentUnavailableDialog } from "./categorization/AgentUnavailableDialog"
 import {
   accountPreset,
   CategorizationInstructions,
+  presetAccounts,
+  type PresetAccount,
 } from "./categorization/CategorizationInstructions";
 import {
   agentUnavailable,
@@ -81,12 +82,13 @@ export function ReclassifyDrafts() {
     });
   const accountLookup = useTableLookup("accounts");
   // Null until they load.
-  const [presets, setPresets] = useState<ImportPreset[] | null>(null);
-  // The preset the user chose for an account's run, null for none; until
-  // they choose, the account's own.
+  const [presets, setPresets] = useState<PresetAccount[] | null>(null);
+  // The preset account whose instructions the user chose for an account's
+  // run, by its account_id, null for none; until they choose, the account's
+  // own.
   const [presetChoice, setPresetChoice] = useState<{
     accountId: number;
-    name: string | null;
+    presetAccountId: number | null;
   } | null>(null);
   const [gpayFile, setGpayFile] = useState<File | null>(null);
   const [gpayEnrichedCount, setGpayEnrichedCount] = useState<number | null>(
@@ -109,8 +111,8 @@ export function ReclassifyDrafts() {
 
   useEffect(() => {
     importPresetsApi
-      .listImportPresetFile({})
-      .then(setPresets)
+      .listImportPresets({})
+      .then((view) => setPresets(presetAccounts(view)))
       .catch(() => setPresets([]));
   }, []);
 
@@ -157,10 +159,14 @@ export function ReclassifyDrafts() {
 
   const accountName =
     accountId === null ? undefined : accountLookups[String(accountId)];
-  const chosenPreset =
+  const chosenPresetId =
     presetChoice !== null && presetChoice.accountId === accountId
-      ? (presets?.find((p) => p.name === presetChoice.name) ?? null)
-      : accountPreset(presets ?? [], accountName);
+      ? presetChoice.presetAccountId
+      : accountId;
+  const chosenPreset =
+    chosenPresetId === null
+      ? null
+      : accountPreset(presets ?? [], chosenPresetId);
 
   async function handleReclassify() {
     if (uncategorized.length === 0 || accountId === null) return;
@@ -168,7 +174,8 @@ export function ReclassifyDrafts() {
     setError(null);
     setGpayEnrichedCount(null);
     setClassified(null);
-    const customMappings = chosenPreset?.custom_mappings_filenames ?? [];
+    const customMappings =
+      chosenPreset?.account.custom_mappings_filenames ?? [];
     try {
       let updated: {
         transactions: ClassifyResult[];
@@ -294,9 +301,12 @@ export function ReclassifyDrafts() {
           {accountId !== null && presets !== null && (
             <CategorizationInstructions
               presets={presets}
+              accountId={accountId}
               accountName={accountName}
               chosen={chosenPreset}
-              onChoose={(name) => setPresetChoice({ accountId, name })}
+              onChoose={(presetAccountId) =>
+                setPresetChoice({ accountId, presetAccountId })
+              }
               disabled={classifying}
             />
           )}

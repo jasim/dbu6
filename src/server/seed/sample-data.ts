@@ -12,9 +12,10 @@
  * month so far is left as drafts on the HDFC savings account, as if that
  * statement had just been imported. With --statements, the as-of month is
  * written instead as the statement files it would arrive in, for importing
- * through the app (see STATEMENT_FILES). Sign in as demo@example.com with the
- * password demo-password. Re-running replaces that account's accounts,
- * journals, and drafts.
+ * through the app (see STATEMENT_FILES). Either way the demo account gets an
+ * import preset for each statement account. Sign in as demo@example.com with
+ * the password demo-password. Re-running replaces that account's accounts,
+ * import presets, journals, and drafts.
  *
  * The persona is a software engineer, married, with one child in preschool.
  * They rent a flat, repay a car loan, support their parents, and invest through
@@ -633,14 +634,16 @@ function runningBalances(events) {
 
 /**
  * The files --statements writes for the as-of month, one per account, each in
- * a layout its bank uses. HDFC's two have a saved parser under
- * custom-built-parsers/; SBI's has none, so importing it asks for one.
- * render-statements.py, beside this file, draws each layout.
+ * a layout its bank uses, and the import preset institution each account is
+ * in (writeImportPresets). HDFC's two have a saved parser under
+ * custom-built-parsers/; SBI's has none, so its institution lists no parser
+ * and importing it asks for one. render-statements.py, beside this file,
+ * draws each layout.
  */
 const STATEMENT_FILES = [
-  { account: HDFC, layout: "hdfc-bank-xls", prefix: "HDFC_Bank", extension: "xls", parser: "hdfc-bank-xls" },
-  { account: HCC, layout: "hdfc-cc-csv", prefix: "HDFC_Millennia", extension: "csv", parser: "hdfc-cc-csv", isCreditCard: true },
-  { account: SBI, layout: "sbi-pdf", prefix: "SBI", extension: "pdf" },
+  { account: HDFC, institution: "HDFC Bank", layout: "hdfc-bank-xls", prefix: "HDFC_Bank", extension: "xls", parser: "hdfc-bank-xls" },
+  { account: HCC, institution: "HDFC Cards", layout: "hdfc-cc-csv", prefix: "HDFC_Millennia", extension: "csv", parser: "hdfc-cc-csv", isCreditCard: true },
+  { account: SBI, institution: "SBI", layout: "sbi-pdf", prefix: "SBI", extension: "pdf" },
 ];
 
 /**
@@ -685,23 +688,11 @@ function buildStatements({ year, posted, current }) {
   });
 }
 
-/**
- * Writes the statement files into `dir`, with statements.json (what they
- * hold) and import-presets.json (the presets that import the ones a saved
- * parser reads, for the project's user-config/).
- */
+/** Writes the statement files into `dir`, with statements.json (what they hold). */
 function writeStatementFiles(dir, statements) {
   mkdirSync(dir, { recursive: true });
   const json = join(dir, "statements.json");
   writeFileSync(json, `${JSON.stringify(statements, null, 2)}\n`);
-  const presets = STATEMENT_FILES.filter((f) => f.parser).map((f) => ({
-    name: f.account,
-    base_account: f.account,
-    custom_mappings_filenames: ["custom_mappings_default.prompt"],
-    ...(f.isCreditCard ? { is_credit_card: true } : {}),
-    custom_statement_parser_path: f.parser,
-  }));
-  writeFileSync(join(dir, "import-presets.json"), `${JSON.stringify(presets, null, 2)}\n`);
   execFileSync("uv", ["run", "--quiet", join(import.meta.dirname, "render-statements.py"), json], { stdio: "inherit" });
 }
 
@@ -714,6 +705,7 @@ function writeLedger(sqlite, scope, { posted, drafts }) {
 
   sqlite.transaction(() => {
     const where = "WHERE workspace_id = @workspaceId AND scoped_to_user_id = @userId";
+    sqlite.prepare(`DELETE FROM import_presets ${where}`).run(scope);
     sqlite.prepare(`DELETE FROM draft_transactions ${where}`).run(scope);
     sqlite.prepare(`DELETE FROM journal_entries ${where}`).run(scope);
     sqlite.prepare(`DELETE FROM journals ${where}`).run(scope);
@@ -729,6 +721,7 @@ function writeLedger(sqlite, scope, { posted, drafts }) {
       const { lastInsertRowid } = insertAccount.run({ ...scope, name, parentId, type, now });
       accountIds.set(name, Number(lastInsertRowid));
     }
+    writeImportPresets(sqlite, scope, accountIds, now);
 
     // A statement account's last posting of each day asserts that day's
     // closing balance.
@@ -790,6 +783,34 @@ function writeLedger(sqlite, scope, { posted, drafts }) {
       });
     });
   })();
+}
+
+/**
+ * One import preset institution per statement file, its account by the id
+ * `accountIds` gives it. Written straight to the table, as the rest of the
+ * ledger is: the rules the presets' writer checks hold for these by hand.
+ */
+function writeImportPresets(sqlite, scope, accountIds, now) {
+  const insert = sqlite.prepare(`
+    INSERT INTO import_presets (workspace_id, scoped_to_user_id, name, parsers, accounts, updated_at)
+    VALUES (@workspaceId, @userId, @name, @parsers, @accounts, @now)`);
+  for (const f of STATEMENT_FILES) {
+    insert.run({
+      ...scope,
+      name: f.institution,
+      parsers: JSON.stringify(f.parser ? [f.parser] : []),
+      accounts: JSON.stringify([
+        {
+          account_id: accountIds.get(f.account),
+          name: f.account,
+          is_credit_card: f.isCreditCard ?? false,
+          account_identifiers: [],
+          custom_mappings_filenames: ["custom_mappings_default.prompt"],
+        },
+      ]),
+      now,
+    });
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────

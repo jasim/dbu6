@@ -86,7 +86,7 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
     case "account-refused": {
       const { refusal } = failure;
       const imported = refusal.imported_groups ?? [];
-      const failed = refusal.failed_group.preset_name;
+      const failed = refusal.failed_group.account_name;
       if (imported.length === 0) {
         return {
           tone,
@@ -94,7 +94,7 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
           next: null,
         };
       }
-      const done = joinNames(imported.map((one) => one.preset_name));
+      const done = joinNames(imported.map((one) => one.account_name));
       const removed = imported.flatMap((one) => one.file_names);
       return {
         tone,
@@ -125,7 +125,7 @@ export interface FileStatus {
 export function describeStatement(row: AutoImportPlanFile): string | null {
   switch (row.status) {
     case "resolved":
-      return `${statementOf(row.institution ?? row.preset_name, row.account)} → ${row.preset_name}`;
+      return `${statementOf(row.institution ?? row.account_name, row.account)} → ${row.account_name}`;
     case "unresolved":
       return row.institution === null && row.account === null
         ? null

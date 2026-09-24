@@ -2,6 +2,8 @@ import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FIRST_LEDGER_MIGRATION,
@@ -128,8 +130,9 @@ describe("runCheck", () => {
       expect(report).toMatch(
         /ok {4}user-config\/transaction_mappings\.mjs: \d+ exact/,
       );
+      // A database that predates the presets table says so, and fails nothing.
       expect(report).toContain(
-        "ok    user-config/import-presets.json: 2 preset(s)",
+        "info  Import presets: the database has no import_presets table until it migrates",
       );
       expect(report).toMatch(/\n\d+ of \d+ checks failed\.$/);
     },
@@ -251,39 +254,84 @@ describe("checkParsers", () => {
 });
 
 describe("checkConfig", () => {
+  /** A migrated database in the project, holding `sql`'s rows. */
+  function writeBooks(sql: string): void {
+    mkdirSync(join(root, "data"), { recursive: true });
+    const sqlite = new Database(join(root, "data", "sqlite.db"));
+    migrate(drizzle(sqlite), { migrationsFolder: packageDir("migrations") });
+    sqlite.exec(sql);
+    sqlite.close();
+  }
+
   it("is information when there is no user-config/", async () => {
-    expect((await checkConfig())[0]).toMatchObject({ status: "info" });
+    expect((await checkConfig(root))[0]).toMatchObject({ status: "info" });
   });
 
-  it("fails on a mappings file that does not export mappings, a preset naming a missing parser, and settings that do not parse", async () => {
+  it("fails on a mappings file that does not export mappings, a leftover presets file, presets naming what is missing, and settings that do not parse", async () => {
     write("user-config/transaction_mappings.mjs", "export const rules = {};\n");
-    write(
-      "user-config/import-presets.json",
-      JSON.stringify([
-        {
-          name: "Sample Bank",
-          base_account: "Sample Bank",
-          custom_mappings_filenames: ["custom_mappings_sample.prompt"],
-          custom_statement_parser_path: "no-such-parser",
-        },
-      ]),
-    );
+    write("user-config/import-presets.json", "[]\n");
     write("user-config/settings.json", '{ "coding_agent": "sample-agent" }\n');
+    writeBooks(`
+      INSERT INTO import_presets
+        (workspace_id, scoped_to_user_id, name, parsers, accounts, updated_at)
+      VALUES ('workspace', 'user', 'Sample Bank', '["no-such-parser"]', '${JSON.stringify(
+        [
+          {
+            account_id: 9,
+            name: "Sample Savings",
+            is_credit_card: false,
+            account_identifiers: [],
+            custom_mappings_filenames: ["custom_mappings_sample.prompt"],
+          },
+        ],
+      )}', '');
+    `);
 
-    const lines = await checkConfig();
+    const lines = await checkConfig(root);
 
-    expect(lines.map((line) => line.status)).toEqual(["fail", "fail", "fail"]);
+    expect(lines.map((line) => [line.name, line.status])).toEqual([
+      ["user-config/transaction_mappings.mjs", "fail"],
+      ["user-config/import-presets.json", "fail"],
+      ["Import presets", "fail"],
+      ["user-config/settings.json", "fail"],
+    ]);
     expect(lines[0]!.detail).toContain('must export a "mappings" object');
-    expect(lines[1]!.detail).toContain("no-such-parser");
-    expect(lines[1]!.detail).toContain("custom_mappings_sample.prompt");
-    expect(lines[2]!.detail).toContain("does not parse");
+    expect(lines[1]!.detail).toContain("/api/import-presets/import-json");
+    expect(lines[2]!.detail).toContain("no-such-parser");
+    expect(lines[2]!.detail).toContain("custom_mappings_sample.prompt");
+    expect(lines[2]!.detail).toContain(
+      '"Sample Savings" of "Sample Bank" imports into ledger account 9, which was deleted',
+    );
+    expect(lines[3]!.detail).toContain("does not parse");
   });
 
-  it("passes the example config", async () => {
+  it("passes the example config and presets that name what exists", async () => {
     cpSync(packageDir("user-config.example"), join(root, "user-config"), {
       recursive: true,
     });
-    const lines = await checkConfig();
-    expect(lines.map((line) => line.status)).toEqual(["ok", "ok", "info"]);
+    writeBooks(`
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, account_type, created_at, updated_at)
+      VALUES (1, 'workspace', 'user', 'Sample Savings', 'Asset', '', '');
+      INSERT INTO import_presets
+        (workspace_id, scoped_to_user_id, name, parsers, accounts, updated_at)
+      VALUES ('workspace', 'user', 'Sample Bank', '["hdfc-bank-xls"]', '${JSON.stringify(
+        [
+          {
+            account_id: 1,
+            name: "Sample Savings",
+            is_credit_card: false,
+            account_identifiers: [],
+            custom_mappings_filenames: ["custom_mappings_default.prompt"],
+          },
+        ],
+      )}', '');
+    `);
+    const lines = await checkConfig(root);
+    expect(lines.map((line) => [line.name, line.status])).toEqual([
+      ["user-config/transaction_mappings.mjs", "ok"],
+      ["Import presets", "ok"],
+      ["user-config/settings.json", "info"],
+    ]);
   });
 });

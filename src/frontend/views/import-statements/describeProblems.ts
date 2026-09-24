@@ -13,7 +13,7 @@ import {
     identifierMismatchPrompt,
     identifierRequiredPrompt,
     missingAccountPrompt,
-    noPresetPrompt,
+    noAccountPrompt,
     partInvalidPrompt,
     reconciliationPrompt,
     unrecognizedPrompt,
@@ -249,31 +249,32 @@ function unresolvedProblem(
         label: "Parser",
         value: parserLabel(row.parser_path),
     };
-    const candidates = joinNames(row.candidate_preset_names);
+    const candidates = joinNames(row.candidate_account_names);
     const setUpFact: Stat = {
         label: "Set up for these statements",
         value: candidates,
         face: "words",
     };
-    const one = row.candidate_preset_names.length === 1;
+    const one = row.candidate_account_names.length === 1;
     const base = {
         fileNames: [row.file_name],
-        subject: row.institution ?? row.file_name,
+        subject: row.institution_name ?? row.institution ?? row.file_name,
         technical: `${row.message}\n${planTechnical}`,
         actions: [],
     };
     switch (row.reason) {
-        case "no_preset_for_parser":
+        case "no_institution_for_parser":
+        case "institution_has_no_accounts":
             return {
                 ...base,
-                key: `no-preset:${row.file_name}`,
+                key: `no-account:${row.file_name}`,
                 title: "No account set up for this statement",
                 fix: "Set up the account for these transactions.",
                 context:
                     "All the transactions in your statement were parsed. However, you haven't specified which account these transactions should be entered into. You only need to set this up once per account. It can be set up automatically using the following AI prompt.",
                 facts: [parserFact],
                 agent: {
-                    prompt: noPresetPrompt(row),
+                    prompt: noAccountPrompt(row),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Set up the account",
                 },
@@ -313,9 +314,9 @@ function unresolvedProblem(
 function refusalProblem(refusal: AccountRefusal): ProblemBody {
     const group = refusal.failed_group;
     const base = {
-        key: `${refusal.error}:${group.preset_name}`,
+        key: `${refusal.error}:${group.account_id}`,
         fileNames: [...group.file_names],
-        subject: group.preset_name,
+        subject: group.account_name,
         facts: [] as Stat[],
         technical: technical(refusal),
         actions: [] as ProblemAction[],
@@ -326,8 +327,8 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
             return {
                 ...base,
                 title: "Account not in your books",
-                fix: `Add ${group.base_account} to your accounts, or set the preset to an account you have.`,
-                context: `${group.preset_name} imports into ${group.base_account}, which isn't in your accounts, so its transactions would belong to no account. The following AI prompt can set it up.`,
+                fix: `Add the account back, or import ${group.account_name} into an account you have.`,
+                context: `The account in your books that ${group.account_name} imports into has been deleted, so its transactions would belong to no account. The following AI prompt can set it up.`,
                 actions: [{kind: "link", label: "Open accounts", to: "/accounts"}],
                 agent: {
                     prompt: missingAccountPrompt(refusal),

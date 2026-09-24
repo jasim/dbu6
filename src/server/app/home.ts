@@ -1,15 +1,16 @@
 import type Database from "better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
+  accountKindOf,
   homeContract,
   NO_DRAFTS,
   type DraftCounts,
   type HomeAccount,
   type HomeSummary,
-  type ImportPreset,
+  type ImportInstitution,
 } from "../../shared/index.js";
-import { readImportPresets } from "../modules/statement-sources/index.js";
-import { accountLabel, importablePaths } from "./account-names.js";
+import { loadImportPresets } from "../modules/import-presets/index.js";
+import { importableAccounts } from "./account-names.js";
 import { loadAccountStandings } from "./account-standing.js";
 import { draftCounts } from "../modules/drafts/index.js";
 import { allRows, type LedgerAuth } from "../modules/ledger-sql/index.js";
@@ -26,10 +27,13 @@ const api = new TsRestApi<SapportaEnv>();
 
 api.register("summary", homeContract.summary, async ({ c }) => {
   const auth = requireWorkflowAuth(c);
-  const presets = await readImportPresets();
   return {
     status: 200,
-    body: loadHomeSummary(c.get("sqlite"), auth, presets),
+    body: loadHomeSummary(
+      c.get("sqlite"),
+      auth,
+      loadImportPresets(c.get("db"), auth),
+    ),
   };
 });
 
@@ -38,14 +42,9 @@ export default api;
 export function loadHomeSummary(
   sqlite: Database.Database,
   auth: LedgerAuth,
-  presets: readonly ImportPreset[],
+  institutions: readonly ImportInstitution[],
 ): HomeSummary {
-  const standings = Array.from(
-    loadAccountStandings(sqlite, auth, presets).values(),
-  );
-  const byPath = new Map(
-    standings.map((standing) => [standing.path, standing]),
-  );
+  const standings = loadAccountStandings(sqlite, auth, institutions);
   const journalAccounts = new Set(
     allRows<{ account_id: number }>(
       sqlite,
@@ -54,16 +53,22 @@ export function loadHomeSummary(
     ).map((row) => row.account_id),
   );
 
-  const accounts = importablePaths(presets)
-    .map((path): HomeAccount => {
-      const standing = byPath.get(path);
+  const accounts = importableAccounts(institutions)
+    .map((preset): HomeAccount => {
+      const standing = standings.get(preset.account_id);
+      // The preset still names an account the ledger deleted.
       if (standing === undefined) {
-        return { in_ledger: false, path, ...accountLabel(path, null, presets) };
+        return {
+          in_ledger: false,
+          account_id: preset.account_id,
+          name: preset.name,
+          kind: accountKindOf(preset.is_credit_card),
+        };
       }
       return {
         in_ledger: true,
         account_id: standing.account_id,
-        path,
+        path: standing.path,
         name: standing.name,
         kind: standing.kind,
         checkpoint: standing.checkpoint,
@@ -75,7 +80,7 @@ export function loadHomeSummary(
 
   return {
     accounts,
-    totals: standings
+    totals: Array.from(standings.values())
       .map((standing) => draftCounts(standing.drafts))
       .reduce(addCounts, NO_DRAFTS),
     has_journals: accounts.some(
@@ -86,7 +91,7 @@ export function loadHomeSummary(
 
 /**
  * The account whose statements were last imported longest ago comes first:
- * accounts with no posted balance assertion (missing from the ledger, then
+ * accounts with no posted balance assertion (deleted from the ledger, then
  * never imported), then by the assertion's date, then by name.
  */
 function byLastAssertion(a: HomeAccount, b: HomeAccount): number {

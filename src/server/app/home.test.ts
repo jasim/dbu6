@@ -50,22 +50,30 @@ function ledger(): Database.Database {
   return sqlite;
 }
 
-const presets = [
+const account = (id: number, name: string, isCreditCard = false) => ({
+  account_id: id,
+  name,
+  is_credit_card: isCreditCard,
+  account_identifiers: [],
+  custom_mappings_filenames: [],
+});
+
+const institutions = [
   {
-    name: "Sample Savings Statement",
-    base_account: "Sample Savings",
-    custom_mappings_filenames: [],
+    id: 1,
+    name: "Sample Bank",
+    parsers: ["sample-bank-xls"],
+    accounts: [
+      account(2, "Sample Savings Statement"),
+      // The ledger account this one imported into was deleted.
+      account(9, "Sample Closed Statement"),
+    ],
   },
   {
-    name: "Sample Card Statement",
-    base_account: "Sample Card",
-    custom_mappings_filenames: [],
-    is_credit_card: true,
-  },
-  {
-    name: "Not Yet Added",
-    base_account: "Missing Bank 050505",
-    custom_mappings_filenames: [],
+    id: 2,
+    name: "Sample Cards",
+    parsers: ["sample-cc-xls"],
+    accounts: [account(1, "Sample Card Statement", true)],
   },
 ];
 
@@ -81,16 +89,16 @@ describe("Home summary", () => {
         (205, 'workspace', 'other-user', '2026-03-03', 'NOPII other', 5, 0, NULL, 2, NULL, NULL, 'k-205');
     `);
 
-    const summary = loadHomeSummary(sqlite, auth, presets);
+    const summary = loadHomeSummary(sqlite, auth, institutions);
 
-    // The account the ledger lacks has no assertion, so it leads; then
+    // The account the ledger deleted has no assertion, so it leads; then
     // Sample Savings (10 Feb) before Sample Card (20 Feb). The card's books
     // come to -300 where its statement says 300, so it doesn't match.
     expect(summary.accounts).toEqual([
       {
         in_ledger: false,
-        path: "Missing Bank 050505",
-        name: "Not Yet Added",
+        account_id: 9,
+        name: "Sample Closed Statement",
         kind: "bank",
       },
       {
@@ -122,7 +130,7 @@ describe("Home summary", () => {
         failing_checks: 0,
       },
     ]);
-    // Drafts on the account no preset names still count towards the totals.
+    // Drafts on the account no preset lists still count towards the totals.
     expect(summary.totals).toEqual({
       drafts: 4,
       uncategorised: 2,
@@ -134,21 +142,24 @@ describe("Home summary", () => {
   });
 
   it("names and kinds an account the way Review does", () => {
-    // A loan preset that doesn't say it is a card: the ledger's Liability
-    // type decides, on Home as on Review.
+    // A preset account says whether it is a card; the ledger's Liability
+    // type doesn't decide it, on Home as on Review.
     const summary = loadHomeSummary(ledger(), auth, [
       {
-        name: "Sample Loan Statement",
-        base_account: "Sample Loan",
-        custom_mappings_filenames: [],
+        id: 3,
+        name: "Sample Lender",
+        parsers: [],
+        accounts: [account(6, "Sample Loan Statement")],
       },
     ]);
 
     expect(summary.accounts).toMatchObject([
       {
         in_ledger: true,
+        account_id: 6,
+        path: "Sample Loan",
         name: "Sample Loan Statement",
-        kind: "card",
+        kind: "bank",
         checkpoint: null,
       },
     ]);
@@ -158,7 +169,10 @@ describe("Home summary", () => {
     const sqlite = ledger();
     sqlite.exec(`DELETE FROM journal_entries; DELETE FROM journals;`);
 
-    const summary = loadHomeSummary(sqlite, auth, presets.slice(0, 2));
+    const summary = loadHomeSummary(sqlite, auth, [
+      { ...institutions[0], accounts: [institutions[0].accounts[0]] },
+      institutions[1],
+    ]);
 
     expect(summary.has_journals).toBe(false);
     expect(summary.totals.drafts).toBe(0);

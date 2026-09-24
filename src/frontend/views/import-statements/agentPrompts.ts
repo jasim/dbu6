@@ -18,6 +18,7 @@
 
 import { guideCommand, type AutoImportPlanFile } from "../../../shared/index";
 import { PII_RULE, PROJECT_FILES_RULE } from "../../agent-prompt-rules";
+import { parserLabel } from "../../format";
 import type { AccountRefusal, RefusalOf } from "./outcome";
 
 type PlanFile<Status extends AutoImportPlanFile["status"]> = Extract<
@@ -27,11 +28,27 @@ type PlanFile<Status extends AutoImportPlanFile["status"]> = Extract<
 
 const PARSERS_GUIDE = guideCommand("parsers");
 const PARSER_GUIDE = guideCommand("parser-guide");
+const BOOKS_GUIDE = guideCommand("books");
 
 // A prompt names a parser as the app does, by its directory name.
 const SAVED_PARSERS_NOTE = `A saved parser is named by its directory: the one of that name in this
 project's custom-built-parsers/, or else the one bundled with dbu6, which
 \`${PARSERS_GUIDE}\` lists.`;
+
+// How a prompt has the agent change the import presets: the app's
+// import_presets table, one institution per row with the parsers that read
+// its statements and the accounts they import into. Changes go through the
+// one route that checks them, never through a file.
+const PRESET_CHANGES_NOTE = `The import presets are in the app, one institution per row, each listing the
+saved parsers that read its statements and the accounts they import into.
+Change them only through the app, never by editing a file:
+
+  sapporta api get /api/import-presets
+  sapporta api post /api/import-presets/changes --body '{"changes":[...]}'
+
+An account names its ledger account by id; find it with
+\`sapporta rows list accounts --where '{"name":{"eq":"<name>"}}'\`.
+Run \`${BOOKS_GUIDE}\` for these calls and each change's fields.`;
 
 function rerunBlock(paths: readonly string[]): string {
   const uploads = paths.map((path) => `    -F "files=@${path}"`).join(" \\\n");
@@ -43,8 +60,8 @@ which I can create from my account page in the app, in SAPPORTA_API_TOKEN.
     -H "Authorization: Bearer $SAPPORTA_API_TOKEN" \\
 ${uploads}
 
-A 200 response has \`files\` (how each upload was recognised and which preset it
-went to) and \`groups\` (one per account: draft_transaction_count,
+A 200 response has \`files\` (how each upload was recognised and which account
+it went to) and \`groups\` (one per account: draft_transaction_count,
 transaction_count, duplicate_count, skipped_reconciled_count,
 balance_metadata, statement_period, reconciliation_checkpoint). Errors are
 4xx/5xx JSON with an \`error\` code and a \`message\`. Imports only create Draft
@@ -98,14 +115,18 @@ they print exactly. ${PROJECT_FILES_RULE} In particular:
 4. Validate the opening balance, the closing balance, every running balance the
    statement prints, and any totals it prints.
 5. ${PII_RULE}
-6. Add or update my account's entry in user-config/import-presets.json:
-   set custom_statement_parser_path to the parser's directory name and
-   statement_account_identifier to the identifier the parser emits. If no
-   preset exists for this account yet, ask me for its name and ledger account
-   (base_account) and whether it is a credit card.
+6. Tie the parser to my account in the import presets, as below. If an
+   institution there already covers this bank, add the parser to it by its
+   directory name (add_parser); otherwise add the institution with the parser
+   (add_institution). If my account is not among the institution's accounts
+   yet, add it (add_account) with account_identifiers set to the identifier
+   the parser emits; ask me for its name, its ledger account and whether it
+   is a credit card.
 7. Run the parser on that file and on the fixture, run the tests, and report
    the opening balance, closing balance, date range, and row count you found so
    I can check them against the statement.
+
+${PRESET_CHANGES_NOTE}
 
 When you are done, tell me. I will drop the file into the importer again myself.`;
 }
@@ -131,27 +152,39 @@ Run each parser against it and confirm exactly one accepts it.
 Tell me when it is done and I will retry the import.`;
 }
 
-export function noPresetPrompt(file: PlanFile<"unresolved">): string {
+// The account a statement goes to isn't set up: no institution lists its
+// parser, or the one that does has no accounts.
+export function noAccountPrompt(file: PlanFile<"unresolved">): string {
   const { account } = file;
+  const parser = parserLabel(file.parser_path);
   const who =
     account === null
       ? "but the parser reported no account identifier"
       : `and found it is a ${file.institution ?? "bank"} statement for ${account.kind === "card" ? "card" : "account"} identifier ${account.identifier}`;
   const identifierLine =
     account === null
-      ? "Leave statement_account_identifier unset unless the statement prints an identifier the parser should be emitting."
-      : `Set statement_account_identifier to ${account.identifier}.`;
+      ? "Leave account_identifiers empty unless the statement prints an identifier the parser should be emitting."
+      : `Set its account_identifiers to ["${account.identifier}"].`;
+  const institution = file.institution_name;
+  const found =
+    institution === null
+      ? "no institution in my import presets lists that parser"
+      : `the institution "${institution}" in my import presets lists that parser but has no accounts`;
+  const steps =
+    institution === null
+      ? `If an institution there already covers this bank, add ${parser} to it
+(add_parser); otherwise add the institution with parsers ["${parser}"]
+(add_institution). Then add my account to it (add_account).`
+      : `Add my account to "${institution}" (add_account).`;
   return `The automatic statement importer of my books app (dbu6, run from this project) read ${file.file_name}
-with ${file.parser_path} ${who}, but no entry in
-user-config/import-presets.json uses that parser, so nothing was imported.
+with ${parser} ${who}, but ${found}, so nothing was imported.
 The upload is in this project at ${stagedAt(file)}.
 
-Add a preset for this account to user-config/import-presets.json. Ask me
-for the account's display name, its ledger account (base_account), whether it
-is a credit card, and which custom_mappings_filenames to use if you cannot
-infer them from the existing presets. Set custom_statement_parser_path to
-${file.parser_path}. ${identifierLine} Follow the shape of the existing
-presets and what \`${PARSER_GUIDE}\` says about presets.
+${steps} Ask me for the account's name, its ledger account, whether it is a
+credit card, and which custom_mappings_filenames to use if you cannot infer
+them from the existing accounts. ${identifierLine}
+
+${PRESET_CHANGES_NOTE}
 
 Then tell me it is done and I will retry the import, or re-run it yourself.
 
@@ -161,33 +194,42 @@ ${rerunBlock([stagedAt(file)])}`;
 export function identifierRequiredPrompt(file: PlanFile<"unresolved">): string {
   return `The automatic statement importer of my books app (dbu6, run from this project) read ${file.file_name}
 with ${file.parser_path}, but the parser emitted no \`account\` identifier and
-the preset(s) using that parser (${list(file.candidate_preset_names)}) require
-one, so nothing was imported.${quoted(file.message)}
+the institution "${file.institution_name}" in my import presets needs one to
+tell its accounts (${list(file.candidate_account_names)}) apart, so nothing
+was imported.${quoted(file.message)}
 The upload is in this project at ${stagedAt(file)}.
 Either make the parser emit the account or card number the statement prints
 (run \`${PARSER_GUIDE}\` and see its "Emitted account identifier" section)
 with a sanitized fixture and test, or, if the statement genuinely prints no identifier, tell me
-and we will decide whether to drop statement_account_identifier from the
-preset in user-config/import-presets.json. Do not guess an identifier.
+and we will decide whether to clear the account's identifiers
+(update_account with account_identifiers []), which only an institution with
+one account allows. Do not guess an identifier.
 ${PII_RULE}
 
 ${SAVED_PARSERS_NOTE} ${PROJECT_FILES_RULE}
+
+${PRESET_CHANGES_NOTE}
 
 Tell me when it is done and I will retry the import.`;
 }
 
 export function identifierMismatchPrompt(file: PlanFile<"unresolved">): string {
   const identifier = file.account?.identifier ?? null;
+  const institution = file.institution_name;
   return `The automatic statement importer of my books app (dbu6, run from this project) read ${file.file_name}
 with ${file.parser_path}. It reports account identifier ${identifier ?? "(none)"},
-but the preset(s) that use this parser (${list(file.candidate_preset_names)})
-carry a different statement_account_identifier, so nothing was imported.${quoted(file.message)}
+but none of the accounts of the institution "${institution}" in my import
+presets (${list(file.candidate_account_names)}) lists it, so nothing was imported.${quoted(file.message)}
 The upload is in this project at ${stagedAt(file)}.
-This is a statement for an account I have not set up yet. Add a new preset to
-user-config/import-presets.json that shares custom_statement_parser_path
-${file.parser_path} and has statement_account_identifier ${identifier ?? "(ask me)"}.
-Ask me for its display name, ledger account (base_account), and whether it is
-a credit card. Keep the existing presets unchanged.
+Ask me which account the statement is for. If it is an account I have not set
+up yet, add it to "${institution}" (add_account) with account_identifiers
+["${identifier ?? "(ask me)"}"]; ask me for its name, its ledger account, and
+whether it is a credit card. If it is one of the accounts above, printed
+under another number, add the identifier to it (update_account with the
+account's whole account_identifiers list, the new one included). Keep the
+other accounts unchanged.
+
+${PRESET_CHANGES_NOTE}
 
 Tell me when it is done and I will retry the import.`;
 }
@@ -221,7 +263,7 @@ function groupIntro(refusal: AccountRefusal): string {
       ? "the saved parser"
       : `the saved parser (${list(parserPaths)})`;
   return `The automatic statement importer of my books app (dbu6, run from this project) refused to import
-${list(group.file_names)} into ${group.preset_name} (${group.base_account}) with
+${list(group.file_names)} into ${group.account_name} (${group.base_account}) with
 error ${refusal.error}. The files were read by ${parsers}.
 The uploads are in this project at ${list(groupPaths(refusal))}.
 
@@ -323,14 +365,18 @@ ${rerunBlock(groupPaths(refusal))}`;
 export function missingAccountPrompt(
   refusal: RefusalOf<"import_account_not_found">,
 ): string {
-  const { preset_name, base_account } = refusal.failed_group;
-  return `${groupIntro(refusal)} The preset ${preset_name} in
-user-config/import-presets.json imports into ${base_account}, but the
-ledger has no account by that name, so nothing was imported into it.${quoted(refusal.message)}
-Ask me whether ${base_account} is a new account or a different name for one I
-already have. For a new one, ask me its type and which account it goes under,
-and add it to the Accounts table. Otherwise set the preset's base_account to
-that account's name exactly as Accounts lists it. Tell me what you changed.
+  const { account_id, account_name } = refusal.failed_group;
+  return `${groupIntro(refusal)} The account ${account_name} in my import presets
+imports into the ledger account with id ${account_id}, which has been deleted,
+so nothing was imported into it.${quoted(refusal.message)}
+Ask me whether to recreate that ledger account (then ask me its name, its type
+and which account it goes under, and add it to the Accounts table), or to
+import into another account I have. Either way, point the preset account at
+the ledger account: remove it (remove_account with account_id ${account_id})
+and add it again with the new id (add_account), keeping its other fields.
+Tell me what you changed.
+
+${PRESET_CHANGES_NOTE}
 
 Then re-run the import yourself or tell me and I will retry.
 

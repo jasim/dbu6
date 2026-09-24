@@ -128,8 +128,9 @@ export const statementImportResultSchema = importSummarySchema.extend({
 });
 
 // One uploaded file as the automatic import sees it. Recognition runs every
-// saved parser whose extensions fit the file, then the parser and the account
-// identifier the statement reports pick the preset. Each outcome carries only
+// saved parser whose extensions fit the file, then the institution listing
+// the parser and the account identifier the statement reports pick the
+// preset account. Each outcome carries only
 // what explains it, so a rejection annotates the list the user dropped.
 //
 // The upload itself, as every outcome names it.
@@ -155,7 +156,10 @@ export const autoImportPlanFileSchema = z.discriminatedUnion("status", [
   z.object({
     ...reportedStatementFields,
     status: z.literal("resolved"),
-    preset_name: z.string(),
+    // The preset account the file imports into, by its ledger id and the
+    // name the presets give it.
+    account_id: z.number(),
+    account_name: z.string(),
   }),
   z.object({
     ...uploadedFileFields,
@@ -171,32 +175,39 @@ export const autoImportPlanFileSchema = z.discriminatedUnion("status", [
     ...reportedStatementFields,
     status: z.literal("unresolved"),
     reason: z.enum([
-      "no_preset_for_parser",
+      "no_institution_for_parser",
+      "institution_has_no_accounts",
       "statement_account_identifier_required",
       "statement_account_identifier_mismatch",
     ]),
     message: z.string(),
-    candidate_preset_names: z.array(z.string()),
+    // The institution that lists the parser; null when none does.
+    institution_name: z.string().nullable(),
+    // Its accounts, by the names the presets give them.
+    candidate_account_names: z.array(z.string()),
   }),
 ]);
 
-// One preset's share of the batch: one preset is one account, so this is one
-// run of the normal statement import over the files that resolved to it.
+// One preset account's share of the batch: one run of the normal statement
+// import over the files that resolved to it. `base_account` is the ledger
+// account's name, and `account_name` the name the presets give it.
 export const autoImportGroupResultSchema = z.object({
-  preset_name: z.string(),
+  account_id: z.number(),
+  account_name: z.string(),
   base_account: z.string(),
   is_credit_card: z.boolean(),
   file_names: z.array(z.string()),
   result: statementImportResultSchema,
 });
 
-// A freeform import names its account directly, not through a preset, so its
-// result is a group without a preset name.
+// A freeform import names its ledger account directly, not through a preset,
+// so its result is a group without a preset account.
 export const abacusImportResultSchema = autoImportGroupResultSchema.omit({
-  preset_name: true,
+  account_id: true,
+  account_name: true,
 });
 
-// Every file's outcome, plus the import each preset group produced. The plan
+// Every file's outcome, plus the import each account's group produced. The plan
 // is reported whether or not anything was imported.
 export const autoImportResultSchema = z.object({
   files: z.array(autoImportPlanFileSchema),
@@ -206,7 +217,8 @@ export const autoImportResultSchema = z.object({
 // The account whose import raised the error, with the files that went into
 // it.
 export const autoImportFailedGroupSchema = z.object({
-  preset_name: z.string(),
+  account_id: z.number(),
+  account_name: z.string(),
   base_account: z.string(),
   is_credit_card: z.boolean(),
   file_names: z.array(z.string()),
@@ -254,7 +266,7 @@ export const importDraftsContract = c.router({
     method: "POST",
     path: "/import-draft/statements/auto",
     summary:
-      "Upload statement files as `files`, and optionally a Google Pay Takeout HTML as `gpay` to name UPI recipients; each file is recognised by a saved parser, its import preset is resolved from that parser and the account the statement reports, and one statement import runs per preset",
+      "Upload statement files as `files`, and optionally a Google Pay Takeout HTML as `gpay` to name UPI recipients; each file is recognised by a saved parser, its preset account is resolved from the institution listing that parser and the account the statement reports, and one statement import runs per account",
     contentType: "multipart/form-data",
     body: z.any(),
     responses: {

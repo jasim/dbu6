@@ -16,7 +16,8 @@
  *   Parsers     every project parser's tests under uv, with `shared` on
  *               PYTHONPATH, which is also where drift in shared/abacus shows;
  *               a project parser that shadows a bundled one is named
- *   Config      user-config/ read by the same code the app reads it with
+ *   Config      user-config/ read by the same code the app reads it with,
+ *               and the import presets in the database
  *
  * The output is written for a coding agent: one line per check, and a
  * failure's tool output indented under it, so the fix can start from the
@@ -27,16 +28,15 @@ import { existsSync, globSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join, relative } from "node:path";
 import { pendingMigrations } from "@sapporta/server";
+import { guideCommand } from "../shared/index.js";
 import {
   CategorizationConfigError,
   readTransactionMappings,
   TRANSACTION_MAPPINGS_FILENAME,
 } from "../server/modules/categorization/index.js";
 import { chosenCodingAgent } from "../server/modules/coding-agent/index.js";
-import {
-  parserDirectory,
-  readImportPresets,
-} from "../server/modules/statement-sources/index.js";
+import { readEveryImportPreset } from "../server/modules/import-presets/index.js";
+import { parserDirectory } from "../server/modules/statement-sources/index.js";
 import {
   databaseFile,
   dbu6MigrationsDir,
@@ -408,7 +408,7 @@ export async function checkParsers(): Promise<CheckLine[]> {
 
 // --- Config ---
 
-export async function checkConfig(): Promise<CheckLine[]> {
+export async function checkConfig(root: string): Promise<CheckLine[]> {
   const dir = userConfigDir();
   if (!existsSync(dir)) {
     return [
@@ -416,11 +416,12 @@ export async function checkConfig(): Promise<CheckLine[]> {
         "Config",
         "the project has no user-config/; `dbu6 setup` creates it from the examples",
       ),
+      ...(await checkImportPresets(root, dir)),
     ];
   }
   return [
     await checkTransactionMappings(dir),
-    ...(await checkImportPresets(dir)),
+    ...(await checkImportPresets(root, dir)),
     await checkSettings(dir),
   ];
 }
@@ -441,41 +442,89 @@ async function checkTransactionMappings(dir: string): Promise<CheckLine> {
   }
 }
 
-async function checkImportPresets(dir: string): Promise<CheckLine[]> {
-  const name = "user-config/import-presets.json";
-  if (!existsSync(join(dir, "import-presets.json"))) {
-    return [info(name, "absent; the automatic import has no presets")];
+async function checkImportPresets(
+  root: string,
+  dir: string,
+): Promise<CheckLine[]> {
+  const lines: CheckLine[] = [];
+  if (existsSync(join(dir, "import-presets.json"))) {
+    lines.push(
+      fail(
+        "user-config/import-presets.json",
+        "import presets now live in the database, and this file is no longer read. Convert it with " +
+          `\`sapporta api post /api/import-presets/import-json --body '{"apply":false}'\`, then ` +
+          `\`--body '{"apply":true}'\`, with the app running (\`${guideCommand("books")}\` shows how).`,
+      ),
+    );
   }
-  let presets;
+
+  const name = "Import presets";
+  const file = databaseFile(root);
+  if (!existsSync(file)) return lines;
+  const { default: Database } = await import("better-sqlite3");
+  const sqlite = new Database(file, { readonly: true });
   try {
-    presets = await readImportPresets();
-  } catch (error) {
-    return [fail(name, `does not parse: ${messageOf(error)}`)];
-  }
-  const problems: string[] = [];
-  for (const preset of presets) {
-    const parser = preset.custom_statement_parser_path;
-    if (parser !== undefined && (await parserDirectory(parser)) === null) {
-      problems.push(
-        `preset "${preset.name}" names parser ${parser}, which is in none of:\n` +
-          parserRoots()
-            .map((root) => `  ${root}`)
-            .join("\n"),
-      );
+    let institutions;
+    try {
+      institutions = readEveryImportPreset(sqlite);
+    } catch (error) {
+      return [...lines, fail(name, messageOf(error))];
     }
-    for (const file of preset.custom_mappings_filenames) {
-      if (!existsSync(join(dir, file))) {
-        problems.push(
-          `preset "${preset.name}" names user-config/${file}, which does not exist`,
-        );
+    if (institutions === null) {
+      return [
+        ...lines,
+        info(
+          name,
+          "the database has no import_presets table until it migrates",
+        ),
+      ];
+    }
+    const ledgerIds = new Set(
+      sqlite.prepare("SELECT id FROM accounts").pluck().all() as number[],
+    );
+
+    const problems: string[] = [];
+    for (const institution of institutions) {
+      for (const parser of institution.parsers) {
+        if ((await parserDirectory(parser)) === null) {
+          problems.push(
+            `"${institution.name}" lists parser ${parser}, which is in none of:\n` +
+              parserRoots()
+                .map((root) => `  ${root}`)
+                .join("\n"),
+          );
+        }
+      }
+      for (const account of institution.accounts) {
+        if (!ledgerIds.has(account.account_id)) {
+          problems.push(
+            `"${account.name}" of "${institution.name}" imports into ledger account ${account.account_id}, which was deleted`,
+          );
+        }
+        for (const mappings of account.custom_mappings_filenames) {
+          if (!existsSync(join(dir, mappings))) {
+            problems.push(
+              `"${account.name}" of "${institution.name}" lists user-config/${mappings}, which does not exist`,
+            );
+          }
+        }
       }
     }
+    const accounts = institutions.flatMap((one) => one.accounts).length;
+    lines.push(
+      problems.length > 0
+        ? fail(name, problems.join("\n"))
+        : institutions.length === 0
+          ? info(name, "none; the automatic import has no presets")
+          : ok(
+              name,
+              `${institutions.length} institution(s), ${accounts} account(s)`,
+            ),
+    );
+    return lines;
+  } finally {
+    sqlite.close();
   }
-  return [
-    problems.length === 0
-      ? ok(name, `${presets.length} preset(s)`)
-      : fail(name, problems.join("\n")),
-  ];
 }
 
 async function checkSettings(dir: string): Promise<CheckLine> {

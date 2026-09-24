@@ -45,13 +45,13 @@ function refused(status: number, body: unknown): ImportFailure {
   return outcome.failure;
 }
 
-/** The server's reply when some file couldn't be tied to a preset. */
+/** The server's reply when some file couldn't be tied to an account. */
 function planRejection(files: AutoImportPlanFile[]) {
   const unplaced = files.filter((file) => file.status !== "resolved").length;
   return {
     error: "auto_import_files_unresolved",
-    message: `${unplaced} of ${files.length} uploaded file(s) could not be tied to an import preset, so nothing was imported.`,
-    hint: "Remove those files, add a saved parser for a layout none recognised, or declare the account's preset in import-presets.json.",
+    message: `${unplaced} of ${files.length} uploaded file(s) could not be tied to an account in the import presets, so nothing was imported.`,
+    hint: "Remove those files, add a saved parser for a layout none recognised, or set up the account in the import presets.",
     files,
   };
 }
@@ -65,7 +65,8 @@ function importedGroup(
   extra: Partial<AutoImportGroupResult>,
 ): AutoImportGroupResult {
   return {
-    preset_name: "Sample Bank",
+    account_id: 1,
+    account_name: "Sample Bank",
     base_account: "Sample Bank",
     is_credit_card: false,
     file_names: ["bank-aug.xls"],
@@ -119,7 +120,8 @@ const resolvedRow = {
   parser_path: BANK_PARSER,
   account: { kind: "bank" as const, identifier: "05050505050505" },
   institution: "HDFC BANK Ltd.",
-  preset_name: "Sample Bank",
+  account_id: 1,
+  account_name: "Sample Bank",
 };
 
 describe("plan rejections", () => {
@@ -149,10 +151,12 @@ describe("plan rejections", () => {
     const prompt = problem.agent?.prompt;
     expect(prompt).toContain(staged("notes.txt"));
     // The guides are inside the installed package, so the prompt names the
-    // commands that print them; the presets are the project's own file.
+    // commands that print them; the presets change through the app's route.
     expect(prompt).toContain(guideCommand("parsers"));
     expect(prompt).toContain(guideCommand("parser-guide"));
-    expect(prompt).toContain("user-config/import-presets.json");
+    expect(prompt).toContain(guideCommand("books"));
+    expect(prompt).toContain("/api/import-presets/changes");
+    expect(prompt).toContain("add_parser");
     expect(prompt).not.toContain("curl");
     expect(problem.technical).toContain("auto_import_files_unresolved");
 
@@ -210,9 +214,10 @@ describe("plan rejections", () => {
           parser_path: parser,
           account: { kind: "card", identifier: "050505XXXXXX0505" },
           institution: "HDFC Bank Cards Division",
-          reason: "no_preset_for_parser",
-          message: `No import preset uses ${parser}, which parsed card-aug.xls.`,
-          candidate_preset_names: [],
+          reason: "no_institution_for_parser",
+          message: `No institution lists ${parser}, which parsed card-aug.xls.`,
+          institution_name: null,
+          candidate_account_names: [],
         },
       ]),
     );
@@ -227,8 +232,47 @@ describe("plan rejections", () => {
     const [row] = plannedFiles({ kind: "failed", failure: error });
     expect(describeStatement(row)).toContain("HDFC Bank Cards Division");
     expect(describeStatement(row)).toContain("0505");
-    expect(problem.agent?.prompt).toContain("050505XXXXXX0505");
-    expect(problem.agent?.prompt).toContain(staged("card-aug.xls"));
+    const prompt = problem.agent?.prompt;
+    expect(prompt).toContain("050505XXXXXX0505");
+    expect(prompt).toContain(staged("card-aug.xls"));
+    // No institution lists the parser: the agent adds it to one, and the
+    // account to that.
+    expect(prompt).toContain(parser);
+    expect(prompt).toContain("add_institution");
+    expect(prompt).toContain("add_account");
+    expect(prompt).toContain("/api/import-presets/changes");
+  });
+
+  it("asks for an account on the institution that lists the parser but has none", () => {
+    const [problem] = describeProblems(
+      refused(
+        422,
+        planRejection([
+          {
+            status: "unresolved",
+            file_name: "bank-aug.xls",
+            saved_path: staged("bank-aug.xls"),
+            parser_path: BANK_PARSER,
+            account: { kind: "bank", identifier: "05050505050505" },
+            institution: "HDFC BANK Ltd.",
+            reason: "institution_has_no_accounts",
+            message: `"Sample Bank" lists ${BANK_PARSER}, which parsed bank-aug.xls, but has no accounts to import it into.`,
+            institution_name: "Sample Bank",
+            candidate_account_names: [],
+          },
+        ]),
+      ),
+    );
+    expect(problem).toMatchObject({
+      subject: "Sample Bank",
+      fileNames: ["bank-aug.xls"],
+      tone: "attention",
+    });
+    const prompt = problem.agent?.prompt;
+    expect(prompt).toContain('"Sample Bank"');
+    expect(prompt).toContain("add_account");
+    expect(prompt).not.toContain("add_institution");
+    expect(prompt).toContain("05050505050505");
   });
 
   it("doesn't count the files when the one file dropped is the problem", () => {
@@ -242,9 +286,10 @@ describe("plan rejections", () => {
           parser_path: BANK_PARSER,
           account: { kind: "bank", identifier: "05050505050505" },
           institution: "HDFC BANK Ltd.",
-          reason: "no_preset_for_parser",
-          message: `No import preset uses ${BANK_PARSER}, which parsed bank-aug.xls.`,
-          candidate_preset_names: [],
+          reason: "no_institution_for_parser",
+          message: `No institution lists ${BANK_PARSER}, which parsed bank-aug.xls.`,
+          institution_name: null,
+          candidate_account_names: [],
         },
       ]),
     );
@@ -255,7 +300,7 @@ describe("plan rejections", () => {
     expect(problem.actions).toEqual([]);
   });
 
-  it("names the preset a statement for a different account didn't match", () => {
+  it("names the accounts a statement for a different account didn't match", () => {
     const error = refused(
       422,
       planRejection([
@@ -268,25 +313,58 @@ describe("plan rejections", () => {
           institution: "HDFC BANK Ltd.",
           reason: "statement_account_identifier_mismatch",
           message:
-            'other.xls reports account identifier 050505000099, but the only preset using the parser ("Sample Bank") expects 05050505050505.',
-          candidate_preset_names: ["Sample Bank"],
+            'other.xls reports account identifier 050505000099, which no account of "Sample Bank" lists; it expected "Sample Savings" (05050505050505).',
+          institution_name: "Sample Bank",
+          candidate_account_names: ["Sample Savings"],
         },
       ]),
     );
     const [problem] = describeProblems(error);
     expect(problem).toMatchObject({
-      subject: "HDFC BANK Ltd.",
+      subject: "Sample Bank",
       fileNames: ["other.xls"],
       tone: "attention",
     });
-    expect(factValues(problem)).toContain("Sample Bank");
-    expect(problem.agent?.prompt).toContain("050505000099");
+    expect(factValues(problem)).toContain("Sample Savings");
+    // A new account on the institution, or the identifier on an account it
+    // has.
+    const prompt = problem.agent?.prompt;
+    expect(prompt).toContain("050505000099");
+    expect(prompt).toContain("Sample Savings");
+    expect(prompt).toContain("add_account");
+    expect(prompt).toContain("update_account");
+  });
+
+  it("asks the parser for the identifier the institution's accounts need", () => {
+    const [problem] = describeProblems(
+      refused(
+        422,
+        planRejection([
+          {
+            ...resolvedRow,
+            status: "unresolved",
+            account: null,
+            reason: "statement_account_identifier_required",
+            message: `${BANK_PARSER} reported no account identifier for bank-aug.xls, and "Sample Bank" needs one to pick one of "Sample Savings", "Sample Current".`,
+            institution_name: "Sample Bank",
+            candidate_account_names: ["Sample Savings", "Sample Current"],
+          },
+        ]),
+      ),
+    );
+    expect(problem.subject).toBe("Sample Bank");
+    expect(factValues(problem).join(" ")).toContain("Sample Current");
+    const prompt = problem.agent?.prompt;
+    expect(prompt).toContain(BANK_PARSER);
+    expect(prompt).toContain("Sample Savings");
+    expect(prompt).toContain(guideCommand("parser-guide"));
   });
 });
 
 describe("account import failures", () => {
   const failedGroup = {
-    preset_name: "Sample Bank",
+    account_id: 1,
+    account_name: "Sample Bank",
     base_account: "Sample Bank",
     is_credit_card: false,
     file_names: ["bank-aug.xls"],
@@ -490,7 +568,8 @@ describe("account import failures", () => {
       message: "Closing balance required ...",
       files: [resolvedRow],
       failed_group: {
-        preset_name: "Sample Card",
+        account_id: 2,
+        account_name: "Sample Card",
         base_account: "Sample Card",
         is_credit_card: true,
         file_names: ["card-aug.xls"],
@@ -533,7 +612,7 @@ describe("account import failures", () => {
     expect(problem.agent).toBeNull();
   });
 
-  it("points to Accounts and the preset when the ledger lacks the preset's account", () => {
+  it("points to Accounts and the preset when the preset's ledger account was deleted", () => {
     const [problem] = describeProblems(
       refused(422, {
         ...PAYLOADS.import_account_not_found,
@@ -549,9 +628,13 @@ describe("account import failures", () => {
     expect(problem.actions).toEqual([
       expect.objectContaining({ kind: "link", to: "/accounts" }),
     ]);
+    // The dangling id is replaced by removing the preset account and adding
+    // it again with the new one.
     const prompt = problem.agent?.prompt;
-    expect(prompt).toContain("import-presets.json");
-    expect(prompt).toContain("base_account");
+    expect(prompt).toContain("remove_account");
+    expect(prompt).toContain("add_account");
+    expect(prompt).toContain("/api/import-presets/changes");
+    expect(prompt).toContain(guideCommand("books"));
   });
 
   it("gives the codes without a problem of their own one shared problem and a full-payload prompt", () => {
@@ -633,7 +716,8 @@ describe("account import failures", () => {
 
 describe("problem tones", () => {
   const failedGroup = {
-    preset_name: "Sample Bank",
+    account_id: 1,
+    account_name: "Sample Bank",
     base_account: "Sample Bank",
     is_credit_card: false,
     file_names: ["bank-aug.xls"],
@@ -692,7 +776,8 @@ describe("problem tones", () => {
         },
         ...(
           [
-            "no_preset_for_parser",
+            "no_institution_for_parser",
+            "institution_has_no_accounts",
             "statement_account_identifier_required",
             "statement_account_identifier_mismatch",
           ] as const
@@ -703,12 +788,13 @@ describe("problem tones", () => {
           saved_path: staged(`${reason}.xls`),
           reason,
           message: "sample",
-          candidate_preset_names: ["Sample Bank"],
+          institution_name: "Sample Bank",
+          candidate_account_names: ["Sample Savings"],
         })),
       ]),
     );
     const problems = describeProblems(plan);
-    expect(problems).toHaveLength(5);
+    expect(problems).toHaveLength(6);
     expect(problems.every((problem) => problem.tone === "attention")).toBe(
       true,
     );
@@ -758,7 +844,8 @@ describe("problem tones", () => {
         },
         ...(
           [
-            "no_preset_for_parser",
+            "no_institution_for_parser",
+            "institution_has_no_accounts",
             "statement_account_identifier_required",
             "statement_account_identifier_mismatch",
           ] as const
@@ -769,7 +856,8 @@ describe("problem tones", () => {
           saved_path: staged(`${reason}.xls`),
           reason,
           message: "sample",
-          candidate_preset_names: ["Sample Bank"],
+          institution_name: "Sample Bank",
+          candidate_account_names: ["Sample Savings"],
         })),
       ]),
     );
@@ -788,6 +876,8 @@ describe("problem tones", () => {
       expect(prompt).not.toMatch(/custom-built-parsers\/[^\s]*\.(md|py)/);
       expect(prompt).not.toContain("user-config.example");
       expect(prompt).not.toContain("data/user-config");
+      // The presets change through the app, never by editing a file.
+      expect(prompt).not.toContain("import-presets.json");
       // node_modules is named only to keep the agent out of it.
       for (const line of prompt.split("\n")) {
         if (line.includes("node_modules")) expect(line).toContain("never");

@@ -11,13 +11,16 @@ import {
   it,
   vi,
 } from "vitest";
-import type { DraftClassification, ImportPreset } from "../../shared/index";
+import type {
+  DraftClassification,
+  ImportPresetsView,
+} from "../../shared/index";
 import { ReclassifyDrafts, reclassifyDraftsHref } from "./ReclassifyDrafts";
 
 /*
  * Classify drafts opened from an account's Drafts tab: the account stays
- * chosen, with the instructions its preset imports with, each file shown on
- * a tab and another preset's a choice away, a run counts
+ * chosen, with the instructions it imports with, each file shown on a tab
+ * and another preset account's a choice away, a run counts
  * what it categorized, by category, and links to the ones that still need
  * one, and a second run sends only those.
  */
@@ -41,18 +44,33 @@ const ACCOUNTS = [
   { id: 8, name: "Dining" },
 ];
 
-const PRESETS: ImportPreset[] = [
-  {
-    name: "Sample Savings statement",
-    base_account: "Sample Savings",
-    custom_mappings_filenames: ["custom_mappings_sample.prompt"],
-  },
-  {
-    name: "Other statement",
-    base_account: "Dining",
-    custom_mappings_filenames: ["custom_mappings_other.prompt"],
-  },
-];
+const PRESETS: ImportPresetsView = {
+  institutions: [
+    {
+      id: 1,
+      name: "Sample Bank",
+      parsers: ["sample-bank-csv"],
+      accounts: [
+        {
+          account_id: 8,
+          name: "Sample Other",
+          is_credit_card: false,
+          account_identifiers: ["050505000008"],
+          custom_mappings_filenames: ["custom_mappings_other.prompt"],
+          ledger_account_name: "Dining",
+        },
+        {
+          account_id: 5,
+          name: "Sample Savings",
+          is_credit_card: false,
+          account_identifiers: ["050505000005"],
+          custom_mappings_filenames: ["custom_mappings_sample.prompt"],
+          ledger_account_name: "Sample Savings",
+        },
+      ],
+    },
+  ],
+};
 
 function draft(id: number, narration: string) {
   return {
@@ -113,7 +131,7 @@ let classifyAnswer: DraftClassification;
 
 function respond(method: string, url: URL): unknown {
   if (url.pathname.endsWith("/tables/accounts")) return { data: ACCOUNTS };
-  if (url.pathname.endsWith("/import-presets/file")) return PRESETS;
+  if (url.pathname.endsWith("/import-presets")) return PRESETS;
   const file = url.pathname.match(/\/import-presets\/mapping-files\/(.+)$/);
   if (file) {
     const filename = decodeURIComponent(file[1]!);
@@ -207,7 +225,7 @@ async function settle() {
 const text = () => host.textContent ?? "";
 
 describe("Classify drafts opened on an account", () => {
-  it("keeps the account chosen, with the instructions its preset imports with", async () => {
+  it("keeps the account chosen, with the instructions it imports with, found by its id", async () => {
     await renderAt(reclassifyDraftsHref(5));
 
     expect(
@@ -218,7 +236,8 @@ describe("Classify drafts opened on an account", () => {
         .find((r) => r.url.pathname.endsWith("/tables/draft_transactions"))
         ?.url.searchParams.get("filter[base_account_id][eq]"),
     ).toBe("5");
-    expect(text()).toContain("Sample Savings statement");
+    expect(text()).toContain("Sample Bank · Sample Savings");
+    expect(text()).toContain("The instructions Sample Savings imports with.");
     expect(
       [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent),
     ).toEqual(["custom_mappings_sample.prompt"]);

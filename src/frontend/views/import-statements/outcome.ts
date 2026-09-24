@@ -31,7 +31,7 @@ export type ImportFailure =
   | { kind: "network"; message: string }
   /** The session isn't allowed to import. */
   | { kind: "forbidden" }
-  /** Nothing was imported: some file couldn't be tied to an import preset. */
+  /** Nothing was imported: some file couldn't be tied to an account in the import presets. */
   | {
       kind: "files-unresolved";
       message: string;

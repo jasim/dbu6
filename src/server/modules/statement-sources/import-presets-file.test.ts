@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ImportPreset } from "../../../shared/index.js";
 import {
   convertImportPresetsFile,
   groupIntoInstitutions,
+  type ImportPreset,
 } from "./import-presets-file.js";
 
 function preset(

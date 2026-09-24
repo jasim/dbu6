@@ -1,10 +1,4 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hono } from "hono";
@@ -17,7 +11,6 @@ import {
   type SapportaEnv,
 } from "@sapporta/server";
 import { parsePlainDate } from "@sapporta/shared/temporal";
-import type { ImportPreset } from "../shared/index.js";
 import type {
   CategorizerSettings,
   LoadCategorizer,
@@ -28,6 +21,7 @@ import { loadDbu6App } from "./mount.js";
 import { dbu6MigrationsDir, packageDir } from "./paths.js";
 import { accountsTable } from "./schema/accounts.js";
 import { draftTransactionsTable } from "./schema/draft-journals.js";
+import { importPresetsTable } from "./schema/import-presets.js";
 
 // The engine would detect this machine's coding agents. The stand-in
 // categorizer places every row by rule, so the LLM is never asked.
@@ -48,14 +42,6 @@ const BANK = "Sample Bank";
 const CARD = "Sample Card";
 const BANK_PARSER = "hdfc-bank-xls";
 
-const bankPreset: ImportPreset = {
-  name: BANK,
-  base_account: BANK,
-  custom_mappings_filenames: ["sample_mappings.prompt"],
-  custom_statement_parser_path: BANK_PARSER,
-  statement_account_identifier: "05050505050505",
-};
-
 const loadedWith: CategorizerSettings[] = [];
 const loadCategorizer: LoadCategorizer = async (settings) => {
   loadedWith.push(settings);
@@ -74,10 +60,6 @@ beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), "dbu6-categorizer-seam-"));
   vi.stubEnv("DBU6_ROOT", root);
   mkdirSync(join(root, "user-config"));
-  writeFileSync(
-    join(root, "user-config", "import-presets.json"),
-    JSON.stringify([bankPreset]),
-  );
 
   conn = connectProject(join(root, "sqlite.db"));
   applyMigrations(conn.sqlite, dbu6MigrationsDir());
@@ -99,6 +81,25 @@ beforeAll(() => {
       account(2, CARD, "Liability"),
       account(3, CATEGORY, "Expense"),
     ])
+    .run();
+  // The bank's import preset, whose one account imports into account 1.
+  conn.db
+    .insert(importPresetsTable)
+    .values({
+      workspace_id: "workspace",
+      scoped_to_user_id: "user",
+      name: "Sample HDFC",
+      parsers: JSON.stringify([BANK_PARSER]),
+      accounts: JSON.stringify([
+        {
+          account_id: 1,
+          name: BANK,
+          is_credit_card: false,
+          account_identifiers: ["05050505050505"],
+          custom_mappings_filenames: ["sample_mappings.prompt"],
+        },
+      ]),
+    })
     .run();
 
   const api = new TsRestApi<SapportaEnv>();

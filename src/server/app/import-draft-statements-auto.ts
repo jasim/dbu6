@@ -1,17 +1,18 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   accountKindOf,
+  guideCommand,
   importDraftsContract,
+  type ImportInstitution,
   type AutoImportErrorBody,
   type AutoImportFailedGroup,
   type AutoImportGroupResult,
   type AutoImportPlanFile,
 } from "../../shared/index.js";
-import {
-  type AutoImportGroup,
-  type PlannedFile,
-  readImportPresets,
-  type ImportPreset,
+import { loadImportPresets } from "../modules/import-presets/index.js";
+import type {
+  AutoImportGroup,
+  PlannedFile,
 } from "../modules/statement-sources/index.js";
 import type { LoadCategorizer } from "../modules/categorization/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
@@ -38,7 +39,7 @@ import { requireWorkflowLedger } from "./workflow-auth.js";
 //     -> the reply, built from the batch's outcome
 //
 // Everything the account resolution decided is reported back, whether or not
-// anything was imported, so the user can fix a preset and retry.
+// anything was imported, so the user can fix the presets and retry.
 //
 // The uploads are staged inside the project (tmp/statement-uploads/), and a
 // batch that did not import keeps them: every file the reply reports says
@@ -66,7 +67,8 @@ function planFileRow(
         parser_path: file.parserName,
         account: file.account,
         institution: file.institution,
-        preset_name: file.presetName,
+        account_id: file.accountId,
+        account_name: file.accountName,
       };
     case "unrecognized":
       return {
@@ -92,25 +94,35 @@ function planFileRow(
         institution: file.institution,
         reason: file.reason,
         message: file.message,
-        candidate_preset_names: file.candidatePresetNames,
+        institution_name: file.institutionName,
+        candidate_account_names: file.candidateAccountNames,
       };
   }
 }
 
-function failedGroup(group: AutoImportGroup): AutoImportFailedGroup {
+function failedGroup(
+  group: AutoImportGroup,
+  baseAccount: string,
+): AutoImportFailedGroup {
   return {
-    preset_name: group.preset.name,
-    base_account: group.preset.base_account,
-    is_credit_card: accountKindOf(group.preset.is_credit_card) === "card",
+    account_id: group.account.account_id,
+    account_name: group.account.name,
+    base_account: baseAccount,
+    is_credit_card: accountKindOf(group.account.is_credit_card) === "card",
     file_names: group.statements.map((one) => one.file),
   };
 }
 
-function groupResult({ group, result }: ImportedGroup): AutoImportGroupResult {
+function groupResult({
+  group,
+  baseAccount,
+  result,
+}: ImportedGroup): AutoImportGroupResult {
   return {
-    preset_name: group.preset.name,
-    base_account: group.preset.base_account,
-    is_credit_card: accountKindOf(group.preset.is_credit_card) === "card",
+    account_id: group.account.account_id,
+    account_name: group.account.name,
+    base_account: baseAccount,
+    is_credit_card: accountKindOf(group.account.is_credit_card) === "card",
     file_names: group.statements.map((one) => one.file),
     result: {
       ...result,
@@ -139,8 +151,8 @@ function batchResponse(
         status: 422,
         body: {
           error: "auto_import_files_unresolved",
-          message: `${unplaced} of ${files.length} uploaded file(s) could not be tied to an import preset, so nothing was imported.`,
-          hint: "Remove those files, add a saved parser for a layout none recognised, or declare the account's preset in import-presets.json.",
+          message: `${unplaced} of ${files.length} uploaded file(s) could not be tied to an import preset's account, so nothing was imported.`,
+          hint: `Remove those files, add a saved parser for a layout none recognised, or add the parser, account or identifier to the import presets with the calls \`${guideCommand("books")}\` describes.`,
           files,
         },
       };
@@ -150,18 +162,18 @@ function batchResponse(
       // and the reply says outright which groups' drafts are already saved.
       const { status, body } = importErrorResponse(outcome.error);
       const imported = outcome.imported.map(groupResult);
-      const done = imported.map((one) => one.preset_name).join(", ");
+      const done = imported.map((one) => one.account_name).join(", ");
       return {
         status,
         body: {
           ...body,
           files,
-          failed_group: failedGroup(outcome.failed),
+          failed_group: failedGroup(outcome.failed, outcome.failedBaseAccount),
           ...(imported.length === 0
             ? {}
             : {
                 imported_groups: imported,
-                partial_import: `${done} imported before "${outcome.failed.preset.name}" failed. Those drafts are saved; drop their files before retrying.`,
+                partial_import: `${done} imported before "${outcome.failed.account.name}" failed. Those drafts are saved; drop their files before retrying.`,
               }),
         },
       };
@@ -181,7 +193,7 @@ export interface AutoImportUploads {
 
 export async function importStatementsAutomatically(
   uploads: AutoImportUploads,
-  presets: readonly ImportPreset[],
+  institutions: readonly ImportInstitution[],
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
 ): Promise<AutoImportRouteResponse> {
@@ -197,7 +209,13 @@ export async function importStatementsAutomatically(
   );
 
   const importWith = (gpayHtmlPath: string | null) =>
-    importStaged(statements, gpayHtmlPath, presets, ledger, loadCategorizer);
+    importStaged(
+      statements,
+      gpayHtmlPath,
+      institutions,
+      ledger,
+      loadCategorizer,
+    );
   if (gpay === null) return importWith(null);
   return withTempUpload(
     gpay,
@@ -210,7 +228,7 @@ export async function importStatementsAutomatically(
 async function importStaged(
   statements: File[],
   gpayHtmlPath: string | null,
-  presets: readonly ImportPreset[],
+  institutions: readonly ImportInstitution[],
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
 ): Promise<AutoImportRouteResponse> {
@@ -222,7 +240,7 @@ async function importStaged(
           path: staged.paths[index],
         })),
         gpayHtmlPath,
-        presets,
+        institutions,
       },
       ledger,
       loadCategorizer,
@@ -283,7 +301,7 @@ export default function importDraftStatementsAutoApi(
 
       return importStatementsAutomatically(
         { statements, gpay: uploadedFile(uploadedFiles, "gpay") },
-        await readImportPresets(),
+        loadImportPresets(ledger.db, ledger.auth),
         ledger,
         loadCategorizer,
       );

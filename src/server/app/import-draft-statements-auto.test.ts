@@ -2,12 +2,15 @@ import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
-import type { ImportPreset } from "../../shared/index.js";
+import type { ImportAccount, ImportInstitution } from "../../shared/index.js";
 
-// Recognition and preset resolution run for real against the sanitized
+// Recognition and account resolution run for real against the sanitized
 // fixtures; only the ledger write at the tail is stubbed, so the tests need
-// no database and never read user-config/import-presets.json.
+// only the ledger's accounts, which name each preset account's ledger account.
 // The engine would detect this machine's coding agents; the import itself is
 // stubbed, so nothing categorizes here.
 vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
@@ -47,6 +50,7 @@ import importDraftStatementsAutoApi, {
 import { loadDbu6App } from "../mount.js";
 import { packageDir, projectRoot } from "../paths.js";
 import { ClosingBalanceUnavailable } from "../modules/statement/index.js";
+import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 import type { StatementImportResult } from "../workflows/statement-import/index.js";
 
 // The user's categorization config would be read from user-config. Each
@@ -59,31 +63,56 @@ const BANK_PARSER = "hdfc-bank-xls";
 const CARD_PARSER = "hdfc-cc-xls";
 const SECOND_BANK_PARSER = "federal-bank-xls";
 
-const bankPreset: ImportPreset = {
+function institution(
+  id: number,
+  name: string,
+  parser: string,
+  account: ImportAccount,
+): ImportInstitution {
+  return { id, name, parsers: [parser], accounts: [account] };
+}
+
+const bankPreset = institution(1, "Sample HDFC", BANK_PARSER, {
+  account_id: 1,
   name: "Sample Bank",
-  base_account: "Sample Bank",
+  is_credit_card: false,
+  account_identifiers: ["05050505050505"],
   custom_mappings_filenames: ["sample_mappings.prompt"],
-  custom_statement_parser_path: BANK_PARSER,
-  statement_account_identifier: "05050505050505",
-};
+});
 
-const cardPreset: ImportPreset = {
+const cardPreset = institution(2, "Sample HDFC Cards", CARD_PARSER, {
+  account_id: 2,
   name: "Sample Card",
-  base_account: "Sample Card",
   is_credit_card: true,
+  account_identifiers: ["050505XXXXXX0505"],
   custom_mappings_filenames: [],
-  custom_statement_parser_path: CARD_PARSER,
-  statement_account_identifier: "050505XXXXXX0505",
-};
+});
 
-const secondBankPreset: ImportPreset = {
+const secondBankPreset = institution(3, "Sample Federal", SECOND_BANK_PARSER, {
+  account_id: 3,
   name: "Sample Second Bank",
-  base_account: "Sample Second Bank",
+  is_credit_card: false,
+  account_identifiers: [],
   custom_mappings_filenames: [],
-  custom_statement_parser_path: SECOND_BANK_PARSER,
-};
+});
 
-const ledger = {} as never;
+// The ledger's accounts, under names of their own: an import goes to the
+// ledger account a preset account's id names, whatever it is called now.
+function books() {
+  const sqlite = new Database(":memory:");
+  migrate(drizzle(sqlite), { migrationsFolder: packageDir("migrations") });
+  sqlite.exec(`
+    INSERT INTO accounts
+      (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+    VALUES
+      (1, 'workspace', 'user', 'Sample Savings', NULL, 'Asset', '', ''),
+      (2, 'workspace', 'user', 'Sample Credit Card', NULL, 'Liability', '', ''),
+      (3, 'workspace', 'user', 'Sample Second Savings', NULL, 'Asset', '', '');
+  `);
+  return { db: drizzle(sqlite), sqlite, auth: testLedgerAuth() } as never;
+}
+
+const ledger = books();
 
 async function fixtureFile(parser: string, uploadedAs: string): Promise<File> {
   const extension = uploadedAs.slice(uploadedAs.lastIndexOf("."));
@@ -223,7 +252,7 @@ describe("automatic statement import", () => {
     parseGPayHtml.mockClear();
   });
 
-  it("recognises each upload, groups it by preset, and imports once per account", async () => {
+  it("recognises each upload, groups it by account, and imports once per account", async () => {
     runStatementImport.mockResolvedValue(importedNothing());
 
     const response = await importStatementsAutomatically(
@@ -252,7 +281,8 @@ describe("automatic statement import", () => {
         parser_path: BANK_PARSER,
         account: { kind: "bank", identifier: "05050505050505" },
         institution: "HDFC BANK Ltd.",
-        preset_name: "Sample Bank",
+        account_id: 1,
+        account_name: "Sample Bank",
       },
       {
         status: "resolved",
@@ -261,7 +291,8 @@ describe("automatic statement import", () => {
         parser_path: CARD_PARSER,
         account: { kind: "card", identifier: "050505XXXXXX0505" },
         institution: "HDFC Bank Cards Division",
-        preset_name: "Sample Card",
+        account_id: 2,
+        account_name: "Sample Card",
       },
       {
         status: "resolved",
@@ -270,7 +301,8 @@ describe("automatic statement import", () => {
         parser_path: SECOND_BANK_PARSER,
         account: { kind: "bank", identifier: "050505000012" },
         institution: null,
-        preset_name: "Sample Second Bank",
+        account_id: 3,
+        account_name: "Sample Second Bank",
       },
       {
         status: "resolved",
@@ -279,23 +311,37 @@ describe("automatic statement import", () => {
         parser_path: BANK_PARSER,
         account: { kind: "bank", identifier: "05050505050505" },
         institution: "HDFC BANK Ltd.",
-        preset_name: "Sample Bank",
+        account_id: 1,
+        account_name: "Sample Bank",
       },
     ]);
 
-    // One group per preset, in the order the accounts first appear, with the
-    // two files of the same account kept together in one import.
+    // One group per account, in the order the accounts first appear, with
+    // the two files of the same account kept together in one import.
     expect(
       response.body.groups.map((group) => [
-        group.preset_name,
+        group.account_id,
+        group.account_name,
         group.base_account,
         group.is_credit_card,
         group.file_names,
       ]),
     ).toEqual([
-      ["Sample Bank", "Sample Bank", false, ["bank-jan.xls", "bank-feb.xls"]],
-      ["Sample Card", "Sample Card", true, ["card-jan.xls"]],
-      ["Sample Second Bank", "Sample Second Bank", false, ["second-jan.xls"]],
+      [
+        1,
+        "Sample Bank",
+        "Sample Savings",
+        false,
+        ["bank-jan.xls", "bank-feb.xls"],
+      ],
+      [2, "Sample Card", "Sample Credit Card", true, ["card-jan.xls"]],
+      [
+        3,
+        "Sample Second Bank",
+        "Sample Second Savings",
+        false,
+        ["second-jan.xls"],
+      ],
     ]);
     expect(
       response.body.groups.map(
@@ -307,7 +353,7 @@ describe("automatic statement import", () => {
     const [statements, options, , sourceNames] =
       runStatementImport.mock.calls[1];
     expect(options).toMatchObject({
-      baseAccount: "Sample Card",
+      baseAccount: "Sample Credit Card",
       accountKind: "card",
       categorizer: { customMappingsFilenames: [] },
       gpay: null,
@@ -317,13 +363,13 @@ describe("automatic statement import", () => {
       { account: { kind: "card", identifier: "050505XXXXXX0505" } },
     ]);
     expect(runStatementImport.mock.calls[0][1]).toMatchObject({
-      baseAccount: "Sample Bank",
+      baseAccount: "Sample Savings",
       accountKind: "bank",
       categorizer: { customMappingsFilenames: ["sample_mappings.prompt"] },
     });
   }, 120_000);
 
-  it("imports nothing when a recognised file has no preset, and explains every file", async () => {
+  it("imports nothing when no institution lists a recognised file's parser, and explains every file", async () => {
     const response = await importStatementsAutomatically(
       {
         statements: [
@@ -344,15 +390,17 @@ describe("automatic statement import", () => {
     expect(body.files?.[0]).toMatchObject({
       status: "resolved",
       file_name: "bank-jan.xls",
-      preset_name: "Sample Bank",
+      account_id: 1,
+      account_name: "Sample Bank",
     });
     expect(body.files?.[1]).toMatchObject({
       status: "unresolved",
       file_name: "card-jan.xls",
       parser_path: CARD_PARSER,
       account: { kind: "card", identifier: "050505XXXXXX0505" },
-      reason: "no_preset_for_parser",
-      candidate_preset_names: [],
+      reason: "no_institution_for_parser",
+      institution_name: null,
+      candidate_account_names: [],
     });
   }, 120_000);
 
@@ -427,18 +475,50 @@ describe("automatic statement import", () => {
     expect(response.status).toBe(400);
     const body = groupFailure(response);
     expect(body.error).toBe("closing_balance_unavailable");
-    expect(body.imported_groups?.map((one) => one.preset_name)).toEqual([
+    expect(body.imported_groups?.map((one) => one.account_name)).toEqual([
       "Sample Bank",
     ]);
     expect(body.partial_import).toContain("Sample Bank");
     expect(body.partial_import).toContain("Sample Card");
     expect(body.failed_group).toEqual({
-      preset_name: "Sample Card",
-      base_account: "Sample Card",
+      account_id: 2,
+      account_name: "Sample Card",
+      base_account: "Sample Credit Card",
       is_credit_card: true,
       file_names: ["card-jan.xls"],
     });
     expect(body.files).toHaveLength(2);
+  }, 120_000);
+
+  it("refuses an account whose ledger account was deleted, naming the preset calls", async () => {
+    const response = await importStatementsAutomatically(
+      {
+        statements: [await fixtureFile("hdfc-cc-xls", "card-jan.xls")],
+        gpay: null,
+      },
+      [
+        institution(2, "Sample HDFC Cards", CARD_PARSER, {
+          ...cardPreset.accounts[0],
+          account_id: 9,
+        }),
+      ],
+      ledger,
+      loadCategorizer,
+    );
+
+    expect(runStatementImport).not.toHaveBeenCalled();
+    expect(response.status).toBe(422);
+    const body = groupFailure(response);
+    expect(body.error).toBe("import_account_not_found");
+    expect(body.message).toContain("ledger account 9");
+    expect("hint" in body && body.hint).toContain("dbu6 docs books");
+    expect(body.failed_group).toEqual({
+      account_id: 9,
+      account_name: "Sample Card",
+      base_account: "Sample Card",
+      is_credit_card: true,
+      file_names: ["card-jan.xls"],
+    });
   }, 120_000);
 
   it("hands one staged Google Pay takeout to every account's import", async () => {

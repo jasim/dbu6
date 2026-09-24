@@ -56,17 +56,26 @@ function ledger(): Database.Database {
   return sqlite;
 }
 
+const account = (id: number, name: string, isCreditCard = false) => ({
+  account_id: id,
+  name,
+  is_credit_card: isCreditCard,
+  account_identifiers: [],
+  custom_mappings_filenames: [],
+});
+
 const presets = [
   {
-    name: "Sample Savings Statement",
-    base_account: "Sample Savings",
-    custom_mappings_filenames: [],
+    id: 1,
+    name: "Sample Bank",
+    parsers: ["sample-bank-xls"],
+    accounts: [account(2, "Sample Savings Statement")],
   },
   {
-    name: "Sample Card Statement",
-    base_account: "Sample Card",
-    custom_mappings_filenames: [],
-    is_credit_card: true,
+    id: 2,
+    name: "Sample Cards",
+    parsers: ["sample-cc-xls"],
+    accounts: [account(1, "Sample Card Statement", true)],
   },
 ];
 

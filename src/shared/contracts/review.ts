@@ -15,7 +15,7 @@ const c = initContract();
 export const reviewAccountSchema = z.object({
   account_id: z.number(),
   path: z.string(),
-  // The preset's name when one preset imports here, else the account's name.
+  // The preset account's name when a preset lists it, else the account's name.
   name: z.string(),
   kind: accountKindSchema,
   ...draftCountsSchema.shape,

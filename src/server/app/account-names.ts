@@ -2,13 +2,15 @@ import {
   accountKindOf,
   accountKindOfType,
   type AccountKind,
-  type ImportPreset,
+  type ImportAccount,
+  type ImportInstitution,
 } from "../../shared/index.js";
 
 /*
  * What the everyday screens call a ledger account (PLAN.md §11 P1, P3). A
- * bank or card is named by the import preset that imports into it; any other
- * account by its own name. The account's name stays in `title` attributes.
+ * bank or card an import preset lists is named by the preset's account, found
+ * by its ledger id; any other account by its own name. The account's name
+ * stays in `title` attributes.
  */
 
 export interface AccountLabel {
@@ -17,32 +19,29 @@ export interface AccountLabel {
 }
 
 /**
- * The unique base accounts across the presets, in first-seen order: the
- * accounts Home lists, whether or not the ledger has them yet.
+ * Every account of the presets, in table order: the accounts Home lists,
+ * whether or not the ledger still has them.
  */
-export function importablePaths(presets: readonly ImportPreset[]): string[] {
-  return Array.from(new Set(presets.map((preset) => preset.base_account)));
+export function importableAccounts(
+  institutions: readonly ImportInstitution[],
+): ImportAccount[] {
+  return institutions.flatMap((institution) => institution.accounts);
 }
 
 /**
- * The name and kind of any account, by its name in the ledger. An account
- * named by one preset takes that preset's name; one shared by several (two
- * parsers for one bank) keeps its own name. It is a card when any preset
- * importing into it says so; otherwise the kind is read from the ledger
- * account's type, and an account the ledger doesn't have (a null type) is a
- * bank account.
+ * The name and kind of a ledger account, by its id. A preset account gives
+ * its name and whether it is a card; any other account keeps its own name,
+ * and its kind is read from its type.
  */
 export function accountLabel(
-  path: string,
-  accountType: string | null,
-  presets: readonly ImportPreset[],
+  account: { id: number; name: string; account_type: string | null },
+  institutions: readonly ImportInstitution[],
 ): AccountLabel {
-  const own = presets.filter((preset) => preset.base_account === path);
-  const names = new Set(own.map((preset) => preset.name));
-  return {
-    name: names.size === 1 ? Array.from(names)[0] : path,
-    kind: own.some((preset) => accountKindOf(preset.is_credit_card) === "card")
-      ? "card"
-      : accountKindOfType(accountType),
-  };
+  const preset = importableAccounts(institutions).find(
+    (one) => one.account_id === account.id,
+  );
+  if (preset) {
+    return { name: preset.name, kind: accountKindOf(preset.is_credit_card) };
+  }
+  return { name: account.name, kind: accountKindOfType(account.account_type) };
 }
