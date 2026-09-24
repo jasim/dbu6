@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileText } from "lucide-react";
 import type { SortDescriptor } from "@sapporta/grid";
@@ -13,6 +13,7 @@ import {
   type SchemaTableRowsByLevel,
   type SchemaTableGridViewSource,
   type TableGridActionsProps,
+  type TGridSession,
 } from "@sapporta/frontend";
 import { AppPage } from "@sapporta/frontend/shell";
 import {
@@ -74,6 +75,13 @@ function JournalsTableWithSchema({
   const [renderResult, setRenderResult] = useState<RenderResult | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
+  const [session, setSession] =
+    useState<TGridSession<SchemaTableRowsByLevel> | null>(null);
+  const singleJournalId = useMemo(
+    () => singleJournalIdFromUrl(searchParams, tableSchema),
+    [searchParams, tableSchema],
+  );
+  useExpandJournal(session, singleJournalId);
   const source = useMemo<SchemaTableGridViewSource>(
     () => ({
       table: tableSchema,
@@ -126,6 +134,7 @@ function JournalsTableWithSchema({
         source={source}
         route={route}
         registerAs={JOURNALS_TABLE}
+        sessionRef={setSession}
         actions={RenderHledgerAction}
         onNewRecord={
           tableSchema.immutable
@@ -146,6 +155,50 @@ function JournalsTableWithSchema({
       />
     </RenderHledgerContext.Provider>
   );
+}
+
+/**
+ * The journal the URL asks for by id, as "Open journal" links from the
+ * ledgers and reports do, or null when the page lists journals.
+ */
+function singleJournalIdFromUrl(
+  searchParams: URLSearchParams,
+  tableSchema: TableSchema,
+): string | null {
+  const { filters } = parseTableSearchParams(searchParams, tableSchema.columns);
+  const byId = filters.find(
+    (condition) => condition.column === "id" && condition.op === "eq",
+  );
+  return byId && "value" in byId ? String(byId.value) : null;
+}
+
+/**
+ * Opens the one journal the page was asked for, so its entries show without
+ * a click. It opens once per journal, when its row arrives; collapsing it
+ * afterwards sticks.
+ */
+function useExpandJournal(
+  session: TGridSession<SchemaTableRowsByLevel> | null,
+  journalId: string | null,
+) {
+  useEffect(() => {
+    if (!session || journalId === null) return;
+    const root = session.runtime.root;
+    let unsubscribe = () => {};
+    const expandOnceLoaded = () => {
+      const row = root
+        .displayedRows()
+        .rows.find(
+          (row) => row.kind === "data" && String(row.columns.id) === journalId,
+        );
+      if (!row) return;
+      unsubscribe();
+      root.expand(row.id);
+    };
+    unsubscribe = root.subscribeDisplayedRowSequence(expandOnceLoaded);
+    expandOnceLoaded();
+    return () => unsubscribe();
+  }, [session, journalId]);
 }
 
 async function loadCurrentTablePageJournalIds({
