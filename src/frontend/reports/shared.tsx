@@ -65,7 +65,7 @@ export function ReportResultBody<TInput = unknown>({
   return (
     <>
       {error ? <ReportError error={error} /> : null}
-      <div className="flex-1 overflow-auto bg-sap-surface">
+      <div className="report-result-body flex-1 overflow-auto bg-sap-surface">
         {result ? (
           <ReportGridDataset
             dataset={result}
