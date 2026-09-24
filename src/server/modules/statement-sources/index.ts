@@ -7,7 +7,22 @@ export {
   recognizeStatementFile,
   savedCustomStatementParserNames,
 } from "./statement-recognition.js";
-export { readImportPresets, type ImportPreset } from "./import-presets.js";
+export {
+  readImportPresets,
+  resolveImportAccount,
+  type ImportAccountRejectionReason,
+  type ImportAccountResolution,
+  type ImportPreset,
+} from "./import-presets.js";
+export {
+  applyImportPresetChanges,
+  presetAdditions,
+  validateImportPresets,
+  type AppliedPresetChanges,
+  type ImportPresetProblem,
+  type PresetAdditions,
+  type PresetInstitution,
+} from "./import-preset-changes.js";
 export {
   planAutoImport,
   type AutoImportGroup,
