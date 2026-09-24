@@ -3,7 +3,7 @@ import { unsafeAsChrono } from "../values/index.js";
 import { planJournals, type PlanRow } from "./JournalPlan.js";
 
 describe("JournalPlan source identity", () => {
-  it("keeps keys on itemized legs and leaves the aggregated base leg keyless", () => {
+  it("keeps keys on the counterparty leg and leaves the base leg keyless", () => {
     const row: PlanRow<number> = {
       transaction: {
         date: "2026-05-07",

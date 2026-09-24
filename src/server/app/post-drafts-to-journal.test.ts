@@ -132,6 +132,15 @@ describe("postDraftsToJournal", () => {
       },
     });
     expect(count("draft_transactions")).toBe(0);
+    // A journal per draft, described by its narration.
+    expect(
+      sqlite
+        .prepare(`SELECT description FROM journals WHERE id <> 10 ORDER BY id`)
+        .all(),
+    ).toEqual([
+      { description: "NOPII salary" },
+      { description: "NOPII grocer" },
+    ]);
     expect(
       sqlite
         .prepare(
@@ -186,7 +195,8 @@ describe("postDraftsToJournal", () => {
     `);
 
     const preview = renderDraftHledger(posting.db, 1, auth)?.hledger_journal;
-    expect(preview?.split("\n\n")).toHaveLength(5);
+    // A journal per draft: the two already here and the four above.
+    expect(preview?.split("\n\n")).toHaveLength(6);
     expect(postDraftsToJournal(posting, 1)).toMatchObject({ status: 200 });
 
     const postedIds = (

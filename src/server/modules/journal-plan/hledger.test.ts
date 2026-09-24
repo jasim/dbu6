@@ -36,7 +36,7 @@ function row(
 }
 
 describe("hledger text of a plan", () => {
-  it("renders a day's groups in order, each closing on its last row's balance", () => {
+  it("renders a journal per row, described by its narration, each day closing on its last row's balance", () => {
     const rows = unsafeAsChrono([
       row(
         "2026-02-01",
@@ -85,26 +85,32 @@ describe("hledger text of a plan", () => {
 
     expect(formatHledger(planJournals(rows, BASE), new Map())).toBe(
       [
-        "2026-02-01 Expenses",
-        "    Groceries                               100.00 ; NOPII grocer",
-        "    Eating Out                               50.00 ; NOPII cafe",
-        "    Sample Savings                         -150.00 = 850.00",
+        "2026-02-01 NOPII grocer",
+        "    Groceries                               100.00",
+        "    Sample Savings                         -100.00",
         "",
-        "2026-02-01 Deposits",
-        "    Sample Savings                          500.00 = 1350.00",
-        "    Salary                                 -500.00 ; NOPII salary",
+        "2026-02-01 NOPII cafe",
+        "    Eating Out                               50.00",
+        "    Sample Savings                          -50.00",
         "",
-        "2026-02-01 Expenses",
-        "    UNCATEGORIZED                            30.00 ; NOPII shop",
+        "2026-02-01 NOPII salary",
+        "    Sample Savings                          500.00",
+        "    Salary                                 -500.00",
+        "",
+        "2026-02-01 NOPII shop",
+        "    UNCATEGORIZED                            30.00",
         "    Sample Savings                          -30.00 = 1320.00",
         "",
-        "2026-02-02 Deposits",
-        "    Sample Savings                          300.00",
-        "    Refunds                                -200.00 ; NOPII refund",
-        "    Interest                               -100.00 ; NOPII interest",
+        "2026-02-02 NOPII refund",
+        "    Sample Savings                          200.00",
+        "    Refunds                                -200.00",
         "",
-        "2026-02-03 Expenses",
-        "    Plumbing Repairs                       1000.00 ; NOPII plumber",
+        "2026-02-02 NOPII interest",
+        "    Sample Savings                          100.00",
+        "    Interest                               -100.00",
+        "",
+        "2026-02-03 NOPII plumber",
+        "    Plumbing Repairs                       1000.00",
         "    Sample Savings                        -1000.00 = 620.00",
       ].join("\n"),
     );

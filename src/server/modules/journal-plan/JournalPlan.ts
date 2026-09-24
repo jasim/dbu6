@@ -1,10 +1,9 @@
-import { groupByDateAndType } from "./TransactionGroup.js";
 import type { Abacus } from "../statement/index.js";
-import type { Chrono } from "../values/index.js";
+import { type Chrono, isWithdrawal } from "../values/index.js";
 
 // A statement row on its way into the books. `account` is its counterparty;
 // `assertion` is the base account's balance after this row, which the plan
-// asserts when the row closes its group.
+// asserts when the row closes its day.
 export interface PlanRow<A> {
   transaction: Abacus;
   account: A;
@@ -32,63 +31,45 @@ export interface PlannedJournal<A> {
 export type JournalPlan<A> = PlannedJournal<A>[];
 
 /**
- * The journals a base account's statement rows become, in order: one per run
- * of same-date, same-direction rows. A withdrawal run lists each counterparty
- * and then the base account's total; a deposit run lists the base account's
- * total first. The base account's line asserts the run's last row's
- * `assertion`, and carries no source identity, since it sums several rows.
+ * The journals a base account's statement rows become: one per row, in order,
+ * described by the row's narration, as the statement is. A withdrawal lists
+ * the counterparty and then the base account; a deposit lists the base
+ * account first. The base account's line asserts the row's `assertion` only
+ * when the row closes its day, since within a day the books' order can differ
+ * from the statement's (the balance-check rule, in reconciliation). It carries
+ * no source identity: the counterparty's line holds that, and the narration
+ * too, where matching looks for it.
  */
 export function planJournals<A>(
   rows: Chrono<PlanRow<A>>,
   baseAccount: A,
 ): JournalPlan<A> {
-  return groupByDateAndType(rows).map((group) => {
-    const last = group.transactions[group.transactions.length - 1];
+  return rows.map((row, index) => {
+    const { transaction } = row;
+    const closesDay = rows[index + 1]?.transaction.date !== transaction.date;
     const base = (amount: number): PlannedEntry<A> => ({
       account: baseAccount,
       amount,
-      assertion: last.assertion,
+      assertion: closesDay ? row.assertion : null,
       comment: null,
       sourceReference: null,
       sourceTransactionKey: null,
     });
-    const counterparty = (
-      row: PlanRow<A>,
-      amount: number,
-    ): PlannedEntry<A> => ({
+    const counterparty = (amount: number): PlannedEntry<A> => ({
       account: row.account,
       amount,
       assertion: null,
-      comment: row.transaction.narration,
-      sourceReference: row.transaction.source_reference ?? null,
-      sourceTransactionKey: row.transaction.source_transaction_key ?? null,
+      comment: transaction.narration,
+      sourceReference: transaction.source_reference ?? null,
+      sourceTransactionKey: transaction.source_transaction_key ?? null,
     });
-
-    if (group.type === "withdrawal") {
-      let total = 0;
-      const entries = group.transactions.map((row) => {
-        total += row.transaction.withdrawal;
-        return counterparty(row, row.transaction.withdrawal);
-      });
-      return {
-        date: group.date,
-        description: "Expenses",
-        entries: [...entries, base(-total)],
-      };
-    }
-    const total = group.transactions.reduce(
-      (sum, row) => sum + row.transaction.deposit,
-      0,
-    );
+    const entries = isWithdrawal(transaction)
+      ? [counterparty(transaction.withdrawal), base(-transaction.withdrawal)]
+      : [base(transaction.deposit), counterparty(-transaction.deposit)];
     return {
-      date: group.date,
-      description: "Deposits",
-      entries: [
-        base(total),
-        ...group.transactions.map((row) =>
-          counterparty(row, -row.transaction.deposit),
-        ),
-      ],
+      date: transaction.date,
+      description: transaction.narration,
+      entries,
     };
   });
 }

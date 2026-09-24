@@ -75,7 +75,7 @@ export async function runDraftImport(
     categorization.rows,
   );
   const { sameAccountSkips } = categorization;
-  // The statement's running balance after every row, so each group asserts
+  // The statement's running balance after every row, so each day asserts
   // where it ends. Each row shows the account its answer named.
   const hledgerJournal = formatHledger(
     planJournals(
