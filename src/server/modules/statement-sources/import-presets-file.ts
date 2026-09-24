@@ -1,11 +1,12 @@
 import { readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import {
   parserNameSchema,
   statementAccountIdentifierSchema,
   type ImportAccount,
 } from "../../../shared/index.js";
-import { userConfigPath } from "../../paths.js";
+import { userConfigDir } from "../../paths.js";
 import type { PresetInstitution } from "./import-preset-changes.js";
 
 /*
@@ -35,15 +36,18 @@ const importPresetsFileSchema = z.array(importPresetSchema);
 
 const IMPORT_PRESETS_FILE = "import-presets.json";
 
-export function importPresetsFilePath(): string {
-  return userConfigPath(IMPORT_PRESETS_FILE);
+/** The file in `root`'s user-config/, the running project's by default. */
+export function importPresetsFilePath(root?: string): string {
+  return join(userConfigDir(root), IMPORT_PRESETS_FILE);
 }
 
 /** The file's presets, or null when there is no file. Malformed throws. */
-export async function readImportPresetsFile(): Promise<ImportPreset[] | null> {
+export async function readImportPresetsFile(
+  root?: string,
+): Promise<ImportPreset[] | null> {
   let raw: string;
   try {
-    raw = await readFile(importPresetsFilePath(), "utf8");
+    raw = await readFile(importPresetsFilePath(root), "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;
@@ -51,8 +55,8 @@ export async function readImportPresetsFile(): Promise<ImportPreset[] | null> {
   return importPresetsFileSchema.parse(JSON.parse(raw));
 }
 
-export async function deleteImportPresetsFile(): Promise<void> {
-  await rm(importPresetsFilePath());
+export async function deleteImportPresetsFile(root?: string): Promise<void> {
+  await rm(importPresetsFilePath(root));
 }
 
 export type ImportPresetsFileConversion =

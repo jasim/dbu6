@@ -446,85 +446,102 @@ async function checkImportPresets(
   root: string,
   dir: string,
 ): Promise<CheckLine[]> {
-  const lines: CheckLine[] = [];
-  if (existsSync(join(dir, "import-presets.json"))) {
-    lines.push(
-      fail(
-        "user-config/import-presets.json",
-        "import presets now live in the database, and this file is no longer read. Convert it with " +
-          `\`sapporta api post /api/import-presets/import-json --body '{"apply":false}'\`, then ` +
-          `\`--body '{"apply":true}'\`, with the app running (\`${guideCommand("books")}\` shows how).`,
-      ),
-    );
-  }
-
-  const name = "Import presets";
+  const leftover = existsSync(join(dir, "import-presets.json"));
   const file = databaseFile(root);
-  if (!existsSync(file)) return lines;
+  if (!existsSync(file)) {
+    return leftover
+      ? [leftoverPresetsFile("the database, once `dbu6 migrate` creates it")]
+      : [];
+  }
   const { default: Database } = await import("better-sqlite3");
   const sqlite = new Database(file, { readonly: true });
   try {
-    let institutions;
-    try {
-      institutions = readEveryImportPreset(sqlite);
-    } catch (error) {
-      return [...lines, fail(name, messageOf(error))];
-    }
-    if (institutions === null) {
-      return [
-        ...lines,
-        info(
-          name,
-          "the database has no import_presets table until it migrates",
-        ),
-      ];
-    }
-    const ledgerIds = new Set(
-      sqlite.prepare("SELECT id FROM accounts").pluck().all() as number[],
-    );
-
-    const problems: string[] = [];
-    for (const institution of institutions) {
-      for (const parser of institution.parsers) {
-        if ((await parserDirectory(parser)) === null) {
-          problems.push(
-            `"${institution.name}" lists parser ${parser}, which is in none of:\n` +
-              parserRoots()
-                .map((root) => `  ${root}`)
-                .join("\n"),
-          );
-        }
-      }
-      for (const account of institution.accounts) {
-        if (!ledgerIds.has(account.account_id)) {
-          problems.push(
-            `"${account.name}" of "${institution.name}" imports into ledger account ${account.account_id}, which was deleted`,
-          );
-        }
-        for (const mappings of account.custom_mappings_filenames) {
-          if (!existsSync(join(dir, mappings))) {
-            problems.push(
-              `"${account.name}" of "${institution.name}" lists user-config/${mappings}, which does not exist`,
-            );
-          }
-        }
-      }
-    }
-    const accounts = institutions.flatMap((one) => one.accounts).length;
-    lines.push(
-      problems.length > 0
-        ? fail(name, problems.join("\n"))
-        : institutions.length === 0
-          ? info(name, "none; the automatic import has no presets")
-          : ok(
-              name,
-              `${institutions.length} institution(s), ${accounts} account(s)`,
-            ),
-    );
-    return lines;
+    return await checkPresetRows(sqlite, dir, leftover);
   } finally {
     sqlite.close();
   }
+}
+
+// user-config/import-presets.json is moved into the database by migration
+// 0008 (data-migrations/import-presets-from-file.ts), which keeps it when it
+// can't convert it, and says why.
+function leftoverPresetsFile(movesInto: string | null): CheckLine {
+  const name = "user-config/import-presets.json";
+  if (movesInto !== null) {
+    return info(name, `no longer read; it moves into ${movesInto}`);
+  }
+  return fail(
+    name,
+    "no longer read: import presets live in the database, and the migration that moves them there kept this file because it could not convert it (it printed why). " +
+      "Fix what it named, then convert the file with the app running: " +
+      `\`sapporta api post /api/import-presets/import-json --body '{"apply":false}'\`, then ` +
+      `\`--body '{"apply":true}'\` (\`${guideCommand("books")}\` shows how). ` +
+      "If the database holds these presets already, delete the file.",
+  );
+}
+
+async function checkPresetRows(
+  sqlite: import("better-sqlite3").Database,
+  dir: string,
+  leftover: boolean,
+): Promise<CheckLine[]> {
+  const name = "Import presets";
+  let institutions;
+  try {
+    institutions = readEveryImportPreset(sqlite);
+  } catch (error) {
+    return [fail(name, messageOf(error))];
+  }
+  if (institutions === null) {
+    return [
+      ...(leftover ? [leftoverPresetsFile("the database as it migrates")] : []),
+      info(name, "the database has no import_presets table until it migrates"),
+    ];
+  }
+  const lines = leftover ? [leftoverPresetsFile(null)] : [];
+  const ledgerIds = new Set(
+    sqlite.prepare("SELECT id FROM accounts").pluck().all() as number[],
+  );
+
+  const problems: string[] = [];
+  for (const institution of institutions) {
+    for (const parser of institution.parsers) {
+      if ((await parserDirectory(parser)) === null) {
+        problems.push(
+          `"${institution.name}" lists parser ${parser}, which is in none of:\n` +
+            parserRoots()
+              .map((root) => `  ${root}`)
+              .join("\n"),
+        );
+      }
+    }
+    for (const account of institution.accounts) {
+      if (!ledgerIds.has(account.account_id)) {
+        problems.push(
+          `"${account.name}" of "${institution.name}" imports into ledger account ${account.account_id}, which was deleted`,
+        );
+      }
+      for (const mappings of account.custom_mappings_filenames) {
+        if (!existsSync(join(dir, mappings))) {
+          problems.push(
+            `"${account.name}" of "${institution.name}" lists user-config/${mappings}, which does not exist`,
+          );
+        }
+      }
+    }
+  }
+  const accounts = institutions.flatMap((one) => one.accounts).length;
+  lines.push(
+    problems.length > 0
+      ? fail(name, problems.join("\n"))
+      : institutions.length === 0
+        ? info(name, "none; the automatic import has no presets")
+        : ok(
+            name,
+            `${institutions.length} institution(s), ${accounts} account(s)`,
+          ),
+  );
+  return lines;
 }
 
 async function checkSettings(dir: string): Promise<CheckLine> {

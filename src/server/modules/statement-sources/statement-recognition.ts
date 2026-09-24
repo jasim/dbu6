@@ -35,8 +35,11 @@ class ParserRejectedFile extends Error {}
 // The directory a saved parser runs from: the first parser root that holds
 // `<name>/parser.py`, so the user's parser shadows ours of the same name.
 // `null` when no root has it.
-export async function parserDirectory(parserName: string): Promise<string | null> {
-  for (const root of parserRoots()) {
+export async function parserDirectory(
+  parserName: string,
+  projectRoot?: string,
+): Promise<string | null> {
+  for (const root of parserRoots(projectRoot)) {
     const directory = path.join(root, parserName);
     try {
       await access(path.join(directory, "parser.py"));

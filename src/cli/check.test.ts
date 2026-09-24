@@ -305,6 +305,21 @@ describe("checkConfig", () => {
     expect(lines[3]!.detail).toContain("does not parse");
   });
 
+  it("expects a presets file the pending migration will move into the database", async () => {
+    write("user-config/import-presets.json", "[]\n");
+    mkdirSync(join(root, "data"), { recursive: true });
+    const sqlite = new Database(join(root, "data", "sqlite.db"));
+    migrateUpTo(sqlite, FIRST_LEDGER_MIGRATION);
+    sqlite.close();
+
+    const lines = await checkConfig(root);
+
+    expect(byName(lines, "user-config/import-presets.json")).toMatchObject({
+      status: "info",
+      detail: expect.stringContaining("moves into the database"),
+    });
+  });
+
   it("passes the example config and presets that name what exists", async () => {
     cpSync(packageDir("user-config.example"), join(root, "user-config"), {
       recursive: true,

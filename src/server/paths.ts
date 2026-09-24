@@ -126,8 +126,8 @@ export function packageParsersDir(): string {
  * the two are the same (`dbu6 parser` in this repository), compared by real
  * path.
  */
-export function parserRoots(): string[] {
-  const roots = [join(projectRoot(), PARSERS_DIR), packageParsersDir()];
+export function parserRoots(root: string = projectRoot()): string[] {
+  const roots = [join(root, PARSERS_DIR), packageParsersDir()];
   const seen = new Set<string>();
   return roots.filter((root) => {
     const real = realPathOrSelf(root);

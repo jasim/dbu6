@@ -57,6 +57,13 @@
       "when": 1790275192129,
       "tag": "0007_import_presets",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790277425942,
+      "tag": "0008_import_presets_from_file",
+      "breakpoints": true
     }
   ]
 }

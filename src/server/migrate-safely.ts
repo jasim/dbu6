@@ -8,6 +8,11 @@
  * thing about the books takes the original's place. Whatever happens, the
  * copy is gone when this returns or throws.
  *
+ * A migration with a data step (data-migrations/) runs it on the copy right
+ * after its SQL, before the fingerprint is compared. What a step removes from
+ * the project, such as a config file whose contents it moved into the copy,
+ * it removes only after the copy has taken the original's place.
+ *
  *   sqlite.db            the database
  *   sqlite.db.migrating  the copy being migrated
  *   sqlite.db.replaced   the original, for the instant between the two renames
@@ -31,6 +36,7 @@ import { dirname, join } from "node:path";
 import Database from "better-sqlite3";
 import { applyMigrations, pendingMigrations } from "@sapporta/server";
 import { acquireDataLock, DataLockHeldError } from "./data-lock.js";
+import { DATA_STEPS, type DataStep } from "./data-migrations/index.js";
 import {
   FIGURES_A_MIGRATION_CHANGES,
   fingerprintDifferences,
@@ -42,7 +48,12 @@ import { databaseFile, dbu6MigrationsDir } from "./paths.js";
 
 export type MigrateSafelyResult =
   | { status: "up-to-date" }
-  | { status: "migrated"; applied: string[] }
+  | {
+      status: "migrated";
+      applied: string[];
+      /** What the data steps said, for the person running the migration. */
+      notes: string[];
+    }
   | {
       status: "rejected";
       /** The migration that failed or changed the books; null when none ran. */
@@ -56,6 +67,7 @@ export type MigrateSafelyResult =
 export interface MigrateSafelyOptions {
   migrationsDir?: string;
   figuresChanged?: Readonly<Record<string, readonly FigureKind[]>>;
+  dataSteps?: Readonly<Record<string, DataStep>>;
 }
 
 export async function migrateSafely(
@@ -81,9 +93,11 @@ export async function migrateSafely(
   try {
     settleLeftovers(file);
     return await migrateCopy(
+      root,
       file,
       options.migrationsDir ?? dbu6MigrationsDir(),
       options.figuresChanged ?? FIGURES_A_MIGRATION_CHANGES,
+      options.dataSteps ?? DATA_STEPS,
     );
   } finally {
     // Every way out, a thrown error included: no copy stays behind, and an
@@ -130,9 +144,11 @@ function settleLeftovers(file: string): void {
 }
 
 async function migrateCopy(
+  root: string,
   file: string,
   migrationsDir: string,
   figuresChanged: Readonly<Record<string, readonly FigureKind[]>>,
+  dataSteps: Readonly<Record<string, DataStep>>,
 ): Promise<MigrateSafelyResult> {
   const copyPath = copyOf(file);
   let before;
@@ -155,6 +171,8 @@ async function migrateCopy(
   // A project with no database yet: the copy starts empty and becomes it.
   const copy = new Database(copyPath);
   const applied: string[] = [];
+  const notes: string[] = [];
+  const afterCommit: (() => Promise<void>)[] = [];
   try {
     // A rollback journal rather than a WAL, so the migrated copy is one file
     // when it is renamed. The server sets WAL again when it opens it.
@@ -166,6 +184,12 @@ async function migrateCopy(
       if (tag === undefined) break;
       try {
         applyNextMigration(copy, migrationsDir);
+        const step = dataSteps[tag];
+        if (step) {
+          const outcome = await step(copy, root);
+          if (outcome.note !== null) notes.push(outcome.note);
+          if (outcome.afterCommit) afterCommit.push(outcome.afterCommit);
+        }
       } catch (err) {
         return {
           status: "rejected",
@@ -207,7 +231,15 @@ async function migrateCopy(
   }
 
   putCopyInPlace(file);
-  return { status: "migrated", applied };
+  for (const step of afterCommit) {
+    try {
+      await step();
+    } catch (err) {
+      // The books are migrated; what is left over is the project's to tidy.
+      notes.push(`Could not finish after migrating: ${errorMessage(err)}`);
+    }
+  }
+  return { status: "migrated", applied, notes };
 }
 
 /**
