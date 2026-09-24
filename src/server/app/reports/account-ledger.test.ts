@@ -81,7 +81,6 @@ describe("Account Ledger journal entry query", () => {
         account_name: "Bank",
         debit: 100,
         credit: 0,
-        assertion: 900,
         comment: "Bank line",
       },
       {
@@ -91,7 +90,6 @@ describe("Account Ledger journal entry query", () => {
         account_name: "Groceries",
         debit: 0,
         credit: 100,
-        assertion: null,
         comment: "Counterpart line",
       },
     ]);
@@ -99,133 +97,202 @@ describe("Account Ledger journal entry query", () => {
 });
 
 describe("Account Ledger result", () => {
-  it("lists the journals as its rows, their entries nested in order, under the account's name", () => {
+  const line = (
+    entry_id: number,
+    journal_id: number,
+    [account_id, account_name]: [number, string],
+    debit: number,
+    credit: number,
+    comment: string | null,
+  ) => ({
+    entry_id,
+    journal_id,
+    account_id,
+    account_name,
+    debit,
+    credit,
+    comment,
+  });
+  const bank: [number, string] = [1, "Bank"];
+  const income: [number, string] = [3, "Income"];
+  const food: [number, string] = [4, "Food"];
+  const fuel: [number, string] = [5, "Fuel"];
+  const loan: [number, string] = [6, "Loan"];
+  const interest: [number, string] = [7, "Interest"];
+
+  const journals = [
+    // A statement row, as the importer writes one now.
+    {
+      journal_id: 10,
+      date: "2026-01-10",
+      description: "NOPII sample employer",
+    },
+    // A day's statement rows, as the importer grouped them before.
+    { journal_id: 11, date: "2026-01-12", description: "Expenses" },
+    // A compound entry: one bank payment, two expenses, each with a memo.
+    { journal_id: 12, date: "2026-01-15", description: "Loan instalment" },
+  ];
+  const lines = [
+    line(101, 10, bank, 2000, 0, null),
+    line(102, 10, income, 0, 2000, "NOPII sample employer"),
+    line(111, 11, food, 100, 0, "UPI-sample-grocer-050505"),
+    line(112, 11, fuel, 50, 0, "UPI-sample-fuel-050505"),
+    line(113, 11, bank, 0, 150, null),
+    line(121, 12, loan, 800, 0, "Principal"),
+    line(122, 12, interest, 200, 0, "Interest"),
+    line(123, 12, bank, 0, 1000, null),
+  ];
+
+  it("gives each line on the account a row against the other side, under the account's name", () => {
     const result = toAccountLedgerResult(
-      {
-        id: 1,
-        name: "Bank",
-        opening_balance: 50,
-      },
-      [
-        {
-          journal_id: 10,
-          date: "2026-01-10",
-          description: "Deposit",
-          accounts: "Income",
-          debit: 20,
-          credit: 0,
-        },
-        {
-          journal_id: 11,
-          date: "2026-01-12",
-          description: "Fee",
-          accounts: "Bank Fees",
-          debit: 0,
-          credit: 5,
-        },
-      ],
-      [
-        {
-          entry_id: 102,
-          journal_id: 10,
-          account_id: 3,
-          account_name: "Income",
-          debit: 0,
-          credit: 20,
-          assertion: null,
-          comment: null,
-        },
-        {
-          entry_id: 101,
-          journal_id: 10,
-          account_id: 1,
-          account_name: "Bank",
-          debit: 20,
-          credit: 0,
-          assertion: 70,
-          comment: "Matched line",
-        },
-        {
-          entry_id: 201,
-          journal_id: 11,
-          account_id: 1,
-          account_name: "Bank",
-          debit: 0,
-          credit: 5,
-          assertion: null,
-          comment: "Monthly fee",
-        },
-      ],
+      { id: 1, name: "Bank", opening_balance: 50 },
+      [1],
+      journals,
+      lines,
       "2026-01-01",
     );
 
     expect(() => gridDatasetSchema.parse(result)).not.toThrow();
     expect(result.label).toBe("Account Ledger: Bank");
     expect(result.rootLevel).toBe("entries");
-    expect(result.levels.entries).toMatchObject({
-      childLevels: ["journal_entries"],
-      defaultCollapsed: true,
-    });
+    // Against before the narration; the journal a link away, not nested.
+    const entries = result.levels.entries;
     expect(
-      result.levels.journal_entries?.columns.map((column) => column.id),
+      entries?.columns
+        .filter((column) => !column.visuallyHidden)
+        .map((column) => column.id),
+    ).toEqual(["date", "against", "narration", "debit", "credit", "balance"]);
+    expect(entries?.childLevels).toEqual([]);
+    expect(entries?.rowLinks?.map((link) => link.label)).toEqual([
+      "Open journal",
+      "Open journal entry",
+    ]);
+
+    const rows = result.nodes;
+    expect(rows[0]).toMatchObject({
+      rowKey: "opening:2026-01-01",
+      kind: "opening",
+    });
+    expect(rows[0]?.children).toBeUndefined();
+    expect(
+      rows.slice(1).map(({ rowKey, columns }) => ({
+        rowKey,
+        narration: columns.narration,
+        against: columns.against,
+        against_account_id: columns.against_account_id,
+        debit: columns.debit,
+        credit: columns.credit,
+        balance: columns.balance,
+      })),
     ).toEqual([
-      "entry_id",
-      "account_id",
-      "account_name",
-      "debit",
-      "credit",
-      "assertion",
-      "comment",
-    ]);
-
-    const ledgerRows = result.nodes;
-    expect(ledgerRows.map((row) => row.rowKey)).toEqual([
-      "opening:2026-01-01",
-      "journal:10",
-      "journal:11",
-    ]);
-    expect(ledgerRows[0]?.kind).toBe("opening");
-    expect(ledgerRows[0]?.children).toBeUndefined();
-    expect(ledgerRows[1]?.columns.balance).toBe(70);
-    expect(ledgerRows[2]?.columns.balance).toBe(65);
-
-    const firstJournalEntries = ledgerRows[1]?.children?.journal_entries ?? [];
-    expect(firstJournalEntries.map((row) => row.rowKey)).toEqual([
-      "entry:101",
-      "entry:102",
-    ]);
-    expect(firstJournalEntries.map((row) => row.columns)).toEqual([
+      // One line against one: the statement row's narration, from the
+      // counterparty's line.
       {
-        entry_id: 101,
-        journal_id: 10,
-        account_id: 1,
-        account_name: "Bank",
-        debit: 20,
+        rowKey: "entry:101",
+        narration: "NOPII sample employer",
+        against: "Income",
+        against_account_id: 3,
+        debit: 2000,
         credit: 0,
-        assertion: 70,
-        comment: "Matched line",
+        balance: 2050,
+      },
+      // The grouped day comes apart into its statement rows.
+      {
+        rowKey: "entry:113:111",
+        narration: "UPI-sample-grocer-050505",
+        against: "Food",
+        against_account_id: 4,
+        debit: 0,
+        credit: 100,
+        balance: 1950,
       },
       {
-        entry_id: 102,
-        journal_id: 10,
-        account_id: 3,
-        account_name: "Income",
+        rowKey: "entry:113:112",
+        narration: "UPI-sample-fuel-050505",
+        against: "Fuel",
+        against_account_id: 5,
         debit: 0,
-        credit: 20,
-        assertion: null,
-        comment: null,
+        credit: 50,
+        balance: 1900,
+      },
+      // The compound entry stays one payment, against both accounts.
+      {
+        rowKey: "entry:123",
+        narration: "Loan instalment",
+        against: "Loan, Interest",
+        against_account_id: null,
+        debit: 0,
+        credit: 1000,
+        balance: 900,
       },
     ]);
+
+    expect(rows.some((row) => row.children)).toBe(false);
 
     // The opening balance counts toward the closing balance but not toward
     // the period's debit and credit totals.
     expect(result.footerRows?.map((row) => row.columns)).toEqual([
-      { description: "Closing balance", debit: 20, credit: 5, balance: 65 },
+      {
+        against: "Closing balance",
+        debit: 2000,
+        credit: 1150,
+        balance: 900,
+      },
+    ]);
+  });
+
+  it("puts a line that shares its side against the one line opposite, in its own words", () => {
+    const result = toAccountLedgerResult(
+      { id: 4, name: "Food", opening_balance: 0 },
+      [4],
+      [journals[1]],
+      lines.filter((entry) => entry.journal_id === 11),
+      null,
+    );
+
+    expect(result.nodes.map((row) => row.columns)).toEqual([
+      {
+        journal_id: 11,
+        date: "2026-01-12",
+        entry_id: 111,
+        narration: "UPI-sample-grocer-050505",
+        against: "Bank",
+        against_account_id: 1,
+        debit: 100,
+        credit: 0,
+        balance: 100,
+      },
+    ]);
+  });
+
+  it("gives each of the account's lines its own row when a journal moves money inside it", () => {
+    const transfer = [
+      line(131, 13, [2, "Savings"], 500, 0, null),
+      line(132, 13, bank, 0, 500, null),
+    ];
+    const result = toAccountLedgerResult(
+      { id: 8, name: "Assets", opening_balance: 0 },
+      [8, 1, 2],
+      [{ journal_id: 13, date: "2026-01-20", description: "NOPII transfer" }],
+      transfer,
+      null,
+    );
+
+    expect(
+      result.nodes.map(({ columns }) => [
+        columns.against,
+        columns.debit,
+        columns.credit,
+        columns.balance,
+      ]),
+    ).toEqual([
+      ["Bank", 500, 0, 500],
+      ["Savings", 0, 500, 0],
     ]);
   });
 
   it("is empty for an account out of scope", () => {
-    const result = toAccountLedgerResult(null, [], [], null);
+    const result = toAccountLedgerResult(null, [], [], [], null);
 
     expect(() => gridDatasetSchema.parse(result)).not.toThrow();
     expect(result.label).toBe("Account Ledger");

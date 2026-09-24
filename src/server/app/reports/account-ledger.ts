@@ -46,31 +46,14 @@ api.register(
     WHERE a.id = @accountId`,
       treeParams(query),
     );
-    const rows = ledger.all<AccountLedgerTransactionRow>(
+    const journals = ledger.all<AccountLedgerJournalRow>(
       `${accountTreeCte}
-    SELECT
-      j.id AS journal_id,
-      j.date,
-      j.description,
-      COALESCE(SUM(je.debit), 0) AS debit,
-      COALESCE(SUM(je.credit), 0) AS credit,
-      (
-        SELECT GROUP_CONCAT(name, ', ')
-        FROM (
-          SELECT DISTINCT a.name
-          FROM scoped_journal_entries je2
-          JOIN scoped_accounts a ON a.id = je2.account_id
-          WHERE je2.journal_id = j.id
-            AND je2.account_id NOT IN (SELECT id FROM account_tree)
-          ORDER BY a.name
-        )
-      ) AS accounts
+    SELECT DISTINCT j.id AS journal_id, j.date, j.description
     FROM scoped_journal_entries je
     JOIN scoped_journals j ON j.id = je.journal_id
     WHERE je.account_id IN (SELECT id FROM account_tree)
       AND (@fromDate IS NULL OR j.date >= @fromDate)
       AND (@toDate IS NULL OR j.date <= @toDate)
-    GROUP BY j.id, j.date, j.description
     ORDER BY j.date, j.id`,
       treeParams(query),
     );
@@ -80,7 +63,8 @@ api.register(
       status: 200,
       body: toAccountLedgerResult(
         account,
-        rows,
+        query.accountIds,
+        journals,
         journalEntries,
         request.query.from_date ?? null,
       ),
@@ -94,13 +78,10 @@ type AccountInfoRow = {
   opening_balance: number;
 };
 
-type AccountLedgerTransactionRow = {
+type AccountLedgerJournalRow = {
   journal_id: number;
   date: string;
   description: string;
-  accounts: string | null;
-  debit: number;
-  credit: number;
 };
 
 type AccountLedgerJournalEntryRow = {
@@ -110,7 +91,6 @@ type AccountLedgerJournalEntryRow = {
   account_name: string;
   debit: number;
   credit: number;
-  assertion: number | null;
   comment: string | null;
 };
 
@@ -167,7 +147,6 @@ export function loadAccountLedgerJournalEntries(
       a.name AS account_name,
       je.debit,
       je.credit,
-      je.account_balance_assertion AS assertion,
       je.comment
     FROM scoped_journal_entries je
     JOIN matching_journals mj ON mj.id = je.journal_id
@@ -178,61 +157,149 @@ export function loadAccountLedgerJournalEntries(
 }
 
 /**
- * The account's journals in the period as the report's rows, each with the
- * balance it leaves and, collapsed under it, the journal's lines. The label
- * names the account, for the screen's title; the footer closes the period.
+ * One row of the ledger: an amount the account moved, the account it moved
+ * against, and why.
+ */
+export type LedgerPosting = {
+  key: string;
+  entry_id: number;
+  narration: string;
+  against: string | null;
+  /** Set when the row is against one account, for its ledger link. */
+  against_account_id: number | null;
+  debit: number;
+  credit: number;
+};
+
+/**
+ * A journal's rows in the ledger: one per line on the ledger's accounts, in
+ * line order, against the lines on the journal's other side. Double entry
+ * says only that the sides balance, not which debit met which credit, so a
+ * line has one account against it only where the journal makes that exact:
+ *
+ * - The other side is one line: the row is against it. Narrated by the
+ *   line's own comment, else that line's, else the journal's description.
+ * - The journal is a day of statement rows as the importer grouped them
+ *   before it wrote one journal per row (`isGroupedImport`), and the line is
+ *   the statement account's, alone on its side: one row per statement row,
+ *   for its amount, narrated by its comment.
+ * - Otherwise, a compound entry such as a salary or a loan instalment: one row
+ *   for the line, against every account on the other side, narrated by the
+ *   line's comment, else the journal's description.
+ */
+export function ledgerPostings(
+  journal: AccountLedgerJournalRow,
+  lines: readonly AccountLedgerJournalEntryRow[],
+  inLedger: (accountId: number) => boolean,
+): LedgerPosting[] {
+  const side = (line: AccountLedgerJournalEntryRow) =>
+    Math.sign(Number(line.debit) - Number(line.credit));
+  const amount = (line: AccountLedgerJournalEntryRow) =>
+    Math.abs(Number(line.debit) - Number(line.credit));
+
+  return lines
+    .filter((line) => inLedger(line.account_id))
+    .flatMap((line): LedgerPosting[] => {
+      const direction = side(line);
+      const posting = (
+        key: string,
+        value: number,
+        narration: string,
+        against: readonly AccountLedgerJournalEntryRow[],
+      ): LedgerPosting => ({
+        key,
+        entry_id: line.entry_id,
+        narration,
+        against:
+          [...new Set(against.map((other) => other.account_name))].join(", ") ||
+          null,
+        against_account_id: against.length === 1 ? against[0].account_id : null,
+        debit: direction > 0 ? value : 0,
+        credit: direction < 0 ? value : 0,
+      });
+      const others = lines.filter((other) => other !== line);
+      const opposite = others.filter(
+        (other) => direction !== 0 && side(other) === -direction,
+      );
+
+      if (opposite.length === 1) {
+        return [
+          posting(
+            `entry:${line.entry_id}`,
+            amount(line),
+            narrate(line.comment, opposite[0].comment, journal.description),
+            opposite,
+          ),
+        ];
+      }
+      const alone = others.every((other) => side(other) !== direction);
+      if (
+        direction !== 0 &&
+        alone &&
+        opposite.length > 1 &&
+        isGroupedImport(journal)
+      ) {
+        return opposite.map((other) =>
+          posting(
+            `entry:${line.entry_id}:${other.entry_id}`,
+            amount(other),
+            narrate(other.comment, journal.description),
+            [other],
+          ),
+        );
+      }
+      return [
+        posting(
+          `entry:${line.entry_id}`,
+          amount(line),
+          narrate(line.comment, journal.description),
+          opposite.length > 0 ? opposite : others,
+        ),
+      ];
+    });
+}
+
+/**
+ * The account's postings in the period as the report's rows (`ledgerPostings`),
+ * each with the balance it leaves and links to its journal. The label names
+ * the account, for the screen's title; the footer closes the period.
  */
 export function toAccountLedgerResult(
   account: AccountInfoRow | null,
-  rows: AccountLedgerTransactionRow[],
+  accountIds: readonly number[],
+  journals: AccountLedgerJournalRow[],
   journalEntryRows: AccountLedgerJournalEntryRow[],
   fromDate: string | null,
 ): GridDataset {
-  const levelColumns = {
-    entries: [
-      hiddenIdColumn("journal_id", "Journal ID"),
-      dateColumn("date", "Date", { width: 15 }),
-      // The text columns give way so the amounts, and the balance footer
-      // under them, stay on screen at laptop widths.
-      textColumn("description", "Description", {
-        minWidth: 20,
-        maxWidth: 56,
-        links: [openRecordLink("journals", "journal_id", "Open journal")],
-      }),
-      textColumn("accounts", "Accounts", { minWidth: 16, maxWidth: 52 }),
-      moneyColumn("debit", "Debit", { width: 16, zeroDisplay: "blank" }),
-      moneyColumn("credit", "Credit", { width: 16, zeroDisplay: "blank" }),
-      moneyColumn("balance", "Balance", { width: 18, strong: true }),
-    ],
-    journal_entries: [
-      hiddenIdColumn("entry_id", "Entry ID"),
-      hiddenIdColumn("account_id", "Account ID"),
-      textColumn("account_name", "Account", { minWidth: 16, maxWidth: 52 }),
-      moneyColumn("debit", "Debit", { width: 16, zeroDisplay: "blank" }),
-      moneyColumn("credit", "Credit", { width: 16, zeroDisplay: "blank" }),
-      moneyColumn("assertion", "Balance Assertion", {
-        width: 18,
-        strong: true,
-      }),
-      textColumn("comment", "Comment", {
-        minWidth: 20,
-        maxWidth: 56,
-        textDisplay: "multiLine",
-      }),
-    ],
-  };
+  const openJournal = openRecordLink("journals", "journal_id", "Open journal");
   const levels = {
     entries: {
-      columns: levelColumns.entries,
-      childLevels: ["journal_entries"],
-      defaultCollapsed: true,
-    },
-    journal_entries: {
-      columns: levelColumns.journal_entries,
+      // As a ledger book reads: the account on the other side, then why. The
+      // short, fixed-width name lines up down the page; the narration, long
+      // and cut to fit, takes the room left before the amounts.
+      columns: [
+        hiddenIdColumn("journal_id", "Journal ID"),
+        hiddenIdColumn("entry_id", "Entry ID"),
+        hiddenIdColumn("against_account_id", "Against Account ID"),
+        dateColumn("date", "Date", { width: 15 }),
+        // The text columns give way so the amounts, and the balance footer
+        // under them, stay on screen at laptop widths. The screen links
+        // Against to that account's ledger for the same period.
+        textColumn("against", "Against", { minWidth: 16, maxWidth: 40 }),
+        textColumn("narration", "Narration", {
+          minWidth: 20,
+          maxWidth: 56,
+          links: [openJournal],
+        }),
+        moneyColumn("debit", "Debit", { width: 16, zeroDisplay: "blank" }),
+        moneyColumn("credit", "Credit", { width: 16, zeroDisplay: "blank" }),
+        moneyColumn("balance", "Balance", { width: 18, strong: true }),
+      ],
       childLevels: [],
+      // The journal's other lines are a click away, not nested in the page.
       rowLinks: [
+        openJournal,
         openRecordLink("journal_entries", "entry_id", "Open journal entry"),
-        openRecordLink("accounts", "account_id", "Open account"),
       ],
     },
   };
@@ -246,25 +313,28 @@ export function toAccountLedgerResult(
     };
   }
 
+  const ledgerAccounts = new Set(accountIds);
+  const inLedger = (accountId: number) => ledgerAccounts.has(accountId);
   const openingBalance = Number(account.opening_balance);
   let balance = openingBalance;
   const journalEntries = groupJournalEntries(journalEntryRows);
-  const entries = rows.map((row) => {
-    balance += Number(row.debit ?? 0) - Number(row.credit ?? 0);
-    return {
-      rowKey: `journal:${row.journal_id}`,
-      levelName: "entries",
-      columns: { ...row, balance },
-      children: {
-        journal_entries: (journalEntries.get(row.journal_id) ?? []).map(
-          (entry) => ({
-            rowKey: `entry:${entry.entry_id}`,
-            levelName: "journal_entries",
-            columns: entry,
-          }),
-        ),
+  const postings = journals.flatMap((journal) => {
+    const lines = journalEntries.get(journal.journal_id) ?? [];
+    return ledgerPostings(journal, lines, inLedger).map(
+      ({ key, ...posting }) => {
+        balance += posting.debit - posting.credit;
+        return {
+          rowKey: key,
+          levelName: "entries",
+          columns: {
+            journal_id: journal.journal_id,
+            date: journal.date,
+            ...posting,
+            balance,
+          },
+        };
       },
-    };
+    );
   });
   const opening =
     fromDate !== null && openingBalance !== 0
@@ -275,9 +345,11 @@ export function toAccountLedgerResult(
             kind: "opening" as const,
             columns: {
               journal_id: null,
+              entry_id: null,
+              against_account_id: null,
               date: fromDate,
-              description: "Opening balance",
-              accounts: null,
+              against: "Opening balance",
+              narration: null,
               debit: 0,
               credit: 0,
               balance: openingBalance,
@@ -285,27 +357,44 @@ export function toAccountLedgerResult(
           },
         ]
       : [];
+  const postingColumns = postings.map((posting) => posting.columns);
   return {
     name: "account-ledger",
     label: `Account Ledger: ${account.name}`,
     rootLevel: "entries",
     levels,
-    nodes: [...opening, ...entries],
+    nodes: [...opening, ...postings],
     footerRows: [
       // One row: the period's debits and credits under their columns, and
-      // the balance they leave. Labelled in Description, as the opening row
-      // is: the first column is a date too narrow for it.
+      // the balance they leave. Labelled in Against, as the opening row is:
+      // the first column is a date too narrow for it.
       {
         rowKey: "closing-balance",
         columns: {
-          description: "Closing balance",
-          debit: sum(rows, "debit"),
-          credit: sum(rows, "credit"),
+          against: "Closing balance",
+          debit: sum(postingColumns, "debit"),
+          credit: sum(postingColumns, "credit"),
           balance,
         },
       },
     ],
   };
+}
+
+/**
+ * Until 2026-09-24 the importer wrote a day's same-direction statement rows
+ * as one journal, and described it only by that direction. Nothing else
+ * writes these descriptions, and those journals stay in the books as written.
+ */
+function isGroupedImport(journal: AccountLedgerJournalRow): boolean {
+  return (
+    journal.description === "Expenses" || journal.description === "Deposits"
+  );
+}
+
+/** The first of the texts that says something. */
+function narrate(...texts: (string | null)[]): string {
+  return texts.find((text) => text !== null && text.trim() !== "") ?? "";
 }
 
 function groupJournalEntries(

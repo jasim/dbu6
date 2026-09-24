@@ -674,11 +674,18 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
     });
   });
 
-  it("the account ledger lists an account outside the branch among a journal's other accounts, whatever its name", async () => {
+  it("the account ledger gives a row to each line in the branch, and none to an account outside it, whatever its name", async () => {
     const food = await januaryLedger(treeLedger(), 1);
-    const spending = food.nodes.find((row) => row.columns.journal_id === 11);
+    const spending = food.nodes.filter((row) => row.columns.journal_id === 11);
 
-    expect(String(spending?.columns.accounts).split(", ")).toContain("Snacks");
+    expect(
+      spending.map(({ columns }) => [columns.entry_id, columns.against]),
+    ).toEqual([
+      [111, "Sample Savings"],
+      [112, "Sample Savings"],
+      [113, "Sample Savings"],
+      [114, "Sample Savings"],
+    ]);
   });
 
   it("the account ledger closes the bank at the balance sheet's assets", async () => {
