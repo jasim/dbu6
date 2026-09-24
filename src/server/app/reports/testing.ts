@@ -29,7 +29,12 @@ export interface TestLedger {
   addJournal(journal: {
     date: string;
     description: string;
-    entries: { account_id: number; debit?: number; credit?: number }[];
+    entries: {
+      account_id: number;
+      debit?: number;
+      credit?: number;
+      comment?: string;
+    }[];
   }): number;
 }
 
@@ -61,8 +66,8 @@ export function openTestLedger(): TestLedger {
   );
   const insertEntry = sqlite.prepare(
     `INSERT INTO journal_entries
-       (workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit, created_at, updated_at)
-     VALUES (@workspace_id, @scoped_to_user_id, @journal_id, @account_id, @debit, @credit, @created_at, @updated_at)`,
+       (workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit, comment, created_at, updated_at)
+     VALUES (@workspace_id, @scoped_to_user_id, @journal_id, @account_id, @debit, @credit, @comment, @created_at, @updated_at)`,
   );
 
   return {
@@ -82,8 +87,15 @@ export function openTestLedger(): TestLedger {
       const journal_id = Number(
         insertJournal.run({ ...stamp, date, description }).lastInsertRowid,
       );
-      for (const { account_id, debit = 0, credit = 0 } of entries) {
-        insertEntry.run({ ...stamp, journal_id, account_id, debit, credit });
+      for (const { account_id, debit = 0, credit = 0, comment } of entries) {
+        insertEntry.run({
+          ...stamp,
+          journal_id,
+          account_id,
+          debit,
+          credit,
+          comment: comment ?? null,
+        });
       }
       return journal_id;
     },

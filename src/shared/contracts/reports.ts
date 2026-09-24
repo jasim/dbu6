@@ -181,6 +181,18 @@ export const reportsContract = c.router({
       403: errorBodySchema,
     },
   }),
+  dayBook: c.query({
+    method: "GET",
+    path: "/reports/day-book",
+    summary: "Day Book",
+    metadata: { tags: ["reports"] },
+    query: optionalDateRangeQuery,
+    responses: {
+      200: gridDatasetSchema,
+      400: errorBodySchema,
+      403: errorBodySchema,
+    },
+  }),
   monthlySummary: c.query({
     method: "GET",
     path: "/reports/monthly-summary",
