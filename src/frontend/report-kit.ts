@@ -51,6 +51,8 @@ export {
   type ReportCellLink,
   type ReportCellLinkContext,
   type ReportCellLinkResolvers,
+  type ReportCellRenderContext,
+  type ReportCellRenderers,
 } from "@sapporta/frontend/report";
 export {
   DateInput,
@@ -86,10 +88,11 @@ export {
 export type { DateSpan } from "../shared/index";
 export { Temporal } from "@sapporta/shared/temporal";
 
-// --- Links into the account ledger ---
+// --- Links into the account ledger and the income statement ---
 export {
   accountLedgerHref,
   accountLedgerRow,
+  incomeStatementHref,
   type LedgerLinkInput,
 } from "./reports/links";
 

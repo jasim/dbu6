@@ -121,16 +121,19 @@ function tree(
   return top;
 }
 
-type Section = { total: number; accounts: Row[] };
+type Section = { total: number | null; accounts: Row[] };
 
-/** Each section's total and its accounts down the tree, with their balances. */
+/** Each section's total, if it has one, and its accounts down the tree. */
 function sections(result: GridDataset): Record<string, Section> {
   const parsed = gridDatasetSchema.parse(result);
   return Object.fromEntries(
     parsed.nodes.map((node) => [
-      String(node.columns.section),
+      String(node.columns.account_type),
       {
-        total: Number(node.rollup?.section_total),
+        total:
+          node.rollup?.section_total === undefined
+            ? null
+            : Number(node.rollup.section_total),
         accounts: tree(
           parsed,
           "accounts",
@@ -230,9 +233,95 @@ describe("reports over an account tree", () => {
         ],
       },
       Liability: { total: 0, accounts: [] },
-      Equity: { total: 0, accounts: [] },
+      // Equity's total is the net worth row, shown once.
+      Equity: {
+        total: null,
+        accounts: [["Income less spending, to date", 74000, []]],
+      },
     });
-    expect(footer(result, "section_total")).toEqual([0, 74000]);
+    expect(result.nodes.map((node) => node.columns.section)).toEqual([
+      "What you own · Assets",
+      "What you owe · Liabilities",
+      "What your net worth is made of · Equity",
+    ]);
+    // The books balance, so the net worth is the only footer row.
+    expect(footer(result, "section_total")).toEqual([74000]);
+    expect(result.footerRows?.[0]?.columns.section).toBe("Net worth");
+  });
+
+  it("balance sheet closes revenue and expenses into equity, so net worth is own less owe", () => {
+    const sqlite = ledger();
+    // Opening balances (40) bring 5,000 into the bank before January, and
+    // rent of 1,000 goes on a card (41).
+    sqlite.exec(`
+      INSERT INTO accounts VALUES
+        (40, 'workspace', 'user', 'Opening Balances', NULL, 'Equity'),
+        (41, 'workspace', 'user', 'Sample Card', NULL, 'Liability');
+      INSERT INTO journals VALUES
+        (40, 'workspace', 'user', '2025-12-31', 'Opening'),
+        (41, 'workspace', 'user', '2026-01-10', 'Rent on the card');
+      INSERT INTO journal_entries
+        (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit)
+      VALUES
+        (401, 'workspace', 'user', 40, 9, 5000, 0),
+        (402, 'workspace', 'user', 40, 40, 0, 5000),
+        (411, 'workspace', 'user', 41, 5, 1000, 0),
+        (412, 'workspace', 'user', 41, 41, 0, 1000);
+    `);
+    const january = balanceSheetReport(readOnlyLedger(sqlite, auth), {
+      asOfDate: "2026-01-31",
+    });
+
+    const { Liability, Equity } = sections(january);
+    expect(Liability).toEqual({
+      total: 1000,
+      accounts: [["Sample Card", 1000, []]],
+    });
+    // 1,00,000 earned less 27,000 spent, after the equity accounts: net
+    // worth is the 79,000 owned less the 1,000 owed.
+    expect(Equity).toEqual({
+      total: null,
+      accounts: [
+        ["Opening Balances", 5000, []],
+        ["Income less spending, to date", 73000, []],
+      ],
+    });
+    expect(sections(january).Asset?.total).toBe(79000);
+    expect(footer(january, "section_total")).toEqual([78000]);
+    // The income statement from the first day with income or spending adds
+    // up to the retained earnings.
+    const earnings = january.nodes
+      .flatMap((node) => node.children?.accounts ?? [])
+      .find((row) => row.rowKey === "retained-earnings");
+    expect(earnings?.columns.earnings_from).toBe("2026-01-01");
+
+    // Before any income or spending there is nothing to retain.
+    const opening = balanceSheetReport(readOnlyLedger(sqlite, auth), {
+      asOfDate: "2025-12-31",
+    });
+    expect(sections(opening).Equity).toEqual({
+      total: null,
+      accounts: [["Opening Balances", 5000, []]],
+    });
+    expect(footer(opening, "section_total")).toEqual([5000]);
+  });
+
+  it("balance sheet says by how much the books are out when a journal doesn't balance", () => {
+    const sqlite = ledger();
+    // 500 into the bank with nothing on the other side.
+    sqlite.exec(`
+      INSERT INTO journals VALUES (40, 'workspace', 'user', '2026-01-20', 'One-sided');
+      INSERT INTO journal_entries
+        (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit)
+      VALUES (401, 'workspace', 'user', 40, 9, 500, 0);
+    `);
+    const result = balanceSheetReport(readOnlyLedger(sqlite, auth), {
+      asOfDate: "2026-01-31",
+    });
+
+    // Net worth 74,000 from the equity side; the bank has 500 more.
+    expect(footer(result, "section_total")).toEqual([74000, 500]);
+    expect(result.footerRows?.[1]?.columns.section).toMatch(/^Out of balance/);
   });
 
   it("trial balance runs down the tree by type, its grand total adding each account's own balance", () => {
