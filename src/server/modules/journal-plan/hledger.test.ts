@@ -12,7 +12,7 @@ import { planJournals, type PlanRow } from "./JournalPlan.js";
 const BASE = parseAccount("Sample Savings");
 
 // A statement row as the import summary plans it: it asserts its running
-// balance.
+// balance, which the summary gives only a day's last row.
 function row(
   date: string,
   money: { withdrawal: number } | { deposit: number },
@@ -36,28 +36,28 @@ function row(
 }
 
 describe("hledger text of a plan", () => {
-  it("renders a journal per row, described by its narration, each day closing on its last row's balance", () => {
+  it("renders a journal per row, described by its narration, asserting the balances it is given", () => {
     const rows = unsafeAsChrono([
       row(
         "2026-02-01",
         { withdrawal: 100 },
         "NOPII grocer",
         parseAccount("Groceries"),
-        900,
+        null,
       ),
       row(
         "2026-02-01",
         { withdrawal: 50 },
         "NOPII cafe",
         parseAccount("Eating Out"),
-        850,
+        null,
       ),
       row(
         "2026-02-01",
         { deposit: 500 },
         "NOPII salary",
         parseAccount("Salary"),
-        1350,
+        null,
       ),
       row("2026-02-01", { withdrawal: 30 }, "NOPII shop", UNCATEGORIZED, 1320),
       row(
