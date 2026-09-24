@@ -81,6 +81,8 @@ export {
   importPresetRefusalSchema,
   importPresetsContract,
   importPresetSchema,
+  importPresetsFileConversionSchema,
+  importPresetsFileRefusalSchema,
   importPresetsViewSchema,
   mappingFilenameSchema,
   parserNameSchema,
@@ -92,6 +94,8 @@ export {
   type ImportPresetChange,
   type ImportPresetRefusal,
   type ImportPresetRefusalCode,
+  type ImportPresetsFileConversionBody,
+  type ImportPresetsFileRefusal,
   type ImportPresetsView,
 } from "./import-presets.js";
 export {

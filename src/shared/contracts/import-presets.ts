@@ -178,6 +178,45 @@ export const importPresetRefusalSchema = z.object({
 });
 export type ImportPresetRefusal = z.infer<typeof importPresetRefusalSchema>;
 
+// Converting user-config/import-presets.json into the table: what it
+// proposes, or wrote, and what the owner should know about the merge.
+export const importPresetsFileConversionSchema = z.object({
+  // False for a proposal: nothing was written and the file is still there.
+  applied: z.boolean(),
+  institutions: z.array(
+    importInstitutionSchema.extend({
+      // Null in a proposal, which writes no rows.
+      id: z.number().int().nullable(),
+      accounts: z.array(importAccountViewSchema),
+    }),
+  ),
+  warnings: z.array(z.string()),
+});
+export type ImportPresetsFileConversionBody = z.infer<
+  typeof importPresetsFileConversionSchema
+>;
+
+export const importPresetsFileRefusalSchema = z.object({
+  error: z.string(),
+  code: z.enum([
+    // A base_account names no ledger account; `names` lists each.
+    "unresolved_base_accounts",
+    // Presets of one account disagree on is_credit_card.
+    "conflicting_is_credit_card",
+    // The table already holds presets, so the file is not converted over them.
+    "presets_already_in_table",
+    // The rows read back differ from the conversion; nothing was kept.
+    "read_back_mismatch",
+    // The conversion breaks one of the presets' rules.
+    ...importPresetRefusalCodeSchema.options,
+  ]),
+  change_index: z.number().int().nullable().optional(),
+  names: z.array(z.string()).optional(),
+});
+export type ImportPresetsFileRefusal = z.infer<
+  typeof importPresetsFileRefusalSchema
+>;
+
 // One of a preset's instruction files for the LLM, as it would get it.
 export const customMappingsFileSchema = z.object({
   filename: z.string(),
@@ -209,6 +248,21 @@ export const importPresetsContract = c.router({
       200: importPresetsViewSchema,
       403: z.object({ error: z.string() }),
       422: importPresetRefusalSchema,
+    },
+  }),
+  convertImportPresetsFile: c.mutation({
+    method: "POST",
+    path: "/import-presets/import-json",
+    summary:
+      "Convert user-config/import-presets.json into the import presets table",
+    description:
+      "With apply false, returns the institutions the file would become and changes nothing. With apply true, writes them through the same rules as /import-presets/changes into an empty table, reads them back, and deletes the file only when they match.",
+    body: z.object({ apply: z.boolean() }),
+    responses: {
+      200: importPresetsFileConversionSchema,
+      403: z.object({ error: z.string() }),
+      404: z.object({ error: z.string(), code: z.literal("no_presets_file") }),
+      422: importPresetsFileRefusalSchema,
     },
   }),
   // The presets as user-config/import-presets.json still declares them, for
