@@ -4,6 +4,7 @@ import { AccountLedgerReport } from "./AccountLedgerReport";
 import { AssetInflowsReport } from "./AssetInflowsReport";
 import { BalanceAssertionsReport } from "./BalanceAssertionsReport";
 import { BalanceSheetReport } from "./BalanceSheetReport";
+import { DayBookReport } from "./DayBookReport";
 import { DraftBalanceAssertionsReport } from "./DraftBalanceAssertionsReport";
 import { DuplicateDraftsReport } from "./DuplicateDraftsReport";
 import { ExpenseBreakdownReport } from "./ExpenseBreakdownReport";
@@ -131,6 +132,14 @@ export const builtInReportDefinitions = [
     label: "Account Ledger",
     description: "Complete statement of an account",
     Component: AccountLedgerReport,
+    subgroup: "ledgers",
+    layout: "row",
+  },
+  {
+    id: "day-book",
+    label: "Day Book",
+    description: "Every journal and its lines, day by day",
+    Component: DayBookReport,
     subgroup: "ledgers",
     layout: "row",
   },
