@@ -77,3 +77,44 @@ export function lookupLastReconciled(
     ? null
     : { date: last.last_reconciled_date, balance: last.last_balance };
 }
+
+/**
+ * The source keys of what the books hold on `date` for the account: every key
+ * on a posted journal that has a line on that account and is dated `date`.
+ * Null when one of those journals carries no key at all (entered by hand, or
+ * imported before rows were keyed), since the keys then can't vouch for the
+ * whole day. The statement import reads it for the checkpoint's date
+ * (reconciliation/checkpoint-day.md).
+ */
+export function loadPostedKeysOn(
+  sqlite: Parameters<typeof allRows>[0],
+  auth: LedgerAuth,
+  accountId: number,
+  date: string,
+): ReadonlySet<string> | null {
+  const rows = allRows<{ journal_id: number; key: string | null }>(
+    sqlite,
+    auth,
+    `
+    SELECT j.id AS journal_id, je.source_transaction_key AS key
+    FROM scoped_journals j
+    JOIN scoped_journal_entries je ON je.journal_id = j.id
+    WHERE j.date = @date
+      AND j.id IN (
+        SELECT je2.journal_id
+        FROM scoped_journal_entries je2
+        WHERE je2.account_id = @accountId
+      )`,
+    { accountId, date },
+  );
+  const keysByJournal = new Map<number, string[]>();
+  for (const row of rows) {
+    const keys = keysByJournal.get(row.journal_id) ?? [];
+    if (row.key !== null) keys.push(row.key);
+    keysByJournal.set(row.journal_id, keys);
+  }
+  const keys = [...keysByJournal.values()];
+  return keys.some((journalKeys) => journalKeys.length === 0)
+    ? null
+    : new Set(keys.flat());
+}

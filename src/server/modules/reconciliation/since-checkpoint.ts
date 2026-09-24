@@ -7,9 +7,9 @@ import {
   sameAmount,
 } from "../values/index.js";
 
-// The statement reaches the checkpoint's date but no row on it lands on the
-// checkpoint's balance, and its opening doesn't either, so what is new since
-// the checkpoint can't be told apart from what is already in the ledger.
+// The statement reaches the checkpoint's date, but neither the keys posted
+// that day, nor a row landing on the checkpoint's balance, nor its opening
+// tell what is new since the checkpoint from what is already in the ledger.
 export class ReconciliationMatchError extends Error {
   override readonly name = "ReconciliationMatchError";
 
@@ -21,20 +21,32 @@ export class ReconciliationMatchError extends Error {
   }
 }
 
-// Date filter is the backbone; balance match (when the statement includes
-// the reconciled row itself) trims the checkpoint row and anything earlier
-// that day so we don't re-import it. `statementOpening` is the opening the
-// statement prints; when it equals the checkpoint, the whole checkpoint day
-// is new.
+// The statement rows the books don't hold yet. Rows before the checkpoint's
+// date are in the books and rows after it are new. On the checkpoint's date
+// the books hold some of the day, and checkpoint-day.md says how the rest is
+// found: by the keys posted that day (`postedKeys`, from
+// `loadPostedKeysOn`), and when those can't vouch for the day, by the row
+// whose balance lands on the checkpoint. `statementOpening` is the opening
+// the statement prints; when it equals the checkpoint and no row lands on it,
+// the whole checkpoint day is new.
 export function newTransactionsSinceReconciliation(
   transactions: Chrono<Abacus>,
   checkpoint: ReconciledCheckpoint | null,
   statementOpening: number | null = null,
+  postedKeys: ReadonlySet<string> | null = null,
 ): Chrono<Abacus> {
   if (!checkpoint) return transactions;
   const afterDate = chronoFilter(transactions, (t) => t.date > checkpoint.date);
   const onDate = chronoFilter(transactions, (t) => t.date === checkpoint.date);
   if (onDate.length === 0) return afterDate;
+
+  const byKey = newOnDateByKey(
+    onDate,
+    checkpoint,
+    postedKeys,
+    transactions[0].date < checkpoint.date,
+  );
+  if (byKey) return chronoConcat(byKey, afterDate);
 
   const openingMatches =
     statementOpening !== null &&
@@ -67,4 +79,37 @@ export function newTransactionsSinceReconciliation(
       `opening does not match it either.`,
     checkpoint,
   );
+}
+
+// The checkpoint day's new rows, told apart by key: the rows whose keys the
+// books hold that day are in, the rest are new. Null when the keys can't
+// vouch for the day, and the balance anchor decides instead:
+//   - some journal that day has no key (`postedKeys` is null);
+//   - the statement starts before the day, so it holds all of it, yet a key
+//     posted that day isn't among its rows (the bank reworded or re-dated
+//     it);
+//   - the day's opening, plus the rows found in the books, doesn't reach the
+//     checkpoint's balance.
+function newOnDateByKey(
+  onDate: Chrono<Abacus>,
+  checkpoint: ReconciledCheckpoint,
+  postedKeys: ReadonlySet<string> | null,
+  holdsWholeDay: boolean,
+): Chrono<Abacus> | null {
+  const first = onDate[0];
+  if (postedKeys === null || first.balance === null) return null;
+
+  const isPosted = (t: Abacus) =>
+    t.source_transaction_key != null &&
+    postedKeys.has(t.source_transaction_key);
+  if (holdsWholeDay) {
+    const keys = new Set(onDate.map((t) => t.source_transaction_key));
+    for (const key of postedKeys) if (!keys.has(key)) return null;
+  }
+
+  let reached = first.balance - first.deposit + first.withdrawal;
+  for (const t of onDate) if (isPosted(t)) reached += t.deposit - t.withdrawal;
+  if (!sameAmount(reached, checkpoint.balance)) return null;
+
+  return chronoFilter(onDate, (t) => !isPosted(t));
 }
