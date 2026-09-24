@@ -5,8 +5,8 @@ import { depositMoneySchema, withdrawalMoneySchema } from "../../../shared/index
 // both. The wire schemas in src/shared state the rule and every statement
 // row is parsed against them; a stored draft's columns become Money through
 // `moneyFromColumns`. Direction and amount are read here and nowhere else, so
-// a row's transaction key, its journal match, its group and its category all
-// agree on which way it moved.
+// a row's transaction key, its journal match, its journal and its category
+// all agree on which way it moved.
 export type Money =
   z.infer<typeof withdrawalMoneySchema> | z.infer<typeof depositMoneySchema>;
 
