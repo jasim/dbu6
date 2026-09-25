@@ -88,6 +88,8 @@ export function loadHomeSummary(
     .sort(byLastAssertion);
 
   return {
+    // Every ledger account in scope has a standing.
+    has_chart: standings.size > 0,
     accounts,
     totals: Array.from(standings.values())
       .map((standing) => draftCounts(standing.drafts))

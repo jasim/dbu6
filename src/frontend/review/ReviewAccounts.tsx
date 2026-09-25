@@ -1,4 +1,4 @@
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   isProblem,
@@ -15,34 +15,47 @@ import { StatusChip, type StatusTone } from "../components/status-chip";
 import { Button } from "../components/ui/button";
 import { agree, formatDaySpan, plural } from "../format";
 import { reviewAccountsQuery } from "../queries";
-import { reviewHref } from "./routes";
+import { BooksSetUp, HandOffNote } from "./hand-off";
+import { readReviewRun, reviewHref, withReviewRun } from "./routes";
 
 /**
  * `/review` (PLAN.md §11 P3): pick the account whose drafts to check. With
  * one account holding drafts there is nothing to pick, so it goes straight
- * to that account.
+ * to that account, with what /add handed over. An account picked here keeps
+ * the first run (`?run=setup`); the hand-off note stays here.
  */
 export function ReviewAccounts() {
   usePageTitle("Review");
+  const { search } = useLocation();
+  const run = readReviewRun(new URLSearchParams(search));
   const query = useQuery(reviewAccountsQuery);
   const accounts = query.data ?? null;
   const error = query.isError ? apiErrorMessage(query.error) : null;
 
+  // The first run's end: nothing is left to pick.
+  const setUp = run.setup && accounts?.length === 0;
   const only = accounts?.length === 1 ? accounts[0] : undefined;
-  if (only) return <Navigate to={reviewHref(only.account_id)} replace />;
+  if (only) {
+    return <Navigate to={`${reviewHref(only.account_id)}${search}`} replace />;
+  }
 
   return (
     <Screen
       width="narrow"
       header={
         <ScreenTitle title="Review">
-          <p>
-            Pick an account to review its drafts and add them to your books.
-            Each account is reviewed and added on its own.
-          </p>
+          {!setUp && (
+            <p>
+              Pick an account to review its drafts and add them to your books.
+              Each account is reviewed and added on its own.
+            </p>
+          )}
         </ScreenTitle>
       }
     >
+      {run.imported && accounts !== null && accounts.length > 0 && (
+        <HandOffNote className="mt-5" />
+      )}
       <div className="mt-5">
         {error ? (
           <LoadError
@@ -64,6 +77,8 @@ export function ReviewAccounts() {
               </li>
             ))}
           </ul>
+        ) : setUp ? (
+          <BooksSetUp />
         ) : accounts.length === 0 ? (
           <EmptyState
             title="Nothing to review"
@@ -82,7 +97,11 @@ export function ReviewAccounts() {
         ) : (
           <ul className="overflow-hidden rounded-card border border-sap-border bg-card shadow-card">
             {accounts.map((account) => (
-              <AccountRow key={account.account_id} account={account} />
+              <AccountRow
+                key={account.account_id}
+                account={account}
+                setup={run.setup}
+              />
             ))}
           </ul>
         )}
@@ -91,12 +110,18 @@ export function ReviewAccounts() {
   );
 }
 
-function AccountRow({ account }: { account: ReviewAccount }) {
+function AccountRow({
+  account,
+  setup,
+}: {
+  account: ReviewAccount;
+  setup: boolean;
+}) {
   const status = accountStatus(account);
   return (
     <li className="border-t border-line-inner first:border-t-0">
       <Link
-        to={reviewHref(account.account_id)}
+        to={withReviewRun(reviewHref(account.account_id), { setup })}
         className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-2.5 text-foreground no-underline outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
       >
         <span className="min-w-0 flex-1 basis-[220px]">

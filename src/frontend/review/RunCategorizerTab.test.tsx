@@ -230,6 +230,7 @@ function Frame() {
       refresh: () => refreshed++,
       posted: null,
       setPosted: () => {},
+      setup: false,
     } satisfies ReviewAccountContext,
   });
 }

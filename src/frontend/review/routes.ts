@@ -87,3 +87,41 @@ export function parseAccountId(value: string | undefined): number | null {
   const id = Number(value);
   return Number.isSafeInteger(id) ? id : null;
 }
+
+/*
+ * What /add hands Review in the URL (PLAN.md "Routes and URL state"):
+ * `?imported=1` shows the hand-off note where Review opens, and
+ * `?run=setup` marks the first run, whose Review ends with "Your books are
+ * set up." once nothing is left to post. Review's own links carry the run,
+ * not the note: the note is read once, where the flow landed.
+ */
+export interface ReviewRun {
+  imported: boolean;
+  setup: boolean;
+}
+
+export function readReviewRun(params: URLSearchParams): ReviewRun {
+  return {
+    imported: params.get("imported") === "1",
+    setup: params.get("run") === "setup",
+  };
+}
+
+/** `href` with the run's query appended; `href` itself carries none. */
+export function withReviewRun(href: string, run: Partial<ReviewRun>): string {
+  const params = new URLSearchParams();
+  if (run.imported) params.set("imported", "1");
+  if (run.setup) params.set("run", "setup");
+  const query = params.toString();
+  return query === "" ? href : `${href}?${query}`;
+}
+
+/**
+ * Where /add hands off (card 7), with the note: a later add to that
+ * account's Drafts tab, the first run (no account) to the account picker.
+ */
+export function reviewHandOffHref(accountId?: number): string {
+  return accountId === undefined
+    ? withReviewRun(REVIEW_ROUTE, { imported: true, setup: true })
+    : withReviewRun(reviewHref(accountId, "drafts"), { imported: true });
+}

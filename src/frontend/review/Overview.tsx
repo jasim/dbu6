@@ -18,7 +18,7 @@ import { useReviewAccount } from "./ReviewAccount";
  * the books, what blocks them, and the one button that adds them.
  */
 export function Overview() {
-  const { detail, refresh, posted, setPosted } = useReviewAccount();
+  const { detail, refresh, posted, setPosted, setup } = useReviewAccount();
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +27,7 @@ export function Overview() {
       posted.before,
       posted.draftsPosted,
       detail.other_accounts,
+      setup,
     );
     return (
       <OverviewColumn verdict={view.verdict}>

@@ -16,7 +16,13 @@ import {
   plural,
 } from "../format";
 import { checkText } from "./posting-checks";
-import { checkTab, needsCategoryHref, reviewHref } from "./routes";
+import {
+  checkTab,
+  needsCategoryHref,
+  REVIEW_ROUTE,
+  reviewHref,
+  withReviewRun,
+} from "./routes";
 
 /*
  * What an account's Overview says, as a pure function of its summary
@@ -59,11 +65,21 @@ export interface OverviewView {
 export interface PostedView {
   verdict: string;
   outcome: Phrase;
-  /** The primary action: the next account to review, or importing more. */
+  /**
+   * The primary action: the next account to review, else importing more,
+   * or Home once the first run has set the books up.
+   */
   next: OverviewLink;
   /** A quiet second way on, when there is another account. */
   also?: OverviewLink;
 }
+
+/**
+ * The first run's end (card 8), once nothing is left to post. No net worth:
+ * the books are set up, and that is all it says. Home resumes from there.
+ */
+export const BOOKS_SET_UP = "Your books are set up.";
+export const BOOKS_SET_UP_NEXT: OverviewLink = { label: "Go to Home", to: "/" };
 
 export function overviewView(detail: ReviewAccountDetail): OverviewView {
   const { account } = detail;
@@ -88,30 +104,42 @@ function waitingReason(block: PostingBlock): string {
 
 /**
  * The Overview once the drafts are in the books. `before` is the summary the
- * post was made from; `others` the accounts that still have drafts.
+ * post was made from; `others` the accounts that still have drafts. On the
+ * first run (`setup`), the links on carry it, and posting the last drafts
+ * ends it: the books are set up.
  */
 export function postedView(
   before: ReviewAccountDetail,
   draftsPosted: number,
   others: ReviewAccountDetail["other_accounts"],
+  setup = false,
 ): PostedView {
   const next = others[0];
-  return {
-    verdict: "Added to your books",
-    outcome: [
-      `${plural(draftsPosted, "transaction")} added.`,
-      ...lastAssertion(before, "is now"),
-    ],
-    ...(next
-      ? {
-          next: {
-            label: `Review ${next.name}`,
-            to: reviewHref(next.account_id),
-          },
-          also: { label: "All accounts", to: "/review" },
-        }
-      : { next: { label: "Import statements", to: "/import" } }),
-  };
+  const outcome: Phrase = [
+    `${plural(draftsPosted, "transaction")} added.`,
+    ...lastAssertion(before, "is now"),
+  ];
+  if (next) {
+    return {
+      verdict: "Added to your books",
+      outcome,
+      next: {
+        label: `Review ${next.name}`,
+        to: withReviewRun(reviewHref(next.account_id), { setup }),
+      },
+      also: {
+        label: "All accounts",
+        to: withReviewRun(REVIEW_ROUTE, { setup }),
+      },
+    };
+  }
+  return setup
+    ? { verdict: BOOKS_SET_UP, outcome, next: BOOKS_SET_UP_NEXT }
+    : {
+        verdict: "Added to your books",
+        outcome,
+        next: { label: "Import statements", to: "/import" },
+      };
 }
 
 function checkRow(check: PostingCheck, detail: ReviewAccountDetail): CheckRow {

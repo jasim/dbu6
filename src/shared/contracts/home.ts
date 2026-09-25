@@ -13,8 +13,7 @@ const importableAccountFields = {
   name: z.string(),
   kind: accountKindSchema,
   // Whether its institution lists a parser. Without one its statements
-  // can't be imported yet: it needs a first statement (/setup/statements),
-  // which sets the format up.
+  // can't be imported yet: dropping them at /add teaches dbu6 the format.
   has_parser: z.boolean(),
 };
 
@@ -46,13 +45,16 @@ export type HomeAccount = z.infer<typeof homeAccountSchema>;
 export type HomeLedgerAccount = Extract<HomeAccount, { in_ledger: true }>;
 
 export const homeSummarySchema = z.object({
+  // Whether the books have a chart of accounts: any account at all, the
+  // rule /setup's chart step and its create follow.
+  has_chart: z.boolean(),
   // Oldest balance assertion first; accounts without one lead.
   accounts: z.array(homeAccountSchema),
   // Over every draft, including ones on accounts no preset lists.
   totals: draftCountsSchema,
   // Whether any listed account in the books has transactions from its own
-  // statements, entries or drafts (the setup wizard's first statements
-  // rule): an opening entry alone is not an import.
+  // statements, entries or drafts (`hasTransactions`, as /add places an
+  // account): an opening entry alone is not an import.
   any_imported: z.boolean(),
 });
 export type HomeSummary = z.infer<typeof homeSummarySchema>;

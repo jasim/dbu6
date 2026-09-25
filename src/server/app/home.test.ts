@@ -143,6 +143,7 @@ describe("Home summary", () => {
       failing_checks: 1,
     });
     expect(summary.any_imported).toBe(true);
+    expect(summary.has_chart).toBe(true);
   });
 
   it("names and kinds an account the way Review does", () => {
@@ -207,9 +208,25 @@ describe("Home summary", () => {
     expect(summary.any_imported).toBe(false);
   });
 
-  it("returns no accounts without presets", () => {
+  it("returns no accounts without presets, while the chart is there", () => {
     const summary = loadHomeSummary(ledger(), auth, []);
     expect(summary.accounts).toEqual([]);
     expect(summary.any_imported).toBe(false);
+    // A chart with no bank or card yet: Home asks for the first one.
+    expect(summary.has_chart).toBe(true);
+  });
+
+  it("has no chart while the books have no account of this user's", () => {
+    // Another user's accounts are not this user's chart.
+    const sqlite = ledger();
+    sqlite.exec(`
+      DELETE FROM journal_entries; DELETE FROM journals;
+      DELETE FROM accounts WHERE scoped_to_user_id = 'user';
+    `);
+
+    const summary = loadHomeSummary(sqlite, auth, []);
+
+    expect(summary.has_chart).toBe(false);
+    expect(summary.accounts).toEqual([]);
   });
 });

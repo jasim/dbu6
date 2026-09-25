@@ -3,21 +3,37 @@ import type {
   HomeLedgerAccount,
   HomeSummary,
 } from "../../shared/index";
+import { ADD_OTHER_ROUTE, ADD_ROUTE, addHref } from "../add-account/state";
 import { reviewHref, REVIEW_ROUTE } from "../review/routes";
 import { joinNames } from "../format";
-import { SETUP_ROUTE, SETUP_STEP_ROUTES } from "../setup/steps";
 
 /*
- * What Home says, as a pure function of the summary (PLAN.md §11 P1). In
- * precedence order: no accounts, then drafts waiting, then nothing imported,
- * then new statements to import. Home only says that drafts are waiting; what
- * they still need is Review's to say. An empty Review doesn't mean the books
- * are up to date: a statement may not have been imported yet, so Home never
- * says so.
+ * What Home says, as a pure function of the summary (PLAN.md "Home"). In
+ * precedence order: no chart, then drafts waiting, then nothing imported
+ * (no bank or card yet, or only ones set up with no transactions), then new
+ * statements to import. The first two open the first run: /setup's chart,
+ * then /add's cards. Home only says that drafts are waiting; what they still
+ * need is Review's to say. An empty Review doesn't mean the books are up to
+ * date: a statement may not have been imported yet, so Home never says so.
  */
 
+/** Card 1, the chart: first run only. */
+export const SETUP_ROUTE = "/setup";
+
+/**
+ * Where a bank or card is edited or removed, and a deleted one's preset
+ * goes: Settings' Banks & cards page.
+ */
+export const BANKS_SETTINGS_ROUTE = "/settings/banks";
+
+/** "+ Add", beside "Your accounts": /add's cards, or C1. */
+export const ADD_MENU: readonly HomeLink[] = [
+  { label: "Bank or card", to: ADD_ROUTE },
+  { label: "Cash, deposit, investment or loan", to: ADD_OTHER_ROUTE },
+];
+
 export type HomeStateId =
-  "no-accounts" | "nothing-imported" | "drafts" | "import-new";
+  "no-chart" | "nothing-imported" | "drafts" | "import-new";
 
 export interface HomeLink {
   label: string;
@@ -47,13 +63,12 @@ export interface HomeView {
 export function homeState(summary: HomeSummary): HomeView {
   const { accounts, totals } = summary;
 
-  if (accounts.length === 0) {
+  if (!summary.has_chart) {
     return {
-      state: "no-accounts",
+      state: "no-chart",
       greeting: "Let's set up your books",
       card: {
-        title: "Five steps",
-        body: "A chart of accounts, your banks and cards, a statement each, other balances, then review.",
+        title: "Start with a chart of accounts",
         action: { label: "Start setup", to: SETUP_ROUTE },
       },
       listsAccounts: false,
@@ -71,22 +86,23 @@ export function homeState(summary: HomeSummary): HomeView {
     };
   }
 
+  // A bank or card set up with no transactions yet (by an agent, or an add
+  // left unfinished) is finished by dropping its statements at /add, like a
+  // new one.
   if (!summary.any_imported) {
-    const where = named(accounts);
+    const waiting = named(inLedger(accounts));
     return {
       state: "nothing-imported",
-      greeting: "Nothing imported yet",
+      greeting: "Let's set up your books",
       card: {
-        title: "Import a statement for each account",
-        body: where
-          ? `For ${where}. You review each one before it reaches your books.`
-          : undefined,
+        title: "Add your first bank or card",
+        body: waiting ? `Set up, no transactions yet: ${waiting}.` : undefined,
         action: {
-          label: "Import your first statements",
-          to: SETUP_STEP_ROUTES.statements,
+          label: "Add a bank or card",
+          to: addHref({ setup: true }),
         },
       },
-      listsAccounts: true,
+      listsAccounts: accounts.length > 0,
     };
   }
 

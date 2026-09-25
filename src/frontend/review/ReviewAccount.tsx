@@ -7,6 +7,7 @@ import {
   useLocation,
   useOutletContext,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -22,6 +23,7 @@ import { apiErrorMessage } from "../api";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
+import { BooksSetUp, HandOffNote } from "./hand-off";
 import {
   refreshDraftStatus,
   reviewAccountQuery,
@@ -32,10 +34,12 @@ import {
   checkTab,
   IMPROVE_CATEGORIZATION_TAB,
   parseAccountId,
+  readReviewRun,
   REVIEW_ROUTE,
   reviewHref,
   reviewPage,
   RUN_CATEGORIZER_TAB,
+  withReviewRun,
   type ReviewTab,
 } from "./routes";
 
@@ -51,6 +55,8 @@ export interface ReviewAccountContext {
   refresh: () => void;
   posted: ReviewPosted | null;
   setPosted: (posted: ReviewPosted) => void;
+  /** The first run (`?run=setup`), which this visit opened on. */
+  setup: boolean;
 }
 
 /** The account summary the frame loaded, for the tab inside it. */
@@ -65,11 +71,11 @@ export function useReviewAccount(): ReviewAccountContext {
  */
 export function ReviewAccount() {
   const accountId = parseAccountId(useParams().accountId);
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   if (accountId === null) return <Navigate to={REVIEW_ROUTE} replace />;
   // Any path under the account that isn't a tab lands on its Overview.
   if (reviewPage(pathname, accountId) === null) {
-    return <Navigate to={reviewHref(accountId)} replace />;
+    return <Navigate to={`${reviewHref(accountId)}${search}`} replace />;
   }
   // A new account starts a new visit: nothing loaded, nothing posted.
   return <ReviewAccountFrame key={accountId} accountId={accountId} />;
@@ -81,6 +87,14 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
   const query = useQuery(reviewAccountQuery(accountId));
   useRefetchOnNavigate(query.refetch);
   const [posted, setPosted] = useState<ReviewPosted | null>(null);
+  // What /add handed over, read once where the visit opened: the Drafts
+  // grid rewrites its own query, and a tab change drops the note.
+  const [searchParams] = useSearchParams();
+  const [arrival] = useState(() => ({
+    run: readReviewRun(searchParams),
+    pathname,
+  }));
+  const { setup } = arrival.run;
 
   const refresh = useCallback(
     () => void refreshDraftStatus(queryClient),
@@ -130,6 +144,10 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
   if (detail === null) return <FrameSkeleton />;
 
   const empty = detail.account.drafts === 0 && posted === null;
+  // The note stays on the page the flow landed on, while there is
+  // something to categorize and post.
+  const handOff =
+    arrival.run.imported && pathname === arrival.pathname && !empty && !posted;
 
   return (
     <div
@@ -141,8 +159,15 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
       {/* One thin bar, so the Drafts grid keeps the height: the account, then
           its tabs. It lines up with the shell's content-side sidebar toggle,
           and with the grid's toolbar below. */}
-      <FrameHeader detail={detail} tabs={!empty} />
-      {empty ? (
+      <FrameHeader detail={detail} tabs={!empty} setup={setup} />
+      {handOff && (
+        <HandOffNote className="mx-4 mt-4 max-w-[760px] shrink-0 sm:mx-6 lg:mx-8" />
+      )}
+      {empty && setup && detail.other_accounts.length === 0 ? (
+        <div className="px-4 py-5 sm:px-6 lg:px-8">
+          <BooksSetUp className="max-w-[760px]" />
+        </div>
+      ) : empty ? (
         <div className="px-4 py-5 sm:px-6 lg:px-8">
           <EmptyState
             className="max-w-[760px]"
@@ -168,6 +193,7 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
               refresh,
               posted,
               setPosted,
+              setup,
             } satisfies ReviewAccountContext
           }
         />
@@ -193,9 +219,11 @@ function FramePadding({ children }: { children: React.ReactNode }) {
 function FrameHeader({
   detail,
   tabs,
+  setup,
 }: {
   detail: ReviewAccountDetail;
   tabs: boolean;
+  setup: boolean;
 }) {
   const { account } = detail;
   return (
@@ -204,7 +232,7 @@ function FrameHeader({
         {detail.other_accounts.length > 0 && (
           <>
             <Link
-              to={REVIEW_ROUTE}
+              to={withReviewRun(REVIEW_ROUTE, { setup })}
               title="All accounts"
               className="shrink-0 text-meta text-ink-meta no-underline hover:text-foreground"
             >
@@ -223,7 +251,7 @@ function FrameHeader({
           {account.name}
         </h1>
       </div>
-      {tabs && <Tabs detail={detail} />}
+      {tabs && <Tabs detail={detail} setup={setup} />}
     </header>
   );
 }
@@ -244,11 +272,22 @@ interface TabLink {
   problems?: number;
 }
 
-/** Text tabs on the header's rule, the open one underlined. */
-function Tabs({ detail }: { detail: ReviewAccountDetail }) {
+/**
+ * Text tabs on the header's rule, the open one underlined. On the first run
+ * they carry it, so a reload keeps its wording.
+ */
+function Tabs({
+  detail,
+  setup,
+}: {
+  detail: ReviewAccountDetail;
+  setup: boolean;
+}) {
   const { account } = detail;
+  const href = (tab?: ReviewTab) =>
+    withReviewRun(reviewHref(account.account_id, tab), { setup });
   const tabs: TabLink[] = [
-    { label: "Overview", to: reviewHref(account.account_id), end: true },
+    { label: "Overview", to: href(), end: true },
     // One tab per check, in the checks' order, and Improve categorization
     // and Run categorizer after Drafts. Drafts counts every draft; a check's own tab counts the
     // problems it flags.
@@ -256,7 +295,7 @@ function Tabs({ detail }: { detail: ReviewAccountDetail }) {
       const tab = checkTab(check.kind);
       const link = {
         label: TAB_LABELS[tab],
-        to: reviewHref(account.account_id, tab),
+        to: href(tab),
         count: tab === "drafts" ? account.drafts : undefined,
         problems: isBlock(check) && isProblem(check) ? check.count : undefined,
       };
@@ -265,7 +304,7 @@ function Tabs({ detail }: { detail: ReviewAccountDetail }) {
         link,
         ...CATEGORIZATION_TABS.map((categorizationTab) => ({
           label: TAB_LABELS[categorizationTab],
-          to: reviewHref(account.account_id, categorizationTab),
+          to: href(categorizationTab),
         })),
       ];
     }),

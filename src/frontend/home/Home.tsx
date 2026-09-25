@@ -1,10 +1,14 @@
 import { Link } from "react-router-dom";
+import { Menu } from "@base-ui/react/menu";
+import { Plus } from "lucide-react";
+import { comboboxClassNames } from "@sapporta/ui/combobox";
+import { cn } from "@sapporta/ui/cn";
 import { useQuery } from "@tanstack/react-query";
 import { isProblem, postingBlocks, type HomeAccount } from "../../shared/index";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { apiErrorMessage } from "../api";
-import { Button } from "../components/ui/button";
+import { Button, buttonVariants } from "../components/ui/button";
 import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
 import { NextStepCard } from "../components/next-step-card";
@@ -15,9 +19,14 @@ import {
   RECONCILIATION_DIFFERENCES_HREF,
 } from "../reports/links";
 import { reviewHref } from "../review/routes";
-import { SETUP_STEP_ROUTES } from "../setup/steps";
+import { ADD_ROUTE } from "../add-account/state";
 import { formatDate, plural } from "../format";
-import { homeState, type HomeCard } from "./state";
+import {
+  ADD_MENU,
+  BANKS_SETTINGS_ROUTE,
+  homeState,
+  type HomeCard,
+} from "./state";
 
 /**
  * Home (PLAN.md §11 P1): where the books stand and one thing to do. One
@@ -78,8 +87,9 @@ export function Home() {
 
       {(view === null || view.listsAccounts) && (
         <section className="mt-4 rounded-card border border-sap-border bg-card shadow-card">
-          <div className="px-4 pb-3 pt-5">
+          <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-5">
             <h2 className="text-heading text-foreground">Your accounts</h2>
+            {summary && <AddMenu />}
           </div>
           {summary ? (
             <AccountTable accounts={summary.accounts} />
@@ -111,6 +121,45 @@ function StepCard({ card }: { card: HomeCard }) {
         </Button>
       }
     />
+  );
+}
+
+/** "+ Add": a bank or card through /add, anything else through C1. */
+function AddMenu() {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        className={cn(
+          buttonVariants({ variant: "outline", size: "sm" }),
+          "data-popup-open:bg-muted",
+        )}
+      >
+        <Plus />
+        Add
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner
+          className={comboboxClassNames.positioner}
+          align="end"
+          sideOffset={4}
+        >
+          <Menu.Popup
+            className={cn(comboboxClassNames.popup, "w-auto min-w-40 p-1")}
+          >
+            {ADD_MENU.map((item) => (
+              <Menu.LinkItem
+                key={item.to}
+                className={cn(comboboxClassNames.item, "no-underline")}
+                render={<Link to={item.to} />}
+                closeOnClick
+              >
+                {item.label}
+              </Menu.LinkItem>
+            ))}
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 
@@ -164,7 +213,7 @@ function AccountRow({ account }: { account: HomeAccount }) {
           <div className="mt-0.5 text-meta text-ink-meta">
             Deleted from your books. Remove it in{" "}
             <Link
-              to={SETUP_STEP_ROUTES.banks}
+              to={BANKS_SETTINGS_ROUTE}
               className="font-semibold text-primary underline-offset-4 hover:underline"
             >
               Banks &amp; cards
@@ -206,8 +255,8 @@ function ImportedUntil({ account }: { account: HomeAccount }) {
  * Problems in its drafts come first, since Review shows them; then books that
  * miss a statement balance, as an entry changed after its statement was
  * added; then drafts waiting; then an institution with no parser, whose
- * statements can't be imported until the wizard's first statement sets
- * their format up.
+ * statements can't be imported until dropping them at /add teaches dbu6
+ * their format.
  */
 function accountStatus(account: HomeAccount): {
   tone: StatusTone;
@@ -239,7 +288,7 @@ function accountStatus(account: HomeAccount): {
     return {
       tone: "attention",
       label: "Needs a first statement",
-      to: SETUP_STEP_ROUTES.statements,
+      to: ADD_ROUTE,
     };
   }
   return null;
