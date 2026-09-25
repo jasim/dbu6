@@ -4,12 +4,14 @@ import { usePageTitle } from "@sapporta/frontend/shell";
 import type { OpeningBalances } from "../../../shared/index";
 import { apiErrorMessage } from "../../api";
 import { Button } from "../../components/ui/button";
+import { joinNames } from "../../format";
 import {
   openingBalancesQuery,
   refreshSetup,
   statementAccountsQuery,
 } from "../../queries";
 import { FocusCard, type FocusFrame } from "../FocusCard";
+import { SETUP_HAND_OFF_HREF } from "../../review/routes";
 import { accountsInBooks, contextLine } from "../words";
 import { RecordBalance } from "./RecordBalance";
 import {
@@ -18,7 +20,7 @@ import {
   otherCard,
   otherHref,
   readOtherUrl,
-  SETUP_HAND_OFF,
+  recordedNames,
   unrecorded,
   type OtherUrl,
 } from "./state";
@@ -50,7 +52,7 @@ export function AddOther() {
   };
 
   if (otherCard(url) === "anything-else") {
-    return <AnythingElse frame={frame} url={url} data={balances.data} />;
+    return <AnythingElse frame={frame} data={balances.data} />;
   }
 
   const data = balances.data;
@@ -82,12 +84,11 @@ export function AddOther() {
       frame={frame}
       choices={choices}
       back={url.setup ? otherHref({ setup: true }) : null}
-      onRecorded={(accountId) => {
-        // Card 6 names the account from the list as it was, so the
-        // refresh can follow the move.
-        navigate(afterRecording(url, accountId));
-        void refreshSetup(client);
-      }}
+      onRecorded={() =>
+        // Card 6 says what is recorded from the list, so it moves on once
+        // the list has the new balance.
+        void refreshSetup(client).then(() => navigate(afterRecording(url)))
+      }
       onRefused={() => void balances.refetch()}
     />
   );
@@ -99,28 +100,22 @@ export function AddOther() {
  */
 function AnythingElse({
   frame,
-  url,
   data,
 }: {
   frame: FocusFrame;
-  url: OtherUrl;
   data: OpeningBalances | undefined;
 }) {
-  const recorded =
-    url.recorded === null
-      ? null
-      : (data?.accounts.find((one) => one.account_id === url.recorded)?.name ??
-        null);
+  const recorded = data ? recordedNames(data) : [];
   return (
     <FocusCard
       {...frame}
       title="Cash, a deposit, a loan?"
       lead={
-        recorded === null ? (
+        recorded.length === 0 ? (
           "Record what each held when your books start."
         ) : (
           <span className="text-primary">
-            <span aria-hidden="true">✓</span> {recorded} recorded
+            <span aria-hidden="true">✓</span> {joinNames(recorded)} recorded
           </span>
         )
       }
@@ -128,7 +123,7 @@ function AnythingElse({
         <>
           <Button
             variant="outline"
-            render={<Link to={SETUP_HAND_OFF} />}
+            render={<Link to={SETUP_HAND_OFF_HREF} />}
             nativeButton={false}
           >
             That's all
@@ -165,15 +160,16 @@ function NothingLeft({
       lead="Add an account on the Accounts page, then come back."
       actions={
         <>
+          {/* In a new tab, so the run stays here to come back to. */}
           <Button
             variant="outline"
-            render={<Link to="/accounts" />}
+            render={<Link to="/accounts" target="_blank" rel="noopener" />}
             nativeButton={false}
           >
             Accounts page
           </Button>
           <Button
-            render={<Link to={url.setup ? SETUP_HAND_OFF : "/"} />}
+            render={<Link to={url.setup ? SETUP_HAND_OFF_HREF : "/"} />}
             nativeButton={false}
           >
             {url.setup ? "That's all" : "Done"}

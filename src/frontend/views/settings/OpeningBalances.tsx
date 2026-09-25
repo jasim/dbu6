@@ -12,13 +12,29 @@ import {
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";
-import type { OpeningBalanceAccount, OpeningSection } from "../../shared/index";
-import { apiErrorMessage, openingBalancesApi } from "../api";
-import { EmptyState } from "../components/empty-state";
-import { LoadError } from "../components/load-error";
-import { Button } from "../components/ui/button";
-import { formatDate } from "../format";
-import { openingBalancesQuery, refreshSetup } from "../queries";
+import { usePageTitle } from "@sapporta/frontend/shell";
+import type {
+  OpeningBalanceAccount,
+  OpeningSection,
+} from "../../../shared/index";
+import { ADD_OTHER_ROUTE } from "../../add-account/state";
+import { apiErrorMessage, openingBalancesApi } from "../../api";
+import { EmptyState } from "../../components/empty-state";
+import { LoadError } from "../../components/load-error";
+import { Screen, ScreenTitle } from "../../components/screen";
+import { Button } from "../../components/ui/button";
+import { formatDate } from "../../format";
+import { openingBalancesQuery, refreshSetup } from "../../queries";
+import {
+  focuses,
+  journalHref,
+  lockText,
+  openingFigure,
+  parentLine,
+  recordedSections,
+  sectionOf,
+  type BalanceSection,
+} from "../../setup/opening-balances";
 import {
   balanceProblem,
   OpeningBalanceDialog,
@@ -28,28 +44,18 @@ import {
   type BalanceProblem,
 } from "./OpeningBalanceDialog";
 import { RowMenu } from "./RowMenu";
-import { SetupFrame, StepHeading } from "./SetupWizard";
-import {
-  balanceSections,
-  focuses,
-  journalHref,
-  lockText,
-  openingFigure,
-  parentLine,
-  sectionOf,
-  type BalanceSection,
-} from "./other-balances";
-import { SETUP_STEP_ROUTES } from "./steps";
 
 /*
- * Step 4, optional: what the accounts no statement covers held when the
- * books start. Cash, investments and loans get one balance each; the banks
- * and cards, whose first statements set theirs, are listed below them to
- * check. A recorded balance can be changed or removed here until another
- * transaction on its account follows it, or while its journal entry opens
- * other accounts too.
+ * Settings' Opening balances: what each account held or owed when the
+ * books start. Cash, investments and loans come first; the banks and cards,
+ * whose first statements set theirs, below them. A balance can be changed
+ * or removed here until another transaction on its account follows it, or
+ * while its journal entry opens other accounts too. Recording one is C1's
+ * (/add/other), except the balance a link names that an account lacks: a
+ * bank or card whose statements print none, which C1 doesn't list.
  */
-export function BalancesStep() {
+export function OpeningBalances() {
+  usePageTitle("Opening balances");
   const client = useQueryClient();
   const query = useQuery(openingBalancesQuery);
   const [params] = useSearchParams();
@@ -99,94 +105,87 @@ export function BalancesStep() {
     }
   }, [data, fetching, focus]);
 
-  const sections = data ? balanceSections(data, focus) : [];
+  const sections = data ? recordedSections(data, focus) : [];
+  const addLink = (
+    <Link
+      to={ADD_OTHER_ROUTE}
+      className="text-primary underline-offset-4 hover:underline"
+    >
+      Add a balance
+    </Link>
+  );
 
   return (
-    <SetupFrame step="balances">
-      <StepHeading title="Add your other balances">
-        What cash, investments and loans held when your books start. Optional.
-      </StepHeading>
-      {query.isPending && (
-        <p className="text-body text-ink-meta">Loading your accounts…</p>
-      )}
-      {query.isError && (
-        <LoadError
-          title="Couldn't load your accounts"
-          message={apiErrorMessage(query.error)}
-          retry={() => void query.refetch()}
-        />
-      )}
-      {data && (
-        <>
-          <div className="space-y-6">
-            {data.accounts.length === 0 ? (
+    <Screen
+      width="narrow"
+      header={
+        <ScreenTitle title="Opening balances">
+          <p>What each account held or owed when your books start.</p>
+        </ScreenTitle>
+      }
+    >
+      <div className="mt-6">
+        {query.isPending && (
+          <p className="text-body text-ink-meta">Loading your balances…</p>
+        )}
+        {query.isError && (
+          <LoadError
+            title="Couldn't load your balances"
+            message={apiErrorMessage(query.error)}
+            retry={() => void query.refetch()}
+          />
+        )}
+        {data && (
+          <>
+            {sections.length === 0 ? (
               <EmptyState
-                title="Create your chart of accounts first"
-                body="Cash, investments and loans are accounts in it."
+                title="No opening balances yet"
+                body="Banks and cards get theirs from their first statement."
                 action={
                   <Button
-                    render={<Link to={SETUP_STEP_ROUTES.accounts} />}
+                    render={<Link to={ADD_OTHER_ROUTE} />}
                     nativeButton={false}
                     variant="outline"
                     size="sm"
                   >
-                    Choose a chart
+                    Add a balance
                   </Button>
                 }
               />
             ) : (
-              !sections.some((one) => one.section !== "statement") && (
-                <EmptyState
-                  title="No cash, investment or loan accounts"
-                  body="Add them on the Accounts page, then come back."
-                  action={
-                    <Button
-                      render={<Link to="/accounts" />}
-                      nativeButton={false}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Accounts page
-                    </Button>
-                  }
-                />
-              )
+              <>
+                <div className="space-y-6">
+                  {sections.map((section) => (
+                    <SectionTable
+                      key={section.section}
+                      section={section}
+                      focus={focus}
+                      onOpen={(account) =>
+                        setEditing({ account, section: section.section })
+                      }
+                      onRemove={setRemoving}
+                    />
+                  ))}
+                </div>
+                <p className="mt-4 text-body text-ink-soft">
+                  {addLink} for cash, a deposit, an investment or a loan.
+                </p>
+              </>
             )}
-            {sections.map((section) => (
-              <SectionTable
-                key={section.section}
-                section={section}
-                focus={focus}
-                onOpen={(account) =>
-                  setEditing({ account, section: section.section })
-                }
-                onRemove={setRemoving}
-              />
-            ))}
-          </div>
-          {data.accounts.length > 0 && (
-            <div className="mt-8 flex justify-end">
-              <Button
-                render={<Link to={SETUP_STEP_ROUTES.review} />}
-                nativeButton={false}
-              >
-                Next: Review
-              </Button>
-            </div>
-          )}
-          <OpeningBalanceDialog
-            editing={editing}
-            save={save}
-            onClose={() => setEditing(null)}
-          />
-          <RemoveDialog
-            account={removing}
-            remove={remove}
-            onClose={() => setRemoving(null)}
-          />
-        </>
-      )}
-    </SetupFrame>
+            <OpeningBalanceDialog
+              editing={editing}
+              save={save}
+              onClose={() => setEditing(null)}
+            />
+            <RemoveDialog
+              account={removing}
+              remove={remove}
+              onClose={() => setRemoving(null)}
+            />
+          </>
+        )}
+      </div>
+    </Screen>
   );
 }
 

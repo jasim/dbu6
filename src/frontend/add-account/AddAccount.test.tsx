@@ -370,7 +370,7 @@ describe("adding a bank or card", () => {
     expect(title()).toBe("Sample Savings added.");
     expect(text()).toContain("Setting up your books · 1 account added");
     expect(button("That's all").getAttribute("href")).toBe(
-      "/add/other?run=setup&from=2026-01",
+      "/add/other?run=setup",
     );
 
     await click("Add another bank or card");

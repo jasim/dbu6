@@ -911,6 +911,66 @@ describe("addAccount", () => {
     ).toEqual(["Sample Bank", "Sample Cards"]);
   });
 
+  it("keeps the account, its format and its opening when the import's tail fails, and adding again finishes it", async () => {
+    const ledger = books();
+    const files = () => [dropped("NOPII.pdf", otherBank("08"))];
+    // The config loads, and breaks on the first row it classifies, past
+    // every check made before writing.
+    const failing: LoadCategorizer = async (settings) => ({
+      classify: {
+        ok: true,
+        value: () => {
+          throw new CategorizationConfigError("NOPII mappings file is broken.");
+        },
+      },
+      customMappings: { ok: true, value: "" },
+      llm: settings.llm,
+    });
+
+    expect(
+      await add(
+        ledger,
+        files(),
+        { institution: "Other Sample Bank", name: "Sample Current" },
+        failing,
+      ),
+    ).toMatchObject({
+      ok: false,
+      code: "import_refused",
+      importError: { name: "CategorizationConfigError" },
+    });
+    const created = ledgerAccount(ledger, "Sample Current")!;
+    expect(presetOf(ledger, created.id)?.institution.parsers).toEqual([
+      "other-bank-pdf",
+    ]);
+    expect(opening(ledger, created.id)).toEqual({
+      date: "2026-08-02",
+      amount: 10000,
+    });
+    expect(drafts(ledger, created.id)).toEqual([]);
+
+    // Dropped again, the files are that account's, set up and empty.
+    expect((await read(ledger, files())).accounts[0]).toMatchObject({
+      status: "empty",
+      account: { id: created.id },
+    });
+    expect(await add(ledger, files())).toEqual({
+      ok: true,
+      added: {
+        account_id: created.id,
+        account_name: "Sample Current",
+        drafts: 2,
+      },
+    });
+    expect(
+      ledger.sqlite
+        .prepare(
+          "SELECT COUNT(*) AS n FROM journal_entries WHERE account_id = ?",
+        )
+        .get(created.id),
+    ).toEqual({ n: 1 });
+  });
+
   it("refuses a file it can't read, and a new account with no name", async () => {
     const ledger = books();
 

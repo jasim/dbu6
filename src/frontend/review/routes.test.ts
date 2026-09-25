@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { readReviewRun, reviewHandOffHref, withReviewRun } from "./routes";
+import {
+  draftsHandOffHref,
+  readReviewRun,
+  SETUP_HAND_OFF_HREF,
+  withReviewRun,
+} from "./routes";
 
 describe("what /add hands Review", () => {
   it("reads the note and the first run from the query", () => {
@@ -21,7 +26,7 @@ describe("what /add hands Review", () => {
   });
 
   it("hands a later add to the account's drafts, the first run to the picker", () => {
-    expect(reviewHandOffHref(12)).toBe("/review/12/drafts?imported=1");
-    expect(reviewHandOffHref()).toBe("/review?imported=1&run=setup");
+    expect(draftsHandOffHref(12)).toBe("/review/12/drafts?imported=1");
+    expect(SETUP_HAND_OFF_HREF).toBe("/review?imported=1&run=setup");
   });
 });

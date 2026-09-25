@@ -34,16 +34,11 @@ describe("mounted app routes", () => {
     expect(paths["/api/agent-handoff"]?.post).toBeDefined();
     expect(paths["/api/coding-agent"]?.get).toBeDefined();
     expect(paths["/api/coding-agent"]?.put).toBeDefined();
-    expect(paths["/api/setup"]?.get).toBeDefined();
     expect(paths["/api/setup/chart-of-accounts"]?.post).toBeDefined();
     expect(paths["/api/setup/chart-of-accounts/suggest"]?.post).toBeDefined();
     expect(paths["/api/setup/statement-accounts"]?.post).toBeDefined();
-    expect(paths["/api/setup/first-statements"]?.get).toBeDefined();
-    expect(paths["/api/setup/sample-statement"]?.post).toBeDefined();
-    expect(paths["/api/setup/sample-statement/recheck"]?.post).toBeDefined();
-    expect(
-      paths["/api/setup/sample-statement/{accountId}"]?.delete,
-    ).toBeDefined();
+    expect(paths["/api/add-account/read"]?.post).toBeDefined();
+    expect(paths["/api/add-account/add"]?.post).toBeDefined();
   });
 
   it("no longer publishes the retired statement upload routes", () => {
@@ -55,5 +50,11 @@ describe("mounted app routes", () => {
     expect(paths["/api/import-draft/hdfc-bank/upload"]).toBeUndefined();
     expect(paths["/api/import-draft/federal-bank/upload"]).toBeUndefined();
     expect(paths["/api/import-draft/statement/upload"]).toBeUndefined();
+    // The setup wizard's status and first statements step, which /add
+    // replaced.
+    expect(paths["/api/setup"]).toBeUndefined();
+    expect(paths["/api/setup/first-statements"]).toBeUndefined();
+    expect(paths["/api/setup/first-statement"]).toBeUndefined();
+    expect(paths["/api/setup/sample-statement"]).toBeUndefined();
   });
 });

@@ -15,13 +15,14 @@ import {
 import type {
   StatementAccountRow,
   StatementAccounts,
-} from "../../shared/index";
-import { BanksStep } from "./BanksStep";
+} from "../../../shared/index";
+import { BanksAndCards } from "./BanksAndCards";
 
 /*
- * Step 2 on screen: the empty state's two buttons, one flat table with its
- * marks, and the add dialog, which asks for the bank, names the account
- * after it, and asks for a number only when the bank has another account.
+ * Settings' Banks & cards on screen: one flat table with its marks, the
+ * edit dialog, which asks for a number in view only when the bank has
+ * another account, and removal, of a deleted account's row too. Adding is
+ * /add's, which the page links to.
  */
 
 let host: HTMLDivElement;
@@ -102,7 +103,6 @@ beforeEach(() => {
         }
         return Response.json(accounts);
       }
-      // The wizard's own status, which this step doesn't need.
       return Response.json({ error: "Not here" }, { status: 404 });
     }),
   );
@@ -123,7 +123,7 @@ async function settle() {
   }
 }
 
-async function renderStep(rows: StatementAccountRow[]) {
+async function renderPage(rows: StatementAccountRow[]) {
   accounts = books(rows);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -135,8 +135,8 @@ async function renderStep(rows: StatementAccountRow[]) {
         { client },
         createElement(
           MemoryRouter,
-          { initialEntries: ["/setup/banks"] },
-          createElement(BanksStep),
+          { initialEntries: ["/settings/banks"] },
+          createElement(BanksAndCards),
         ),
       ),
     );
@@ -146,14 +146,6 @@ async function renderStep(rows: StatementAccountRow[]) {
 
 function text(): string {
   return document.body.textContent ?? "";
-}
-
-function button(label: string): HTMLElement {
-  const found = [...document.querySelectorAll<HTMLElement>("button, a")].find(
-    (one) => one.textContent?.trim() === label,
-  );
-  if (!found) throw new Error(`No ${label} button in:\n${text()}`);
-  return found;
 }
 
 /** The input a label names; the dialog renders in a portal. */
@@ -183,20 +175,44 @@ function type(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-describe("BanksStep", () => {
-  it("starts empty, with a button for each kind", async () => {
-    await renderStep([]);
+/** A button, link or menu item by its text or its label. */
+function button(label: string): HTMLElement {
+  const found = [
+    ...document.querySelectorAll<HTMLElement>("button, a, [role=menuitem]"),
+  ].find(
+    (one) =>
+      one.textContent?.trim() === label ||
+      one.getAttribute("aria-label") === label,
+  );
+  if (!found) throw new Error(`No ${label} in:\n${text()}`);
+  return found;
+}
 
-    expect(text()).toContain("Add your banks and cards");
-    expect(text()).toContain("Add the accounts you get statements for");
-    expect(button("+ Bank account")).toBeTruthy();
-    expect(button("+ Credit card")).toBeTruthy();
-    expect(button("Skip for now").getAttribute("href")).toBe("/setup/review");
-    expect(text()).not.toContain("Next: First statements");
+/** Opens a row's "⋯" menu and picks an item. */
+async function choose(name: string, item: "Edit" | "Remove") {
+  const trigger = button(`Actions for ${name}`);
+  await act(async () => {
+    trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    trigger.click();
+  });
+  await settle();
+  await act(async () => button(item).click());
+  await settle();
+}
+
+describe("BanksAndCards", () => {
+  it("links to /add when there are none, with no add buttons", async () => {
+    await renderPage([]);
+
+    expect(text()).toContain("No banks or cards yet");
+    expect(button("Add a bank or card").getAttribute("href")).toBe("/add");
+    expect(text()).not.toContain("+ Bank account");
+    expect(text()).not.toContain("+ Credit card");
   });
 
   it("lists every account in one table, locked ones without a menu", async () => {
-    await renderStep([
+    await renderPage([
       savings,
       card,
       {
@@ -241,62 +257,67 @@ describe("BanksStep", () => {
     expect(
       rows[0].querySelector('[aria-label="Actions for Sample Bank Savings"]'),
     ).not.toBeNull();
-    expect(button("Next: First statements").getAttribute("href")).toBe(
-      "/setup/statements",
-    );
+    expect(button("Add a bank or card").getAttribute("href")).toBe("/add");
   });
 
-  it("adds a bank account from its bank's name alone", async () => {
-    await renderStep([]);
-    await act(async () => button("+ Bank account").click());
+  it("edits a row, the number tucked away while it is optional", async () => {
+    await renderPage([savings, card]);
+    await choose("Sample Bank Savings", "Edit");
 
-    expect(text()).toContain("Add a bank account");
+    expect(text()).toContain("Edit Sample Bank Savings");
+    expect(field("Bank").value).toBe("Sample Bank");
     expect(tuckedAway(field("Account number"))).toBe(true);
     expect(tuckedAway(field("Under"))).toBe(true);
 
-    await act(async () => type(field("Bank"), "Other Bank"));
-    expect(field("Name").value).toBe("Other Savings");
-
-    await act(async () => button("Add account").click());
+    await act(async () => type(field("Name"), "Sample Joint Savings"));
+    await act(async () => button("Save").click());
     await settle();
     expect(posts).toEqual([
       {
-        action: "create",
+        action: "update",
+        account_id: 8,
         kind: "bank",
-        institution: "Other Bank",
-        identifier: null,
-        ledger: { source: "new", name: "Other Savings", parent_id: 2 },
+        institution: "Sample Bank",
+        name: "Sample Joint Savings",
+        identifier: "050505000012",
+        parent_id: 2,
       },
     ]);
+    expect(document.querySelector("form")).toBeNull();
   });
 
-  it("asks for the number when the bank already has an account", async () => {
-    await renderStep([savings]);
-    await act(async () => button("+ Bank account").click());
-    await act(async () => type(field("Bank"), "Sample Bank"));
+  it("asks for the number in view when the bank has another account", async () => {
+    await renderPage([
+      savings,
+      {
+        ...savings,
+        account_id: 12,
+        name: "Sample Bank Current",
+        account_identifiers: ["050505000078"],
+      },
+    ]);
+    await choose("Sample Bank Savings", "Edit");
 
     const number = field("Account number");
     expect(tuckedAway(number)).toBe(false);
     expect(text()).toContain(
-      "Sample Bank already has Sample Bank Savings. This tells their statements apart.",
+      "Sample Bank already has Sample Bank Current. This tells their statements apart.",
     );
-
-    await act(async () => button("Add account").click());
+    await act(async () => type(number, ""));
+    await act(async () => button("Save").click());
     await settle();
     expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-      "Sample Bank already has Sample Bank Savings, so each needs its number.",
+      "Sample Bank already has Sample Bank Current, so each needs its number.",
     );
     expect(posts).toEqual([]);
   });
 
   it("opens More options when the problem is a field in it", async () => {
-    await renderStep([]);
-    await act(async () => button("+ Bank account").click());
-    await act(async () => type(field("Bank"), "Other Bank"));
+    await renderPage([savings]);
+    await choose("Sample Bank Savings", "Edit");
     await act(async () => type(field("Account number"), "0505 NOPII"));
-    expect(tuckedAway(field("Account number"))).toBe(true);
 
-    await act(async () => button("Add account").click());
+    await act(async () => button("Save").click());
     await settle();
 
     expect(document.querySelector('[role="alert"]')?.textContent).toBe(
@@ -306,41 +327,49 @@ describe("BanksStep", () => {
     expect(posts).toEqual([]);
   });
 
-  it("takes a bank typed in another case as the one the books know", async () => {
-    await renderStep([savings]);
-    await act(async () => button("+ Bank account").click());
-    await act(async () => type(field("Bank"), "  sample   BANK "));
-
-    // Sample Bank has an account, so the number is asked for; the name
-    // doesn't collide with it.
-    expect(tuckedAway(field("Account number"))).toBe(false);
-    expect(field("Name").value).toBe("Sample Savings");
-    await act(async () => type(field("Account number"), "050505000078"));
-    await act(async () => button("Add account").click());
-    await settle();
-
-    expect(posts).toMatchObject([{ institution: "Sample Bank" }]);
-  });
-
   it("keeps the dialog open with the server's refusal", async () => {
-    await renderStep([]);
+    await renderPage([savings]);
     refusal = {
       error: "Your books already have an account named Sample Card.",
       code: "ledger_name_taken",
     };
-    await act(async () => button("+ Credit card").click());
-    expect(text()).toContain("Add a credit card");
-    expect(text()).toContain("Card issuer");
-
-    await act(async () => type(field("Card issuer"), "Sample Issuer"));
-    expect(field("Name").value).toBe("Sample Issuer Credit Card");
-    await act(async () => button("Add account").click());
+    await choose("Sample Bank Savings", "Edit");
+    await act(async () => type(field("Name"), "Sample Card"));
+    await act(async () => button("Save").click());
     await settle();
 
     expect(posts).toHaveLength(1);
     expect(document.querySelector('[role="alert"]')?.textContent).toBe(
       "Your books already have an account named Sample Card.",
     );
-    expect(text()).toContain("Add a credit card");
+    expect(text()).toContain("Edit Sample Bank Savings");
+  });
+
+  it("removes a row whose account was deleted from the books", async () => {
+    const gone = { ...savings, name: "Sample Gone", in_ledger: false };
+    await renderPage([gone]);
+    await choose("Sample Gone", "Remove");
+
+    expect(text()).toContain("Remove Sample Gone?");
+    // Its account is already gone from the chart.
+    expect(text()).not.toContain("Also delete it from your chart of accounts");
+    await act(async () => button("Remove").click());
+    await settle();
+    expect(posts).toEqual([
+      { action: "remove", account_id: 8, delete_account: false },
+    ]);
+  });
+
+  it("offers only Remove on a deleted account's row", async () => {
+    await renderPage([{ ...savings, name: "Sample Gone", in_ledger: false }]);
+    const trigger = button("Actions for Sample Gone");
+    await act(async () => {
+      trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+      trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      trigger.click();
+    });
+    await settle();
+    expect(() => button("Edit")).toThrow();
+    expect(button("Remove")).toBeTruthy();
   });
 });

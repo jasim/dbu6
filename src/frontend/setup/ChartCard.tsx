@@ -11,7 +11,6 @@ import {
   chartOfAccountsQuery,
   chartSuggesterQuery,
   refreshSetup,
-  setupStatusQuery,
 } from "../queries";
 import { plural } from "../format";
 import { FocusCard, type FocusFrame } from "../add-account/FocusCard";
@@ -26,15 +25,17 @@ import {
 } from "./chart-checklist";
 import { ChartTree } from "./ChartTree";
 import { DescribeMoney } from "./DescribeMoney";
-import { setupRedirect } from "./first-run";
 
 /*
  * Card 1 of the first run (PLAN.md "The cards"), at `/setup`: books with no
  * accounts pick their chart, the standard one or one the coding agent
  * proposes from the user's description, ticked through before anything is
- * created. Books with a chart are sent on (`setupRedirect`); the Accounts
- * page changes a chart.
+ * created. Books with a chart go Home, which resumes the first run from the
+ * books; the Accounts page changes a chart.
  */
+
+/** Card 1, the chart: first run only. */
+export const SETUP_ROUTE = "/setup";
 
 // The first run's context line, before any bank or card is in.
 const FRAME: FocusFrame = {
@@ -43,19 +44,23 @@ const FRAME: FocusFrame = {
 
 export function ChartCard() {
   usePageTitle("Set up your books");
-  const status = useQuery(setupStatusQuery);
-  if (status.isError) {
+  const chart = useQuery(chartOfAccountsQuery);
+  if (chart.isError) {
     return (
       <LoadFailed
-        message={apiErrorMessage(status.error)}
-        retry={() => void status.refetch()}
+        message={apiErrorMessage(chart.error)}
+        retry={() => void chart.refetch()}
       />
     );
   }
-  if (!status.data) return <FocusCard {...FRAME} title="Loading…" />;
-  const to = setupRedirect(status.data);
-  if (to !== null) return <Navigate to={to} replace />;
-  return <NewChart />;
+  if (!chart.data) return <FocusCard {...FRAME} title="Loading…" />;
+  if (chart.data.state === "existing") return <Navigate to="/" replace />;
+  return (
+    <Checklist
+      starter={chart.data.starter.accounts}
+      unticked={chart.data.unticked}
+    />
+  );
 }
 
 function LoadFailed({
@@ -75,28 +80,6 @@ function LoadFailed({
         </span>
       }
       actions={<Button onClick={retry}>Try again</Button>}
-    />
-  );
-}
-
-function NewChart() {
-  const chart = useQuery(chartOfAccountsQuery);
-  if (chart.isError) {
-    return (
-      <LoadFailed
-        message={apiErrorMessage(chart.error)}
-        retry={() => void chart.refetch()}
-      />
-    );
-  }
-  if (!chart.data) return <FocusCard {...FRAME} title="Loading…" />;
-  // A chart made since the status was read (another tab, an agent): Home
-  // resumes from the books.
-  if (chart.data.state === "existing") return <Navigate to="/" replace />;
-  return (
-    <Checklist
-      starter={chart.data.starter.accounts}
-      unticked={chart.data.unticked}
     />
   );
 }
@@ -174,9 +157,13 @@ function Checklist({
       title="Pick your chart of accounts"
       lead="Every transaction is sorted into one of these. Rename or add more later."
       actions={
-        <Button onClick={() => void create()} disabled={creating}>
-          {creating ? "Creating…" : `Create ${plural(ticks.size, "account")}`}
-        </Button>
+        // Describing, Propose is the one thing to do until there is a
+        // proposal to create.
+        describing && described === null ? undefined : (
+          <Button onClick={() => void create()} disabled={creating}>
+            {creating ? "Creating…" : `Create ${plural(ticks.size, "account")}`}
+          </Button>
+        )
       }
     >
       <div className="mb-5">

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { postingCheck } from "../../shared/index";
 import { Button } from "../components/ui/button";
 import { reportsApi } from "../reports/client";
-import { balancesHref } from "../setup/steps";
+import { balancesHref } from "../views/settings/routes";
 import { EmptyState } from "../components/empty-state";
 import { formatMoney, formatShortDate } from "../format";
 import { balanceChecksPrompt } from "./agentPrompts";

@@ -46,7 +46,7 @@ export type HomeLedgerAccount = Extract<HomeAccount, { in_ledger: true }>;
 
 export const homeSummarySchema = z.object({
   // Whether the books have a chart of accounts: any account at all, the
-  // rule /setup's chart step and its create follow.
+  // rule /setup's chart card and its create follow (`hasChart`).
   has_chart: z.boolean(),
   // Oldest balance assertion first; accounts without one lead.
   accounts: z.array(homeAccountSchema),

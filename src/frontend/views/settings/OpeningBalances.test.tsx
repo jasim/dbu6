@@ -14,26 +14,27 @@ import {
 } from "vitest";
 import type {
   OpeningBalanceAccount,
-  OpeningBalances,
-} from "../../shared/index";
-import { openingBalancesQuery } from "../queries";
-import { BalancesStep } from "./BalancesStep";
+  OpeningBalances as OpeningBalancesList,
+} from "../../../shared/index";
+import { openingBalancesQuery } from "../../queries";
+import { OpeningBalances } from "./OpeningBalances";
 
 /*
- * Step 4 on screen: what you own, what you owe, then the banks and cards;
- * one dialog per account that takes the amount the user's way up; locked
- * balances pointing to their journal entry; and a link naming an account
- * landing on its row with its dialog open.
+ * Settings' Opening balances on screen: the recorded balances, what you
+ * own, what you owe, then the banks and cards; one dialog per account that
+ * takes the amount the user's way up; locked balances pointing to their
+ * journal entry; and a link naming an account with none landing on its row
+ * with its dialog open, the one way a balance is recorded here.
  */
 
 // A date the books don't give opens on today, in the workspace's zone.
-vi.mock("../reports/shared", () => ({ today: () => "2026-09-25" }));
+vi.mock("../../reports/shared", () => ({ today: () => "2026-09-25" }));
 
 type Answer = { status: number; body: unknown };
 
 let host: HTMLDivElement;
 let root: Root;
-let balances: OpeningBalances;
+let balances: OpeningBalancesList;
 let sent: { method: string; path: string; body: unknown }[];
 let refusal: Answer | null;
 let lists: number;
@@ -161,7 +162,6 @@ beforeEach(() => {
                 : { removed_journal_id: 21 },
             );
       }
-      // The wizard's own status, which this step doesn't need.
       return Response.json({ error: "Not here" }, { status: 404 });
     }),
   );
@@ -182,10 +182,10 @@ async function settle() {
   }
 }
 
-async function renderStep(
+async function renderPage(
   accounts: OpeningBalanceAccount[] | "refused",
-  url = "/setup/balances",
-  /** An older list, already in the cache when the step opens. */
+  url = "/settings/balances",
+  /** An older list, already in the cache when the page opens. */
   cached?: OpeningBalanceAccount[],
 ) {
   if (accounts === "refused") {
@@ -218,7 +218,7 @@ async function renderStep(
         createElement(
           MemoryRouter,
           { initialEntries: [url] },
-          createElement(BalancesStep),
+          createElement(OpeningBalances),
         ),
       ),
     );
@@ -309,11 +309,20 @@ function alertLink(): string | null | undefined {
   return document.querySelector('[role="alert"] a')?.getAttribute("href");
 }
 
-describe("BalancesStep", () => {
-  it("lists what you own, what you owe, then the banks and cards", async () => {
-    await renderStep(ALL);
+/** The page on the row a link names; an account with none opens its dialog. */
+const linked = (account: string) =>
+  `/settings/balances?${new URLSearchParams({ account })}`;
 
-    expect(text()).toContain("Add your other balances");
+describe("OpeningBalances", () => {
+  it("lists the recorded balances: what you own, what you owe, then the banks and cards", async () => {
+    await renderPage([
+      ...ALL,
+      account(11, "Sample Home Loan", "Liabilities:Loans:Sample Home Loan", {
+        opening: opening(25, -500000),
+      }),
+    ]);
+
+    expect(text()).toContain("Opening balances");
     // Each row: its name and parent line, then As of and the figure.
     const sections = [...host.querySelectorAll("section")].map((section) => [
       section.querySelector("h3")?.textContent,
@@ -328,12 +337,12 @@ describe("BalancesStep", () => {
         return [name, parents ?? null, asOf, figure];
       }),
     ]);
+    // Cash, the car loan and the gold card have none: recording one is C1's.
     expect(sections).toEqual([
       [
         "Assets · what you own",
         "Balance",
         [
-          ["Cash", null, "—", "—"],
           ["EPF", "Investments", "31 Mar 2026", "6,40,000.00"],
           ["PPF", "Investments", "31 Mar 2026", "2,10,000.00"],
         ],
@@ -341,26 +350,26 @@ describe("BalancesStep", () => {
       [
         "Liabilities · what you owe",
         "Owed",
-        [["Sample Car Loan", "Loans", "—", "—"]],
+        [["Sample Home Loan", "Loans", "31 Mar 2026", "5,00,000.00"]],
       ],
       [
         "Banks & cards · set by each first statement",
         "Balance",
         [
           ["Sample Bank Savings", null, "31 Mar 2026", "12,000.00"],
-          ["Sample Card Gold", null, "—", "—"],
           ["Sample Card Platinum", null, "31 Mar 2026", "3,000.00 owed"],
         ],
       ],
     ]);
-    // A group account with no balance isn't listed.
+    expect(() => rowOf("Cash")).toThrow();
     expect(() => rowOf("Investments")).toThrow();
     expect(text()).not.toMatch(/debit|credit|equity|draft|preset/i);
-
-    // One action per row: Add, the menu, or the lock and its journal entry.
     expect(
-      rowOf("Cash").querySelector('[aria-label="Add a balance for Cash"]'),
-    ).not.toBeNull();
+      document.querySelector('[aria-label^="Add a balance for"]'),
+    ).toBeNull();
+    expect(button("Add a balance").getAttribute("href")).toBe("/add/other");
+
+    // One action per row: the menu, or the lock and its journal entry.
     expect(
       rowOf("EPF").querySelector('[aria-label="Actions for EPF"]'),
     ).not.toBeNull();
@@ -381,69 +390,10 @@ describe("BalancesStep", () => {
         '[aria-label="Recorded with other accounts in one entry. Change it there."]',
       ),
     ).not.toBeNull();
-
-    expect(button("Next: Review").getAttribute("href")).toBe("/setup/review");
-  });
-
-  it("adds an asset's balance as held", async () => {
-    await renderStep(ALL);
-    await click("Add a balance for Cash");
-
-    expect(text()).toContain("Add a balance for Cash");
-    expect(field("As of").value).toBe("2026-03-31");
-    expect(hint("As of")).toBe("When your books start.");
-    await type(field("Balance"), "5,000");
-    expect(hint("Balance")).toBe("What it held.");
-    await click("Add balance");
-
-    expect(sent).toEqual([
-      {
-        method: "POST",
-        path: "/opening-balances",
-        body: { account_id: 3, date: "2026-03-31", amount: 5000 },
-      },
-    ]);
-    expect(document.querySelector("form")).toBeNull();
-  });
-
-  it("adds a liability's balance as owed, and reads a minus as in credit", async () => {
-    await renderStep(ALL);
-    await click("Add a balance for Sample Car Loan");
-    expect(hint("As of")).toBe("Before its first transaction on 5 Apr 2026.");
-    expect(field("As of").value).toBe("2026-04-04");
-
-    await type(field("Amount owed"), "3000");
-    expect(text()).not.toContain("Below zero");
-    await type(field("Amount owed"), "-500");
-    expect(text()).toContain("Below zero: in credit.");
-    await click("Add balance");
-
-    expect(sent.map((one) => one.body)).toEqual([
-      { account_id: 7, date: "2026-04-04", amount: 500 },
-    ]);
-  });
-
-  it("sends what is owed below zero", async () => {
-    await renderStep(ALL);
-    await click("Add a balance for Sample Car Loan");
-    await type(field("Amount owed"), "3000");
-    await click("Add balance");
-
-    expect(sent.map((one) => one.body)).toMatchObject([{ amount: -3000 }]);
-  });
-
-  it("opens on the first statement's suggestion, and says where it is from", async () => {
-    await renderStep(ALL);
-    await click("Add a balance for Sample Card Gold");
-
-    expect(field("Amount owed").value).toBe("3000.00");
-    expect(hint("Amount owed")).toBe("From its first statement's balances.");
-    await type(field("Amount owed"), "2500");
-    expect(hint("Amount owed")).toBe("What you owed.");
   });
 
   it("changes a recorded balance", async () => {
-    await renderStep(ALL);
+    await renderPage(ALL);
     await choose("EPF", "Edit");
 
     expect(text()).toContain("Edit the balance for EPF");
@@ -459,10 +409,11 @@ describe("BalancesStep", () => {
         body: { date: "2026-03-31", amount: 650000 },
       },
     ]);
+    expect(document.querySelector("form")).toBeNull();
   });
 
   it("says a bank's balance moves its balance checks", async () => {
-    await renderStep(ALL);
+    await renderPage(ALL);
     await choose("Sample Bank Savings", "Edit");
 
     expect(text()).toContain(
@@ -471,7 +422,7 @@ describe("BalancesStep", () => {
   });
 
   it("removes a balance once confirmed", async () => {
-    await renderStep(ALL);
+    await renderPage(ALL);
     await choose("EPF", "Remove");
 
     expect(text()).toContain("Remove the balance for EPF?");
@@ -484,29 +435,79 @@ describe("BalancesStep", () => {
   });
 
   it("checks the fields before sending", async () => {
-    await renderStep(ALL);
-    await click("Add a balance for Cash");
-    await click("Add balance");
+    await renderPage(ALL);
+    await choose("EPF", "Edit");
+    await type(field("Balance"), "");
+    await click("Save");
     expect(alert()).toBe("Enter the balance.");
 
     await type(field("Balance"), "ten");
-    await click("Add balance");
+    await click("Save");
     expect(alert()).toBe("Enter the amount as a number.");
+    expect(sent).toEqual([]);
+  });
 
-    await click("Cancel");
-    await click("Add a balance for Sample Car Loan");
-    await type(field("Amount owed"), "0");
+  it("records the balance a link names, as held, on the default date", async () => {
+    await renderPage(ALL, linked("Cash"));
+
+    expect(rowOf("Cash").getAttribute("aria-current")).toBe("true");
+    expect(text()).toContain("Add a balance for Cash");
+    expect(field("As of").value).toBe("2026-03-31");
+    expect(hint("As of")).toBe("When your books start.");
+    await type(field("Balance"), "5,000");
+    expect(hint("Balance")).toBe("What it held.");
+    await click("Add balance");
+
+    expect(sent).toEqual([
+      {
+        method: "POST",
+        path: "/opening-balances",
+        body: { account_id: 3, date: "2026-03-31", amount: 5000 },
+      },
+    ]);
+  });
+
+  it("records a liability's balance as owed, and reads a minus as in credit", async () => {
+    await renderPage(ALL, linked("Sample Car Loan"));
+    expect(hint("As of")).toBe("Before its first transaction on 5 Apr 2026.");
+    expect(field("As of").value).toBe("2026-04-04");
+
+    await type(field("Amount owed"), "3000");
+    expect(text()).not.toContain("Below zero");
+    await type(field("Amount owed"), "-500");
+    expect(text()).toContain("Below zero: in credit.");
+    await click("Add balance");
+    expect(sent.map((one) => one.body)).toEqual([
+      { account_id: 7, date: "2026-04-04", amount: 500 },
+    ]);
+  });
+
+  it("sends what is owed below zero, on a day before the first transaction", async () => {
+    await renderPage(ALL, linked("Sample Car Loan"));
+    await type(field("Amount owed"), "3000");
     await type(field("As of"), "2026-04-05");
     await click("Add balance");
     expect(alert()).toBe(
       "Pick a day before 5 Apr 2026, its first transaction.",
     );
     expect(sent).toEqual([]);
+
+    await type(field("As of"), "2026-04-04");
+    await click("Add balance");
+    expect(sent.map((one) => one.body)).toMatchObject([{ amount: -3000 }]);
+  });
+
+  it("opens on the first statement's suggestion, and says where it is from", async () => {
+    await renderPage(ALL, linked("Sample Card Gold"));
+
+    expect(field("Amount owed").value).toBe("3000.00");
+    expect(hint("Amount owed")).toBe("From its first statement's balances.");
+    await type(field("Amount owed"), "2500");
+    expect(hint("Amount owed")).toBe("What you owed.");
   });
 
   it("keeps the dialog open with a refusal, and reads the list again", async () => {
-    await renderStep(ALL);
-    await click("Add a balance for Sample Car Loan");
+    await renderPage(ALL, linked("Sample Car Loan"));
     await type(field("Amount owed"), "3000");
     const before = lists;
     refusal = {
@@ -540,7 +541,7 @@ describe("BalancesStep", () => {
   };
 
   it("sends a locked balance's change to its journal entry, and stops saving", async () => {
-    await renderStep(ALL);
+    await renderPage(ALL);
     await choose("EPF", "Edit");
     const before = lists;
     refusal = LOCKED;
@@ -555,7 +556,7 @@ describe("BalancesStep", () => {
   });
 
   it("sends a locked balance's removal to its journal entry, and stops removing", async () => {
-    await renderStep(ALL);
+    await renderPage(ALL);
     await choose("EPF", "Remove");
     const before = lists;
     refusal = LOCKED;
@@ -569,10 +570,7 @@ describe("BalancesStep", () => {
   });
 
   it("lands on a linked account by its path, with its dialog open", async () => {
-    await renderStep(
-      ALL,
-      "/setup/balances?account=Liabilities%3ACards%3ASample+Card+Gold",
-    );
+    await renderPage(ALL, linked("Liabilities:Cards:Sample Card Gold"));
 
     const row = rowOf("Sample Card Gold");
     expect(row.getAttribute("aria-current")).toBe("true");
@@ -582,9 +580,9 @@ describe("BalancesStep", () => {
 
   it("opens a linked account's dialog once the fresh list names it", async () => {
     // The cached list is from before the card was added.
-    await renderStep(
+    await renderPage(
       ALL,
-      "/setup/balances?account=Sample+Card+Gold",
+      linked("Sample Card Gold"),
       ALL.filter((one) => one !== gold),
     );
 
@@ -593,34 +591,24 @@ describe("BalancesStep", () => {
   });
 
   it("lands on a linked account by its name, and only marks a recorded one", async () => {
-    await renderStep(ALL, "/setup/balances?account=EPF");
+    await renderPage(ALL, linked("EPF"));
 
     expect(rowOf("EPF").getAttribute("aria-current")).toBe("true");
     expect(document.querySelector("form")).toBeNull();
   });
 
-  it("asks for a chart when the books have no accounts", async () => {
-    await renderStep([]);
+  it("points to C1 when no balance is recorded", async () => {
+    await renderPage([cash, loan, gold]);
 
-    expect(text()).toContain("Create your chart of accounts first");
-    expect(button("Choose a chart").getAttribute("href")).toBe(
-      "/setup/accounts",
-    );
-    expect(() => button("Next: Review")).toThrow();
-  });
-
-  it("points to the Accounts page when only banks and cards are there", async () => {
-    await renderStep([savings, platinum]);
-
-    expect(text()).toContain("No cash, investment or loan accounts");
-    expect(button("Accounts page").getAttribute("href")).toBe("/accounts");
-    expect(rowOf("Sample Bank Savings")).toBeTruthy();
+    expect(text()).toContain("No opening balances yet");
+    expect(button("Add a balance").getAttribute("href")).toBe("/add/other");
+    expect(document.querySelector("table")).toBeNull();
   });
 
   it("says when it can't load", async () => {
-    await renderStep("refused");
+    await renderPage("refused");
 
-    expect(text()).toContain("Couldn't load your accounts");
+    expect(text()).toContain("Couldn't load your balances");
     expect(text()).toContain("Only the owner can set up the books.");
   });
 });

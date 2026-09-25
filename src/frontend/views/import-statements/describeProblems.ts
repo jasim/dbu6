@@ -19,7 +19,7 @@ import {
     unrecognizedPrompt,
 } from "./agentPrompts";
 import type {StatusTone} from "../../components/status-chip";
-import {balancesHref} from "../../setup/steps";
+import {balancesHref} from "../settings/routes";
 import type {Stat} from "./describeGroup";
 import type {AccountRefusal, ImportFailure} from "./outcome";
 import {

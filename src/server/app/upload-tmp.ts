@@ -111,74 +111,25 @@ export async function withStagedUploads<T>(
 }
 
 /*
- * The setup wizard's sample statements: at most one per preset account, in
- * `tmp/statement-uploads/setup-sample-<account id>/`, kept while a coding
- * agent writes a parser for it. The directory's name is how a sample is
- * found again, so the wizard keeps no record of its own.
+ * The old setup wizard staged each account's first statement in
+ * `tmp/statement-uploads/setup-sample-<account id>/` until it was imported.
+ * /add replaced it, so a copy left there is the user's statement kept for
+ * nothing: the server deletes them when it starts.
  */
-
-const SAMPLE_DIR_RE = /^setup-sample-(\d+)$/;
-
-/** A staged sample: where it is, and that path relative to the project. */
-export interface StagedSample {
-  path: string;
-  projectPath: string;
-}
-
-function sampleDir(accountId: number): string {
-  return join(uploadStagingDir(), `setup-sample-${accountId}`);
-}
-
-/** Stages `file` as the account's sample, replacing any earlier one. */
-export async function stageSample(
-  accountId: number,
-  file: File,
-): Promise<StagedSample> {
-  const dir = sampleDir(accountId);
-  await rm(dir, { recursive: true, force: true });
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const path = join(dir, uploadName(file.name));
-  await writeFile(path, Buffer.from(await file.arrayBuffer()), { mode: 0o600 });
-  return { path, projectPath: relative(projectRoot(), path) };
-}
-
-/** Each account's staged sample, by account id. */
-export async function stagedSamples(): Promise<Map<number, StagedSample>> {
+export async function removeSetupSamples(): Promise<void> {
   let entries: string[];
   try {
     entries = await readdir(uploadStagingDir());
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Map();
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
     throw error;
   }
-  const samples = new Map<number, StagedSample>();
   for (const entry of entries) {
-    const accountId = Number(SAMPLE_DIR_RE.exec(entry)?.[1]);
-    if (!Number.isInteger(accountId) || accountId <= 0) continue;
-    let files: string[];
-    try {
-      files = await readdir(sampleDir(accountId));
-    } catch (error) {
-      // Removed since the listing: an import or another upload took it.
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      throw error;
+    if (/^setup-sample-\d+$/.test(entry)) {
+      await rm(join(uploadStagingDir(), entry), {
+        recursive: true,
+        force: true,
+      });
     }
-    // A parser run by hand writes its JSON beside the statement; that isn't
-    // it. An upload is never named so (`uploadName`).
-    const [name] = files.filter((file) => !file.endsWith(ABACUS_SUFFIX));
-    if (name === undefined) continue;
-    const path = join(sampleDir(accountId), name);
-    samples.set(accountId, {
-      path,
-      projectPath: relative(projectRoot(), path),
-    });
   }
-  return samples;
-}
-
-/** Deletes the account's staged sample; whether there was one. */
-export async function removeStagedSample(accountId: number): Promise<boolean> {
-  const had = (await stagedSamples()).has(accountId);
-  await rm(sampleDir(accountId), { recursive: true, force: true });
-  return had;
 }

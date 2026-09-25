@@ -53,10 +53,20 @@ describe("retired routes", () => {
     );
   });
 
-  it("sends an old opening balance link to its row on the setup step", async () => {
+  it("sends an old opening balance link to its row in Settings", async () => {
     expect(await landingFor("/opening-balances?account=Sample+Card")).toBe(
-      "/setup/balances?account=Sample+Card",
+      "/settings/balances?account=Sample+Card",
     );
+    expect(await landingFor("/setup/balances?account=Sample+Card")).toBe(
+      "/settings/balances?account=Sample+Card",
+    );
+  });
+
+  it("sends the old setup wizard's steps where they went", async () => {
+    expect(await landingFor("/setup/banks")).toBe("/settings/banks");
+    expect(await landingFor("/setup/statements")).toBe("/add");
+    expect(await landingFor("/setup/review")).toBe("/review");
+    expect(await landingFor("/setup/accounts")).toBe("/setup");
   });
 
   it("leaves paths that still exist alone", async () => {

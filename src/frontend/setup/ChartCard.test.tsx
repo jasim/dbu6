@@ -17,7 +17,6 @@ import type {
   ChartOfAccounts,
   ChartSuggester,
   ChartSuggestion,
-  SetupStatus,
 } from "../../shared/index";
 import { registerTypeScale } from "../type-scale";
 import { ChartCard } from "./ChartCard";
@@ -25,7 +24,7 @@ import { ChartCard } from "./ChartCard";
 /*
  * Card 1 of the first run (PLAN.md): new books pick the standard chart or
  * describe their money, tick through two-level cards and create the ticked
- * accounts, then go on to card 2. Books with a chart are sent on.
+ * accounts, then go on to card 2. Books with a chart go Home.
  */
 
 let host: HTMLDivElement;
@@ -104,15 +103,6 @@ const NEW_CHART: ChartOfAccounts = {
 
 const READY: ChartSuggester = { ready: true, name: "Sample Agent" };
 
-const status = (accounts: number, imported: number): SetupStatus => ({
-  accounts,
-  statement_accounts: imported,
-  imported_accounts: imported,
-  drafts: 0,
-  to_review: [],
-  other_balances: 0,
-});
-
 function Where() {
   const { pathname, search } = useLocation();
   return createElement("code", null, pathname + search);
@@ -133,10 +123,6 @@ async function render(at = "/setup") {
             null,
             createElement(Route, {
               path: "/setup",
-              element: createElement(ChartCard),
-            }),
-            createElement(Route, {
-              path: "/setup/accounts",
               element: createElement(ChartCard),
             }),
             createElement(Route, { path: "*", element: null }),
@@ -194,9 +180,8 @@ async function type(field: HTMLTextAreaElement, value: string) {
   });
 }
 
-// What new books answer: no accounts, the starter chart, and the agent.
+// What new books answer: the starter chart, and the agent.
 const NEW_BOOKS = {
-  "GET /setup": status(0, 0),
   "GET /setup/chart-of-accounts": NEW_CHART,
   "GET /setup/chart-of-accounts/suggest": READY,
 };
@@ -251,16 +236,6 @@ describe("card 1 on new books", () => {
       "Food",
     ]);
     expect(where()).toBe("/add?run=setup");
-  });
-
-  it("is card 1 at the old wizard's path too", async () => {
-    answers = NEW_BOOKS;
-    await render("/setup/accounts");
-
-    expect(where()).toBe("/setup/accounts");
-    expect(host.querySelector("h1")?.textContent).toBe(
-      "Pick your chart of accounts",
-    );
   });
 
   it("drops a refusal once the chart or its ticks change", async () => {
@@ -329,6 +304,8 @@ describe("card 1 on new books", () => {
 
     await click(button("✦ Describe your money"));
     expect(text()).toContain("✦ Sample Agent proposes accounts that fit.");
+    // Until there is a proposal, Propose is the card's one thing to do.
+    expect(() => button("Create 11 accounts")).toThrow();
     await type(host.querySelector("textarea")!, "Sample freelance work.");
     await click(button("Propose accounts"));
 
@@ -347,8 +324,13 @@ describe("card 1 on new books", () => {
   });
 
   it("says when the books can't be read, and tries again", async () => {
-    answers = { "GET /setup": { error: "NOPII failure.", code: "forbidden" } };
-    statuses = { "GET /setup": 403 };
+    answers = {
+      "GET /setup/chart-of-accounts": {
+        error: "NOPII failure.",
+        code: "forbidden",
+      },
+    };
+    statuses = { "GET /setup/chart-of-accounts": 403 };
     await render();
 
     expect(host.querySelector("h1")?.textContent).toBe(
@@ -367,22 +349,15 @@ describe("card 1 on new books", () => {
 });
 
 describe("/setup on books with a chart", () => {
-  it("goes on to card 2 until a bank or card has transactions", async () => {
-    answers = { "GET /setup": status(12, 0) };
-    await render();
-    expect(where()).toBe("/add?run=setup");
-
-    act(() => root.unmount());
-    root = createRoot(host);
-    await render("/setup/accounts");
-    expect(where()).toBe("/add?run=setup");
-  });
-
-  it("goes Home once one has", async () => {
-    answers = { "GET /setup": status(12, 1) };
+  it("goes Home, which picks the next card", async () => {
+    answers = {
+      "GET /setup/chart-of-accounts": {
+        state: "existing",
+        chart: { accounts: STARTER },
+      } satisfies ChartOfAccounts,
+    };
     await render();
     expect(where()).toBe("/");
-    // The chart is never asked for.
     expect(posted).toEqual([]);
   });
 });

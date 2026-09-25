@@ -15,6 +15,7 @@ import {
   TsRestApi,
   type SapportaEnv,
 } from "@sapporta/server";
+import { removeSetupSamples } from "./app/upload-tmp.js";
 import {
   CONFIG_FILE,
   loadProjectConfig,
@@ -52,6 +53,7 @@ export async function openDbu6(options: OpenDbu6Options): Promise<Dbu6App> {
     loadCategorizer: project.config.loadCategorizer,
   });
   try {
+    await removeSetupSamples();
     return await mountDbu6(runtime, project, options.appDir);
   } catch (error) {
     // A project file that fails to load must not leave the database open.

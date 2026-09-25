@@ -94,11 +94,6 @@ export function addHref(url: Partial<AddUrl>): string {
   return `${ADD_ROUTE}${query(url)}`;
 }
 
-/** Where "That's all" goes on the first run: cash, a deposit, a loan? */
-export function addOtherHref(url: AddUrl): string {
-  return `${ADD_OTHER_ROUTE}${query({ setup: url.setup, from: url.from })}`;
-}
-
 /**
  * The answer card 2 had for the account before, which "Add another" carries
  * in the router's navigation state for card 2 to preselect.

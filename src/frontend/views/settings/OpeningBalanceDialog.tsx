@@ -9,11 +9,14 @@ import {
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { Input } from "@sapporta/ui";
-import type { OpeningBalanceAccount, OpeningSection } from "../../shared/index";
-import { apiErrorMessage } from "../api";
-import { Disclosure } from "../components/disclosure";
-import { Button } from "../components/ui/button";
-import { today } from "../reports/shared";
+import type {
+  OpeningBalanceAccount,
+  OpeningSection,
+} from "../../../shared/index";
+import { apiErrorMessage } from "../../api";
+import { Disclosure } from "../../components/disclosure";
+import { Button } from "../../components/ui/button";
+import { today } from "../../reports/shared";
 import {
   amountHint,
   amountLabel,
@@ -24,13 +27,13 @@ import {
   readBalance,
   signReadback,
   type BalanceFields,
-} from "./other-balances";
+} from "../../setup/opening-balances";
 
 /*
- * Adding one account's opening balance, or changing one that nothing else
- * in the books leans on yet. It asks for the amount the user's way up, what
- * it held or what they owed, and the day; the note naming its journal entry
- * waits under "More options".
+ * Changing one account's opening balance while nothing else in the books
+ * leans on it, or recording the one a link says it lacks. It asks for the
+ * amount the user's way up, what it held or what they owed, and the day;
+ * the note naming its journal entry waits under "More options".
  */
 
 /** The account whose balance is open, and the table it is in. */

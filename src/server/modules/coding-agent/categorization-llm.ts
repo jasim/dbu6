@@ -143,7 +143,7 @@ const localAgents = new Map<string, CategorizationLlm>();
 
 /**
  * What an LLM call can run on right now, for categorization and for the
- * setup wizard's chart of accounts (chart-llm.ts): the gateway when
+ * setup's chart of accounts (chart-llm.ts): the gateway when
  * LLM_ENGINE says so, else the coding agent dbu6 uses with its checked
  * models, or why neither can answer.
  */

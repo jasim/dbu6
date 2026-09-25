@@ -1,7 +1,21 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { applyMigrations, connectProject } from "@sapporta/server";
 import { openDbu6 } from "./open.js";
 import { dbu6MigrationsDir, packageDir } from "./paths.js";
@@ -99,10 +113,24 @@ describe("openDbu6", () => {
     }
   });
 
+  it("deletes the old setup wizard's staged statements", async () => {
+    const staging = join(root, "tmp", "statement-uploads");
+    mkdirSync(join(staging, "setup-sample-2"), { recursive: true });
+    writeFileSync(join(staging, "setup-sample-2", "NOPII.xls"), "NOPII");
+    mkdirSync(join(staging, "2026-09-01-0505"), { recursive: true });
+
+    const app = await openDbu6({ root });
+    app.runtime.close();
+
+    expect(readdirSync(staging)).toEqual(["2026-09-01-0505"]);
+  });
+
   it("stops on a report whose route already exists, naming the file", async () => {
     const file = writeReport("sample-collision", "/reports/trial-balance");
     await expect(openDbu6({ root })).rejects.toThrow(
-      new RegExp(`${file.replaceAll("\\", "\\\\")} adds the route GET /api/reports/trial-balance`),
+      new RegExp(
+        `${file.replaceAll("\\", "\\\\")} adds the route GET /api/reports/trial-balance`,
+      ),
     );
   });
 

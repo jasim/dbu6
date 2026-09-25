@@ -9,6 +9,7 @@ import {
   otherCard,
   otherHref,
   readOtherUrl,
+  recordedNames,
   recordTitle,
   unrecorded,
   type OtherUrl,
@@ -47,22 +48,15 @@ const OPENING = {
 };
 
 describe("the URL", () => {
-  it("reads the first run, C1 on it, and the account just recorded", () => {
-    expect(url("")).toEqual({ setup: false, record: false, recorded: null });
-    expect(url("?run=setup&record=1&recorded=12")).toEqual({
-      setup: true,
-      record: true,
-      recorded: 12,
-    });
-    expect(url("?recorded=0").recorded).toBeNull();
-    expect(url("?recorded=abc").recorded).toBeNull();
+  it("reads the first run and C1 on it", () => {
+    expect(url("")).toEqual({ setup: false, record: false });
+    expect(url("?run=setup&record=1")).toEqual({ setup: true, record: true });
   });
 
-  it("ignores card 5's ?from, which C1 has no use for", () => {
-    expect(url("?run=setup&from=2025-01")).toEqual({
+  it("ignores what C1 has no use for: card 5's ?from, an old ?recorded", () => {
+    expect(url("?run=setup&from=2025-01&recorded=12")).toEqual({
       setup: true,
       record: false,
-      recorded: null,
     });
   });
 
@@ -72,16 +66,12 @@ describe("the URL", () => {
     expect(otherHref({ setup: true, record: true })).toBe(
       "/add/other?run=setup&record=1",
     );
-    expect(otherHref({ setup: true, recorded: 12 })).toBe(
-      "/add/other?run=setup&recorded=12",
-    );
   });
 });
 
 describe("otherCard", () => {
   it("shows card 6 on the first run, until Add one", () => {
     expect(otherCard(url("?run=setup"))).toBe("anything-else");
-    expect(otherCard(url("?run=setup&recorded=12"))).toBe("anything-else");
     expect(otherCard(url("?run=setup&record=1"))).toBe("record");
   });
 
@@ -92,14 +82,14 @@ describe("otherCard", () => {
 });
 
 describe("afterRecording", () => {
-  it("comes back to card 6 on the first run, naming the account", () => {
-    expect(afterRecording(url("?run=setup&record=1"), 12)).toBe(
-      "/add/other?run=setup&recorded=12",
+  it("comes back to card 6 on the first run", () => {
+    expect(afterRecording(url("?run=setup&record=1"))).toBe(
+      "/add/other?run=setup",
     );
   });
 
   it("goes Home later", () => {
-    expect(afterRecording(url(""), 12)).toBe("/");
+    expect(afterRecording(url(""))).toBe("/");
   });
 });
 
@@ -133,6 +123,34 @@ describe("unrecorded", () => {
       "PPF",
       "Sample Car Loan",
     ]);
+  });
+});
+
+describe("recordedNames", () => {
+  it("names the own and owe accounts with an opening, from the books", () => {
+    const data: OpeningBalances = {
+      equity_account: null,
+      accounts: [
+        account({
+          account_id: 4,
+          name: "Sample Car Loan",
+          path: "Liabilities:Loans:Sample Car Loan",
+          account_type: "Liability",
+          section: "owe",
+          opening: OPENING,
+        }),
+        account({ account_id: 2, name: "Cash", path: "Assets:Cash" }),
+        account({ account_id: 5, name: "EPF", opening: OPENING }),
+        account({
+          account_id: 6,
+          name: "Sample Savings",
+          path: "Assets:Bank Accounts:Sample Savings",
+          section: "statement",
+          opening: OPENING,
+        }),
+      ],
+    };
+    expect(recordedNames(data)).toEqual(["EPF", "Sample Car Loan"]);
   });
 });
 

@@ -5,6 +5,7 @@ import type {
 } from "../../shared/index";
 import { ADD_OTHER_ROUTE, ADD_ROUTE, addHref } from "../add-account/state";
 import { reviewHref, REVIEW_ROUTE } from "../review/routes";
+import { SETUP_ROUTE } from "../setup/ChartCard";
 import { joinNames } from "../format";
 
 /*
@@ -17,14 +18,14 @@ import { joinNames } from "../format";
  * date: a statement may not have been imported yet, so Home never says so.
  */
 
-/** Card 1, the chart: first run only. */
-export const SETUP_ROUTE = "/setup";
-
 /**
- * Where a bank or card is edited or removed, and a deleted one's preset
- * goes: Settings' Banks & cards page.
+ * Where a bank or card with no transactions yet gets its statements: /add,
+ * as the first run while nothing is imported, so the card and an account's
+ * "Needs a first statement" open the same run.
  */
-export const BANKS_SETTINGS_ROUTE = "/settings/banks";
+export function statementsHref(summary: Pick<HomeSummary, "any_imported">) {
+  return summary.any_imported ? ADD_ROUTE : addHref({ setup: true });
+}
 
 /** "+ Add", beside "Your accounts": /add's cards, or C1. */
 export const ADD_MENU: readonly HomeLink[] = [
@@ -97,10 +98,7 @@ export function homeState(summary: HomeSummary): HomeView {
       card: {
         title: "Add your first bank or card",
         body: waiting ? `Set up, no transactions yet: ${waiting}.` : undefined,
-        action: {
-          label: "Add a bank or card",
-          to: addHref({ setup: true }),
-        },
+        action: { label: "Add a bank or card", to: statementsHref(summary) },
       },
       listsAccounts: accounts.length > 0,
     };

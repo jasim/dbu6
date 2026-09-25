@@ -11,12 +11,9 @@ import {
   type CategorizerStatus,
   type ImportAccount,
   type ImportInstitution,
-  type ImportPresetChange,
-  type ImportPresetRefusalCode,
   type StatementAccount,
   type StatementAccountChange,
   type StatementAccountRefusal,
-  type StatementActivity,
   type StatementOpening,
 } from "../../shared/index.js";
 import {
@@ -39,13 +36,12 @@ import {
   type AbacusStatement,
 } from "../modules/statement/index.js";
 import {
+  changesListingParsers,
   planAutoImport,
-  proposeSampleChanges,
   recognizeStatementFile,
   savedCustomStatementParserNames,
   type AutoImportGroup,
   type FileRecognition,
-  type PlannedFile,
 } from "../modules/statement-sources/index.js";
 import { parseAccount, sameAmount } from "../modules/values/index.js";
 import {
@@ -63,7 +59,6 @@ import {
   checkStatement,
   importPlannedGroups,
   isImportRefusal,
-  type BatchImportOutcome,
   type ImportRefusal,
   type StagedStatement,
 } from "./statement-import/index.js";
@@ -79,18 +74,16 @@ import {
  *     -> checkStatements                 opening, rows, the opening to record,
  *                                        the import's refusal
  *
- *   addAccount                        the same reading; then, by its state:
- *     new:   checkFirstStatements        every refusal that needs no account
- *            -> changeStatementAccount   the account and its preset, one transaction
- *            -> importFirstStatements
- *     empty: importFirstStatements
- *
- *   importFirstStatements             each step refusing before the next writes
- *     1-2  checkFirstStatements          checkStatements, and the config the
+ *   addAccount                        the same reading; then in order, each
+ *                                     step refusing before the next writes:
+ *     1  checkBeforeWriting              checkStatements, and the config the
  *                                        writes need
- *     3    changeImportPresets           the parser and the printed number
- *     4    recordOpeningBalance          unless the account has one that agrees
- *     5    importPlannedGroups           the /import tail, categorization too
+ *     2  new:   changeStatementAccount   the account and its preset, with the
+ *                                        parsers and number, one transaction
+ *        empty: changeImportPresets      the parsers and number it lacks
+ *     3  importAdded:
+ *          recordOpeningBalance          unless the account has one that agrees
+ *          importPlannedGroups           the /import tail, categorization too
  *
  * The writes are separate transactions: the presets' writer checks parsers
  * on disk before its own, which one SQLite transaction can't wait for.
@@ -218,8 +211,11 @@ function firstDate(statement: RecognizedStatement): string {
 interface Share {
   candidate: CandidateReading;
   statements: RecognizedStatement[];
-  // The institution that lists one of its parsers, if any.
+  // The institution that lists one of its parsers, if any: the account's
+  // own for `empty` and `in_books`.
   lister: ImportInstitution | null;
+  // The preset account, for `empty` and `in_books`.
+  preset: ImportAccount | null;
 }
 
 /** What the dropped files are, as /import would take them. Writes nothing. */
@@ -301,10 +297,13 @@ async function readDrop(
       identifier: printedAccount(statements)?.identifier ?? null,
       period: periodOf(statements.map((one) => one.statement)),
     };
-    const home = accountId === null ? null : presetHomeIn(presets, accountId);
+    const home = accountId === null ? null : presetHome(presets, accountId);
 
     if (home === null) {
-      const lister = listerOf(presets, common.parsers);
+      const lister =
+        presets.find((one) =>
+          common.parsers.some((parser) => one.parsers.includes(parser)),
+        ) ?? null;
       const printedName = statements.find((one) => one.statement.institution)
         ?.statement.institution;
       const kind = printedAccount(statements)?.kind ?? null;
@@ -332,6 +331,7 @@ async function readDrop(
         },
         statements,
         lister,
+        preset: null,
       };
     }
 
@@ -362,6 +362,7 @@ async function readDrop(
       },
       statements,
       lister: institution,
+      preset: account,
     };
   });
 
@@ -401,17 +402,6 @@ function printedAccount(
 ): StatementAccount | null {
   return (
     statements.find((one) => one.statement.account)?.statement.account ?? null
-  );
-}
-
-function listerOf(
-  presets: readonly ImportInstitution[],
-  parsers: readonly string[],
-): ImportInstitution | null {
-  return (
-    presets.find((one) =>
-      parsers.some((parser) => one.parsers.includes(parser)),
-    ) ?? null
   );
 }
 
@@ -482,16 +472,7 @@ function checkStatements(
   const decision =
     opening === null
       ? null
-      : openingToRecord(
-          ledger,
-          account.id,
-          {
-            opening,
-            existing:
-              account.id === null ? null : existingOpening(ledger, account.id),
-          },
-          typedAmount,
-        );
+      : openingToRecord(ledger, account.id, opening, typedAmount);
 
   if (assembled !== null && opening !== null) {
     const confirmed =
@@ -521,18 +502,6 @@ function checkStatements(
     decision,
     importRefusal,
   };
-}
-
-function existingOpening(
-  ledger: Ledger,
-  accountId: number,
-): { date: string; amount: number } | null {
-  const entry = loadOpeningEntries(ledger.sqlite, ledger.auth, {
-    accountId,
-  }).get(accountId);
-  return entry === undefined
-    ? null
-    : { date: entry.date, amount: entry.amount };
 }
 
 /**
@@ -605,7 +574,7 @@ function titleCase(word: string): string {
 }
 
 // Who categorizes an import: the engine the import itself asks.
-export async function categorizerStatus(): Promise<CategorizerStatus> {
+async function categorizerStatus(): Promise<CategorizerStatus> {
   const llm = await categorizationLlm();
   return llm.caller.ready
     ? { ready: true, name: llm.name }
@@ -626,6 +595,22 @@ export type AddAccountOutcome =
       importError?: ImportRefusal;
     };
 
+type Refused = Extract<AddAccountOutcome, { ok: false }>;
+
+function refused(code: AddAccountRefusal["code"], error: string): Refused {
+  return { ok: false, code, error };
+}
+
+function importRefused(error: unknown): Refused {
+  if (!isImportRefusal(error)) throw error;
+  return {
+    ok: false,
+    code: "import_refused",
+    error: error.message,
+    importError: error,
+  };
+}
+
 /**
  * Adds the bank or card the files belong to, and imports them. Refuses,
  * writing nothing, unless they are one account's, readable, not in the
@@ -640,32 +625,26 @@ export async function addAccount(
   files: readonly DroppedStatement[],
   fields: AddAccountFields,
 ): Promise<AddAccountOutcome> {
-  const refuse = (
-    code: AddAccountRefusal["code"],
-    error: string,
-    importError?: ImportRefusal,
-  ): AddAccountOutcome => ({ ok: false, code, error, importError });
-
   const drop = await readDrop(ledger, files);
   const unreadable = drop.files.filter((file) => file.status !== "read");
   if (unreadable.length > 0) {
-    return refuse(
+    return refused(
       "statement_unreadable",
       `dbu6 can't read ${unreadable.map((file) => file.file_name).join(", ")} yet. Teach it the format, then drop the files again.`,
     );
   }
   if (drop.shares.length !== 1) {
-    return refuse(
+    return refused(
       "several_accounts",
       `These are from ${drop.shares.map((share) => candidateName(share.candidate)).join(" and ")}. Add one account's statements at a time.`,
     );
   }
-  const [{ candidate, statements, lister }] = drop.shares;
+  const [{ candidate, statements, lister, preset }] = drop.shares;
   const openingAmount = fields.opening_amount ?? null;
 
   switch (candidate.status) {
     case "in_books":
-      return refuse(
+      return refused(
         "already_in_books",
         `${candidateName(candidate)} is already in your books. Import its statements on the Import page.`,
       );
@@ -673,18 +652,62 @@ export async function addAccount(
     case "empty": {
       const account = candidate.account!;
       if (fields.account_id !== undefined && fields.account_id !== account.id) {
-        return refuse(
+        return refused(
           "account_not_suitable",
           `These statements are ${account.name}'s, already one of your banks and cards.`,
         );
       }
-      return addedOrRefused(
-        await importFirstStatements(ledger, loadCategorizer, {
-          accountId: account.id,
-          statements,
-          openingAmount,
-        }),
+      if (candidate.refusal instanceof AccountNotFoundError) {
+        return refused(
+          "opening_balance_refused",
+          openingRefusal("account-not-found"),
+        );
+      }
+      const checked = await checkBeforeWriting(
+        ledger,
+        loadCategorizer,
+        {
+          id: account.id,
+          name: account.name,
+          kind: candidate.kind!,
+          mappingFiles: preset!.custom_mappings_filenames,
+        },
+        statements,
+        openingAmount,
+      );
+      if (!checked.ok) return checked;
+
+      // Its bank lists the parsers it lacks; an account set up with no
+      // number takes the one the statements print.
+      const changes = [
+        ...changesListingParsers(
+          loadImportPresets(ledger.db, ledger.auth),
+          lister!.name,
+          candidate.parsers,
+        ),
+        ...(candidate.identifier !== null &&
+        preset!.account_identifiers.length === 0
+          ? [
+              {
+                kind: "update_account" as const,
+                account_id: account.id,
+                account_identifiers: [candidate.identifier],
+              },
+            ]
+          : []),
+      ];
+      if (changes.length > 0) {
+        const changed = await changeImportPresets(ledger, changes);
+        if (!changed.ok) {
+          return refused(changed.problem.code, changed.problem.message);
+        }
+      }
+      return importAdded(
+        ledger,
+        loadCategorizer,
         account,
+        statements,
+        checked.opening,
       );
     }
 
@@ -693,13 +716,13 @@ export async function addAccount(
       // A parser belongs to one institution: the one listing it wins.
       const institution = lister?.name ?? fields.institution;
       if (kind === undefined) {
-        return refuse(
+        return refused(
           "invalid_fields",
           "Say whether this is a bank account or a card.",
         );
       }
       if (institution === undefined) {
-        return refuse("invalid_fields", "Name the bank.");
+        return refused("invalid_fields", "Name the bank.");
       }
       let ledgerChoice: Extract<
         StatementAccountChange,
@@ -712,7 +735,7 @@ export async function addAccount(
             (one) => one.id === fields.account_id,
           ) ?? null;
         if (existing === null) {
-          return refuse(
+          return refused(
             "account_not_suitable",
             "That account isn't in your books any more.",
           );
@@ -723,7 +746,7 @@ export async function addAccount(
           fields.parent_id ??
           loadStatementAccounts(ledger).default_parents[kind];
         if (parentId === null) {
-          return refuse("invalid_fields", "Pick a group for it.");
+          return refused("invalid_fields", "Pick a group for it.");
         }
         ledgerChoice = {
           source: "new",
@@ -731,7 +754,7 @@ export async function addAccount(
           parent_id: parentId,
         };
       } else {
-        return refuse(
+        return refused(
           "invalid_fields",
           "Name the account, or pick one from your chart.",
         );
@@ -739,7 +762,7 @@ export async function addAccount(
       const name = existing?.name ?? fields.name!;
 
       // Everything that needs no account, before it is made.
-      const checked = await checkFirstStatements(
+      const checked = await checkBeforeWriting(
         ledger,
         loadCategorizer,
         {
@@ -751,9 +774,8 @@ export async function addAccount(
         statements,
         openingAmount,
       );
-      if (!checked.ok) {
-        return refuse(checked.code, checked.error, checked.importError);
-      }
+      if (!checked.ok) return checked;
+      // The account and its preset entry, with the parsers and the number.
       const created = await changeStatementAccount(
         ledger,
         {
@@ -766,51 +788,19 @@ export async function addAccount(
         { parsers: candidate.parsers },
       );
       if (!created.ok) {
-        return refuse(
+        return refused(
           creationCode(created.problem.code),
           created.problem.message,
         );
       }
-      return addedOrRefused(
-        await importFirstStatements(ledger, loadCategorizer, {
-          accountId: created.accountId,
-          statements,
-          openingAmount,
-        }),
+      return importAdded(
+        ledger,
+        loadCategorizer,
         { id: created.accountId, name },
+        statements,
+        checked.opening,
       );
     }
-  }
-}
-
-function addedOrRefused(
-  done: FirstImportOutcome,
-  account: { id: number; name: string },
-): AddAccountOutcome {
-  if (!done.ok) return { ok: false, code: done.code, error: done.error };
-  const { outcome } = done;
-  switch (outcome.kind) {
-    case "failed":
-      return {
-        ok: false,
-        code: "import_refused",
-        error: outcome.error.message,
-        importError: outcome.error,
-      };
-    case "unplanned":
-      throw new Error("A planned import came back unplanned.");
-    case "imported":
-      return {
-        ok: true,
-        added: {
-          account_id: account.id,
-          account_name: account.name,
-          drafts: outcome.imported.reduce(
-            (sum, one) => sum + one.result.draft_transaction_count,
-            0,
-          ),
-        },
-      };
   }
 }
 
@@ -837,31 +827,13 @@ function creationCode(
   }
 }
 
-const NOT_SET_UP = "That bank or card isn't set up any more.";
-
-// Why the first statements can't go in, before anything is written.
-type FirstStatementsCode =
-  "statement_has_no_transactions" | OpeningCode | "opening_balance_refused";
-
-type Checked =
-  | { ok: true; opening: { date: string; amount: number | null } }
-  | { ok: false; code: FirstStatementsCode; error: string; importError?: never }
-  // The import's own refusal: its checks, or the categorizer's config.
-  | {
-      ok: false;
-      code: "import_refused";
-      error: string;
-      importError: ImportRefusal;
-    };
-
 /*
- * Steps 1 and 2 of `importFirstStatements` (`checkStatements`), and what
- * the writes after them can be refused for that doesn't depend on timing:
- * an Opening Balances account that isn't Equity, which refuses the opening
- * entry; and the categorization config the import will load, with the
- * account's instruction files (`mappingFiles`).
+ * `checkStatements`, and what the writes after it can be refused for that
+ * doesn't depend on timing: an Opening Balances account that isn't Equity,
+ * which refuses the opening entry; and the categorization config the import
+ * will load, with the account's instruction files (`mappingFiles`).
  */
-async function checkFirstStatements(
+async function checkBeforeWriting(
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
   account: {
@@ -872,29 +844,21 @@ async function checkFirstStatements(
   },
   statements: readonly RecognizedStatement[],
   openingAmount: number | null,
-): Promise<Checked> {
-  const refused = (error: unknown): Checked => {
-    if (!isImportRefusal(error)) throw error;
-    return {
-      ok: false,
-      code: "import_refused",
-      error: error.message,
-      importError: error,
-    };
-  };
+): Promise<
+  { ok: true; opening: { date: string; amount: number | null } } | Refused
+> {
   const { opening, decision, importRefusal } = checkStatements(
     ledger,
     account,
     statements,
     openingAmount,
   );
-  if (importRefusal !== null) return refused(importRefusal);
+  if (importRefusal !== null) return importRefused(importRefusal);
   if (opening === null || decision === null) {
-    return {
-      ok: false,
-      code: "statement_has_no_transactions",
-      error: "The statement has no transactions to import.",
-    };
+    return refused(
+      "statement_has_no_transactions",
+      "The statement has no transactions to import.",
+    );
   }
   if (!decision.ok) return decision;
 
@@ -904,11 +868,10 @@ async function checkFirstStatements(
     equity !== null &&
     equity.account_type !== "Equity"
   ) {
-    return {
-      ok: false,
-      code: "opening_balance_refused",
-      error: openingRefusal("opening-balances-not-equity"),
-    };
+    return refused(
+      "opening_balance_refused",
+      openingRefusal("opening-balances-not-equity"),
+    );
   }
 
   // What `categorize` needs once a row reaches it: every row does here.
@@ -918,169 +881,85 @@ async function checkFirstStatements(
       llm: await categorizationLlm(),
     });
     for (const part of [categorizer.classify, categorizer.customMappings]) {
-      if (!part.ok && isImportRefusal(part.error)) return refused(part.error);
+      if (!part.ok && isImportRefusal(part.error)) {
+        return importRefused(part.error);
+      }
     }
   } catch (error) {
-    return refused(error);
+    return importRefused(error);
   }
   return { ok: true, opening: { date: opening.date, amount: decision.amount } };
 }
 
-export type FirstImportOutcome =
-  | {
-      ok: false;
-      code: ImportPresetRefusalCode | FirstStatementsCode;
-      error: string;
-    }
-  // Refused by the import (its checks included): a failed outcome.
-  | { ok: true; outcome: BatchImportOutcome };
-
-/**
- * Brings a bank or card's first statements in: the account the presets
- * list as `accountId`, and `statements`, all its own, in date order. In
- * order, each step refusing before the next writes:
- *
- *   1-2  `checkFirstStatements`: the import's checks, the opening to record
- *        (the statements', or `openingAmount` when they print none)
- *   3    `changeImportPresets` with `proposeSampleChanges`'s changes: the
- *        parser when its bank doesn't list it yet, and the printed number
- *   4    `recordOpeningBalance` the day before the first row, unless the
- *        account has an opening that agrees
- *   5    `importPlannedGroups`, categorization included
- *
- * A refusal of the import's own, at step 1 or 5, is a failed outcome, as
- * /import reports it; the others are refusals.
+/*
+ * The writes after the account's preset: the opening entry the day before
+ * the first row, unless the account has one that agrees (`amount` null);
+ * then /import's tail, categorization included, on the account as the
+ * presets have it now. A refusal of the import's own is `import_refused`.
  */
-export async function importFirstStatements(
+async function importAdded(
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
-  request: {
-    accountId: number;
-    statements: readonly RecognizedStatement[];
-    // Ledger sign; used only when the statements print no balance.
-    openingAmount: number | null;
-  },
-): Promise<FirstImportOutcome> {
-  const { accountId, statements } = request;
-  const home = presetHome(ledger, accountId);
-  if (home === null) {
-    return { ok: false, code: "unknown_account", error: NOT_SET_UP };
-  }
-  const ledgerAccount = loadLedgerAccounts(ledger.sqlite, ledger.auth).find(
-    (one) => one.id === accountId,
-  );
-  if (ledgerAccount === undefined) {
-    return {
-      ok: false,
-      code: "opening_balance_refused",
-      error: openingRefusal("account-not-found"),
-    };
-  }
-
-  const checked = await checkFirstStatements(
-    ledger,
-    loadCategorizer,
-    {
-      id: accountId,
-      name: ledgerAccount.name,
-      kind: accountKindOf(home.account.is_credit_card),
-      mappingFiles: home.account.custom_mappings_filenames,
-    },
-    statements,
-    request.openingAmount,
-  );
-  if (!checked.ok) {
-    if (checked.code !== "import_refused") {
-      return { ok: false, code: checked.code, error: checked.error };
-    }
-    const planned = plannedStatements(statements, home);
-    return {
-      ok: true,
-      outcome: {
-        kind: "failed",
-        files: planned.files,
-        imported: [],
-        failed: planned.group,
-        failedBaseAccount: ledgerAccount.name,
-        error: checked.importError,
-      },
-    };
-  }
-
-  const changes = sampleChanges(ledger, accountId, statements);
-  if (changes.length > 0) {
-    const changed = await changeImportPresets(ledger, changes);
-    if (!changed.ok) {
-      return {
-        ok: false,
-        code: changed.problem.code,
-        error: changed.problem.message,
-      };
-    }
-  }
-
-  const { opening } = checked;
+  account: { id: number; name: string },
+  statements: readonly RecognizedStatement[],
+  opening: { date: string; amount: number | null },
+): Promise<AddAccountOutcome> {
   if (opening.amount !== null) {
     const recorded = recordOpeningBalance(ledger, {
-      accountId,
+      accountId: account.id,
       date: opening.date,
       amount: opening.amount,
     });
     // Recorded meanwhile by another request: the statements go in on it.
     if (recorded.kind !== "recorded" && recorded.kind !== "already-recorded") {
-      return {
-        ok: false,
-        code: "opening_balance_refused",
-        error: openingRefusal(recorded.kind),
-      };
+      return refused("opening_balance_refused", openingRefusal(recorded.kind));
     }
   }
 
-  // The account as the presets have it now.
-  const after = presetHome(ledger, accountId);
-  if (after === null) {
-    return { ok: false, code: "unknown_account", error: NOT_SET_UP };
-  }
-  const { files, group } = plannedStatements(statements, after);
-  return {
-    ok: true,
-    outcome: await importPlannedGroups(
-      files,
-      [group],
-      null,
-      ledger,
-      loadCategorizer,
-    ),
-  };
-}
-
-// What ties the account to the statements' parsers and number
-// (`proposeSampleChanges`), with any further parser of theirs no bank lists.
-function sampleChanges(
-  ledger: Ledger,
-  accountId: number,
-  statements: readonly RecognizedStatement[],
-): ImportPresetChange[] {
-  const presets = loadImportPresets(ledger.db, ledger.auth);
-  const [parser, ...others] = [
-    ...new Set(statements.map((one) => one.parserName)),
-  ];
-  const proposal = proposeSampleChanges(
-    presets,
-    accountId,
-    parser,
-    printedAccount(statements)?.identifier ?? null,
+  const home = presetHome(
+    loadImportPresets(ledger.db, ledger.auth),
+    account.id,
   );
-  if (proposal === null) return [];
-  const unlisted = others.filter((one) => listerOf(presets, [one]) === null);
-  return [
-    ...proposal.changes,
-    ...unlisted.map((one): ImportPresetChange => ({
-      kind: "add_parser",
-      institution: proposal.institution,
-      parser: one,
+  if (home === null) {
+    return refused(
+      "unknown_account",
+      "That bank or card isn't set up any more.",
+    );
+  }
+  // Whatever number they print, the statements are this account's.
+  const outcome = await importPlannedGroups(
+    statements.map((one) => ({
+      status: "resolved",
+      file: one.file,
+      accountId: account.id,
+      accountName: home.account.name,
+      parserName: one.parserName,
+      account: one.statement.account,
+      institution: one.statement.institution,
     })),
-  ];
+    [{ ...home, statements: [...statements] }],
+    null,
+    ledger,
+    loadCategorizer,
+  );
+  switch (outcome.kind) {
+    case "failed":
+      return importRefused(outcome.error);
+    case "unplanned":
+      throw new Error("A planned import came back unplanned.");
+    case "imported":
+      return {
+        ok: true,
+        added: {
+          account_id: account.id,
+          account_name: account.name,
+          drafts: outcome.imported.reduce(
+            (sum, one) => sum + one.result.draft_transaction_count,
+            0,
+          ),
+        },
+      };
+  }
 }
 
 type OpeningCode =
@@ -1106,20 +985,22 @@ type OpeningDecision =
  * would then check a balance that already moved. `accountId` is null for an
  * account not in the books yet, which has neither.
  */
-export function openingToRecord(
+function openingToRecord(
   ledger: Ledger,
   accountId: number | null,
-  statement: {
-    // The day before the first row, and the balance the statement gives it.
-    opening: StatementOpening;
-    existing: { date: string; amount: number } | null;
-  },
+  // The day before the first row, and the balance the statements give it.
+  opening: StatementOpening,
   typedAmount: number | null,
 ): OpeningDecision {
-  const { opening, existing } = statement;
+  const existing =
+    accountId === null
+      ? undefined
+      : loadOpeningEntries(ledger.sqlite, ledger.auth, { accountId }).get(
+          accountId,
+        );
   const starts = opening.date;
   const firstDate = Temporal.PlainDate.from(starts).add({ days: 1 }).toString();
-  if (existing !== null) {
+  if (existing !== undefined) {
     if (existing.date > starts) {
       return {
         ok: false,
@@ -1135,7 +1016,7 @@ export function openingToRecord(
       return {
         ok: false,
         code: "opening_disagrees",
-        error: `Your books open this account at ${amountText(existing.amount)} on ${existing.date}, but this statement starts from ${amountText(opening.amount)}. Upload the statement that follows on from it.`,
+        error: `Your books open this account at ${money.format(existing.amount)} on ${existing.date}, but this statement starts from ${money.format(opening.amount)}. Upload the statement that follows on from it.`,
       };
     }
     return { ok: true, amount: null };
@@ -1166,14 +1047,7 @@ export function openingToRecord(
 }
 
 /** The institution and preset account that list the ledger account. */
-export function presetHome(
-  ledger: Ledger,
-  accountId: number,
-): { institution: ImportInstitution; account: ImportAccount } | null {
-  return presetHomeIn(loadImportPresets(ledger.db, ledger.auth), accountId);
-}
-
-function presetHomeIn(
+function presetHome(
   presets: readonly ImportInstitution[],
   accountId: number,
 ): { institution: ImportInstitution; account: ImportAccount } | null {
@@ -1184,33 +1058,6 @@ function presetHomeIn(
     if (account !== undefined) return { institution, account };
   }
   return null;
-}
-
-/**
- * The statements placed in the account they are added to, as the batch
- * import's plan would place them: whatever number they print, they are
- * this account's.
- */
-function plannedStatements(
-  statements: readonly RecognizedStatement[],
-  home: { institution: ImportInstitution; account: ImportAccount },
-): { files: PlannedFile[]; group: AutoImportGroup } {
-  return {
-    files: statements.map((one) => ({
-      status: "resolved",
-      file: one.file,
-      accountId: home.account.account_id,
-      accountName: home.account.name,
-      parserName: one.parserName,
-      account: one.statement.account,
-      institution: one.statement.institution,
-    })),
-    group: {
-      institution: home.institution,
-      account: home.account,
-      statements: [...statements],
-    },
-  };
 }
 
 /** The words for an opening entry the import couldn't post. */
@@ -1233,19 +1080,24 @@ function openingRefusal(
   }
 }
 
+// An amount as the screens show one, in a refusal's words.
 const money = new Intl.NumberFormat("en-IN", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
 
-// An amount as the screens show one, in a refusal's words.
-function amountText(amount: number): string {
-  return money.format(amount);
+/**
+ * What a bank or card holds so far: posted entries (its opening entry left
+ * out) and drafts from its own statements.
+ */
+export interface StatementActivity {
+  entries: number;
+  drafts: number;
 }
 
 /**
  * Whether a bank or card's first statement is in: it has entries or drafts.
- * It is then `in_books`, and Home and the setup wizard count it imported.
+ * It is then `in_books`, and Home counts it imported.
  */
 export function hasTransactions(activity: StatementActivity): boolean {
   return activity.entries > 0 || activity.drafts > 0;
@@ -1254,8 +1106,8 @@ export function hasTransactions(activity: StatementActivity): boolean {
 /**
  * Each account's own entries (`countOwnEntriesByAccount`), its opening entry
  * left out, and the drafts from its own statements. The one rule for whether
- * a bank or card is imported: /add's reading, GET /setup and Home's "nothing
- * imported yet" all read it.
+ * a bank or card is imported: /add's reading and Home's "nothing imported
+ * yet" both read it.
  */
 export function loadStatementActivity(
   ledger: Pick<Ledger, "sqlite" | "auth">,
@@ -1269,6 +1121,5 @@ export function loadStatementActivity(
   return (accountId) => ({
     entries: (entries.get(accountId) ?? 0) - (openings.has(accountId) ? 1 : 0),
     drafts: drafts.get(accountId)?.drafts ?? 0,
-    uncategorized: drafts.get(accountId)?.uncategorised ?? 0,
   });
 }

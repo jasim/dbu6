@@ -113,6 +113,8 @@ describe("the account picker after /add", () => {
     await renderAt("/review?imported=1&run=setup");
 
     expect(text()).toContain(NOTE);
+    // The note says what to do; the picker's own line would repeat it.
+    expect(text()).not.toContain("Pick an account");
     expect(
       Array.from(host.querySelectorAll("li a")).map((a) =>
         a.getAttribute("href"),
@@ -120,11 +122,26 @@ describe("the account picker after /add", () => {
     ).toEqual(["/review/5?run=setup", "/review/6?run=setup"]);
   });
 
-  it("opens the only account with drafts with what /add handed over", async () => {
+  it("opens the only account's drafts with what /add handed over", async () => {
     accounts = [account(5, "Sample Savings")];
     await renderAt("/review?imported=1&run=setup");
 
-    expect(where()).toBe("/review/5?imported=1&run=setup");
+    expect(where()).toBe("/review/5/drafts?imported=1&run=setup");
+  });
+
+  it("opens the only account's Overview outside a hand-off", async () => {
+    accounts = [account(5, "Sample Savings")];
+    await renderAt("/review");
+
+    expect(where()).toBe("/review/5");
+  });
+
+  it("keeps the picker's line outside a hand-off", async () => {
+    accounts = [account(5, "Sample Savings"), account(6, "Sample Card")];
+    await renderAt("/review");
+
+    expect(text()).toContain("Pick an account");
+    expect(text()).not.toContain(NOTE);
   });
 
   it("says the books are set up on the first run once nothing is left to post", async () => {

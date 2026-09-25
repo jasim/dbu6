@@ -10,7 +10,7 @@ import {
 import { apiErrorMessage } from "../api";
 import { Button } from "../components/ui/button";
 import { refreshAddedAccount, statementAccountsQuery } from "../queries";
-import { reviewHandOffHref } from "../review/routes";
+import { draftsHandOffHref } from "../review/routes";
 import type { ProblemAction } from "../views/import-statements/describeProblems";
 import {
   IMPORT_ROUTE,
@@ -37,12 +37,12 @@ import { refusalProblems } from "./refusal";
 import {
   addCard,
   addHref,
-  addOtherHref,
   carriedFrom,
   readAddUrl,
   type From,
   type Reading,
 } from "./state";
+import { otherHref } from "./other/state";
 import { readStatements, sendAdd } from "./upload";
 import {
   accountsInBooks,
@@ -164,7 +164,7 @@ export function AddAccount() {
       // Card 5 comes from the URL, so a reload shows it again.
       navigate(addHref({ ...url, added: account_id }), { replace: true });
     } else {
-      navigate(reviewHandOffHref(account_id));
+      navigate(draftsHandOffHref(account_id));
     }
   }
 
@@ -198,7 +198,7 @@ export function AddAccount() {
         <Another
           frame={frame}
           name={addedName(card.accountId, data)}
-          thatsAll={addOtherHref(url)}
+          thatsAll={otherHref({ setup: true })}
           onAnother={addAnother}
         />
       );

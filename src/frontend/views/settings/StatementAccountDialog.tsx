@@ -7,68 +7,54 @@ import {
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { Input } from "@sapporta/ui";
-import { Switch } from "@sapporta/ui/switch";
 import type {
-  AccountKind,
   StatementAccountChange,
   StatementAccountRow,
   StatementAccounts,
-} from "../../shared/index";
-import { apiErrorMessage } from "../api";
-import { Disclosure } from "../components/disclosure";
-import { Button } from "../components/ui/button";
-import { AccountCombobox, InstitutionCombobox } from "./pickers";
+} from "../../../shared/index";
+import { apiErrorMessage } from "../../api";
+import { Disclosure } from "../../components/disclosure";
+import { Button } from "../../components/ui/button";
+import { AccountCombobox, InstitutionCombobox } from "../../setup/pickers";
 import {
   draftOf,
   formLayout,
-  newDraft,
   numberField,
   readDraft,
   refusalField,
   underMoreOptions,
-  unlistedOf,
   withInstitution,
   withName,
   type FormField,
   type StatementAccountDraft,
-} from "./statement-account-form";
+} from "../../setup/statement-account-form";
 
 /*
- * Adding a bank account or card, or editing one that has no transactions
- * yet. It asks for the bank and nothing else it can work out: the name
- * follows the bank, the number comes from the first statement unless
- * another account at the bank needs telling apart, and its parent account
- * grouping waits under "More options" unless the books leave it unclear.
+ * Editing a bank or card that has no transactions yet: its bank, name,
+ * number and parent account grouping. The number is asked for in view only
+ * when another account at the bank needs telling apart, and the grouping
+ * waits under "More options" unless the account has none.
  */
 
-/** Which form is open: a new bank account or card, or an edit to one. */
-export type StatementAccountEditing =
-  | { mode: "add"; kind: AccountKind }
-  | { mode: "edit"; row: StatementAccountRow };
-
 export function StatementAccountDialog({
-  editing,
+  row,
   data,
   save,
   onClose,
 }: {
-  /** Null when the dialog is closed. */
-  editing: StatementAccountEditing | null;
+  /** The row being edited; null when the dialog is closed. */
+  row: StatementAccountRow | null;
   data: StatementAccounts;
   save: (change: StatementAccountChange) => Promise<unknown>;
   onClose: () => void;
 }) {
   return (
-    <Dialog open={editing !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={row !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
-        {editing && (
+        {row && (
           <DialogBody
-            key={
-              editing.mode === "edit"
-                ? editing.row.account_id
-                : `add-${editing.kind}`
-            }
-            editing={editing}
+            key={row.account_id}
+            row={row}
             data={data}
             save={save}
             onClose={onClose}
@@ -79,18 +65,13 @@ export function StatementAccountDialog({
   );
 }
 
-function title(editing: StatementAccountEditing): string {
-  if (editing.mode === "edit") return `Edit ${editing.row.name}`;
-  return editing.kind === "card" ? "Add a credit card" : "Add a bank account";
-}
-
 function DialogBody({
-  editing,
+  row,
   data,
   save,
   onClose,
 }: {
-  editing: StatementAccountEditing;
+  row: StatementAccountRow;
   data: StatementAccounts;
   save: (change: StatementAccountChange) => Promise<unknown>;
   onClose: () => void;
@@ -98,16 +79,10 @@ function DialogBody({
   const ids = {
     institution: useId(),
     name: useId(),
-    existing: useId(),
     identifier: useId(),
     parent: useId(),
   };
-  const row = editing.mode === "edit" ? editing.row : null;
-  const [draft, setDraft] = useState<StatementAccountDraft>(() =>
-    editing.mode === "edit"
-      ? draftOf(editing.row)
-      : newDraft(data, editing.kind),
-  );
+  const [draft, setDraft] = useState<StatementAccountDraft>(() => draftOf(row));
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -118,14 +93,10 @@ function DialogBody({
   // A problem with a field under More options opens it, so the field shows.
   const showProblem = (message: string, field: FormField | null) => {
     setProblem(message);
-    if (field !== null && underMoreOptions(field, draft, layout)) {
-      setMoreOpen(true);
-    }
+    if (field !== null && underMoreOptions(field, layout)) setMoreOpen(true);
   };
-  const existing = draft.source === "existing";
   const card = draft.kind === "card";
   const number = numberField(draft.kind, layout, draft.institution);
-  const parentInView = layout.parentInView && !existing;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -174,26 +145,14 @@ function DialogBody({
     </Field>
   );
   const moreOptions = [
-    !parentInView && !existing && <div key="parent">{parentInput}</div>,
+    !layout.parentInView && <div key="parent">{parentInput}</div>,
     layout.other === null && <div key="number">{numberInput}</div>,
-    layout.canUseExisting && (
-      <label
-        key="existing"
-        className="flex cursor-pointer items-center gap-2 text-row text-foreground"
-      >
-        <Switch
-          checked={existing}
-          onCheckedChange={(on) => set({ source: on ? "existing" : "new" })}
-        />
-        Use an account already in your books
-      </label>
-    ),
   ].filter(Boolean);
 
   return (
     <form onSubmit={submit} noValidate>
       <DialogHeader>
-        <DialogTitle>{title(editing)}</DialogTitle>
+        <DialogTitle>Edit {row.name}</DialogTitle>
       </DialogHeader>
 
       <div className="mt-4 space-y-4">
@@ -211,40 +170,22 @@ function DialogBody({
           />
         </Field>
 
-        {existing ? (
-          <Field
-            label="Account"
-            hint="It keeps its name and place in your chart."
-            htmlFor={ids.existing}
-          >
-            <AccountCombobox
-              id={ids.existing}
-              choices={unlistedOf(data, draft.kind)}
-              value={draft.existingId}
-              onChange={(existingId) => set({ existingId })}
-              placeholder="Choose an account…"
-            />
-          </Field>
-        ) : (
-          <Field
-            label="Name"
-            hint="How it appears in your books."
-            htmlFor={ids.name}
-          >
-            <Input
-              id={ids.name}
-              value={draft.name}
-              maxLength={120}
-              onChange={(event) =>
-                setDraft(withName(draft, event.target.value))
-              }
-              className="h-sap-ctl w-full rounded-control"
-            />
-          </Field>
-        )}
+        <Field
+          label="Name"
+          hint="How it appears in your books."
+          htmlFor={ids.name}
+        >
+          <Input
+            id={ids.name}
+            value={draft.name}
+            maxLength={120}
+            onChange={(event) => setDraft(withName(draft, event.target.value))}
+            className="h-sap-ctl w-full rounded-control"
+          />
+        </Field>
 
         {layout.other !== null && numberInput}
-        {parentInView && parentInput}
+        {layout.parentInView && parentInput}
 
         {moreOptions.length > 0 && (
           <Disclosure
@@ -271,7 +212,7 @@ function DialogBody({
           Cancel
         </Button>
         <Button type="submit" disabled={saving}>
-          {saving ? "Saving…" : row === null ? "Add account" : "Save"}
+          {saving ? "Saving…" : "Save"}
         </Button>
       </DialogFooter>
     </form>

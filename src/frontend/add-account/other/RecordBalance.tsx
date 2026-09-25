@@ -6,7 +6,6 @@ import { apiErrorMessage, openingBalancesApi } from "../../api";
 import { Button } from "../../components/ui/button";
 import { today } from "../../reports/shared";
 import { AccountCombobox } from "../../setup/pickers";
-// Step 8 moves these with the Other balances step, if its file goes.
 import {
   amountLabel,
   dateHint,
@@ -14,7 +13,7 @@ import {
   readBalance,
   signReadback,
   type BalanceFields,
-} from "../../setup/other-balances";
+} from "../../setup/opening-balances";
 import { FocusCard, type FocusFrame } from "../FocusCard";
 import { recordTitle } from "./state";
 
@@ -36,7 +35,7 @@ export function RecordBalance({
   choices: readonly OpeningBalanceAccount[];
   /** Card 6 on the first run; null later, where Leave is the way out. */
   back: string | null;
-  onRecorded: (accountId: number) => void;
+  onRecorded: () => void;
   /** The server refused: its list may be out of date. */
   onRefused: () => void;
 }) {
@@ -87,7 +86,7 @@ export function RecordBalance({
       onRefused();
       return;
     }
-    onRecorded(account.account_id);
+    onRecorded();
   }
 
   const type = account?.account_type ?? "Asset";
@@ -142,8 +141,11 @@ export function RecordBalance({
           />
           <p className="text-meta text-ink-meta">
             Not in your chart? Add it on the{" "}
+            {/* In a new tab: the list here picks it up on return. */}
             <Link
               to="/accounts"
+              target="_blank"
+              rel="noopener"
               className="text-primary underline-offset-4 hover:underline"
             >
               Accounts page

@@ -130,7 +130,7 @@ describe("which fields the form shows", () => {
     const mixed = { ...DATA, mixed_parents: { bank: true, card: false } };
     const layout = formLayout(other(), mixed, null);
     expect(layout.parentInView).toBe(true);
-    expect(underMoreOptions("parent", other(), layout)).toBe(false);
+    expect(underMoreOptions("parent", layout)).toBe(false);
     // It still starts from the parent most of them share.
     expect(newDraft(mixed, "bank").parentId).toBe(2);
   });
@@ -156,20 +156,19 @@ describe("the bank typed", () => {
 
 describe("a problem's field", () => {
   it("is under More options while the field is tucked away there", () => {
-    const draft = other();
-    const layout = formLayout(draft, DATA, null);
-    expect(underMoreOptions("identifier", draft, layout)).toBe(true);
-    expect(underMoreOptions("parent", draft, layout)).toBe(true);
-    expect(underMoreOptions("name", draft, layout)).toBe(false);
+    const layout = formLayout(other(), DATA, null);
+    expect(underMoreOptions("identifier", layout)).toBe(true);
+    expect(underMoreOptions("parent", layout)).toBe(true);
+    expect(underMoreOptions("name", layout)).toBe(false);
 
     // At a bank with another account the number is in view; a card with no
     // parent to start from shows Under.
     const sample = withInstitution(newDraft(DATA, "bank"), "Sample Bank", DATA);
-    expect(
-      underMoreOptions("identifier", sample, formLayout(sample, DATA, null)),
-    ).toBe(false);
+    expect(underMoreOptions("identifier", formLayout(sample, DATA, null))).toBe(
+      false,
+    );
     const card = other("card");
-    expect(underMoreOptions("parent", card, formLayout(card, DATA, null))).toBe(
+    expect(underMoreOptions("parent", formLayout(card, DATA, null))).toBe(
       false,
     );
   });
@@ -183,113 +182,18 @@ describe("a problem's field", () => {
   });
 });
 
-describe("the change the form sends", () => {
-  it("creates a new account under the kind's default parent", () => {
-    const draft = withInstitution(newDraft(DATA, "bank"), " Other Bank ", DATA);
-    expect(readDraft(draft, DATA, null)).toEqual({
-      ok: true,
-      change: {
-        action: "create",
-        kind: "bank",
-        institution: "Other Bank",
-        identifier: null,
-        ledger: { source: "new", name: "Other Savings", parent_id: 2 },
-      },
-    });
-  });
+describe("the change an edit sends", () => {
+  // Another account at Sample Bank, which Sample Bank Savings is edited
+  // alongside.
+  const joint: StatementAccountRow = {
+    ...savings,
+    account_id: 9,
+    name: "Sample Bank Joint",
+    account_identifiers: ["050505000034"],
+  };
+  const two = { ...DATA, accounts: [savings, joint] };
 
-  it("names what is missing in plain words", () => {
-    expect(readDraft(newDraft(DATA, "bank"), DATA, null)).toEqual({
-      ok: false,
-      problem: "Name the bank.",
-      field: "institution",
-    });
-    expect(readDraft(newDraft(DATA, "card"), DATA, null)).toEqual({
-      ok: false,
-      problem: "Name the card issuer.",
-      field: "institution",
-    });
-    expect(readDraft(withName(other(), " "), DATA, null)).toEqual({
-      ok: false,
-      problem: "Give the account a name.",
-      field: "name",
-    });
-    // A card starts with no parent here, as the books have no card yet.
-    expect(readDraft(other("card"), DATA, null)).toEqual({
-      ok: false,
-      problem: "Pick the parent account grouping it belongs to.",
-      field: "parent",
-    });
-  });
-
-  it("asks for a number at a bank that has another account", () => {
-    const draft = withInstitution(newDraft(DATA, "bank"), "Sample Bank", DATA);
-    expect(readDraft(draft, DATA, null)).toEqual({
-      ok: false,
-      problem:
-        "Sample Bank already has Sample Bank Savings, so each needs its number.",
-      field: "identifier",
-    });
-    expect(
-      readDraft({ ...draft, identifier: "050505000034" }, DATA, null),
-    ).toMatchObject({ ok: true, change: { identifier: "050505000034" } });
-    // The account being edited doesn't count against itself.
-    expect(readDraft(draftOf(savings), DATA, savings).ok).toBe(true);
-  });
-
-  it("asks for the other account's number first when it has none", () => {
-    const bare = { ...savings, account_identifiers: [] };
-    const data = { ...DATA, accounts: [bare] };
-    const draft = withInstitution(newDraft(data, "bank"), "Sample Bank", data);
-    expect(
-      readDraft({ ...draft, identifier: "050505000034" }, data, null),
-    ).toEqual({
-      ok: false,
-      problem:
-        "Add Sample Bank Savings's number first: each account at Sample Bank needs its number.",
-      field: "institution",
-    });
-  });
-
-  it("refuses a number a statement can't print", () => {
-    const card = { ...other("card"), parentId: 4 };
-    expect(
-      readDraft({ ...card, identifier: "0505 05AB CDEF 0505" }, DATA, null),
-    ).toEqual({
-      ok: false,
-      problem:
-        "That isn't a card number as a statement prints it: digits, with the hidden ones as X.",
-      field: "identifier",
-    });
-    expect(
-      readDraft({ ...card, identifier: "xxxx xxxx xxxx 0505" }, DATA, null),
-    ).toMatchObject({
-      ok: true,
-      change: { identifier: "xxxx xxxx xxxx 0505" },
-    });
-    expect(
-      readDraft({ ...other(), identifier: "0505-05X" }, DATA, null),
-    ).toEqual({
-      ok: false,
-      problem: "An account number is digits only.",
-      field: "identifier",
-    });
-  });
-
-  it("uses an account already in the books", () => {
-    const draft = { ...other(), source: "existing" as const };
-    expect(readDraft(draft, DATA, null)).toEqual({
-      ok: false,
-      problem: "Pick the account in your books.",
-      field: "existing",
-    });
-    expect(readDraft({ ...draft, existingId: 7 }, DATA, null)).toMatchObject({
-      ok: true,
-      change: { ledger: { source: "existing", account_id: 7 } },
-    });
-  });
-
-  it("edits an existing row", () => {
+  it("updates the row", () => {
     expect(
       readDraft(
         {
@@ -310,6 +214,97 @@ describe("the change the form sends", () => {
         identifier: "050505000056",
         parent_id: 2,
       },
+    });
+  });
+
+  it("names what is missing in plain words", () => {
+    const draft = draftOf(savings);
+    expect(readDraft({ ...draft, institution: " " }, DATA, savings)).toEqual({
+      ok: false,
+      problem: "Name the bank.",
+      field: "institution",
+    });
+    expect(
+      readDraft({ ...draft, kind: "card", institution: "" }, DATA, {
+        ...savings,
+        kind: "card",
+      }),
+    ).toMatchObject({ ok: false, problem: "Name the card issuer." });
+    expect(readDraft(withName(draft, " "), DATA, savings)).toEqual({
+      ok: false,
+      problem: "Give the account a name.",
+      field: "name",
+    });
+    expect(readDraft({ ...draft, parentId: null }, DATA, savings)).toEqual({
+      ok: false,
+      problem: "Pick the parent account grouping it belongs to.",
+      field: "parent",
+    });
+  });
+
+  it("keeps the number while the bank has another account", () => {
+    // Alone at its bank, the number can go.
+    expect(
+      readDraft({ ...draftOf(savings), identifier: "" }, DATA, savings),
+    ).toMatchObject({ ok: true, change: { identifier: null } });
+    expect(
+      readDraft({ ...draftOf(savings), identifier: "" }, two, savings),
+    ).toEqual({
+      ok: false,
+      problem:
+        "Sample Bank already has Sample Bank Joint, so each needs its number.",
+      field: "identifier",
+    });
+  });
+
+  it("asks for the other account's number first when it has none", () => {
+    const data = {
+      ...DATA,
+      accounts: [savings, { ...joint, account_identifiers: [] }],
+    };
+    expect(readDraft(draftOf(savings), data, savings)).toEqual({
+      ok: false,
+      problem:
+        "Add Sample Bank Joint's number first: each account at Sample Bank needs its number.",
+      field: "institution",
+    });
+  });
+
+  it("refuses a number a statement can't print", () => {
+    const card: StatementAccountRow = {
+      ...savings,
+      kind: "card",
+      institution: "Sample Issuer",
+      parent: { id: 4, name: "Credit Cards" },
+    };
+    expect(
+      readDraft(
+        { ...draftOf(card), identifier: "0505 05AB CDEF 0505" },
+        DATA,
+        card,
+      ),
+    ).toEqual({
+      ok: false,
+      problem:
+        "That isn't a card number as a statement prints it: digits, with the hidden ones as X.",
+      field: "identifier",
+    });
+    expect(
+      readDraft(
+        { ...draftOf(card), identifier: "xxxx xxxx xxxx 0505" },
+        DATA,
+        card,
+      ),
+    ).toMatchObject({
+      ok: true,
+      change: { identifier: "xxxx xxxx xxxx 0505" },
+    });
+    expect(
+      readDraft({ ...draftOf(savings), identifier: "0505-05X" }, DATA, savings),
+    ).toEqual({
+      ok: false,
+      problem: "An account number is digits only.",
+      field: "identifier",
     });
   });
 });

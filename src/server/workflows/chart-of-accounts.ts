@@ -6,6 +6,7 @@ import type {
 import {
   insertChartAccounts,
   loadAccountChart,
+  loadLedgerAccounts,
 } from "../modules/accounts/index.js";
 import {
   chartRequest,
@@ -18,27 +19,35 @@ import {
 import type { Ledger } from "../modules/ledger-sql/index.js";
 
 /*
- * Step 1 of the setup wizard, the chart of accounts. Books with no accounts
- * at all start from a proposal the user ticks through; creating it inserts
- * the ticked accounts, parents first, in one transaction. Books with any
- * account, even one made by hand, show their own chart and are changed on
- * the Accounts page.
+ * The chart of accounts, the first thing setup asks for (/setup). Books
+ * with no accounts at all start from a proposal the user ticks through;
+ * creating it inserts the ticked accounts, parents first, in one
+ * transaction. Books with any account, even one made by hand, show their
+ * own chart and are changed on the Accounts page.
  *
  * The user can also describe how money moves for them and have the LLM
  * revise the proposal on screen (`suggestChart`), in as many rounds as they
  * like. That call reads and writes nothing; its answer is only a proposal.
  */
 
+/**
+ * Whether the books have a chart: any account at all, even one made by hand.
+ * Without one, setup starts from the starter chart and Home asks for it.
+ */
+export function hasChart(ledger: Pick<Ledger, "sqlite" | "auth">): boolean {
+  return loadLedgerAccounts(ledger.sqlite, ledger.auth).length > 0;
+}
+
 /** The starter chart for books with no accounts, or the books' own chart. */
 export function loadChartOfAccounts(ledger: Ledger): ChartOfAccounts {
-  const accounts = loadAccountChart(ledger.db, ledger.auth);
-  if (accounts.length === 0) {
+  if (!hasChart(ledger)) {
     return {
       state: "new",
       starter: { accounts: [...STARTER_CHART] },
       unticked: [...STARTER_UNTICKED],
     };
   }
+  const accounts = loadAccountChart(ledger.db, ledger.auth);
   const names = new Map(accounts.map((account) => [account.id, account.name]));
   return {
     state: "existing",
@@ -73,8 +82,10 @@ export function createChart(
   if (!valid.ok) {
     return { ok: false, code: "invalid_chart", problems: valid.problems };
   }
+  // better-sqlite3 runs the transaction on the one connection, so
+  // `hasChart` reads what it writes against.
   return ledger.db.transaction((tx: any): ChartCreation => {
-    if (loadAccountChart(tx, ledger.auth).length > 0) {
+    if (hasChart(ledger)) {
       return {
         ok: false,
         code: "books_have_accounts",

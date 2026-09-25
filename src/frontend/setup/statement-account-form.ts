@@ -7,12 +7,13 @@ import {
 } from "../../shared/index";
 
 /*
- * The add-or-edit form for one bank or card, as values the user is typing,
- * which fields it shows, and turning it into the one change the server
- * takes. The kind comes from the button that opened the form. What the
- * server would refuse and the form can see is said before sending: a
- * missing field, a number a statement can't print, and a second account at
- * a bank with no number to tell the two apart.
+ * The form for one bank or card, as values the user is typing, and which
+ * fields it shows. /add's Confirm card fills it for a new account
+ * (add-account/confirm-form.ts); the Banks & cards page edits one that has
+ * no transactions yet, and `readDraft` turns that edit into the one change
+ * the server takes. What the server would refuse and the form can see is
+ * said before sending: a missing field, a number a statement can't print,
+ * and a second account at a bank with no number to tell the two apart.
  */
 
 export interface StatementAccountDraft {
@@ -202,8 +203,7 @@ export function numberField(
 }
 
 /** A field of the form, which a problem can be about. */
-export type FormField =
-  "institution" | "name" | "existing" | "identifier" | "parent";
+export type FormField = "institution" | "name" | "identifier" | "parent";
 
 export type ReadForm =
   | { ok: true; change: StatementAccountChange }
@@ -216,17 +216,15 @@ export type ReadForm =
  */
 export function underMoreOptions(
   field: FormField,
-  draft: StatementAccountDraft,
   layout: FormLayout,
 ): boolean {
   switch (field) {
     case "identifier":
       return layout.other === null;
     case "parent":
-      return draft.source === "new" && !layout.parentInView;
+      return !layout.parentInView;
     case "institution":
     case "name":
-    case "existing":
       return false;
   }
 }
@@ -249,11 +247,11 @@ export function refusalField(error: unknown): FormField | null {
   }
 }
 
-/** The change the draft asks for, or the first thing to fix. */
+/** The change an edit of `row` asks for, or the first thing to fix. */
 export function readDraft(
   draft: StatementAccountDraft,
   data: StatementAccounts,
-  editing: StatementAccountRow | null,
+  row: StatementAccountRow,
 ): ReadForm {
   const institution = draft.institution.trim();
   if (institution === "") {
@@ -275,7 +273,7 @@ export function readDraft(
       field: "identifier",
     };
   }
-  const other = otherAccountAt(data, institution, editing?.account_id ?? null);
+  const other = otherAccountAt(data, institution, row.account_id);
   if (other !== null) {
     if (typed === "") {
       return {
@@ -285,10 +283,10 @@ export function readDraft(
       };
     }
     const bare = data.accounts.find(
-      (row) =>
-        row.institution === institution &&
-        row.account_id !== editing?.account_id &&
-        row.account_identifiers.length === 0,
+      (one) =>
+        one.institution === institution &&
+        one.account_id !== row.account_id &&
+        one.account_identifiers.length === 0,
     );
     if (bare !== undefined) {
       return {
@@ -297,27 +295,6 @@ export function readDraft(
         field: "institution",
       };
     }
-  }
-  const identifier = typed === "" ? null : typed;
-
-  if (editing === null && draft.source === "existing") {
-    if (draft.existingId === null) {
-      return {
-        ok: false,
-        problem: "Pick the account in your books.",
-        field: "existing",
-      };
-    }
-    return {
-      ok: true,
-      change: {
-        action: "create",
-        kind: draft.kind,
-        institution,
-        identifier,
-        ledger: { source: "existing", account_id: draft.existingId },
-      },
-    };
   }
 
   const name = draft.name.trim();
@@ -331,28 +308,16 @@ export function readDraft(
       field: "parent",
     };
   }
-  if (editing !== null) {
-    return {
-      ok: true,
-      change: {
-        action: "update",
-        account_id: editing.account_id,
-        kind: draft.kind,
-        institution,
-        name,
-        identifier,
-        parent_id: draft.parentId,
-      },
-    };
-  }
   return {
     ok: true,
     change: {
-      action: "create",
+      action: "update",
+      account_id: row.account_id,
       kind: draft.kind,
       institution,
-      identifier,
-      ledger: { source: "new", name, parent_id: draft.parentId },
+      name,
+      identifier: typed === "" ? null : typed,
+      parent_id: draft.parentId,
     },
   };
 }

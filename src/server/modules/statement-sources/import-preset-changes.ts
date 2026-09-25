@@ -380,3 +380,21 @@ export function changesAdding(
     })),
   ]);
 }
+
+/**
+ * The changes that list `parsers` under `institution`, adding the
+ * institution when the table has none of that name. A parser belongs to one
+ * institution, so one another institution lists already stays there.
+ */
+export function changesListingParsers(
+  institutions: readonly PresetInstitution[],
+  institution: string,
+  parsers: readonly string[],
+): ImportPresetChange[] {
+  const unlisted = [...new Set(parsers)].filter(
+    (parser) => !institutions.some((one) => one.parsers.includes(parser)),
+  );
+  return institutions.some((one) => one.name === institution)
+    ? unlisted.map((parser) => ({ kind: "add_parser", institution, parser }))
+    : [{ kind: "add_institution", name: institution, parsers: unlisted }];
+}
