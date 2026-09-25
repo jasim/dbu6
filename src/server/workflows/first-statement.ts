@@ -208,6 +208,35 @@ export interface StagedFile {
 }
 
 /**
+ * A bank or card as setup counts it: an account of an import preset, whether
+ * the books still have it, and what it holds.
+ */
+export interface BankOrCard {
+  institution: ImportInstitution;
+  account: ImportAccount;
+  // False when the preset names an account the books deleted: no statement
+  // can go in, so setup counts it nowhere and asks for it to be removed.
+  inLedger: boolean;
+  activity: StatementActivity;
+}
+
+/** Every preset account, in the presets' order, as setup counts it. */
+export function loadBanksAndCards(ledger: Ledger): BankOrCard[] {
+  const activity = loadStatementActivity(ledger);
+  const ledgerIds = new Set(
+    loadLedgerAccounts(ledger.sqlite, ledger.auth).map((one) => one.id),
+  );
+  return loadImportPresets(ledger.db, ledger.auth).flatMap((institution) =>
+    institution.accounts.map((account) => ({
+      institution,
+      account,
+      inLedger: ledgerIds.has(account.account_id),
+      activity: activity(account.account_id),
+    })),
+  );
+}
+
+/**
  * Every preset account's first statement, in the presets' order, given
  * each account's staged statement if it has one; and who categorizes.
  */
@@ -215,50 +244,50 @@ export async function loadFirstStatements(
   ledger: Ledger,
   staged: ReadonlyMap<number, StagedFile>,
 ): Promise<FirstStatements> {
-  const activity = loadStatementActivity(ledger);
   const accounts: FirstStatementRow[] = [];
-  for (const institution of loadImportPresets(ledger.db, ledger.auth)) {
-    for (const account of institution.accounts) {
-      const row = {
-        account_id: account.account_id,
-        name: account.name,
-        kind: accountKindOf(account.is_credit_card),
-        institution: institution.name,
-        account_identifiers: account.account_identifiers,
-        activity: activity(account.account_id),
-      };
-      const file = staged.get(account.account_id);
-      if (hasTransactions(row.activity)) {
-        accounts.push({ ...row, status: "imported" });
-      } else if (file === undefined) {
+  for (const bank of loadBanksAndCards(ledger)) {
+    const { institution, account } = bank;
+    const row = {
+      account_id: account.account_id,
+      name: account.name,
+      kind: accountKindOf(account.is_credit_card),
+      institution: institution.name,
+      account_identifiers: account.account_identifiers,
+      activity: bank.activity,
+    };
+    const file = staged.get(account.account_id);
+    if (!bank.inLedger) {
+      accounts.push({ ...row, status: "not_in_ledger" });
+    } else if (hasTransactions(row.activity)) {
+      accounts.push({ ...row, status: "imported" });
+    } else if (file === undefined) {
+      accounts.push({ ...row, status: "needs_statement" });
+    } else {
+      const outcome = await recognizeSample(
+        ledger,
+        account.account_id,
+        file.path,
+      ).catch((error: unknown) => {
+        // Imported, removed or replaced since the listing.
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      });
+      if (outcome === null) {
         accounts.push({ ...row, status: "needs_statement" });
-      } else {
-        const outcome = await recognizeSample(
-          ledger,
-          account.account_id,
-          file.path,
-        ).catch((error: unknown) => {
-          // Imported, removed or replaced since the listing.
-          if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-          throw error;
-        });
-        if (outcome === null) {
-          accounts.push({ ...row, status: "needs_statement" });
-          continue;
-        }
-        // The account is listed, so it is known; only a race says otherwise.
-        if (!outcome.ok) continue;
-        const { finding } = outcome;
-        accounts.push(
-          finding.outcome === "recognized"
-            ? { ...row, status: "read", finding }
-            : {
-                ...row,
-                status: "unreadable",
-                finding: { ...finding, saved_path: file.projectPath },
-              },
-        );
+        continue;
       }
+      // The account is listed, so it is known; only a race says otherwise.
+      if (!outcome.ok) continue;
+      const { finding } = outcome;
+      accounts.push(
+        finding.outcome === "recognized"
+          ? { ...row, status: "read", finding }
+          : {
+              ...row,
+              status: "unreadable",
+              finding: { ...finding, saved_path: file.projectPath },
+            },
+      );
     }
   }
   return { categorizer: await categorizerStatus(), accounts };

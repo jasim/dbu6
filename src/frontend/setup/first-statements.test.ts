@@ -253,6 +253,8 @@ describe("rows", () => {
         ROW,
         { ...ROW, account_id: 4, status: "imported" },
         { ...ROW, account_id: 6, status: "read", finding: FINDING },
+        // Deleted from the books: it can only be removed.
+        { ...ROW, account_id: 8, status: "not_in_ledger" },
       ]),
     ).toBe(2);
   });
@@ -274,6 +276,10 @@ describe("rowStatus", () => {
     expect(said("needs_statement")).toEqual({
       tone: "waiting",
       label: "To do",
+    });
+    expect(said("not_in_ledger")).toEqual({
+      tone: "problem",
+      label: "Deleted from your books",
     });
   });
 
