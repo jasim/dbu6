@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { Button } from "../components/ui/button";
 import { formatMonth } from "../format";
 import { today } from "../reports/shared";
-import { Choice, FocusCard, type FocusFrame } from "./FocusCard";
+import { Choice, FocusCard, type FocusFrame } from "../components/focus-card";
 import { defaultMonth, monthChoices, type AddUrl, type From } from "./state";
 import { downloadLine, howFarBackTitle } from "./words";
 

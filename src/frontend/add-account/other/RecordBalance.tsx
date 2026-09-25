@@ -5,7 +5,7 @@ import type { OpeningBalanceAccount } from "../../../shared/index";
 import { apiErrorMessage, openingBalancesApi } from "../../api";
 import { Button } from "../../components/ui/button";
 import { today } from "../../reports/shared";
-import { AccountCombobox } from "../../setup/pickers";
+import { AccountCombobox } from "../../components/account-pickers";
 import {
   amountLabel,
   dateHint,
@@ -13,8 +13,8 @@ import {
   readBalance,
   signReadback,
   type BalanceFields,
-} from "../../setup/opening-balances";
-import { Field, FocusCard, type FocusFrame } from "../FocusCard";
+} from "../../opening-balances";
+import { Field, FocusCard, type FocusFrame } from "../../components/focus-card";
 import { recordTitle } from "./state";
 
 /**

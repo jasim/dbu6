@@ -1,7 +1,7 @@
 import { Navigate, Route, useLocation } from "react-router-dom";
 import { ADD_ROUTE } from "./add-account/state";
 import { REVIEW_ROUTE } from "./review/routes";
-import { SETUP_ROUTE } from "./setup/ChartCard";
+import { SETUP_ROUTE } from "./setup/routes";
 import {
   BALANCES_SETTINGS_ROUTE,
   BANKS_SETTINGS_ROUTE,

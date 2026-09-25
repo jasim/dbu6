@@ -2,7 +2,7 @@ import { useId, type ReactNode } from "react";
 import { cn } from "@sapporta/ui/cn";
 import { Link, Outlet } from "react-router-dom";
 import { apiErrorMessage } from "../api";
-import { Button } from "../components/ui/button";
+import { Button } from "./ui/button";
 
 /*
  * Focus mode (PLAN.md "The rule every screen follows"): the page holds one

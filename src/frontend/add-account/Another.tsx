@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
-import { FocusCard, type FocusFrame } from "./FocusCard";
+import { FocusCard, type FocusFrame } from "../components/focus-card";
 
 /**
  * Card 5, first run only: the account is in, and every account goes in

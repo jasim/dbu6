@@ -53,7 +53,8 @@ import {
   BALANCES_SETTINGS_ROUTE,
   BANKS_SETTINGS_ROUTE,
 } from "./views/settings/routes";
-import { ChartCard, SETUP_ROUTE } from "./setup/ChartCard";
+import { ChartCard } from "./setup/ChartCard";
+import { SETUP_ROUTE } from "./setup/routes";
 
 /*
  * The sidebar: five everyday destinations, then the door to everything else
@@ -103,7 +104,7 @@ export const appPublicRoutes = <></>;
 export const appPublicShellRoutes = <></>;
 
 /*
- * The routes in focus mode (add-account/FocusCard.tsx): signed in, but
+ * The routes in focus mode (components/focus-card.tsx): signed in, but
  * outside the app shell, with no sidebar or navigation. One card at a time.
  */
 const focusRoutes = (

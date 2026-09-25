@@ -5,7 +5,7 @@ import type {
 } from "../../shared/index";
 import { ADD_OTHER_ROUTE, ADD_ROUTE, addHref } from "../add-account/state";
 import { reviewHref, REVIEW_ROUTE } from "../review/routes";
-import { SETUP_ROUTE } from "../setup/ChartCard";
+import { SETUP_ROUTE } from "../setup/routes";
 import { joinNames } from "../format";
 
 /*

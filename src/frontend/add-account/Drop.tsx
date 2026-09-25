@@ -1,7 +1,7 @@
 import { Button } from "../components/ui/button";
 import { formatMonth, joinNames, plural } from "../format";
 import { Dropzone } from "../views/import-statements/files";
-import { FocusCard, type FocusFrame } from "./FocusCard";
+import { FocusCard, type FocusFrame } from "../components/focus-card";
 import type { From } from "./state";
 
 /**

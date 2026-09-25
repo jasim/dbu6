@@ -15,7 +15,10 @@ import type {
 import { apiErrorMessage } from "../../api";
 import { Disclosure } from "../../components/disclosure";
 import { Button } from "../../components/ui/button";
-import { AccountCombobox, InstitutionCombobox } from "../../setup/pickers";
+import {
+  AccountCombobox,
+  InstitutionCombobox,
+} from "../../components/account-pickers";
 import {
   draftOf,
   formLayout,
@@ -25,7 +28,7 @@ import {
   underMoreOptions,
   type FormField,
   type StatementAccountDraft,
-} from "../../setup/statement-account-form";
+} from "./statement-account-form";
 
 /*
  * Editing a bank or card that has no transactions yet: its bank, name,

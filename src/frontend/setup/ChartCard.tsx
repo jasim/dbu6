@@ -17,7 +17,7 @@ import {
   FocusCard,
   FocusLoading,
   type FocusFrame,
-} from "../add-account/FocusCard";
+} from "../components/focus-card";
 import { addHref } from "../add-account/state";
 import { contextLine } from "../add-account/words";
 import {
@@ -37,9 +37,6 @@ import { DescribeMoney } from "./DescribeMoney";
  * created. Books with a chart go Home, which resumes the first run from the
  * books; the Accounts page changes a chart.
  */
-
-/** Card 1, the chart: first run only. */
-export const SETUP_ROUTE = "/setup";
 
 // The first run's context line, before any bank or card is in.
 const FRAME: FocusFrame = {

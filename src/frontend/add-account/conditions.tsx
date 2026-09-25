@@ -5,17 +5,14 @@ import { AgentActions, PromptText } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
 import { Button } from "../components/ui/button";
 import { formatDate, joinNames } from "../format";
-import { ledgerAmount } from "../setup/opening-balances";
-import {
-  ambiguousPrompt,
-  unrecognizedPrompt,
-} from "../views/import-statements/agentPrompts";
+import { ledgerAmount } from "../opening-balances";
 import { OutcomeLine } from "../views/import-statements/cards";
 import type {
   Problem,
   ProblemAction,
 } from "../views/import-statements/describeProblems";
-import { Choice, FocusCard, type FocusFrame } from "./FocusCard";
+import { Choice, FocusCard, type FocusFrame } from "../components/focus-card";
+import { addAmbiguousPrompt, addUnrecognizedPrompt } from "./agent-prompts";
 import type { Gap, Unreadable } from "./state";
 import {
   addMonthsLabel,
@@ -31,37 +28,11 @@ import {
  * button, and at most a quiet way or two beside it.
  */
 
-/**
- * /import's prompt for a file it can't read, pointing at its staged copy,
- * worded for /add: the agent lists the parser and adds no account, which
- * Confirm sets up.
- */
+/** The Teach card's prompt for a file it can't read, and what it's for. */
 function teachPrompt(file: Unreadable): { prompt: string; goal: string } {
   return file.status === "ambiguous"
-    ? {
-        prompt: ambiguousPrompt(
-          {
-            status: "ambiguous",
-            file_name: file.file_name,
-            saved_path: file.saved_path,
-            matching_parser_paths: file.matching_parser_paths,
-          },
-          "add",
-        ),
-        goal: "Tell the formats apart",
-      }
-    : {
-        prompt: unrecognizedPrompt(
-          {
-            status: "unrecognized",
-            file_name: file.file_name,
-            saved_path: file.saved_path,
-            candidate_parser_paths: file.candidate_parser_paths,
-          },
-          "add",
-        ),
-        goal: "Teach dbu6 this format",
-      };
+    ? { prompt: addAmbiguousPrompt(file), goal: "Tell the formats apart" }
+    : { prompt: addUnrecognizedPrompt(file), goal: "Teach dbu6 this format" };
 }
 
 /**

@@ -2,7 +2,7 @@ import type {
   OpeningBalanceAccount,
   OpeningBalances,
 } from "../../../shared/index";
-import { balanceSections } from "../../setup/opening-balances";
+import { balanceSections } from "../../opening-balances";
 import { ADD_OTHER_ROUTE } from "../state";
 
 /*

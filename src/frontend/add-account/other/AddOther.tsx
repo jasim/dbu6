@@ -9,7 +9,11 @@ import {
   refreshSetup,
   statementAccountsQuery,
 } from "../../queries";
-import { FocusCard, FocusLoading, type FocusFrame } from "../FocusCard";
+import {
+  FocusCard,
+  FocusLoading,
+  type FocusFrame,
+} from "../../components/focus-card";
 import { SETUP_HAND_OFF_HREF } from "../../review/routes";
 import { accountsInBooks, contextLine } from "../words";
 import { RecordBalance } from "./RecordBalance";
