@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   addAccountContract,
   addAccountFieldsSchema,
-  refusalPromptsAgent,
+  promptedFiles,
   type AddAccountReading,
   type AddAccountRefusal,
 } from "../../shared/index.js";
@@ -24,11 +24,10 @@ import { requireWorkflowLedger } from "./workflow-auth.js";
 
 /*
  * Adding a bank or card from its statements (/add); the owner's only. The
- * dropped files are staged as /import stages them (`withStagedUploads`),
- * and kept only when the reply hands the user a coding-agent prompt that
- * points at them: a file no parser reads or several do, or a refusal
- * /import gives a prompt for (`refusalPromptsAgent`). The browser sends the
- * files again with the add, which reads them afresh.
+ * dropped files are staged as /import stages them (`withStagedUploads`).
+ * The read keeps only those its reply's card hands the user a coding-agent
+ * prompt for (`promptedFiles`). The browser sends the files again with the
+ * add, which reads them afresh and keeps nothing.
  */
 
 export default function addAccountApi(
@@ -52,16 +51,12 @@ export default function addAccountApi(
           ...account,
           refusal: account.refusal && importErrorResponse(account.refusal).body,
         }));
-        const keep =
-          reading.files.some((file) => file.status !== "read") ||
-          accounts.some(
-            (account) =>
-              account.refusal !== null && refusalPromptsAgent(account.refusal),
-          );
-        if (keep) staged.keep();
+        // Kept only for the card's coding-agent prompt (`promptedFiles`).
+        const prompted = promptedFiles({ files: reading.files, accounts });
+        if (prompted !== null) staged.keep(prompted);
         const body: AddAccountReading = {
           files: reading.files.map((file, index) =>
-            keep && file.status === "read"
+            prompted?.includes(index) && file.status === "read"
               ? { ...file, saved_path: staged.projectPaths[index] }
               : file,
           ),
@@ -99,7 +94,7 @@ export default function addAccountApi(
           fields.data,
         );
         if (done.ok) return { status: 200 as const, body: done.added };
-        return addRefusal(done, statements, staged);
+        return addRefusal(done);
       });
     },
   );
@@ -137,31 +132,19 @@ function formFields(body: unknown): Record<string, string> {
   );
 }
 
-// What the request brought is a 400, the rest a 422. An import refusal
-// /import gives a prompt for keeps the files, and says where.
+// What the request brought is a 400, the rest a 422. The files are never
+// kept: the screen reads them again, and that read keeps what its card needs.
 function addRefusal(
   refusal: Extract<AddAccountOutcome, { ok: false }>,
-  files: readonly File[],
-  staged: StagedUploads,
 ):
   | { status: 400; body: AddAccountRefusal }
   | { status: 422; body: AddAccountRefusal } {
-  const importError =
-    refusal.importError && importErrorResponse(refusal.importError).body;
-  const keep = importError !== undefined && refusalPromptsAgent(importError);
-  if (keep) staged.keep();
   const body: AddAccountRefusal = {
     error: refusal.error,
     code: refusal.code,
-    ...(importError === undefined ? {} : { import_error: importError }),
-    ...(keep
-      ? {
-          files: files.map((file, index) => ({
-            file_name: file.name,
-            saved_path: staged.projectPaths[index],
-          })),
-        }
-      : {}),
+    ...(refusal.importError === undefined
+      ? {}
+      : { import_error: importErrorResponse(refusal.importError).body }),
   };
   return refusal.code === "missing_multipart_field" ||
     refusal.code === "invalid_fields"

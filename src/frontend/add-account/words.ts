@@ -12,7 +12,7 @@ import {
   monthName,
   plural,
 } from "../format";
-import { suggestedName } from "../setup/statement-account-form";
+import { suggestedName } from "./confirm-form";
 import { addMonths, monthOf, type AddUrl, type From, type Gap } from "./state";
 
 /*
@@ -100,7 +100,7 @@ export function candidateName(
 }
 
 /** How the one-account-at-a-time card names each account. */
-export function candidateLabel(
+function candidateLabel(
   account: AddAccountCandidate,
   data: StatementAccounts | undefined,
 ): string {

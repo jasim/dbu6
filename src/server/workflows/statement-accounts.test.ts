@@ -7,6 +7,10 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StatementAccountChange } from "../../shared/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
+import {
+  insertJournalPlan,
+  loadOpeningEntries,
+} from "../modules/journals/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 import { packageDir } from "../paths.js";
@@ -75,6 +79,33 @@ async function created(ledger: Ledger, change = savings()) {
   const outcome = await changeStatementAccount(ledger, change);
   if (!outcome.ok) throw new Error(outcome.problem.message);
   return outcome.accounts;
+}
+
+// A posted transaction between Sample Savings (8) and Groceries (6): the
+// category line keyed, as another statement's import posts it, or neither,
+// as Sample Savings' own import posts its line.
+function posted(ledger: Ledger, keyed: "savings" | "neither") {
+  const line = { assertion: null, sourceReference: null, comment: null };
+  insertJournalPlan(
+    ledger.db,
+    [
+      {
+        date: "2026-02-03",
+        description: "NOPII TRANSFER",
+        entries: [
+          {
+            ...line,
+            account: 8,
+            amount: -500,
+            sourceTransactionKey:
+              keyed === "savings" ? "sample-key-050505" : null,
+          },
+          { ...line, account: 6, amount: 500, sourceTransactionKey: null },
+        ],
+      },
+    ],
+    ledger.auth,
+  );
 }
 
 function ledgerRow(ledger: Ledger, name: string) {
@@ -318,11 +349,7 @@ describe("changing a bank or card", () => {
     // Once one is in the books, only the Accounts page and the presets
     // change it.
     ledger.sqlite.exec(`DELETE FROM draft_transactions;`);
-    recordOpeningBalance(ledger, {
-      accountId: 8,
-      date: "2026-01-31",
-      amount: 1000,
-    });
+    posted(ledger, "neither");
     expect(
       await changeStatementAccount(ledger, {
         action: "remove",
@@ -353,6 +380,67 @@ describe("changing a bank or card", () => {
   });
 });
 
+describe("a bank or card's own transactions", () => {
+  it("leave out its opening entry and what other statements put on it, as /add does", async () => {
+    const ledger = books();
+    await created(ledger);
+    recordOpeningBalance(ledger, {
+      accountId: 8,
+      date: "2026-01-31",
+      amount: 1000,
+    });
+    posted(ledger, "savings");
+
+    expect((await loadStatementAccounts(ledger)).accounts[0]).toMatchObject({
+      entries: 0,
+      drafts: 0,
+    });
+    expect(
+      await changeStatementAccount(ledger, {
+        action: "update",
+        account_id: 8,
+        kind: "bank",
+        institution: "Sample Bank",
+        name: "Renamed",
+        identifier: null,
+        parent_id: 2,
+      }),
+    ).toMatchObject({ ok: true });
+  });
+});
+
+describe("a bank account turned into a card", () => {
+  it("is refused once any entry is on it, its opening included", async () => {
+    const ledger = books();
+    await created(ledger);
+    const toCard: StatementAccountChange = {
+      action: "update",
+      account_id: 8,
+      kind: "card",
+      institution: "Sample Bank",
+      name: "Sample Savings",
+      identifier: null,
+      parent_id: 4,
+    };
+    recordOpeningBalance(ledger, {
+      accountId: 8,
+      date: "2026-01-31",
+      amount: 1000,
+    });
+
+    expect(await changeStatementAccount(ledger, toCard)).toMatchObject({
+      ok: false,
+      problem: {
+        code: "account_has_transactions",
+        message: expect.stringContaining("add it again as a card"),
+      },
+    });
+    expect(ledgerRow(ledger, "Sample Savings")).toMatchObject({
+      account_type: "Asset",
+    });
+  });
+});
+
 describe("removing a bank or card", () => {
   it("takes it out of its preset, and out of the books when asked", async () => {
     const ledger = books();
@@ -379,6 +467,119 @@ describe("removing a bank or card", () => {
     expect(accounts.ok && accounts.accounts.accounts).toEqual([]);
     expect(ledgerRow(ledger, "Sample Savings")).toBeUndefined();
     expect(ledgerRow(ledger, "Other Savings")).toBeDefined();
+  });
+
+  it("deletes a half-added one's opening entry with it", async () => {
+    const ledger = books();
+    await created(ledger);
+    recordOpeningBalance(ledger, {
+      accountId: 8,
+      date: "2026-01-31",
+      amount: 1000,
+    });
+
+    expect(
+      await changeStatementAccount(ledger, {
+        action: "remove",
+        account_id: 8,
+        delete_account: true,
+      }),
+    ).toMatchObject({ ok: true });
+    expect(ledgerRow(ledger, "Sample Savings")).toBeUndefined();
+    expect(
+      ledger.sqlite.prepare("SELECT COUNT(*) AS n FROM journals").get(),
+    ).toEqual({ n: 0 });
+  });
+
+  it("never takes a row categorized to another Equity account for its opening", async () => {
+    const ledger = books();
+    await created(ledger);
+    ledger.sqlite.exec(`
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES (20, 'workspace', 'user', 'Owner Capital', NULL, 'Equity', '', '');
+    `);
+    // Sample Savings' own import put a row on Owner Capital.
+    const line = { assertion: null, sourceReference: null, comment: null };
+    insertJournalPlan(
+      ledger.db,
+      [
+        {
+          date: "2026-02-03",
+          description: "NOPII CAPITAL",
+          entries: [
+            { ...line, account: 8, amount: 5000, sourceTransactionKey: null },
+            { ...line, account: 20, amount: -5000, sourceTransactionKey: null },
+          ],
+        },
+      ],
+      ledger.auth,
+    );
+
+    expect((await loadStatementAccounts(ledger)).accounts[0]).toMatchObject({
+      entries: 1,
+    });
+    expect(
+      await changeStatementAccount(ledger, {
+        action: "remove",
+        account_id: 8,
+        delete_account: true,
+      }),
+    ).toMatchObject({
+      ok: false,
+      problem: { code: "account_has_transactions" },
+    });
+    expect(
+      ledger.sqlite.prepare("SELECT COUNT(*) AS n FROM journals").get(),
+    ).toEqual({ n: 1 });
+  });
+
+  it("keeps the opening entry of one kept in the chart", async () => {
+    const ledger = books();
+    await created(ledger);
+    recordOpeningBalance(ledger, {
+      accountId: 8,
+      date: "2026-01-31",
+      amount: 1000,
+    });
+
+    expect(
+      await changeStatementAccount(ledger, {
+        action: "remove",
+        account_id: 8,
+        delete_account: false,
+      }),
+    ).toMatchObject({ ok: true });
+    expect(presetsWith(ledger, 8)).toBe(false);
+    expect(loadOpeningEntries(ledger.sqlite, ledger.auth).get(8)).toMatchObject(
+      { date: "2026-01-31", amount: 1000 },
+    );
+  });
+
+  it("keeps in the books one that other statements' transactions are on", async () => {
+    const ledger = books();
+    await created(ledger);
+    recordOpeningBalance(ledger, {
+      accountId: 8,
+      date: "2026-01-31",
+      amount: 1000,
+    });
+    posted(ledger, "savings");
+
+    expect(
+      await changeStatementAccount(ledger, {
+        action: "remove",
+        account_id: 8,
+        delete_account: true,
+      }),
+    ).toMatchObject({
+      ok: false,
+      problem: { code: "account_has_transactions" },
+    });
+    // Nothing of the removal is written, the opening entry included.
+    expect(ledgerRow(ledger, "Sample Savings")).toBeDefined();
+    expect(loadOpeningEntries(ledger.sqlite, ledger.auth).has(8)).toBe(true);
+    expect(presetsWith(ledger, 8)).toBe(true);
   });
 
   it("keeps an account with accounts under it in the books", async () => {
@@ -416,3 +617,9 @@ describe("removing a bank or card", () => {
     ).toMatchObject({ ok: false, problem: { code: "account_has_children" } });
   });
 });
+
+function presetsWith(ledger: Ledger, accountId: number): boolean {
+  return loadImportPresets(ledger.db, ledger.auth).some((institution) =>
+    institution.accounts.some((one) => one.account_id === accountId),
+  );
+}

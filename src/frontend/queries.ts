@@ -180,25 +180,15 @@ export const openingBalancesQuery = queryOptions({
 });
 
 /**
- * Refreshes the setup reads, and Home, whose first card follows from the
- * accounts they set up.
+ * Refreshes what setting up an account changes: the setup reads (its
+ * account, its opening), Home and Review (its drafts), and the import
+ * presets (its bank, parser and number).
  */
 export function refreshSetup(client: QueryClient): Promise<void> {
   return Promise.all([
     client.invalidateQueries({ queryKey: SETUP_KEY }),
-    refreshDraftStatus(client),
-  ]).then(() => undefined);
-}
-
-/**
- * Refreshes what adding a bank or card changes: the setup reads (its
- * account, its opening), Home and Review (its drafts), and the import
- * presets (its bank, parser and number).
- */
-export function refreshAddedAccount(client: QueryClient): Promise<void> {
-  return Promise.all([
-    refreshSetup(client),
     client.invalidateQueries({ queryKey: importPresetsQuery.queryKey }),
+    refreshDraftStatus(client),
   ]).then(() => undefined);
 }
 

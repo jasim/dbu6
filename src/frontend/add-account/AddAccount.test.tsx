@@ -492,10 +492,12 @@ describe("adding a bank or card", () => {
       identifier: "050505XXXXXX0505",
       file_names: ["card.pdf"],
     });
+    // The read lists the files in the order they were dropped.
+    const both = reading([savings, card]);
+    const [jan, feb, pdf] = both.files;
+    both.files = [jan, pdf, feb];
     answers["POST /add-account/read"] = (form) =>
-      form!.getAll("files").length === 3
-        ? ok(reading([savings, card]))
-        : ok(reading([savings]));
+      form!.getAll("files").length === 3 ? ok(both) : ok(reading([savings]));
     await render("/add?from=2025-01");
     await drop("jan.xls", "card.pdf", "feb.xls");
 

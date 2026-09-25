@@ -147,7 +147,9 @@ export const chartSuggestionRefusalSchema = z.object({
 
 // The banks and cards statements come from, each an account in an
 // import preset. A row can be changed only while its account has no
-// transactions: no journal entry on it, and no draft from or to it.
+// transactions of its own, the rule /add and Home follow: `entries` and
+// `drafts` are both 0. Removing one deletes its opening entry when that
+// journal opens it alone.
 export const statementAccountRowSchema = z.object({
   account_id: z.number().int(),
   // The preset's name for it, which a change keeps equal to the ledger's.
@@ -159,7 +161,10 @@ export const statementAccountRowSchema = z.object({
   parent: z.object({ id: z.number().int(), name: z.string() }).nullable(),
   // False when the preset names an account the ledger no longer has.
   in_ledger: z.boolean(),
+  // Posted entries of its own, its opening entry and what other accounts'
+  // statements put on it left out.
   entries: z.number().int(),
+  // Drafts from its own statements.
   drafts: z.number().int(),
 });
 export type StatementAccountRow = z.infer<typeof statementAccountRowSchema>;
@@ -311,7 +316,7 @@ export const setupContract = c.router({
     method: "GET",
     path: "/setup/statement-accounts",
     summary:
-      "The banks and cards statements come from: each preset account with its parent and its count of entries and drafts",
+      "The banks and cards statements come from: each preset account with its parent and its count of its own entries (the opening entry left out) and drafts",
     responses: {
       200: statementAccountsSchema,
       403: errorBodySchema,

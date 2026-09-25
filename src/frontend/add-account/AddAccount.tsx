@@ -2,14 +2,9 @@ import { useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import {
-  refusalPromptsAgent,
-  type AccountKind,
-  type AddAccountFields,
-} from "../../shared/index";
+import type { AccountKind, AddAccountFields } from "../../shared/index";
 import { apiErrorMessage } from "../api";
-import { Button } from "../components/ui/button";
-import { refreshAddedAccount, statementAccountsQuery } from "../queries";
+import { refreshSetup, statementAccountsQuery } from "../queries";
 import { draftsHandOffHref } from "../review/routes";
 import type { ProblemAction } from "../views/import-statements/describeProblems";
 import {
@@ -31,7 +26,7 @@ import {
 } from "./conditions";
 import { Confirm } from "./Confirm";
 import { Drop, ReadFailed, Reading as ReadingCard } from "./Drop";
-import { FocusCard, type FocusFrame } from "./FocusCard";
+import { FocusLoading, type FocusFrame } from "./FocusCard";
 import { HowFarBack } from "./HowFarBack";
 import { refusalProblems } from "./refusal";
 import {
@@ -123,6 +118,12 @@ export function AddAccount() {
     void read([...files, ...fresh]);
   }
 
+  // The cards name held files by their position in the drop (state.ts);
+  // a refusal's own fixes name them as /import does, by file name.
+  const withoutAt = (at: readonly number[]) =>
+    files.filter((_, i) => !at.includes(i));
+  const onlyAt = (at: readonly number[]) =>
+    files.filter((_, i) => at.includes(i));
   const without = (names: readonly string[]) =>
     files.filter((file) => !names.includes(file.name));
   const only = (names: readonly string[]) =>
@@ -148,7 +149,7 @@ export function AddAccount() {
       setAddRefusal(reply.message);
       return;
     }
-    await refreshAddedAccount(client);
+    await refreshSetup(client);
     if (reply.kind === "refused") {
       setAddRefusal(reply.refusal.error);
       // A refusal partway can leave the account set up, with no
@@ -243,9 +244,7 @@ export function AddAccount() {
             setCheckedAgain(true);
             void read(files);
           }}
-          onLeaveOut={() =>
-            void read(without(card.files.map((file) => file.file_name)))
-          }
+          onLeaveOut={() => void read(withoutAt(card.at))}
         />
       );
     case "several": {
@@ -255,7 +254,7 @@ export function AddAccount() {
           frame={frame}
           title={severalTitle(card.accounts, data)}
           first={candidateName(first, first.kind, data)}
-          onStart={() => void read(only(first.file_names))}
+          onStart={() => void read(onlyAt(card.firstAt))}
         />
       );
     }
@@ -283,7 +282,7 @@ export function AddAccount() {
             if (url.from?.kind === "month") {
               goFrom({ kind: "month", month: card.gap.resumesIn }, true);
             }
-            void read(without(card.gap.before));
+            void read(withoutAt(card.gap.before));
           }}
         />
       );
@@ -300,7 +299,7 @@ export function AddAccount() {
             name,
             accountKind,
           )}
-          promptsAgent={refusalPromptsAgent(card.refusal)}
+          promptsAgent={card.promptsAgent}
           onAction={(action: ProblemAction) => {
             if (action.kind === "remove-files") {
               void read(without(action.fileNames));
@@ -355,21 +354,12 @@ export function AddAccount() {
       );
     case "confirm":
       if (data === undefined) {
-        return accounts.isError ? (
-          <FocusCard
+        return (
+          <FocusLoading
             {...frame}
-            title="Couldn't load your accounts"
-            lead={
-              <span role="alert" className="text-destructive">
-                {apiErrorMessage(accounts.error)}
-              </span>
-            }
-            actions={
-              <Button onClick={() => void accounts.refetch()}>Try again</Button>
-            }
+            error={accounts.isError ? accounts.error : null}
+            retry={() => void accounts.refetch()}
           />
-        ) : (
-          <FocusCard {...frame} title="Loading…" />
         );
       }
       return (

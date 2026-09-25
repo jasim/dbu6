@@ -1,41 +1,104 @@
-import {
-  knownInstitution,
-  type AccountKind,
-  type AddAccountCandidate,
-  type AddAccountFields,
-  type StatementAccounts,
+import type {
+  AccountKind,
+  AddAccountCandidate,
+  AddAccountFields,
+  StatementAccounts,
 } from "../../shared/index";
-import {
-  formLayout,
-  newDraft,
-  withInstitution,
-  type StatementAccountDraft,
-} from "../setup/statement-account-form";
 import type { Opening } from "./state";
 
 /*
- * Card 4's form: the banks-and-cards form's name, group and chart account
- * (statement-account-form.ts), with the bank only when dbu6 hasn't met it
- * and no number, which the statements supply. It says only what the fields
- * in view lack; everything else is the server's to refuse, in its words.
+ * Card 4's form, for a new account: its name, following the bank until the
+ * user types one; its group; or an account from the chart instead; and the
+ * bank itself only when no bank the books know lists the parser. No number:
+ * the statements supply it. The form says only what the fields in view
+ * lack; everything else is the server's to refuse, in its words.
  */
 
+export interface ConfirmDraft {
+  kind: AccountKind;
+  /** The bank, or the card issuer. */
+  institution: string;
+  name: string;
+  /** Once the user types a name, a change of bank no longer renames it. */
+  nameEdited: boolean;
+  /** An account from the chart to use instead of a new one. */
+  existingId: number | null;
+  parentId: number | null;
+}
+
 /**
- * The form as Confirm opens it: the bank as the read names it, matched to
- * one the books know; the name that follows from it; the usual parent.
+ * The name a new account gets from its bank: "Sample Savings" and "Sample
+ * Credit Card" at Sample Bank (a trailing "Bank" goes), "Sample Issuer
+ * Credit Card", with " 2", " 3"… when the books already have that name.
+ * Empty with no bank.
+ */
+export function suggestedName(
+  kind: AccountKind,
+  institution: string,
+  data: StatementAccounts,
+): string {
+  const bank = institution.trim();
+  if (bank === "") return "";
+  const stem = bank.replace(/\s+bank$/i, "");
+  const base = `${stem} ${kind === "card" ? "Credit Card" : "Savings"}`;
+  // Any account in the books, of any type, and the banks and cards' own
+  // names, which a deleted account's row keeps.
+  const taken = new Set([
+    ...data.account_names,
+    ...data.accounts.map((row) => row.name),
+  ]);
+  let name = base;
+  for (let n = 2; taken.has(name); n++) name = `${base} ${n}`;
+  return name;
+}
+
+/**
+ * The form as Confirm opens it: the bank as the read names it (the server
+ * has matched it to one the books know), the name that follows from it,
+ * and the usual group.
  */
 export function confirmDraft(
   account: AddAccountCandidate,
   kind: AccountKind,
   data: StatementAccounts,
-): StatementAccountDraft {
-  const institution = account.institution_listed
-    ? account.institution
-    : knownInstitution(
-        data.institutions.map((one) => one.name),
-        account.institution,
-      );
-  return withInstitution(newDraft(data, kind), institution, data);
+): ConfirmDraft {
+  return withInstitution(
+    {
+      kind,
+      institution: "",
+      name: "",
+      nameEdited: false,
+      existingId: null,
+      parentId: data.default_parents[kind],
+    },
+    account.institution,
+    data,
+  );
+}
+
+/** The draft with another bank; an unedited name follows it. */
+export function withInstitution(
+  draft: ConfirmDraft,
+  institution: string,
+  data: StatementAccounts,
+): ConfirmDraft {
+  return {
+    ...draft,
+    institution,
+    name: draft.nameEdited
+      ? draft.name
+      : suggestedName(draft.kind, institution, data),
+  };
+}
+
+/** The draft with a name the user typed. */
+export function withName(draft: ConfirmDraft, name: string): ConfirmDraft {
+  return { ...draft, name, nameEdited: true };
+}
+
+/** The accounts of `kind`'s type in the chart that no bank or card uses. */
+export function unlistedOf(data: StatementAccounts, kind: AccountKind) {
+  return data.unlisted.filter((one) => one.kind === kind);
 }
 
 /** Which of Confirm's fields are in view. */
@@ -53,14 +116,14 @@ export interface ConfirmLayout {
 
 export function confirmLayout(
   account: AddAccountCandidate,
-  draft: StatementAccountDraft,
+  kind: AccountKind,
   data: StatementAccounts,
 ): ConfirmLayout {
-  const { parentInView, canUseExisting } = formLayout(draft, data, null);
   return {
     bank: !account.institution_listed,
-    groupInView: parentInView,
-    canUseExisting,
+    groupInView:
+      data.default_parents[kind] === null || data.mixed_parents[kind],
+    canUseExisting: unlistedOf(data, kind).length > 0,
   };
 }
 
@@ -72,7 +135,7 @@ export function readConfirm(
   account: AddAccountCandidate,
   kind: AccountKind,
   opening: Opening,
-  draft: StatementAccountDraft,
+  draft: ConfirmDraft,
   data: StatementAccounts,
 ): ConfirmReading {
   const fields: AddAccountFields = {};
@@ -91,7 +154,7 @@ export function readConfirm(
     }
     fields.institution = institution;
   }
-  if (draft.source === "existing" && draft.existingId !== null) {
+  if (draft.existingId !== null) {
     return { ok: true, fields: { ...fields, account_id: draft.existingId } };
   }
   const name = draft.name.trim();

@@ -1,8 +1,9 @@
 // The drafts module: draft rows from categorized statement rows, saving them
 // and placing their balance assertions, loading them back categorized,
-// reclassifying and clearing them, what an account's drafts hold, where
-// they begin, and the lessons the user teaches the categoriser from them. Import
-// from here rather than from the files.
+// reclassifying and clearing them, what an account's drafts hold, whether a
+// bank or card has transactions of its own, where drafts begin, and the
+// lessons the user teaches the categoriser from them. Import from here
+// rather than from the files.
 export {
   partitionByCategorization,
   type CategorizedDraft,
@@ -31,6 +32,11 @@ export {
   countDraftsByAccount,
   countDraftsByBaseAccount,
 } from "./account-drafts.js";
+export {
+  hasTransactions,
+  loadStatementActivity,
+  type StatementActivity,
+} from "./statement-activity.js";
 export {
   clearCategorizationLessons,
   deleteCategorizationLesson,

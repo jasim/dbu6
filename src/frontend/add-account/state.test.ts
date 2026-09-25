@@ -12,7 +12,6 @@ import {
   carriedFrom,
   defaultMonth,
   monthChoices,
-  NOTHING_HELD,
   readAddUrl,
   type AddUrl,
   type Held,
@@ -25,6 +24,15 @@ import {
  */
 
 const url = (search: string): AddUrl => readAddUrl(new URLSearchParams(search));
+
+// Nothing dropped yet.
+const NOTHING_HELD: Held = {
+  files: 0,
+  reading: null,
+  addMore: false,
+  kind: null,
+  opening: null,
+};
 
 const FROM_JAN = url("?from=2025-01");
 const LATEST = url("?from=latest");
@@ -59,11 +67,12 @@ function readFile(
   file_name: string,
   first_date: string,
   last_date: string,
+  account_key = "account:new:bank:050505000012",
 ): AddAccountFile {
   return {
     status: "read",
     file_name,
-    account_key: "account:new:bank:050505000012",
+    account_key,
     parser: "sample-bank-xls",
     period: { first_date, last_date },
     transactions: 20,
@@ -252,11 +261,13 @@ describe("which card shows", () => {
     expect(addCard(FROM_JAN, held(reading([], [UNRECOGNIZED])))).toEqual({
       card: "teach",
       files: [UNRECOGNIZED],
+      at: [0],
       readable: 0,
     });
     expect(addCard(FROM_JAN, held(reading([], [AMBIGUOUS])))).toEqual({
       card: "teach",
       files: [AMBIGUOUS],
+      at: [0],
       readable: 0,
     });
     // Beside files that did read, which could be left out.
@@ -268,6 +279,8 @@ describe("which card shows", () => {
     ).toEqual({
       card: "teach",
       files: [AMBIGUOUS, UNRECOGNIZED],
+      // By their place in the drop, which "Leave them out" drops.
+      at: [1, 2],
       readable: 2,
     });
   });
@@ -281,9 +294,16 @@ describe("which card shows", () => {
       identifier: "050505XXXXXX0505",
       file_names: ["card.pdf"],
     });
-    expect(addCard(FROM_JAN, held(reading([savings, card])))).toEqual({
+    // The card's statement was dropped between the savings ones, under the
+    // same name as one of them: the first account's files are found by
+    // their place in the drop.
+    const cardFile = readFile("jan.xls", "2025-01-01", "2025-01-31", card.key);
+    expect(
+      addCard(FROM_JAN, held(reading([savings, card], [JAN, cardFile, FEB]))),
+    ).toEqual({
       card: "several",
       accounts: [savings, card],
+      firstAt: [0, 2],
     });
     // Unreadable files come first: they may be a third account's.
     expect(
@@ -322,20 +342,18 @@ describe("which card shows", () => {
       file_names: ["jan.xls", "feb.xls", "apr.xls", "may.xls"],
       refusal: GAP,
     });
+    // Dropped in any order: the files before the gap are named by their
+    // place in the drop.
     const files = [
-      JAN,
-      FEB,
       readFile("apr.xls", "2025-04-01", "2025-04-30"),
+      JAN,
       readFile("may.xls", "2025-05-01", "2025-05-31"),
+      FEB,
     ];
     expect(addCard(FROM_JAN, held(reading([account], files)))).toEqual({
       card: "gap",
       account,
-      gap: {
-        endsIn: "2025-02",
-        resumesIn: "2025-04",
-        before: ["jan.xls", "feb.xls"],
-      },
+      gap: { endsIn: "2025-02", resumesIn: "2025-04", before: [1, 3] },
     });
   });
 
@@ -355,6 +373,9 @@ describe("which card shows", () => {
         card: "refused",
         account,
         refusal,
+        // The same statement twice gets /import's prompt; a part with no
+        // balances is the user's to fix.
+        promptsAgent: refusal === twice,
       });
     }
     // A gap whose files the read has no dates for is shown as it is.

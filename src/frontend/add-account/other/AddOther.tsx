@@ -2,7 +2,6 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import type { OpeningBalances } from "../../../shared/index";
-import { apiErrorMessage } from "../../api";
 import { Button } from "../../components/ui/button";
 import { joinNames } from "../../format";
 import {
@@ -10,7 +9,7 @@ import {
   refreshSetup,
   statementAccountsQuery,
 } from "../../queries";
-import { FocusCard, type FocusFrame } from "../FocusCard";
+import { FocusCard, FocusLoading, type FocusFrame } from "../FocusCard";
 import { SETUP_HAND_OFF_HREF } from "../../review/routes";
 import { accountsInBooks, contextLine } from "../words";
 import { RecordBalance } from "./RecordBalance";
@@ -57,21 +56,12 @@ export function AddOther() {
 
   const data = balances.data;
   if (data === undefined) {
-    return balances.isError ? (
-      <FocusCard
+    return (
+      <FocusLoading
         {...frame}
-        title="Couldn't load your accounts"
-        lead={
-          <span role="alert" className="text-destructive">
-            {apiErrorMessage(balances.error)}
-          </span>
-        }
-        actions={
-          <Button onClick={() => void balances.refetch()}>Try again</Button>
-        }
+        error={balances.isError ? balances.error : null}
+        retry={() => void balances.refetch()}
       />
-    ) : (
-      <FocusCard {...frame} title="Loading…" />
     );
   }
 

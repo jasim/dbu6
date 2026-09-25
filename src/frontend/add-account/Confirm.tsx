@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState } from "react";
 import { Input } from "@sapporta/ui";
 import { cn } from "@sapporta/ui/cn";
 import type {
@@ -13,13 +13,15 @@ import { Button } from "../components/ui/button";
 import { formatBalance, formatDate } from "../format";
 import { AccountCombobox, InstitutionCombobox } from "../setup/pickers";
 import {
+  confirmDraft,
+  confirmLayout,
+  readConfirm,
   unlistedOf,
   withInstitution,
   withName,
-  type StatementAccountDraft,
-} from "../setup/statement-account-form";
-import { confirmDraft, confirmLayout, readConfirm } from "./confirm-form";
-import { FocusCard, type FocusFrame } from "./FocusCard";
+  type ConfirmDraft,
+} from "./confirm-form";
+import { Field, FocusCard, type FocusFrame } from "./FocusCard";
 import type { Opening } from "./state";
 import { bankLine, categorizerLine, periodLine } from "./words";
 
@@ -68,7 +70,7 @@ export function Confirm({
     }
   }
 
-  const update = (next: StatementAccountDraft) => {
+  const update = (next: ConfirmDraft) => {
     setDraft(next);
     setProblem(null);
   };
@@ -174,9 +176,9 @@ function AccountFields({
 }: {
   account: AddAccountCandidate;
   kind: AccountKind;
-  draft: StatementAccountDraft;
+  draft: ConfirmDraft;
   data: StatementAccounts;
-  update: (draft: StatementAccountDraft) => void;
+  update: (draft: ConfirmDraft) => void;
 }) {
   const ids = {
     name: useId(),
@@ -184,8 +186,8 @@ function AccountFields({
     group: useId(),
     existing: useId(),
   };
-  const layout = confirmLayout(account, draft, data);
-  const existing = draft.source === "existing";
+  const layout = confirmLayout(account, kind, data);
+  const existing = draft.existingId !== null;
   const [moreOpen, setMoreOpen] = useState(false);
 
   const group = (
@@ -208,13 +210,7 @@ function AccountFields({
           id={ids.existing}
           choices={unlistedOf(data, kind)}
           value={draft.existingId}
-          onChange={(existingId) =>
-            update({
-              ...draft,
-              existingId,
-              source: existingId === null ? "new" : "existing",
-            })
-          }
+          onChange={(existingId) => update({ ...draft, existingId })}
           placeholder="None: add a new one"
         />
       </Field>
@@ -256,28 +252,6 @@ function AccountFields({
           ))}
         </Disclosure>
       )}
-    </div>
-  );
-}
-
-function Field({
-  id,
-  label,
-  children,
-}: {
-  id: string;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="block text-row font-semibold text-foreground"
-      >
-        {label}
-      </label>
-      {children}
     </div>
   );
 }

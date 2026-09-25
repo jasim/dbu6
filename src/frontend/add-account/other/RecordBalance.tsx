@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { Input } from "@sapporta/ui";
 import type { OpeningBalanceAccount } from "../../../shared/index";
@@ -14,7 +14,7 @@ import {
   signReadback,
   type BalanceFields,
 } from "../../setup/opening-balances";
-import { FocusCard, type FocusFrame } from "../FocusCard";
+import { Field, FocusCard, type FocusFrame } from "../FocusCard";
 import { recordTitle } from "./state";
 
 /**
@@ -186,30 +186,5 @@ export function RecordBalance({
         )}
       </div>
     </FocusCard>
-  );
-}
-
-function Field({
-  id,
-  label,
-  hint,
-  children,
-}: {
-  id: string;
-  label: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="block text-row font-semibold text-foreground"
-      >
-        {label}
-      </label>
-      {hint && <p className="text-meta text-ink-meta">{hint}</p>}
-      {children}
-    </div>
   );
 }

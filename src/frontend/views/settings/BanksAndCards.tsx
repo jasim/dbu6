@@ -31,9 +31,11 @@ import { StatementAccountDialog } from "./StatementAccountDialog";
 
 /*
  * Settings' Banks & cards: the banks and cards statements come from, one
- * row each, in one table. A row is edited or removed only while nothing is
- * posted or drafted on its account. One whose account was deleted from the
- * books can still be removed, which stops dbu6 importing its statements.
+ * row each, in one table. A row is edited or removed only while nothing of
+ * its own is posted or drafted on its account; its opening entry doesn't
+ * count, and removing the row deletes an opening entry that opens it alone.
+ * One whose account was deleted from the books can still be removed, which
+ * stops dbu6 importing its statements.
  * A new bank or card comes in from its statements, at /add.
  */
 
@@ -304,7 +306,11 @@ function RemoveDialog({
             <DialogHeader>
               <DialogTitle>Remove {row.name}?</DialogTitle>
               <DialogDescription>
-                dbu6 stops importing its statements.
+                {!row.in_ledger
+                  ? "dbu6 stops importing its statements."
+                  : deleteAccount
+                    ? "dbu6 stops importing its statements, and deletes the account and its opening balance."
+                    : "dbu6 stops importing its statements. The account and its opening balance stay in your chart."}
               </DialogDescription>
             </DialogHeader>
             {row.in_ledger && (

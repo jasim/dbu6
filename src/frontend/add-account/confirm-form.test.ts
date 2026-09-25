@@ -3,8 +3,14 @@ import type {
   AddAccountCandidate,
   StatementAccounts,
 } from "../../shared/index";
-import { withName } from "../setup/statement-account-form";
-import { confirmDraft, confirmLayout, readConfirm } from "./confirm-form";
+import {
+  confirmDraft,
+  confirmLayout,
+  readConfirm,
+  suggestedName,
+  withInstitution,
+  withName,
+} from "./confirm-form";
 import type { Opening } from "./state";
 
 /*
@@ -65,22 +71,23 @@ describe("Confirm's form", () => {
       name: "Sample Savings",
       parentId: 1,
     });
-    expect(confirmLayout(candidate(), draft, DATA)).toEqual({
+    expect(confirmLayout(candidate(), "bank", DATA)).toEqual({
       bank: false,
       groupInView: false,
       canUseExisting: true,
     });
   });
 
-  it("asks for the bank when dbu6 hasn't met it, matched to one it knows", () => {
+  it("asks for the bank when dbu6 hasn't met it, as the read names it", () => {
+    // The server has tidied the printed name and matched it to a known bank.
     const account = candidate({
-      institution: "OTHER SAMPLE BANK",
+      institution: "Other Sample Bank",
       institution_listed: false,
     });
     const draft = confirmDraft(account, "bank", DATA);
     expect(draft.institution).toBe("Other Sample Bank");
     expect(draft.name).toBe("Other Sample Savings");
-    expect(confirmLayout(account, draft, DATA).bank).toBe(true);
+    expect(confirmLayout(account, "bank", DATA).bank).toBe(true);
     expect(readConfirm(account, "bank", PRINTED, draft, DATA)).toEqual({
       ok: true,
       fields: {
@@ -111,7 +118,7 @@ describe("Confirm's form", () => {
     const account = candidate({ kind: "card", institution: "Sample Card Co" });
     const draft = confirmDraft(account, "card", DATA);
     expect(draft.parentId).toBeNull();
-    expect(confirmLayout(account, draft, DATA).groupInView).toBe(true);
+    expect(confirmLayout(account, "card", DATA).groupInView).toBe(true);
     expect(readConfirm(account, "card", PRINTED, draft, DATA)).toEqual({
       ok: false,
       problem: "Pick a group.",
@@ -127,7 +134,6 @@ describe("Confirm's form", () => {
   it("uses an account from the chart instead of a new one", () => {
     const draft = {
       ...confirmDraft(candidate(), "bank", DATA),
-      source: "existing" as const,
       existingId: 7,
       name: "",
     };
@@ -176,5 +182,44 @@ describe("Confirm's form", () => {
       ok: true,
       fields: {},
     });
+  });
+});
+
+describe("the name a new account gets", () => {
+  const other = (kind: "bank" | "card" = "bank") =>
+    confirmDraft(candidate({ institution: "Other Bank" }), kind, DATA);
+
+  it("follows the bank until the user types one", () => {
+    const draft = other();
+    expect(draft.name).toBe("Other Savings");
+    expect(withInstitution(draft, "Other Bank Two", DATA).name).toBe(
+      "Other Bank Two Savings",
+    );
+    const typed = withName(draft, "Joint Savings");
+    expect(withInstitution(typed, "Other Bank Two", DATA).name).toBe(
+      "Joint Savings",
+    );
+  });
+
+  it("names a card after its issuer", () => {
+    expect(other("card").name).toBe("Other Credit Card");
+  });
+
+  it("is empty with no bank, and numbered when the books have it", () => {
+    expect(suggestedName("bank", "  ", DATA)).toBe("");
+    expect(suggestedName("bank", "Sample", DATA)).toBe("Sample Savings");
+    expect(
+      suggestedName("bank", "Sample", {
+        ...DATA,
+        account_names: [...DATA.account_names, "Sample Savings"],
+      }),
+    ).toBe("Sample Savings 2");
+    // Any account in the books, not only assets and liabilities.
+    expect(
+      suggestedName("card", "Expense Bank", {
+        ...DATA,
+        account_names: [...DATA.account_names, "Expense Credit Card"],
+      }),
+    ).toBe("Expense Credit Card 2");
   });
 });

@@ -1,10 +1,12 @@
-import type {
-  AccountKind,
-  AddAccountCandidate,
-  AddAccountFile,
-  AddAccountReading,
-  LlmStatus,
-  StatementImportError,
+import {
+  promptedFiles,
+  readsNoTransactions,
+  type AccountKind,
+  type AddAccountCandidate,
+  type AddAccountFile,
+  type AddAccountReading,
+  type LlmStatus,
+  type StatementImportError,
 } from "../../shared/index";
 
 /*
@@ -158,14 +160,6 @@ export interface Held {
   opening: number | null;
 }
 
-export const NOTHING_HELD: Held = {
-  files: 0,
-  reading: null,
-  addMore: false,
-  kind: null,
-  opening: null,
-};
-
 // --- The cards ---------------------------------------------------------------
 
 export type Unreadable = Extract<
@@ -173,14 +167,21 @@ export type Unreadable = Extract<
   { status: "unrecognized" | "ambiguous" }
 >;
 
+/*
+ * The read lists the files in the order they were dropped, so a held file
+ * is the read's file at the same position. The cards name the files they
+ * leave out or keep by that position, never by name: two drops can share a
+ * name.
+ */
+
 /** The files either side of a gap, and what "Start from" leaves out. */
 export interface Gap {
   /** The month the earlier file ends in. */
   endsIn: string;
   /** The month the later file starts in, which "Start from" starts at. */
   resumesIn: string;
-  /** The files up to the gap, in date order, which "Start from" drops. */
-  before: string[];
+  /** The positions of the files up to the gap, which "Start from" drops. */
+  before: number[];
 }
 
 /** Where the account's opening balance comes from, as Confirm says it. */
@@ -196,8 +197,19 @@ export type AddCard =
   | { card: "drop" }
   | { card: "reading" }
   | { card: "read-failed"; message: string }
-  | { card: "teach"; files: Unreadable[]; readable: number }
-  | { card: "several"; accounts: AddAccountCandidate[] }
+  | {
+      card: "teach";
+      files: Unreadable[];
+      /** Their positions, which "Leave it out" drops. */
+      at: number[];
+      readable: number;
+    }
+  | {
+      card: "several";
+      accounts: AddAccountCandidate[];
+      /** The positions of the first account's files, to start with. */
+      firstAt: number[];
+    }
   | { card: "in-books"; account: AddAccountCandidate }
   | { card: "no-transactions"; account: AddAccountCandidate }
   | { card: "gap"; account: AddAccountCandidate; gap: Gap }
@@ -205,6 +217,8 @@ export type AddCard =
       card: "refused";
       account: AddAccountCandidate;
       refusal: StatementImportError;
+      /** Its files are kept for a coding-agent prompt (`promptedFiles`). */
+      promptsAgent: boolean;
     }
   | { card: "opening-refused"; account: AddAccountCandidate; error: string }
   | {
@@ -228,8 +242,6 @@ export type AddCard =
       categorizer: LlmStatus;
     };
 
-export type AddCardId = AddCard["card"];
-
 export function addCard(url: AddUrl, held: Held): AddCard {
   if (url.setup && url.added !== null) {
     return { card: "another", accountId: url.added };
@@ -249,11 +261,10 @@ export function addCard(url: AddUrl, held: Held): AddCard {
   }
 }
 
-function readCard(
-  from: From,
-  held: Held,
-  { files, accounts, categorizer }: AddAccountReading,
-): AddCard {
+function readCard(from: From, held: Held, reading: AddAccountReading): AddCard {
+  const { files, accounts, categorizer } = reading;
+  // The files a coding-agent prompt points at, as the read kept them.
+  const prompted = promptedFiles(reading);
   const unreadable = files.filter(
     (file): file is Unreadable => file.status !== "read",
   );
@@ -261,13 +272,24 @@ function readCard(
     return {
       card: "teach",
       files: unreadable,
+      at: prompted!,
       readable: files.length - unreadable.length,
     };
   }
-  if (accounts.length > 1) return { card: "several", accounts };
+  if (accounts.length > 1) {
+    const [first] = accounts;
+    return {
+      card: "several",
+      accounts,
+      firstAt: positions(
+        files,
+        (file) => file.status === "read" && file.account_key === first.key,
+      ),
+    };
+  }
   const [account] = accounts;
   if (account === undefined) return { card: "drop" };
-  return accountCard(from, held, files, account, categorizer);
+  return accountCard(from, held, files, account, categorizer, prompted);
 }
 
 function accountCard(
@@ -276,10 +298,12 @@ function accountCard(
   files: readonly AddAccountFile[],
   account: AddAccountCandidate,
   categorizer: LlmStatus,
+  prompted: number[] | null,
 ): AddCard {
   if (account.status === "in_books") return { card: "in-books", account };
   const { period, opening } = account;
-  if (period === null || opening === null || account.transactions === 0) {
+  // The two nulls again only narrow the types below.
+  if (readsNoTransactions(account) || period === null || opening === null) {
     return { card: "no-transactions", account };
   }
 
@@ -293,7 +317,7 @@ function accountCard(
     const gap = gapOf(account, files, refusal);
     return gap
       ? { card: "gap", account, gap }
-      : { card: "refused", account, refusal };
+      : { card: "refused", account, refusal, promptsAgent: prompted !== null };
   }
 
   // The account's own opening entry stands in the way (it starts on or
@@ -350,11 +374,26 @@ function gapOf(
   };
   const earlier = period(refusal.earlier_source);
   const later = period(refusal.later_source);
-  const upTo = account.file_names.indexOf(refusal.earlier_source);
-  if (earlier === null || later === null || upTo === -1) return null;
+  if (earlier === null || later === null) return null;
   return {
     endsIn: monthOf(earlier.last_date),
     resumesIn: monthOf(later.first_date),
-    before: account.file_names.slice(0, upTo + 1),
+    // The account's files that end before the later file starts.
+    before: positions(
+      files,
+      (file) =>
+        file.status === "read" &&
+        file.account_key === account.key &&
+        file.period !== null &&
+        file.period.last_date < later.first_date,
+    ),
   };
+}
+
+/** The positions in the drop of the files `test` picks. */
+function positions(
+  files: readonly AddAccountFile[],
+  test: (file: AddAccountFile) => boolean,
+): number[] {
+  return files.flatMap((file, i) => (test(file) ? [i] : []));
 }

@@ -6,14 +6,10 @@ import type {
 import {
   draftOf,
   formLayout,
-  newDraft,
   numberField,
   readDraft,
   refusalField,
-  suggestedName,
   underMoreOptions,
-  withInstitution,
-  withName,
 } from "./statement-account-form";
 
 const savings: StatementAccountRow = {
@@ -45,123 +41,54 @@ const DATA: StatementAccounts = {
     "Liabilities",
     "Credit Cards",
     "Sample Bank Savings",
-    // An expense that happens to have the name a card would get.
-    "Expense Credit Card",
   ],
 };
 
-// A bank with no account yet, and its account's name as the form fills it.
-const other = (kind: "bank" | "card" = "bank") =>
-  withInstitution(newDraft(DATA, kind), "Other Bank", DATA);
+// Sample Bank Savings, and another account at Sample Bank beside it.
+const joint: StatementAccountRow = {
+  ...savings,
+  account_id: 9,
+  name: "Sample Bank Joint",
+  account_identifiers: ["050505000034"],
+};
+const TWO = { ...DATA, accounts: [savings, joint] };
 
-describe("the name a new account gets", () => {
-  it("follows the bank until the user types one", () => {
-    const draft = other();
-    expect(draft.name).toBe("Other Savings");
-    expect(withInstitution(draft, "Other Bank Two", DATA).name).toBe(
-      "Other Bank Two Savings",
-    );
-
-    const typed = withName(draft, "Joint Savings");
-    expect(withInstitution(typed, "Other Bank Two", DATA).name).toBe(
-      "Joint Savings",
-    );
-  });
-
-  it("names a card after its issuer", () => {
-    expect(other("card").name).toBe("Other Credit Card");
-  });
-
-  it("is empty with no bank, and numbered when the books have it", () => {
-    expect(suggestedName("bank", "  ", DATA)).toBe("");
-    expect(suggestedName("bank", "Sample", DATA)).toBe("Sample Savings");
-    expect(
-      suggestedName("bank", "Sample", {
-        ...DATA,
-        account_names: [...DATA.account_names, "Sample Savings"],
-      }),
-    ).toBe("Sample Savings 2");
-    // Any account in the books, not only assets and liabilities.
-    expect(suggestedName("card", "Expense Bank", DATA)).toBe(
-      "Expense Credit Card 2",
-    );
-  });
-
-  it("stays as it was when an account is edited", () => {
-    const draft = withInstitution(draftOf(savings), "Other Bank", DATA);
-    expect(draft.name).toBe("Sample Bank Savings");
-  });
-});
-
-describe("which fields the form shows", () => {
+describe("which fields the edit shows", () => {
   it("keeps the number under More options while it is optional", () => {
-    const layout = formLayout(other(), DATA, null);
+    const layout = formLayout(draftOf(savings), DATA, savings);
+    // The account being edited doesn't count against itself.
     expect(layout.other).toBeNull();
-    expect(numberField("bank", layout, "Other Bank").caption).toBe(
+    expect(numberField("bank", layout, "Sample Bank").caption).toBe(
       "Optional. Read from the first statement.",
     );
+    expect(underMoreOptions("identifier", layout)).toBe(true);
   });
 
   it("asks for the number when the bank has another account", () => {
-    const draft = withInstitution(newDraft(DATA, "bank"), "Sample Bank", DATA);
-    const layout = formLayout(draft, DATA, null);
-    expect(layout.other).toBe(savings);
+    const layout = formLayout(draftOf(savings), TWO, savings);
+    expect(layout.other).toBe(joint);
     expect(numberField("bank", layout, "Sample Bank").caption).toBe(
-      "Sample Bank already has Sample Bank Savings. This tells their statements apart.",
+      "Sample Bank already has Sample Bank Joint. This tells their statements apart.",
     );
     expect(numberField("card", layout, "Sample Bank").caption).toBe(
       "As printed on the statement, e.g. XXXX XXXX XXXX 0505.",
     );
-    // The account being edited doesn't count against itself.
-    expect(formLayout(draftOf(savings), DATA, savings).other).toBeNull();
+    expect(underMoreOptions("identifier", layout)).toBe(false);
   });
 
-  it("shows Under when there is no parent to start from", () => {
-    expect(formLayout(other(), DATA, null).parentInView).toBe(false);
-    expect(formLayout(other("card"), DATA, null).parentInView).toBe(true);
-    expect(
-      formLayout(draftOf(savings), DATA, { ...savings, parent: null })
-        .parentInView,
-    ).toBe(true);
-  });
-
-  it("shows Under when the bank accounts sit under different parents", () => {
-    const mixed = { ...DATA, mixed_parents: { bank: true, card: false } };
-    const layout = formLayout(other(), mixed, null);
-    expect(layout.parentInView).toBe(true);
-    expect(underMoreOptions("parent", layout)).toBe(false);
-    // It still starts from the parent most of them share.
-    expect(newDraft(mixed, "bank").parentId).toBe(2);
-  });
-
-  it("offers an account already in the books for a new row of its type", () => {
-    expect(formLayout(other(), DATA, null).canUseExisting).toBe(true);
-    expect(formLayout(other("card"), DATA, null).canUseExisting).toBe(false);
-    expect(formLayout(draftOf(savings), DATA, savings).canUseExisting).toBe(
-      false,
-    );
+  it("shows Under only when the row has no parent to start from", () => {
+    const layout = formLayout(draftOf(savings), DATA, savings);
+    expect(layout.parentInView).toBe(false);
+    expect(underMoreOptions("parent", layout)).toBe(true);
+    const orphan = { ...savings, parent: null };
+    const bare = formLayout(draftOf(orphan), DATA, orphan);
+    expect(bare.parentInView).toBe(true);
+    expect(underMoreOptions("parent", bare)).toBe(false);
+    expect(underMoreOptions("name", bare)).toBe(false);
   });
 });
 
 describe("a problem's field", () => {
-  it("is under More options while the field is tucked away there", () => {
-    const layout = formLayout(other(), DATA, null);
-    expect(underMoreOptions("identifier", layout)).toBe(true);
-    expect(underMoreOptions("parent", layout)).toBe(true);
-    expect(underMoreOptions("name", layout)).toBe(false);
-
-    // At a bank with another account the number is in view; a card with no
-    // parent to start from shows Under.
-    const sample = withInstitution(newDraft(DATA, "bank"), "Sample Bank", DATA);
-    expect(underMoreOptions("identifier", formLayout(sample, DATA, null))).toBe(
-      false,
-    );
-    const card = other("card");
-    expect(underMoreOptions("parent", formLayout(card, DATA, null))).toBe(
-      false,
-    );
-  });
-
   it("comes from the server's refusal code", () => {
     const refused = (code: string) => ({ body: { error: "NOPII", code } });
     expect(refusalField(refused("identifier_invalid"))).toBe("identifier");
@@ -172,21 +99,12 @@ describe("a problem's field", () => {
 });
 
 describe("the change an edit sends", () => {
-  // Another account at Sample Bank, which Sample Bank Savings is edited
-  // alongside.
-  const joint: StatementAccountRow = {
-    ...savings,
-    account_id: 9,
-    name: "Sample Bank Joint",
-    account_identifiers: ["050505000034"],
-  };
-  const two = { ...DATA, accounts: [savings, joint] };
-
   it("updates the row", () => {
     expect(
       readDraft(
         {
-          ...withName(draftOf(savings), "Renamed"),
+          ...draftOf(savings),
+          name: "Renamed",
           identifier: "050505000056",
         },
         DATA,
@@ -219,7 +137,7 @@ describe("the change an edit sends", () => {
         kind: "card",
       }),
     ).toMatchObject({ ok: false, problem: "Name the card issuer." });
-    expect(readDraft(withName(draft, " "), DATA, savings)).toEqual({
+    expect(readDraft({ ...draft, name: " " }, DATA, savings)).toEqual({
       ok: false,
       problem: "Give the account a name.",
       field: "name",
@@ -237,7 +155,7 @@ describe("the change an edit sends", () => {
       readDraft({ ...draftOf(savings), identifier: "" }, DATA, savings),
     ).toMatchObject({ ok: true, change: { identifier: null } });
     expect(
-      readDraft({ ...draftOf(savings), identifier: "" }, two, savings),
+      readDraft({ ...draftOf(savings), identifier: "" }, TWO, savings),
     ).toEqual({
       ok: false,
       problem:

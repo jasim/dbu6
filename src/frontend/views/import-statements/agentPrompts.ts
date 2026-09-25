@@ -106,47 +106,92 @@ they print exactly. ${PROJECT_FILES_RULE} In particular:
 5. ${PII_RULE}`;
 }
 
-export function unrecognizedPrompt(file: PlanFile<"unrecognized">): string {
+/**
+ * Where the user dropped the file a prompt is about. /import imports into
+ * an account the presets list; /add sets the account up itself, at its
+ * Confirm card, once the parser reads the files, so an agent answering an
+ * /add prompt lists the parser and never adds an account.
+ */
+export type DropScreen = "import" | "add";
+
+export function unrecognizedPrompt(
+  file: PlanFile<"unrecognized">,
+  screen: DropScreen = "import",
+): string {
   const tried =
     file.candidate_parser_paths.length === 0
       ? "There is no saved parser at all for this file extension yet."
       : `The parsers it tried and that rejected the file were: ${list(file.candidate_parser_paths)}.`;
-  return `I tried to import a bank statement into my books app (dbu6, run from this project) through
+  const add = screen === "add";
+  const intro = add
+    ? `I dropped a bank statement into my books app (dbu6, run from this project) at
+/add, to add a bank account or card from its statements. It said no saved
+parser recognised the file, so nothing was added. Please build a deterministic
+parser for this statement format.`
+    : `I tried to import a bank statement into my books app (dbu6, run from this project) through
 the automatic importer at /import. It said no saved parser
 recognised the file, so nothing was imported. Please build a deterministic
-parser for this statement format so the import works.
-
-The file is in this project at ${stagedAt(file)}.
-Ask me which bank and which of my accounts it belongs to if the file doesn't
-make that obvious. ${tried}
-
-${parserWritingSteps()}
-6. Tie the parser to my account in the import presets, as below. If an
+parser for this statement format so the import works.`;
+  const ask = add
+    ? "Ask me which bank it is if the file doesn't make that obvious."
+    : `Ask me which bank and which of my accounts it belongs to if the file doesn't
+make that obvious.`;
+  const presets = add
+    ? `6. List the parser on the bank's institution in the import presets, as
+   below. If an institution there already covers this bank, add the parser to
+   it by its directory name (add_parser); otherwise add the institution with
+   the parser (add_institution). Don't add an account: dbu6 sets it up when I
+   add the statements at /add.`
+    : `6. Tie the parser to my account in the import presets, as below. If an
    institution there already covers this bank, add the parser to it by its
    directory name (add_parser); otherwise add the institution with the parser
    (add_institution). If my account is not among the institution's accounts
    yet, add it (add_account) with account_identifiers set to the identifier
    the parser emits; ask me for its name, its ledger account and whether it
-   is a credit card.
+   is a credit card.`;
+  const done = add
+    ? "When you are done, tell me. I'll drop the files at /add again."
+    : "When you are done, tell me. I will drop the file into the importer again myself.";
+  return `${intro}
+
+The file is in this project at ${stagedAt(file)}.
+${ask} ${tried}
+
+${parserWritingSteps()}
+${presets}
 7. Run the parser on that file and on the fixture, run the tests, and report
    the opening balance, closing balance, date range, and row count you found so
    I can check them against the statement.
 
 ${PRESET_CHANGES_NOTE}
 
-When you are done, tell me. I will drop the file into the importer again myself.`;
+${done}`;
 }
 
-export function ambiguousPrompt(file: PlanFile<"ambiguous">): string {
-  return `The automatic statement importer of my books app (dbu6, run from this project)
+export function ambiguousPrompt(
+  file: PlanFile<"ambiguous">,
+  screen: DropScreen = "import",
+): string {
+  const add = screen === "add";
+  const intro = add
+    ? `I dropped bank statements into my books app (dbu6, run from this project) at
+/add, to add a bank account or card from them. It reported that
+${file.file_name} matched more than one saved parser:
+${list(file.matching_parser_paths)}. Auto-detection requires exactly one match,
+so nothing was added.`
+    : `The automatic statement importer of my books app (dbu6, run from this project)
 (POST /api/import-draft/statements/auto, screen /import)
 reported that ${file.file_name} matched more than one saved parser:
 ${list(file.matching_parser_paths)}. Auto-detection requires exactly one match,
-so nothing was imported.
+so nothing was imported.`;
+  const done = add
+    ? "Tell me when it is done. I'll drop the files at /add again."
+    : "Tell me when it is done and I will retry the import.";
+  return `${intro}
 
 ${fingerprintTightening(stagedAt(file))}
 
-Tell me when it is done and I will retry the import.`;
+${done}`;
 }
 
 // Two parsers claim one file: how to part them, for the file at `path`.

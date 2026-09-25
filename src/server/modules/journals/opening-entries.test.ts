@@ -78,6 +78,7 @@ describe("loadOpeningEntries", () => {
       amount: 1000,
       description: "Opening balance",
       standalone: true,
+      onOpeningBalances: true,
     });
     expect(openings.get(3)).toMatchObject({
       journal_id: 30,

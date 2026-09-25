@@ -60,8 +60,11 @@ export interface StagedUploads {
   paths: string[];
   /** The same paths relative to the project root, as a prompt prints them. */
   projectPaths: string[];
-  /** Keeps the batch on disk instead of deleting it when the handler ends. */
-  keep(): void;
+  /**
+   * Keeps the batch on disk instead of deleting it when the handler ends:
+   * with `indexes`, only those uploads.
+   */
+  keep(indexes?: readonly number[]): void;
 }
 
 /**
@@ -85,28 +88,37 @@ export async function withStagedUploads<T>(
     `${stamp}-${randomBytes(2).toString("hex")}`,
   );
   await mkdir(dir, { recursive: true, mode: 0o700 });
-  let keep = false;
+  // The index keeps two uploads of one name apart; the name itself is kept
+  // because it is what the bank called the statement.
+  const paths = files.map((file, index) =>
+    join(dir, `${index}-${uploadName(file.name)}`),
+  );
+  // What stays when the handler ends: none, all or some of the uploads.
+  let keep = null as readonly number[] | "all" | null;
   try {
-    const paths = await Promise.all(
-      files.map(async (file, index) => {
-        // The index keeps two uploads of one name apart; the name itself is
-        // kept because it is what the bank called the statement.
-        const staged = join(dir, `${index}-${uploadName(file.name)}`);
-        await writeFile(staged, Buffer.from(await file.arrayBuffer()), {
+    await Promise.all(
+      files.map(async (file, index) =>
+        writeFile(paths[index], Buffer.from(await file.arrayBuffer()), {
           mode: 0o600,
-        });
-        return staged;
-      }),
+        }),
+      ),
     );
     return await handler({
       paths,
       projectPaths: paths.map((path) => relative(projectRoot(), path)),
-      keep: () => {
-        keep = true;
+      keep: (indexes) => {
+        keep = indexes ?? "all";
       },
     });
   } finally {
-    if (!keep) await rm(dir, { recursive: true, force: true }).catch(() => {});
+    if (keep === null || (keep !== "all" && keep.length === 0)) {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    } else if (keep !== "all") {
+      const kept = new Set(keep);
+      for (const [index, path] of paths.entries()) {
+        if (!kept.has(index)) await rm(path, { force: true }).catch(() => {});
+      }
+    }
   }
 }
 

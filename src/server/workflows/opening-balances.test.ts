@@ -169,6 +169,8 @@ describe("loadOpeningBalances", () => {
       amount: 1000,
       description: "Opening balances",
       standalone: false,
+      // Its Equity line is Sample Equity, not Opening Balances.
+      onOpeningBalances: false,
       locked: "has_entries",
     });
     expect(account(ledger, 4)?.opening).toEqual({
@@ -178,6 +180,8 @@ describe("loadOpeningBalances", () => {
       amount: -2500,
       description: "Opening balances",
       standalone: false,
+      // Its Equity line is Sample Equity, not Opening Balances.
+      onOpeningBalances: false,
       locked: "has_entries",
     });
     expect(account(ledger, 1)?.opening).toBeNull();

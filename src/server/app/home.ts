@@ -12,12 +12,12 @@ import {
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import { importableAccounts } from "./account-names.js";
 import { loadAccountStandings } from "./account-standing.js";
-import { draftCounts } from "../modules/drafts/index.js";
 import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import {
+  draftCounts,
   hasTransactions,
   loadStatementActivity,
-} from "../workflows/add-account.js";
+} from "../modules/drafts/index.js";
 import { hasChart } from "../workflows/chart-of-accounts.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 

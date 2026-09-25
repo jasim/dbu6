@@ -23,8 +23,6 @@ import {
   readDraft,
   refusalField,
   underMoreOptions,
-  withInstitution,
-  withName,
   type FormField,
   type StatementAccountDraft,
 } from "../../setup/statement-account-form";
@@ -161,9 +159,7 @@ function DialogBody({
             id={ids.institution}
             institutions={data.institutions.map((one) => one.name)}
             value={draft.institution}
-            onChange={(institution) =>
-              setDraft(withInstitution(draft, institution, data))
-            }
+            onChange={(institution) => set({ institution })}
             empty={
               card ? "Type the card issuer's name." : "Type the bank's name."
             }
@@ -179,7 +175,7 @@ function DialogBody({
             id={ids.name}
             value={draft.name}
             maxLength={120}
-            onChange={(event) => setDraft(withName(draft, event.target.value))}
+            onChange={(event) => set({ name: event.target.value })}
             className="h-sap-ctl w-full rounded-control"
           />
         </Field>

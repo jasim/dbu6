@@ -35,14 +35,18 @@ import type { Ledger } from "../modules/ledger-sql/index.js";
  * Without one, setup starts from the starter chart and Home asks for it.
  */
 export function hasChart(ledger: Pick<Ledger, "sqlite" | "auth">): boolean {
-  return loadLedgerAccounts(ledger.sqlite, ledger.auth).length > 0;
+  return chartIn(loadLedgerAccounts(ledger.sqlite, ledger.auth));
+}
+
+// The rule itself, over the books' accounts as a caller has them.
+function chartIn(accounts: readonly { id: number }[]): boolean {
+  return accounts.length > 0;
 }
 
 /** The starter chart for books with no accounts, or the books' own chart. */
 export function loadChartOfAccounts(ledger: Ledger): ChartOfAccounts {
   const accounts = loadAccountChart(ledger.db, ledger.auth);
-  // `hasChart`'s rule, on the accounts in hand.
-  if (accounts.length === 0) {
+  if (!chartIn(accounts)) {
     return {
       state: "new",
       starter: { accounts: [...STARTER_CHART] },
@@ -84,8 +88,8 @@ export function createChart(
     return { ok: false, code: "invalid_chart", problems: valid.problems };
   }
   return ledger.db.transaction((tx: any): ChartCreation => {
-    // `hasChart`'s rule, read inside the transaction it writes in.
-    if (loadAccountChart(tx, ledger.auth).length > 0) {
+    // Read inside the transaction it writes in.
+    if (chartIn(loadAccountChart(tx, ledger.auth))) {
       return {
         ok: false,
         code: "books_have_accounts",

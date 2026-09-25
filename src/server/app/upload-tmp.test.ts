@@ -86,6 +86,33 @@ describe("withStagedUploads", () => {
   });
 });
 
+describe("withStagedUploads keeping some", () => {
+  it("keeps only the uploads the handler names", async () => {
+    const paths = await withStagedUploads(
+      [new File(["a"], "NOPII-a.pdf"), new File(["b"], "NOPII-b.pdf")],
+      async (batch) => {
+        batch.keep([1]);
+        return batch.paths;
+      },
+    );
+
+    await expect(exists(paths[0])).resolves.toBe(false);
+    await expect(exists(paths[1])).resolves.toBe(true);
+  });
+
+  it("leaves no folder when it names none", async () => {
+    const paths = await withStagedUploads(
+      [new File(["a"], "NOPII-a.pdf")],
+      async (batch) => {
+        batch.keep([]);
+        return batch.paths;
+      },
+    );
+
+    await expect(exists(dirname(paths[0]))).resolves.toBe(false);
+  });
+});
+
 describe("uploadedFile", () => {
   it("returns only non-empty File fields", () => {
     const file = new File(["activity"], "My Activities.html");
