@@ -5,6 +5,10 @@ import {
   accountsTable,
   type AccountType,
 } from "../../schema/accounts.js";
+import {
+  OPENING_BALANCES_NAME,
+  type ChartAccount,
+} from "../../../shared/index.js";
 import { hledgerAccountNames } from "../journal-plan/index.js";
 import { allRows, type LedgerAuth } from "../ledger-sql/index.js";
 
@@ -65,7 +69,7 @@ export function loadLedgerAccounts(
 }
 
 /** The Equity account opening entries post against by default. */
-export const OPENING_BALANCES_ACCOUNT = "Opening Balances";
+export const OPENING_BALANCES_ACCOUNT = OPENING_BALANCES_NAME;
 
 /** An account by id and name. */
 export type NamedAccount = { id: number; name: string };
@@ -128,4 +132,71 @@ export function createOpeningBalancesAccount(
     .values(values)
     .returning({ id: accountsTable.id, name: accountsTable.name })
     .get();
+}
+
+/** An account in scope with where it sits. */
+export type ChartedAccount = {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  account_type: AccountType;
+};
+
+/** Every account in scope with its parent, in the order they were made. */
+export function loadAccountChart(db: any, auth: LedgerAuth): ChartedAccount[] {
+  const access = auth.rowSecurity.forTable(accounts);
+  return db
+    .select({
+      id: accountsTable.id,
+      name: accountsTable.name,
+      parent_id: accountsTable.parent_id,
+      account_type: accountsTable.account_type,
+    })
+    .from(accountsTable)
+    .where(access.ownedRows())
+    .orderBy(accountsTable.id)
+    .all();
+}
+
+/**
+ * Creates `chart`'s accounts, in its order, each under the parent it names:
+ * one made earlier in the list or already in the books. Runs inside the
+ * caller's transaction; the chart's rules are the caller's to check, and the
+ * tree triggers still refuse a parent of another type.
+ */
+export function insertChartAccounts(
+  tx: any,
+  auth: LedgerAuth,
+  chart: readonly ChartAccount[],
+): ChartedAccount[] {
+  const access = auth.rowSecurity.forTable(accounts);
+  const ids = new Map(
+    loadAccountChart(tx, auth).map((account) => [account.name, account.id]),
+  );
+  return chart.map((account) => {
+    const parentId = account.parent === null ? null : ids.get(account.parent);
+    if (parentId === undefined) {
+      throw new Error(
+        `${account.name}'s parent ${account.parent} does not exist.`,
+      );
+    }
+    const created: ChartedAccount = tx
+      .insert(accountsTable)
+      .values(
+        access.insertValuesSync(tx, {
+          name: account.name,
+          account_type: account.account_type,
+          parent_id: parentId,
+        }),
+      )
+      .returning({
+        id: accountsTable.id,
+        name: accountsTable.name,
+        parent_id: accountsTable.parent_id,
+        account_type: accountsTable.account_type,
+      })
+      .get();
+    ids.set(created.name, created.id);
+    return created;
+  });
 }

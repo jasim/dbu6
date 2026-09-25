@@ -16,6 +16,7 @@ import {
   RECONCILIATION_DIFFERENCES_HREF,
 } from "../reports/links";
 import { reviewHref } from "../review/routes";
+import { SETUP_ROUTE } from "../setup/steps";
 import { formatDate, plural } from "../format";
 import { homeState, type HomeCard } from "./state";
 
@@ -117,16 +118,16 @@ function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
     return (
       <div className="px-4 pb-6">
         <EmptyState
-          title="No accounts set up yet"
-          body="Add a bank or card account, list it in its bank's import preset, then import its first statement."
+          title="No banks or cards set up yet"
+          body="Add the banks and cards you get statements from, then import each one's first statement."
           action={
             <Button
-              render={<Link to="/accounts" />}
+              render={<Link to={SETUP_ROUTE} />}
               nativeButton={false}
               variant="outline"
               size="sm"
             >
-              Open accounts
+              Set up your accounts
             </Button>
           }
         />

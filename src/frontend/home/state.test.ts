@@ -62,11 +62,11 @@ describe("homeState", () => {
   it("asks for an account when no preset lists one", () => {
     const view = homeState(summary([]));
     expect(view.state).toBe("no-accounts");
-    expect(view.greeting).toBe("Let's set up your first account");
+    expect(view.greeting).toBe("Let's set up your accounts");
     expect(view.card.count).toBeUndefined();
     expect(view.card.action).toEqual({
-      label: "Open accounts",
-      to: "/accounts",
+      label: "Set up your accounts",
+      to: "/setup",
     });
   });
 

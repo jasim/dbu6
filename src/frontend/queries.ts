@@ -13,6 +13,7 @@ import {
   homeApi,
   openingBalancesApi,
   reviewApi,
+  setupApi,
 } from "./api";
 
 /*
@@ -96,6 +97,34 @@ export const agentHandoffAvailabilityQuery = queryOptions({
 /** Refreshes Settings and every screen's agent prompt buttons. */
 export function refreshCodingAgent(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: CODING_AGENT_KEY });
+}
+
+/** Every query the setup wizard reads; each counts or lists what is in the books. */
+const SETUP_KEY = ["setup"] as const;
+
+/** Where the setup wizard stands: its steps' state, counted in the books. */
+export const setupStatusQuery = queryOptions({
+  queryKey: [...SETUP_KEY, "status"],
+  queryFn: () => setupApi.setupStatus(),
+  ...FRESH_QUERY,
+});
+
+/** The starter chart for books with no accounts, or the books' own chart. */
+export const chartOfAccountsQuery = queryOptions({
+  queryKey: [...SETUP_KEY, "chart-of-accounts"],
+  queryFn: () => setupApi.chartOfAccounts(),
+  ...FRESH_QUERY,
+});
+
+/**
+ * Refreshes the wizard, and Home, whose first card follows from the
+ * accounts the wizard sets up.
+ */
+export function refreshSetup(client: QueryClient): Promise<void> {
+  return Promise.all([
+    client.invalidateQueries({ queryKey: SETUP_KEY }),
+    refreshDraftStatus(client),
+  ]).then(() => undefined);
 }
 
 /** Refreshes Home, the Review picker and every account's summary. */

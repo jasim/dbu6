@@ -31,6 +31,7 @@ import renderDraftHledgerApi from "./app/render-draft-hledger.js";
 import renderJournalsHledgerApi from "./app/render-journals-hledger.js";
 import reportsApi from "./app/reports.js";
 import reviewApi from "./app/review.js";
+import setupApi from "./app/setup.js";
 import {
   llmEngineSetting,
   startCodingAgent,
@@ -104,6 +105,7 @@ export function loadDbu6App(
   mountApi(api, homeApi);
   mountApi(api, reviewApi);
   mountApi(api, openingBalancesApi);
+  mountApi(api, setupApi);
   mountApi(api, agentHandoffApi);
   mountApi(api, codingAgentApi);
 }

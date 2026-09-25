@@ -32,6 +32,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { chartWithAccounts, STARTER_CHART } from "../modules/chart-of-accounts/index.js";
 import { resolveApiPort } from "../project-auth/index.js";
 import { openDbu6Runtime } from "../runtime.js";
 
@@ -52,76 +53,30 @@ const RECEIVABLES = "Friends";
 const STATEMENT_ACCOUNTS = [HDFC, SBI, HCC, ICC];
 
 /**
- * The account tree, by account type: each type has one top account, and every
- * other account sits under it. Each account's parent and type come from where
- * it sits here, never from its name. Names are plain words and unique, as the
- * accounts table requires. Postings may sit on any account, parents included.
+ * The demo's accounts: the starter chart a new user is offered
+ * (modules/chart-of-accounts), with the demo's own banks, cards, funds and
+ * people added under its groups. Each account's parent and type come from
+ * the chart, never from its name. Postings may sit on any account, parents
+ * included.
  */
-const ACCOUNT_TREE = {
-  Asset: {
-    Assets: {
-      Bank: { [HDFC]: {}, [SBI]: {} },
-      [CASH]: {},
-      Receivables: { [RECEIVABLES]: {} },
-      Investments: {
-        EPF: {},
-        PPF: {},
-        NPS: {},
-        "Mutual Funds": { "Parag Parikh Flexi Cap": {}, "UTI Nifty 50 Index": {} },
-        Stocks: { Zerodha: {} },
-        Gold: {},
-      },
-      Deposits: { "HDFC Fixed Deposit": {} },
-    },
-  },
-  Liability: {
-    Liabilities: {
-      "Credit Cards": { [HCC]: {}, [ICC]: {} },
-      Loans: { [CAR_LOAN]: {} },
-    },
-  },
-  Equity: {
-    Equity: { "Opening Balances": {} },
-  },
-  Revenue: {
-    Income: {
-      Salary: { "Gross Pay": {}, "Employer PF": {}, "Performance Bonus": {} },
-      Interest: { "Savings Interest": {}, "Fixed Deposit Interest": {}, "EPF Interest": {}, "PPF Interest": {} },
-      Dividends: { "Stock Dividends": {} },
-      Rewards: { "Card Cashback": {} },
-    },
-  },
-  Expense: {
-    Expenses: {
-      Housing: { Rent: {}, "House Help": {}, "Repairs & Maintenance": {} },
-      Utilities: { Electricity: {}, Water: {}, "Cooking Gas": {}, Internet: {}, Mobile: {} },
-      Food: { Groceries: {}, "Milk & Dairy": {}, "Dining Out": {}, "Food Delivery": {} },
-      Transport: { Fuel: {}, "Cabs & Autos": {}, Metro: {}, "Car Maintenance": {}, "Tolls & Parking": {} },
-      Insurance: { "Term Life Insurance": {}, "Health Insurance": {}, "Parents' Health Insurance": {}, "Car Insurance": {} },
-      Health: { Medicines: {}, "Doctor & Lab": {}, Fitness: {} },
-      Personal: { Grooming: {}, Clothing: {} },
-      Shopping: { Household: {}, Electronics: {}, Furniture: {} },
-      Subscriptions: { Streaming: {}, Software: {} },
-      Entertainment: { Movies: {}, Outings: {} },
-      Travel: { "Travel Tickets": {}, "Hotels & Stays": {}, "Local Travel": {} },
-      Children: { "School Fees": {}, "Kids' Activities": {}, "Books & Toys": {} },
-      Family: { "Parents' Support": {}, Gifts: {}, Festivals: {} },
-      Giving: { Donations: {} },
-      Education: { "Courses & Books": {} },
-      Taxes: { "Income Tax": {}, "Professional Tax": {} },
-      Finance: { "Loan Interest": {}, "Bank Charges": {} },
-    },
-  },
-};
+const DEMO_ACCOUNTS = [
+  { name: HDFC, parent: "Bank Accounts" },
+  { name: SBI, parent: "Bank Accounts" },
+  { name: RECEIVABLES, parent: "Receivables" },
+  { name: "Parag Parikh Flexi Cap", parent: "Mutual Funds" },
+  { name: "UTI Nifty 50 Index", parent: "Mutual Funds" },
+  { name: "Zerodha", parent: "Stocks" },
+  { name: "HDFC Fixed Deposit", parent: "Deposits" },
+  { name: HCC, parent: "Credit Cards" },
+  { name: ICC, parent: "Credit Cards" },
+  { name: CAR_LOAN, parent: "Loans" },
+];
 
-/** Every account in the tree as { name, parent, type }, each parent ahead of its children. */
-export const ACCOUNTS = Object.entries(ACCOUNT_TREE).flatMap(([type, tops]) => {
-  const walk = (children, parent) =>
-    Object.entries(children).flatMap(([name, below]) => [{ name, parent, type }, ...walk(below, name)]);
-  return walk(tops, null);
-});
+/** Every account as { name, parent, type }, each parent ahead of its children. */
+export const ACCOUNTS = chartWithAccounts(STARTER_CHART, DEMO_ACCOUNTS).map(
+  ({ name, parent, account_type }) => ({ name, parent, type: account_type }),
+);
 const ACCOUNT_TYPES = new Map(ACCOUNTS.map(({ name, type }) => [name, type]));
-if (ACCOUNT_TYPES.size !== ACCOUNTS.length) throw new Error("An account appears twice in ACCOUNT_TREE.");
 
 // ── Dates ─────────────────────────────────────────────────────────────────
 
@@ -870,7 +825,7 @@ function demoWorkspaceScope(sqlite) {
 }
 
 function printSummary({ year, posted, drafts, closing, lowest }, statements) {
-  const inr = (paise) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  const inr = (paise) => `${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
   const total = (type) =>
     posted
       .filter((e) => e.date > year.openingDate)

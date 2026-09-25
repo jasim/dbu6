@@ -174,3 +174,23 @@ export {
   type OpeningBalances,
   type OpeningEntry,
 } from "./opening-balances.js";
+export {
+  setupContract,
+  chartAccountSchema,
+  chartInTreeOrder,
+  chartProposalSchema,
+  chartOfAccountsSchema,
+  chartRefusalSchema,
+  ledgerAccountTypeSchema,
+  setupStatusSchema,
+  statementFormatReady,
+  LEDGER_ACCOUNT_TYPES,
+  OPENING_BALANCES_NAME,
+  type ChartAccount,
+  type ChartOfAccounts,
+  type ChartProposal,
+  type ChartRefusal,
+  type ChartRow,
+  type LedgerAccountType,
+  type SetupStatus,
+} from "./setup.js";
