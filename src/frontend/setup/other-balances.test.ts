@@ -1,3 +1,4 @@
+import { ApiError } from "@sapporta/shared/client";
 import { describe, expect, it } from "vitest";
 import type {
   OpeningBalanceAccount,
@@ -9,7 +10,9 @@ import {
   dateHint,
   fieldsFor,
   focuses,
+  journalHref,
   ledgerAmount,
+  lockedJournal,
   lockText,
   openingFigure,
   parentLine,
@@ -170,11 +173,36 @@ describe("a row's words", () => {
 
   it("says why a locked balance can't change here", () => {
     expect(lockText("has_entries")).toBe(
-      "Has transactions after it. Change it in its journal entry.",
+      "Has other transactions. Change it in its journal entry.",
     );
     expect(lockText("shared_entry")).toBe(
       "Recorded with other accounts in one entry. Change it there.",
     );
+  });
+
+  it("reads the journal a lock refusal names, and nothing else", () => {
+    const refused = (status: number, body: unknown) =>
+      lockedJournal(new ApiError(status, body));
+
+    expect(
+      refused(409, {
+        code: "account_has_entries",
+        error: "NOPII",
+        journal_id: 21,
+      }),
+    ).toBe(21);
+    expect(refused(409, { code: "already_recorded", error: "NOPII" })).toBe(
+      null,
+    );
+    expect(
+      refused(422, {
+        code: "date_not_before_first_activity",
+        error: "NOPII",
+        journal_id: 21,
+      }),
+    ).toBe(null);
+    expect(lockedJournal(new Error("offline"))).toBe(null);
+    expect(journalHref(21)).toBe("/tables/journals?filter[id][eq]=21");
   });
 });
 
@@ -251,16 +279,11 @@ describe("the dialog's fields", () => {
   });
 
   it("hints what the amount and the date are", () => {
-    expect(amountHint("Asset", "2026-03-31", false)).toBe(
-      "What it held on 31 Mar 2026.",
-    );
-    expect(amountHint("Liability", "2026-03-31", false)).toBe(
-      "What you owed on 31 Mar 2026.",
-    );
-    expect(amountHint("Liability", "2026-03-31", true)).toBe(
+    expect(amountHint("Asset", false)).toBe("What it held.");
+    expect(amountHint("Liability", false)).toBe("What you owed.");
+    expect(amountHint("Liability", true)).toBe(
       "From its first statement's balances.",
     );
-    expect(amountHint("Asset", "", false)).toBe("What it held.");
 
     const cash = account("Cash", "Assets:Cash");
     expect(dateHint({ ...cash, first_activity_date: "2026-04-05" }, true)).toBe(

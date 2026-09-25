@@ -16,6 +16,7 @@ import type {
   OpeningBalanceAccount,
   OpeningBalances,
 } from "../../shared/index";
+import { openingBalancesQuery } from "../queries";
 import { BalancesStep } from "./BalancesStep";
 
 /*
@@ -184,6 +185,8 @@ async function settle() {
 async function renderStep(
   accounts: OpeningBalanceAccount[] | "refused",
   url = "/setup/balances",
+  /** An older list, already in the cache when the step opens. */
+  cached?: OpeningBalanceAccount[],
 ) {
   if (accounts === "refused") {
     vi.stubGlobal(
@@ -201,6 +204,12 @@ async function renderStep(
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  if (cached) {
+    client.setQueryData(openingBalancesQuery.queryKey, {
+      equity_account: null,
+      accounts: cached,
+    });
+  }
   await act(async () => {
     root.render(
       createElement(
@@ -295,6 +304,11 @@ function alert(): string | null | undefined {
   return document.querySelector('[role="alert"]')?.textContent;
 }
 
+/** Where the problem's link goes. */
+function alertLink(): string | null | undefined {
+  return document.querySelector('[role="alert"] a')?.getAttribute("href");
+}
+
 describe("BalancesStep", () => {
   it("lists what you own, what you owe, then the banks and cards", async () => {
     await renderStep(ALL);
@@ -354,7 +368,7 @@ describe("BalancesStep", () => {
     expect(ppfRow.querySelector('[aria-label^="Actions"]')).toBeNull();
     expect(
       ppfRow.querySelector(
-        '[aria-label="Has transactions after it. Change it in its journal entry."]',
+        '[aria-label="Has other transactions. Change it in its journal entry."]',
       ),
     ).not.toBeNull();
     expect(
@@ -379,7 +393,7 @@ describe("BalancesStep", () => {
     expect(field("As of").value).toBe("2026-03-31");
     expect(hint("As of")).toBe("When your books start.");
     await type(field("Balance"), "5,000");
-    expect(hint("Balance")).toBe("What it held on 31 Mar 2026.");
+    expect(hint("Balance")).toBe("What it held.");
     await click("Add balance");
 
     expect(sent).toEqual([
@@ -425,7 +439,7 @@ describe("BalancesStep", () => {
     expect(field("Amount owed").value).toBe("3000.00");
     expect(hint("Amount owed")).toBe("From its first statement's balances.");
     await type(field("Amount owed"), "2500");
-    expect(hint("Amount owed")).toBe("What you owed on 31 Mar 2026.");
+    expect(hint("Amount owed")).toBe("What you owed.");
   });
 
   it("changes a recorded balance", async () => {
@@ -492,23 +506,65 @@ describe("BalancesStep", () => {
 
   it("keeps the dialog open with a refusal, and reads the list again", async () => {
     await renderStep(ALL);
-    await choose("EPF", "Edit");
+    await click("Add a balance for Sample Car Loan");
+    await type(field("Amount owed"), "3000");
     const before = lists;
     refusal = {
-      status: 409,
+      status: 422,
       body: {
         error:
-          "EPF has transactions after its opening balance. Change it in its journal entry.",
-        code: "account_has_entries",
-        journal_id: 21,
+          "Pick a day before 2026-04-01, Sample Car Loan's first transaction.",
+        code: "date_not_before_first_activity",
+        first_activity_date: "2026-04-01",
       },
     };
+    await click("Add balance");
+
+    expect(alert()).toBe(
+      "Pick a day before 2026-04-01, Sample Car Loan's first transaction.",
+    );
+    expect(text()).toContain("Add a balance for Sample Car Loan");
+    expect(button("Add balance").hasAttribute("disabled")).toBe(false);
+    expect(lists).toBeGreaterThan(before);
+  });
+
+  // A lock refusal: the balance now has other transactions.
+  const LOCKED: Answer = {
+    status: 409,
+    body: {
+      error:
+        "EPF has other transactions. Change its opening balance in its journal entry.",
+      code: "account_has_entries",
+      journal_id: 21,
+    },
+  };
+
+  it("sends a locked balance's change to its journal entry, and stops saving", async () => {
+    await renderStep(ALL);
+    await choose("EPF", "Edit");
+    const before = lists;
+    refusal = LOCKED;
     await click("Save");
 
     expect(alert()).toBe(
-      "EPF has transactions after its opening balance. Change it in its journal entry.",
+      "EPF has other transactions. Change its opening balance in its journal entry. Journal entry",
     );
-    expect(text()).toContain("Edit the balance for EPF");
+    expect(alertLink()).toBe("/tables/journals?filter[id][eq]=21");
+    expect(button("Save").hasAttribute("disabled")).toBe(true);
+    expect(lists).toBeGreaterThan(before);
+  });
+
+  it("sends a locked balance's removal to its journal entry, and stops removing", async () => {
+    await renderStep(ALL);
+    await choose("EPF", "Remove");
+    const before = lists;
+    refusal = LOCKED;
+    await click("Remove");
+
+    expect(text()).toContain("Remove the balance for EPF?");
+    expect(alertLink()).toBe("/tables/journals?filter[id][eq]=21");
+    expect(button("Remove").hasAttribute("disabled")).toBe(true);
+    expect(sent).toHaveLength(1);
     expect(lists).toBeGreaterThan(before);
   });
 
@@ -521,6 +577,18 @@ describe("BalancesStep", () => {
     const row = rowOf("Sample Card Gold");
     expect(row.getAttribute("aria-current")).toBe("true");
     expect(row.className).toContain("bg-attention-bg");
+    expect(text()).toContain("Add a balance for Sample Card Gold");
+  });
+
+  it("opens a linked account's dialog once the fresh list names it", async () => {
+    // The cached list is from before the card was added.
+    await renderStep(
+      ALL,
+      "/setup/balances?account=Sample+Card+Gold",
+      ALL.filter((one) => one !== gold),
+    );
+
+    expect(rowOf("Sample Card Gold").getAttribute("aria-current")).toBe("true");
     expect(text()).toContain("Add a balance for Sample Card Gold");
   });
 
@@ -538,7 +606,7 @@ describe("BalancesStep", () => {
     expect(button("Choose a chart").getAttribute("href")).toBe(
       "/setup/accounts",
     );
-    expect(button("Next: Review")).toBeTruthy();
+    expect(() => button("Next: Review")).toThrow();
   });
 
   it("points to the Accounts page when only banks and cards are there", async () => {

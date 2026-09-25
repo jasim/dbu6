@@ -21,7 +21,8 @@ import {
   toggleTick,
   type Ticks,
 } from "./chart-checklist";
-import { ACCOUNT_TYPE_TERMS, ChartTree } from "./ChartTree";
+import { ACCOUNT_TYPE_TERMS } from "./account-type-terms";
+import { ChartTree } from "./ChartTree";
 import { DescribeMoney } from "./DescribeMoney";
 import { SetupFrame, StepHeading } from "./SetupWizard";
 import { SETUP_STEP_ROUTES } from "./steps";
