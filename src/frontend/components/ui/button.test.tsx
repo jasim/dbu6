@@ -7,6 +7,7 @@ import { Button, type ButtonProps } from "./button";
 /*
  * `waiting` and `disabled` compose: a waiting button is disabled whatever
  * the caller passes for `disabled`, and `disabled` still works on its own.
+ * A disabled button is dimmed; a waiting one keeps its quiet fill instead.
  */
 
 let host: HTMLDivElement;
@@ -51,5 +52,15 @@ describe("Button", () => {
   it("honours disabled on its own", () => {
     expect(renderButton({ disabled: true }).disabled).toBe(true);
     expect(renderButton({ disabled: false }).disabled).toBe(false);
+  });
+
+  it("dims a disabled button, and not a waiting one", () => {
+    const disabled = renderButton({ disabled: true });
+    expect(disabled.hasAttribute("data-disabled")).toBe(true);
+    expect(disabled.className).toContain("data-disabled:opacity-50");
+
+    const waiting = renderButton({ waiting: "Not yet" });
+    expect(waiting.className).toContain("data-disabled:opacity-100");
+    expect(waiting.className).not.toContain("data-disabled:opacity-50");
   });
 });

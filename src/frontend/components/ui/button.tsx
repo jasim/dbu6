@@ -5,10 +5,12 @@ import { cn } from "@sapporta/ui/cn";
 
 /*
  * dbu6's button (PLAN.md §4.6). Six styles, three sizes, and a waiting
- * state. One primary button per screen.
+ * state. One primary button per screen. A disabled button is dimmed, for the
+ * moment it can't be pressed (while its action runs, or once it's refused);
+ * Base UI marks it `data-disabled` whether it renders a button or a link.
  */
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-control text-row font-semibold outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-control text-row font-semibold outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -51,11 +53,11 @@ export const buttonVariants = cva(
 
 /**
  * The waiting state: an action that can't run yet ("Add 21 to my books"
- * before the review is finished). Not opacity, which fails contrast; a quiet
+ * before the review is finished). Not dimmed, which fails contrast; a quiet
  * fill, and always a reason underneath.
  */
 const waitingClassName =
-  "cursor-not-allowed bg-waiting-button-bg text-waiting-button-fg shadow-none hover:bg-waiting-button-bg";
+  "cursor-not-allowed bg-waiting-button-bg text-waiting-button-fg shadow-none hover:bg-waiting-button-bg data-disabled:opacity-100";
 
 export interface ButtonProps
   extends
