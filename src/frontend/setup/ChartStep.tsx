@@ -15,6 +15,7 @@ import {
   type Ticks,
 } from "./chart-checklist";
 import { ChartTree } from "./ChartTree";
+import { DescribeMoney } from "./DescribeMoney";
 import { SetupFrame, StepHeading } from "./SetupWizard";
 import { SETUP_STEP_ROUTES } from "./steps";
 
@@ -54,6 +55,8 @@ export function ChartStep() {
 interface Proposal {
   accounts: ChartAccount[];
   ticks: Ticks;
+  // What the server fixed in the LLM's proposal; null for the starter.
+  notes: string[] | null;
 }
 
 function NewChart({
@@ -65,13 +68,15 @@ function NewChart({
 }) {
   const client = useQueryClient();
   const navigate = useNavigate();
-  const [proposal, setProposal] = useState<Proposal>(() => ({
+  const starterProposal = (): Proposal => ({
     accounts: starter,
     ticks: initialTicks(starter, unticked),
-  }));
+    notes: null,
+  });
+  const [proposal, setProposal] = useState<Proposal>(starterProposal);
   const [creating, setCreating] = useState(false);
   const [problem, setProblem] = useState<string[] | null>(null);
-  const { accounts, ticks } = proposal;
+  const { accounts, ticks, notes } = proposal;
 
   async function create() {
     setCreating(true);
@@ -97,6 +102,40 @@ function NewChart({
         page.
       </StepHeading>
 
+      <DescribeMoney
+        current={() => tickedAccounts(accounts, ticks)}
+        onProposal={(suggestion) =>
+          setProposal({
+            accounts: suggestion.proposal.accounts,
+            ticks: initialTicks(suggestion.proposal.accounts),
+            notes: suggestion.notes,
+          })
+        }
+      />
+
+      {notes !== null && (
+        <div className="mb-4 rounded-card border border-sap-border bg-card px-4 py-3">
+          <p className="text-body text-foreground">
+            The accounts below are proposed for what you wrote. Untick what you
+            don't need, or describe more and ask again.{" "}
+            <button
+              type="button"
+              className="text-primary underline-offset-4 hover:underline"
+              onClick={() => setProposal(starterProposal())}
+            >
+              Back to the starter chart
+            </button>
+          </p>
+          {notes.length > 0 && (
+            <ul className="mt-2 list-disc pl-5 text-meta text-ink-soft">
+              {notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="mb-3 flex min-h-sap-ctl flex-wrap items-center justify-between gap-3">
         <p className="text-body text-ink-soft">
           {plural(ticks.size, "account")} of {accounts.length} ticked
@@ -119,7 +158,7 @@ function NewChart({
           locked: lockedAccounts(accounts),
           onToggle: (name) =>
             setProposal({
-              accounts,
+              ...proposal,
               ticks: toggleTick(accounts, ticks, name),
             }),
         }}

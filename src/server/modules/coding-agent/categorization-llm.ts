@@ -1,11 +1,16 @@
 import {
   CODING_AGENTS,
   NO_CODING_AGENT_MESSAGE,
+  type CodingAgent,
 } from "../../../shared/index.js";
 import type { CategorizationLlm } from "../categorization/index.js";
 import { currentCodingAgent } from "./agents.js";
 import { noAgentModelReason } from "./errors.js";
-import { agentModels, checkAgentModelsAgain } from "./models.js";
+import {
+  agentModels,
+  checkAgentModelsAgain,
+  type CheckedAgentModels,
+} from "./models.js";
 import {
   agentListClient,
   gatewayListClient,
@@ -52,8 +57,8 @@ export function parseLlmEngineSetting(
   };
 }
 
-const GATEWAY_NAME = "the Nuabase gateway";
-const GATEWAY_MODEL = { provider: "openrouter", model: "z-ai/glm-5.2" };
+export const GATEWAY_NAME = "the Nuabase gateway";
+export const GATEWAY_MODEL = { provider: "openrouter", model: "z-ai/glm-5.2" };
 
 // A coding agent answers one call at a time per description batch, so calls
 // stay small; the gateway takes every description at once.
@@ -124,7 +129,7 @@ export function llmEngineSetting(): LlmEngineSetting {
     setting = parsed.setting;
     if (setting.engine === "nuabase") {
       console.log(
-        `[llm-engine] categorization runs on ${GATEWAY_NAME} (LLM_ENGINE=nuabase, deprecated)`,
+        `[llm-engine] categorization and chart suggestions run on ${GATEWAY_NAME} (LLM_ENGINE=nuabase, deprecated)`,
       );
     }
   }
@@ -136,39 +141,74 @@ let gateway: CategorizationLlm | null = null;
 // at once (nuabase.ts) holds across requests.
 const localAgents = new Map<string, CategorizationLlm>();
 
-/** The engine categorization runs on right now. */
-export async function categorizationLlm(): Promise<CategorizationLlm> {
+/**
+ * What an LLM call can run on right now, for categorization and for the
+ * setup wizard's chart of accounts (chart-llm.ts): the gateway when
+ * LLM_ENGINE says so, else the coding agent dbu6 uses with its checked
+ * models, or why neither can answer.
+ */
+export type LlmEngine =
+  | { kind: "gateway"; apiKey: string | null }
+  | {
+      kind: "agent";
+      agent: InstalledAgent;
+      models: Extract<CheckedAgentModels, { state: "ready" }>;
+    }
+  | { kind: "unavailable"; agent: CodingAgent | null; reason: string };
+
+export async function currentLlmEngine(): Promise<LlmEngine> {
   const current = llmEngineSetting();
   if (current.engine === "nuabase") {
-    gateway ??= gatewayLlm(current.apiKey);
-    return gateway;
+    return { kind: "gateway", apiKey: current.apiKey };
   }
   const agent = await currentCodingAgent();
   if (agent === null) {
     return {
+      kind: "unavailable",
       agent: null,
-      name: "no coding agent",
-      caller: { ready: false, reason: NO_CODING_AGENT_MESSAGE },
+      reason: NO_CODING_AGENT_MESSAGE,
     };
   }
   // At startup the check may still be running; it takes a few seconds.
   const models = await agentModels(agent);
   if (models.state === "no_model") {
     return {
+      kind: "unavailable",
       agent: agent.agent,
-      name: CODING_AGENTS[agent.agent].label,
-      caller: {
-        ready: false,
-        reason: noAgentModelReason(agent.agent, models.unavailable),
-      },
+      reason: noAgentModelReason(agent.agent, models.unavailable),
     };
   }
-  const { model } = models.categorization;
-  const key = `${agent.agent}:${agent.binaryPath}:${model}`;
-  let llm = localAgents.get(key);
-  if (llm === undefined) {
-    llm = localAgentLlm(agent, model);
-    localAgents.set(key, llm);
+  return { kind: "agent", agent, models };
+}
+
+/** What to call an engine that can't answer, in the log and on screen. */
+export function unavailableEngineName(agent: CodingAgent | null): string {
+  return agent === null ? "no coding agent" : CODING_AGENTS[agent].label;
+}
+
+/** The engine categorization runs on right now. */
+export async function categorizationLlm(): Promise<CategorizationLlm> {
+  const engine = await currentLlmEngine();
+  switch (engine.kind) {
+    case "gateway":
+      gateway ??= gatewayLlm(engine.apiKey);
+      return gateway;
+    case "unavailable":
+      return {
+        agent: engine.agent,
+        name: unavailableEngineName(engine.agent),
+        caller: { ready: false, reason: engine.reason },
+      };
+    case "agent": {
+      const { agent } = engine;
+      const { model } = engine.models.categorization;
+      const key = `${agent.agent}:${agent.binaryPath}:${model}`;
+      let llm = localAgents.get(key);
+      if (llm === undefined) {
+        llm = localAgentLlm(agent, model);
+        localAgents.set(key, llm);
+      }
+      return llm;
+    }
   }
-  return llm;
 }

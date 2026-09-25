@@ -3,11 +3,19 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { describe, expect, it } from "vitest";
 import type { ChartAccount } from "../../shared/index.js";
-import { STARTER_CHART } from "../modules/chart-of-accounts/index.js";
+import {
+  STARTER_CHART,
+  type ChartLlm,
+  type GetClient,
+} from "../modules/chart-of-accounts/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 import { packageDir } from "../paths.js";
-import { createChart, loadChartOfAccounts } from "./chart-of-accounts.js";
+import {
+  createChart,
+  loadChartOfAccounts,
+  suggestChart,
+} from "./chart-of-accounts.js";
 
 function books(sql = ""): Ledger {
   const sqlite = new Database(":memory:");
@@ -118,5 +126,73 @@ describe("createChart", () => {
       code: "invalid_chart",
     });
     expect(rows(ledger)).toEqual([]);
+  });
+});
+
+describe("suggestChart", () => {
+  const llm = (client: GetClient): ChartLlm => ({
+    name: "Sample Agent",
+    caller: { ready: true, client },
+  });
+
+  it("sends the description and the chart on screen, and fixes the answer", async () => {
+    const requests: unknown[] = [];
+    const client: GetClient = {
+      get: async (request) => {
+        requests.push(request.input);
+        return {
+          ok: true,
+          value: request.output.schema.parse({
+            accounts: [
+              account("Assets", "Asset"),
+              account("Tuition", "Expense", "Children"),
+            ],
+          }),
+        };
+      },
+    };
+    const current = STARTER_CHART.slice(0, 3);
+
+    const suggestion = await suggestChart(
+      llm(client),
+      "NOPII sample household",
+      current,
+    );
+
+    expect(requests).toEqual([
+      { description: "NOPII sample household", current },
+    ]);
+    expect(suggestion.ok).toBe(true);
+    if (!suggestion.ok) return;
+    expect(suggestion.proposal.accounts).toContainEqual(
+      account("Tuition", "Expense", "Expenses"),
+    );
+    expect(suggestion.notes).toContain(
+      "Tuition was under Children, which isn't in the chart; it is under Expenses now.",
+    );
+  });
+
+  it("says why when nobody can answer, or the call failed", async () => {
+    expect(
+      await suggestChart(
+        {
+          name: "no coding agent",
+          caller: { ready: false, reason: "No agent." },
+        },
+        "NOPII",
+        [],
+      ),
+    ).toEqual({ ok: false, code: "llm_unavailable", error: "No agent." });
+    expect(
+      await suggestChart(
+        llm({ get: async () => ({ ok: false, error: "timed out" }) }),
+        "NOPII",
+        [],
+      ),
+    ).toEqual({
+      ok: false,
+      code: "llm_failed",
+      error: "Sample Agent couldn't propose accounts: timed out",
+    });
   });
 });
