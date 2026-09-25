@@ -1,11 +1,13 @@
-import type {
-  OpeningBalanceAccount,
-  OpeningBalances,
-  OpeningLock,
-  OpeningSection,
+import { ApiError } from "@sapporta/shared/client";
+import {
+  openingBalanceRefusalSchema,
+  type OpeningBalanceAccount,
+  type OpeningBalances,
+  type OpeningLock,
+  type OpeningSection,
 } from "../../shared/index";
 import { formatBalance, formatDate, formatMoney } from "../format";
-import { ACCOUNT_TYPE_TERMS } from "./ChartTree";
+import { ACCOUNT_TYPE_TERMS } from "./account-type-terms";
 
 /*
  * The Other balances step's accounts as words: which table each is in, its
@@ -147,10 +149,25 @@ export function openingFigure(
 export function lockText(lock: OpeningLock): string {
   switch (lock) {
     case "has_entries":
-      return "Has transactions after it. Change it in its journal entry.";
+      return "Has other transactions. Change it in its journal entry.";
     case "shared_entry":
       return "Recorded with other accounts in one entry. Change it there.";
   }
+}
+
+/** Where an opening entry is changed by hand: its journal, in the tables. */
+export function journalHref(journalId: number): string {
+  return `/tables/journals?filter[id][eq]=${journalId}`;
+}
+
+/**
+ * The journal a change or removal was refused for, when the server says the
+ * balance is locked (a 409 naming it); null for any other failure.
+ */
+export function lockedJournal(error: unknown): number | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const refusal = openingBalanceRefusalSchema.safeParse(error.body);
+  return refusal.success ? (refusal.data.journal_id ?? null) : null;
 }
 
 /** The dialog's fields, as typed. */
@@ -237,16 +254,11 @@ export function amountLabel(type: BalanceType): string {
 
 /**
  * Under the amount: where a prefilled suggestion came from, else what the
- * figure is, on the date typed.
+ * figure is. The As of field below it gives the day.
  */
-export function amountHint(
-  type: BalanceType,
-  date: string,
-  fromSuggestion: boolean,
-): string {
+export function amountHint(type: BalanceType, fromSuggestion: boolean): string {
   if (fromSuggestion) return "From its first statement's balances.";
-  const on = date === "" ? "" : ` on ${formatDate(date)}`;
-  return type === "Asset" ? `What it held${on}.` : `What you owed${on}.`;
+  return type === "Asset" ? "What it held." : "What you owed.";
 }
 
 /** What an amount typed below zero means; null otherwise. */

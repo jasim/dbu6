@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,8 @@ import {
   amountLabel,
   dateHint,
   fieldsFor,
+  journalHref,
+  lockedJournal,
   readBalance,
   signReadback,
   type BalanceFields,
@@ -34,6 +37,24 @@ import {
 export interface BalanceEditing {
   account: OpeningBalanceAccount;
   section: OpeningSection;
+}
+
+/**
+ * What went wrong, under the fields. A balance the server finds locked names
+ * its journal entry, where the user changes it instead.
+ */
+export interface BalanceProblem {
+  message: string;
+  /** Set when the balance is locked; the dialog can then only close. */
+  lockedJournal: number | null;
+}
+
+/** A failed save or removal as the dialog shows it. */
+export function balanceProblem(error: unknown): BalanceProblem {
+  return {
+    message: apiErrorMessage(error),
+    lockedJournal: lockedJournal(error),
+  };
 }
 
 /** What the dialog sends: the ledger's signed amount. */
@@ -89,7 +110,7 @@ function DialogBody({
   const type = account.account_type;
   const [opened] = useState<BalanceFields>(() => fieldsFor(account, today()));
   const [fields, setFields] = useState<BalanceFields>(opened);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<BalanceProblem | null>(null);
   const [saving, setSaving] = useState(false);
   const set = (patch: Partial<BalanceFields>) =>
     setFields({ ...fields, ...patch });
@@ -105,7 +126,7 @@ function DialogBody({
     event.preventDefault();
     const reading = readBalance(account, fields);
     if (!reading.ok) {
-      setProblem(reading.problem);
+      setProblem({ message: reading.problem, lockedJournal: null });
       return;
     }
     setProblem(null);
@@ -118,7 +139,7 @@ function DialogBody({
       });
       onClose();
     } catch (error) {
-      setProblem(apiErrorMessage(error));
+      setProblem(balanceProblem(error));
     } finally {
       setSaving(false);
     }
@@ -142,7 +163,7 @@ function DialogBody({
       <div className="mt-4 space-y-4">
         <Field
           label={amountLabel(type)}
-          hint={amountHint(type, fields.date, fromSuggestion)}
+          hint={amountHint(type, fromSuggestion)}
           htmlFor={ids.amount}
         >
           <Input
@@ -193,20 +214,16 @@ function DialogBody({
         </Disclosure>
       </div>
 
-      {problem && (
-        <p
-          role="alert"
-          className="mt-4 text-body text-destructive [overflow-wrap:anywhere]"
-        >
-          {problem}
-        </p>
-      )}
+      {problem && <ProblemLine problem={problem} />}
 
       <DialogFooter className="mt-6">
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saving}>
+        <Button
+          type="submit"
+          disabled={saving || problem?.lockedJournal != null}
+        >
           {adding
             ? saving
               ? "Adding…"
@@ -217,6 +234,29 @@ function DialogBody({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/** The problem, with a link to the journal entry of a locked balance. */
+export function ProblemLine({ problem }: { problem: BalanceProblem }) {
+  return (
+    <p
+      role="alert"
+      className="mt-4 text-body text-destructive [overflow-wrap:anywhere]"
+    >
+      {problem.message}
+      {problem.lockedJournal !== null && (
+        <>
+          {" "}
+          <Link
+            to={journalHref(problem.lockedJournal)}
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            Journal entry
+          </Link>
+        </>
+      )}
+    </p>
   );
 }
 

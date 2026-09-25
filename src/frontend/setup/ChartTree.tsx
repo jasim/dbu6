@@ -3,24 +3,9 @@ import { Lock } from "lucide-react";
 import { Checkbox } from "@sapporta/ui";
 import { cn } from "@sapporta/ui/cn";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";
-import type {
-  ChartAccount,
-  ChartRow,
-  LedgerAccountType,
-} from "../../shared/index";
+import type { ChartAccount, ChartRow } from "../../shared/index";
+import { ACCOUNT_TYPE_TERMS } from "./account-type-terms";
 import { chartCards, type ChartCardRow, type Ticks } from "./chart-checklist";
-
-/** Each account type's accounting term, and what it holds in plain words. */
-export const ACCOUNT_TYPE_TERMS: Record<
-  LedgerAccountType,
-  { term: string; caption: string }
-> = {
-  Asset: { term: "Assets", caption: "what you own" },
-  Liability: { term: "Liabilities", caption: "what you owe" },
-  Equity: { term: "Equity", caption: "where your books start" },
-  Revenue: { term: "Income", caption: "money coming in" },
-  Expense: { term: "Expenses", caption: "money going out" },
-};
 
 export interface ChartChecklist {
   ticks: Ticks;

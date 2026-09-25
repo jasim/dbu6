@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";
-import { ApiError } from "@sapporta/shared/client";
 import type { OpeningBalanceAccount, OpeningSection } from "../../shared/index";
 import { apiErrorMessage, openingBalancesApi } from "../api";
 import { EmptyState } from "../components/empty-state";
@@ -21,15 +20,19 @@ import { Button } from "../components/ui/button";
 import { formatDate } from "../format";
 import { openingBalancesQuery, refreshSetup } from "../queries";
 import {
+  balanceProblem,
   OpeningBalanceDialog,
+  ProblemLine,
   type BalanceEditing,
   type BalanceEntry,
+  type BalanceProblem,
 } from "./OpeningBalanceDialog";
 import { RowMenu } from "./RowMenu";
 import { SetupFrame, StepHeading } from "./SetupWizard";
 import {
   balanceSections,
   focuses,
+  journalHref,
   lockText,
   openingFigure,
   parentLine,
@@ -54,11 +57,9 @@ export function BalancesStep() {
   const [editing, setEditing] = useState<BalanceEditing | null>(null);
   const [removing, setRemoving] = useState<OpeningBalanceAccount | null>(null);
 
-  // A refusal says the list was out of date: read it again.
-  const afterRefusal = (error: unknown): never => {
-    if (error instanceof ApiError && error.status === 409) {
-      void query.refetch();
-    }
+  // A failure may mean the list is out of date: read it again.
+  const afterFailure = (error: unknown): never => {
+    void query.refetch();
     throw error;
   };
   const save = async (account: OpeningBalanceAccount, entry: BalanceEntry) => {
@@ -71,28 +72,32 @@ export function BalancesStep() {
             params: { accountId: account.account_id },
             body: entry,
           })
-    ).catch(afterRefusal);
+    ).catch(afterFailure);
     await refreshSetup(client);
   };
   const remove = async (account: OpeningBalanceAccount) => {
     await openingBalancesApi
       .remove({ params: { accountId: account.account_id }, body: {} })
-      .catch(afterRefusal);
+      .catch(afterFailure);
     await refreshSetup(client);
   };
 
-  // A link naming an account with no balance opens its dialog, once.
+  // A link naming an account with no balance opens its dialog, once. The
+  // cached list may predate the account (a bank just added), so the link
+  // waits for a list that is fresh and names it.
   const opened = useRef(false);
   const data = query.data;
+  const fetching = query.isFetching;
   useEffect(() => {
-    if (opened.current || !data || focus === null) return;
-    opened.current = true;
+    if (opened.current || !data || fetching || focus === null) return;
     const account = data.accounts.find((one) => focuses(one, focus));
-    const section = account && sectionOf(account, focus);
-    if (account && section && account.opening === null) {
+    if (account === undefined) return;
+    opened.current = true;
+    const section = sectionOf(account, focus);
+    if (section && account.opening === null) {
       setEditing({ account, section });
     }
-  }, [data, focus]);
+  }, [data, fetching, focus]);
 
   const sections = data ? balanceSections(data, focus) : [];
 
@@ -159,14 +164,16 @@ export function BalancesStep() {
               />
             ))}
           </div>
-          <div className="mt-8 flex justify-end">
-            <Button
-              render={<Link to={SETUP_STEP_ROUTES.review} />}
-              nativeButton={false}
-            >
-              Next: Review
-            </Button>
-          </div>
+          {data.accounts.length > 0 && (
+            <div className="mt-8 flex justify-end">
+              <Button
+                render={<Link to={SETUP_STEP_ROUTES.review} />}
+                nativeButton={false}
+              >
+                Next: Review
+              </Button>
+            </div>
+          )}
           <OpeningBalanceDialog
             editing={editing}
             save={save}
@@ -327,7 +334,7 @@ function BalanceRow({
             </Tooltip>
             {/* On a phone, where there is no hover, the lock is the link. */}
             <Link
-              to={`/tables/journals?filter[id][eq]=${opening.journal_id}`}
+              to={journalHref(opening.journal_id)}
               aria-label={`Open the journal entry for ${account.name}`}
               className="inline-flex h-sap-ctl w-[var(--height-sap-ctl)] items-center justify-center rounded-control text-ink-meta outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:w-auto sm:text-meta sm:text-primary sm:underline-offset-4 sm:hover:underline [&_svg]:size-4"
             >
@@ -350,7 +357,7 @@ function RemoveDialog({
   remove: (account: OpeningBalanceAccount) => Promise<void>;
   onClose: () => void;
 }) {
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<BalanceProblem | null>(null);
   const [saving, setSaving] = useState(false);
 
   const close = () => {
@@ -366,7 +373,7 @@ function RemoveDialog({
       await remove(account);
       close();
     } catch (error) {
-      setProblem(apiErrorMessage(error));
+      setProblem(balanceProblem(error));
     } finally {
       setSaving(false);
     }
@@ -383,18 +390,14 @@ function RemoveDialog({
                 Its opening entry is deleted from your books.
               </DialogDescription>
             </DialogHeader>
-            {problem && (
-              <p role="alert" className="mt-3 text-body text-destructive">
-                {problem}
-              </p>
-            )}
+            {problem && <ProblemLine problem={problem} />}
             <DialogFooter className="mt-6">
               <Button variant="outline" onClick={close}>
                 Cancel
               </Button>
               <Button
                 variant="destructive"
-                disabled={saving}
+                disabled={saving || problem?.lockedJournal != null}
                 onClick={() => void confirm()}
               >
                 {saving ? "Removing…" : "Remove"}
