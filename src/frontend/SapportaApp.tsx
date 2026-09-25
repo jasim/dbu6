@@ -3,6 +3,7 @@ import { Route, Routes, useNavigate } from "react-router-dom";
 import { BootLoader, setNavigate } from "@sapporta/frontend/app";
 import { Toaster } from "@sapporta/frontend/shell";
 import { AppShell } from "./shell/AppShell";
+import { FocusLayout } from "./add-account/FocusCard";
 import { AuthGate } from "@sapporta/frontend/auth/runtime";
 import {
   appHomeRoute,
@@ -22,7 +23,7 @@ export function SapportaApp({
 }: {
   extension?: Dbu6FrontendExtension;
 }) {
-  const { navigation, protectedRoutes } = useMemo(
+  const { navigation, protectedRoutes, focusRoutes } = useMemo(
     () => buildApp(extension),
     [extension],
   );
@@ -54,6 +55,19 @@ export function SapportaApp({
           }
         >
           {appPublicShellRoutes}
+        </Route>
+
+        {/* Focus mode: signed in, one card, no sidebar. */}
+        <Route
+          element={
+            <BootLoader>
+              <AuthGate>
+                <FocusLayout />
+              </AuthGate>
+            </BootLoader>
+          }
+        >
+          {focusRoutes}
         </Route>
 
         <Route

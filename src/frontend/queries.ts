@@ -202,6 +202,18 @@ export function refreshSetup(client: QueryClient): Promise<void> {
   ]).then(() => undefined);
 }
 
+/**
+ * Refreshes what adding a bank or card changes: the setup reads (its
+ * account, its opening), Home and Review (its drafts), and the import
+ * presets (its bank, parser and number).
+ */
+export function refreshAddedAccount(client: QueryClient): Promise<void> {
+  return Promise.all([
+    refreshSetup(client),
+    client.invalidateQueries({ queryKey: importPresetsQuery.queryKey }),
+  ]).then(() => undefined);
+}
+
 /** Refreshes Home, the Review picker and every account's summary. */
 export function refreshDraftStatus(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: DRAFT_STATUS_KEY });

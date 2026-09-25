@@ -47,7 +47,7 @@ const DATA: StatementAccounts = {
     "Credit Cards",
     "Sample Bank Savings",
     // An expense that happens to have the name a card would get.
-    "Expense Bank Credit Card",
+    "Expense Credit Card",
   ],
 };
 
@@ -58,7 +58,7 @@ const other = (kind: "bank" | "card" = "bank") =>
 describe("the name a new account gets", () => {
   it("follows the bank until the user types one", () => {
     const draft = other();
-    expect(draft.name).toBe("Other Bank Savings");
+    expect(draft.name).toBe("Other Savings");
     expect(withInstitution(draft, "Other Bank Two", DATA).name).toBe(
       "Other Bank Two Savings",
     );
@@ -70,17 +70,21 @@ describe("the name a new account gets", () => {
   });
 
   it("names a card after its issuer", () => {
-    expect(other("card").name).toBe("Other Bank Credit Card");
+    expect(other("card").name).toBe("Other Credit Card");
   });
 
   it("is empty with no bank, and numbered when the books have it", () => {
     expect(suggestedName("bank", "  ", DATA)).toBe("");
-    expect(suggestedName("bank", "Sample Bank", DATA)).toBe(
-      "Sample Bank Savings 2",
-    );
+    expect(suggestedName("bank", "Sample", DATA)).toBe("Sample Savings");
+    expect(
+      suggestedName("bank", "Sample", {
+        ...DATA,
+        account_names: [...DATA.account_names, "Sample Savings"],
+      }),
+    ).toBe("Sample Savings 2");
     // Any account in the books, not only assets and liabilities.
     expect(suggestedName("card", "Expense Bank", DATA)).toBe(
-      "Expense Bank Credit Card 2",
+      "Expense Credit Card 2",
     );
   });
 
@@ -189,7 +193,7 @@ describe("the change the form sends", () => {
         kind: "bank",
         institution: "Other Bank",
         identifier: null,
-        ledger: { source: "new", name: "Other Bank Savings", parent_id: 2 },
+        ledger: { source: "new", name: "Other Savings", parent_id: 2 },
       },
     });
   });

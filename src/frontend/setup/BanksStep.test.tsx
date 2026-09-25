@@ -255,7 +255,7 @@ describe("BanksStep", () => {
     expect(tuckedAway(field("Under"))).toBe(true);
 
     await act(async () => type(field("Bank"), "Other Bank"));
-    expect(field("Name").value).toBe("Other Bank Savings");
+    expect(field("Name").value).toBe("Other Savings");
 
     await act(async () => button("Add account").click());
     await settle();
@@ -265,7 +265,7 @@ describe("BanksStep", () => {
         kind: "bank",
         institution: "Other Bank",
         identifier: null,
-        ledger: { source: "new", name: "Other Bank Savings", parent_id: 2 },
+        ledger: { source: "new", name: "Other Savings", parent_id: 2 },
       },
     ]);
   });
@@ -314,7 +314,7 @@ describe("BanksStep", () => {
     // Sample Bank has an account, so the number is asked for; the name
     // doesn't collide with it.
     expect(tuckedAway(field("Account number"))).toBe(false);
-    expect(field("Name").value).toBe("Sample Bank Savings 2");
+    expect(field("Name").value).toBe("Sample Savings");
     await act(async () => type(field("Account number"), "050505000078"));
     await act(async () => button("Add account").click());
     await settle();

@@ -62,9 +62,10 @@ export function draftOf(row: StatementAccountRow): StatementAccountDraft {
 }
 
 /**
- * The name a new account gets from its bank: "Sample Bank Savings",
- * "Sample Issuer Credit Card", with " 2", " 3"… when the books already have
- * that name. Empty with no bank.
+ * The name a new account gets from its bank: "Sample Savings" and "Sample
+ * Credit Card" at Sample Bank (a trailing "Bank" goes), "Sample Issuer
+ * Credit Card", with " 2", " 3"… when the books already have that name.
+ * Empty with no bank.
  */
 export function suggestedName(
   kind: AccountKind,
@@ -73,7 +74,8 @@ export function suggestedName(
 ): string {
   const bank = institution.trim();
   if (bank === "") return "";
-  const base = `${bank} ${kind === "card" ? "Credit Card" : "Savings"}`;
+  const stem = bank.replace(/\s+bank$/i, "");
+  const base = `${stem} ${kind === "card" ? "Credit Card" : "Savings"}`;
   // Any account in the books, of any type, and the banks and cards' own
   // names, which a deleted account's row keeps.
   const taken = new Set([

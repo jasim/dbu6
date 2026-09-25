@@ -7,6 +7,27 @@ import { OutcomeLine } from "./cards";
 import { fileTypeLabel, formatFileSize } from "../../format";
 
 /**
+ * Opening /import with files already in its batch, from a screen that holds
+ * them (/add's "already in your books"): the router's navigation state,
+ * `navigate(IMPORT_ROUTE, { state: importWithFiles(files) })`. Nothing is
+ * uploaded until the user presses Import.
+ */
+export const IMPORT_ROUTE = "/import";
+
+export function importWithFiles(files: readonly File[]): { files: File[] } {
+  return { files: [...files] };
+}
+
+/** The files /import was opened with, if any. */
+export function carriedFiles(state: unknown): File[] {
+  if (!state || typeof state !== "object" || !("files" in state)) return [];
+  const { files } = state;
+  return Array.isArray(files)
+    ? files.filter((file): file is File => file instanceof File)
+    : [];
+}
+
+/**
  * Where statements are dropped. Clicking anywhere in the zone opens the file
  * picker; "Choose files" is the keyboard path. Every file is taken: the
  * server says which ones it can't read.
