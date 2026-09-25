@@ -3,6 +3,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { Combobox, comboboxClassNames } from "@sapporta/ui/combobox";
 import { cn } from "@sapporta/ui/cn";
 import type { ChartChoice } from "../../shared/index";
+import { knownInstitution } from "./statement-account-form";
 
 /*
  * The banks-and-cards form's two searchable pickers, on Base UI's Combobox
@@ -133,7 +134,7 @@ interface InstitutionItem {
 /**
  * A bank or card issuer by name: one the books know (an institution in the
  * import presets), or a new name typed in, which the server adds. Choosing
- * a known one keeps its spelling.
+ * a known one, or typing it in another case, keeps its spelling.
  */
 export function InstitutionCombobox({
   id,
@@ -152,12 +153,13 @@ export function InstitutionCombobox({
   invalid?: boolean;
 }) {
   const [query, setQuery] = useState(value);
-  const typed = query.trim();
-  const known = (name: string) =>
-    institutions.some((one) => one.toLowerCase() === name.toLowerCase());
+  // What is typed names a known bank when only case or spaces differ.
+  const typed = knownInstitution(institutions, query);
   const items: InstitutionItem[] = [
     ...institutions.map((name) => ({ name, isNew: false })),
-    ...(typed !== "" && !known(typed) ? [{ name: typed, isNew: true }] : []),
+    ...(typed !== "" && !institutions.includes(typed)
+      ? [{ name: typed, isNew: true }]
+      : []),
   ];
   const selected =
     value === "" ? null : { name: value, isNew: !institutions.includes(value) };
@@ -167,10 +169,11 @@ export function InstitutionCombobox({
       value={selected}
       onValueChange={(next) => onChange(next?.name ?? "")}
       inputValue={query}
-      // What is typed is the institution, whether or not it is picked.
+      // What is typed is the institution, whether or not it is picked: the
+      // known one it names, else a new one.
       onInputValueChange={(text) => {
         setQuery(text);
-        onChange(text.trim());
+        onChange(knownInstitution(institutions, text));
       }}
       itemToStringLabel={(item) => item.name}
       isItemEqualToValue={(a, b) => a.name === b.name}

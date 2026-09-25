@@ -73,6 +73,11 @@ function books(rows: StatementAccountRow[]): StatementAccounts {
     },
     default_parents: { bank: 2, card: 4 },
     unlisted: [],
+    account_names: [
+      "Bank Accounts",
+      "Credit Cards",
+      ...rows.filter((row) => row.in_ledger).map((row) => row.name),
+    ],
   };
 }
 
@@ -281,6 +286,39 @@ describe("BanksStep", () => {
       "Sample Bank already has Sample Bank Savings, so each needs its number.",
     );
     expect(posts).toEqual([]);
+  });
+
+  it("opens More options when the problem is a field in it", async () => {
+    await renderStep([]);
+    await act(async () => button("+ Bank account").click());
+    await act(async () => type(field("Bank"), "Other Bank"));
+    await act(async () => type(field("Account number"), "0505 NOPII"));
+    expect(tuckedAway(field("Account number"))).toBe(true);
+
+    await act(async () => button("Add account").click());
+    await settle();
+
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "An account number is digits only.",
+    );
+    expect(tuckedAway(field("Account number"))).toBe(false);
+    expect(posts).toEqual([]);
+  });
+
+  it("takes a bank typed in another case as the one the books know", async () => {
+    await renderStep([savings]);
+    await act(async () => button("+ Bank account").click());
+    await act(async () => type(field("Bank"), "  sample   BANK "));
+
+    // Sample Bank has an account, so the number is asked for; the name
+    // doesn't collide with it.
+    expect(tuckedAway(field("Account number"))).toBe(false);
+    expect(field("Name").value).toBe("Sample Bank Savings 2");
+    await act(async () => type(field("Account number"), "050505000078"));
+    await act(async () => button("Add account").click());
+    await settle();
+
+    expect(posts).toMatchObject([{ institution: "Sample Bank" }]);
   });
 
   it("keeps the dialog open with the server's refusal", async () => {

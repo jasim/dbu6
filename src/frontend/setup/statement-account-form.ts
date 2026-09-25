@@ -74,15 +74,33 @@ export function suggestedName(
   const bank = institution.trim();
   if (bank === "") return "";
   const base = `${bank} ${kind === "card" ? "Credit Card" : "Savings"}`;
+  // Any account in the books, of any type, and the banks and cards' own
+  // names, which a deleted account's row keeps.
   const taken = new Set([
+    ...data.account_names,
     ...data.accounts.map((row) => row.name),
-    ...data.parents.bank.map((one) => one.name),
-    ...data.parents.card.map((one) => one.name),
-    ...data.unlisted.map((one) => one.name),
   ]);
   let name = base;
   for (let n = 2; taken.has(name); n++) name = `${base} ${n}`;
   return name;
+}
+
+/**
+ * The bank the books know that `typed` names, ignoring case and extra
+ * spaces, else the typed name as it is: "sample  bank" is "Sample Bank",
+ * never a second bank.
+ */
+export function knownInstitution(
+  institutions: readonly string[],
+  typed: string,
+): string {
+  const text = typed.trim().replace(/\s+/g, " ");
+  const key = text.toLowerCase();
+  return (
+    institutions.find(
+      (name) => name.trim().replace(/\s+/g, " ").toLowerCase() === key,
+    ) ?? text
+  );
 }
 
 /** The draft with another bank; an unedited name follows it. */
@@ -177,8 +195,53 @@ export function numberField(
   };
 }
 
+/** A field of the form, which a problem can be about. */
+export type FormField =
+  "institution" | "name" | "existing" | "identifier" | "parent";
+
 export type ReadForm =
-  { ok: true; change: StatementAccountChange } | { ok: false; problem: string };
+  | { ok: true; change: StatementAccountChange }
+  | { ok: false; problem: string; field: FormField };
+
+/**
+ * Whether `field` sits under "More options", closed at first, in this
+ * layout: the number while it is optional, and Under when there's a parent
+ * to start from.
+ */
+export function underMoreOptions(
+  field: FormField,
+  draft: StatementAccountDraft,
+  layout: FormLayout,
+): boolean {
+  switch (field) {
+    case "identifier":
+      return layout.other === null;
+    case "parent":
+      return draft.source === "new" && !layout.parentInView;
+    case "institution":
+    case "name":
+    case "existing":
+      return false;
+  }
+}
+
+/** The field a server refusal of the form is about, when it names one. */
+export function refusalField(error: unknown): FormField | null {
+  const body =
+    error && typeof error === "object" && "body" in error ? error.body : null;
+  const code =
+    body && typeof body === "object" && "code" in body ? body.code : null;
+  switch (code) {
+    case "identifier_invalid":
+      return "identifier";
+    case "parent_not_suitable":
+      return "parent";
+    case "ledger_name_taken":
+      return "name";
+    default:
+      return null;
+  }
+}
 
 /** The change the draft asks for, or the first thing to fix. */
 export function readDraft(
@@ -192,6 +255,7 @@ export function readDraft(
       ok: false,
       problem:
         draft.kind === "card" ? "Name the card issuer." : "Name the bank.",
+      field: "institution",
     };
   }
   const typed = draft.identifier.trim();
@@ -202,6 +266,7 @@ export function readDraft(
         draft.kind === "card"
           ? "That isn't a card number as a statement prints it: digits, with the hidden ones as X."
           : "An account number is digits only.",
+      field: "identifier",
     };
   }
   const other = otherAccountAt(data, institution, editing?.account_id ?? null);
@@ -210,6 +275,7 @@ export function readDraft(
       return {
         ok: false,
         problem: `${institution} already has ${other.name}, so each needs its number.`,
+        field: "identifier",
       };
     }
     const bare = data.accounts.find(
@@ -222,6 +288,7 @@ export function readDraft(
       return {
         ok: false,
         problem: `Add ${bare.name}'s number first: each account at ${institution} needs its number.`,
+        field: "institution",
       };
     }
   }
@@ -229,7 +296,11 @@ export function readDraft(
 
   if (editing === null && draft.source === "existing") {
     if (draft.existingId === null) {
-      return { ok: false, problem: "Pick the account in your books." };
+      return {
+        ok: false,
+        problem: "Pick the account in your books.",
+        field: "existing",
+      };
     }
     return {
       ok: true,
@@ -245,10 +316,14 @@ export function readDraft(
 
   const name = draft.name.trim();
   if (name === "") {
-    return { ok: false, problem: "Give the account a name." };
+    return { ok: false, problem: "Give the account a name.", field: "name" };
   }
   if (draft.parentId === null) {
-    return { ok: false, problem: "Pick where it sits in your chart." };
+    return {
+      ok: false,
+      problem: "Pick where it sits in your chart.",
+      field: "parent",
+    };
   }
   if (editing !== null) {
     return {

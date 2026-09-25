@@ -24,9 +24,12 @@ import {
   newDraft,
   numberField,
   readDraft,
+  refusalField,
+  underMoreOptions,
   unlistedOf,
   withInstitution,
   withName,
+  type FormField,
   type StatementAccountDraft,
 } from "./statement-account-form";
 
@@ -107,10 +110,18 @@ function DialogBody({
   );
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const set = (patch: Partial<StatementAccountDraft>) =>
     setDraft({ ...draft, ...patch });
 
   const layout = formLayout(draft, data, row);
+  // A problem with a field under More options opens it, so the field shows.
+  const showProblem = (message: string, field: FormField | null) => {
+    setProblem(message);
+    if (field !== null && underMoreOptions(field, draft, layout)) {
+      setMoreOpen(true);
+    }
+  };
   const existing = draft.source === "existing";
   const card = draft.kind === "card";
   const number = numberField(draft.kind, layout, draft.institution);
@@ -120,7 +131,7 @@ function DialogBody({
     event.preventDefault();
     const reading = readDraft(draft, data, row);
     if (!reading.ok) {
-      setProblem(reading.problem);
+      showProblem(reading.problem, reading.field);
       return;
     }
     setProblem(null);
@@ -129,7 +140,7 @@ function DialogBody({
       await save(reading.change);
       onClose();
     } catch (error) {
-      setProblem(apiErrorMessage(error));
+      showProblem(apiErrorMessage(error), refusalField(error));
     } finally {
       setSaving(false);
     }
@@ -236,7 +247,13 @@ function DialogBody({
         {parentInView && parentInput}
 
         {moreOptions.length > 0 && (
-          <Disclosure summary="More options">{moreOptions}</Disclosure>
+          <Disclosure
+            summary="More options"
+            open={moreOpen}
+            onOpenChange={setMoreOpen}
+          >
+            {moreOptions}
+          </Disclosure>
         )}
       </div>
 
