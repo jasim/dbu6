@@ -26,7 +26,7 @@ import {
 } from "./conditions";
 import { Confirm } from "./Confirm";
 import { Drop, ReadFailed, Reading as ReadingCard } from "./Drop";
-import { FocusLoading, type FocusFrame } from "../components/focus-card";
+import { FocusLoading } from "../components/focus-card";
 import { HowFarBack } from "./HowFarBack";
 import { refusalProblems } from "./refusal";
 import {
@@ -43,7 +43,7 @@ import {
   accountsInBooks,
   addedName,
   candidateName,
-  contextLine,
+  addFrame,
   severalTitle,
 } from "./words";
 
@@ -188,9 +188,7 @@ export function AddAccount() {
     kind,
     opening,
   });
-  const frame: FocusFrame = {
-    context: contextLine(url, data ? accountsInBooks(data) : 0),
-  };
+  const frame = addFrame(url, data ? accountsInBooks(data) : 0);
   const theRead = reading?.state === "read" ? reading.reading : null;
 
   switch (card.card) {

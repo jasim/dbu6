@@ -191,7 +191,7 @@ describe("card 1 on new books", () => {
     answers = { ...NEW_BOOKS, "POST /setup/chart-of-accounts": { ok: true } };
     await render();
 
-    expect(text()).toContain("Setting up your books");
+    expect(text()).toContain("Set up your books");
     expect(host.querySelector("h1")?.textContent).toBe(
       "Pick your chart of accounts",
     );

@@ -12,7 +12,7 @@ import {
   bankLine,
   candidateName,
   categorizerLine,
-  contextLine,
+  addFrame,
   downloadLine,
   gapTitle,
   howFarBackTitle,
@@ -116,18 +116,25 @@ describe("card 2", () => {
   });
 });
 
-describe("the context line", () => {
-  it("counts the first run's accounts from the books", () => {
+describe("the frame", () => {
+  it("puts the first run at its banks and cards, counted from the books", () => {
     // A card with drafts counts; one with nothing yet and a deleted one don't.
     expect(accountsInBooks(DATA)).toBe(1);
-    expect(contextLine(url("?run=setup"), 0)).toBe("Setting up your books");
-    expect(contextLine(url("?run=setup"), 2)).toBe(
-      "Setting up your books · 2 accounts added",
-    );
-    expect(contextLine(url("?run=setup"), 1)).toBe(
-      "Setting up your books · 1 account added",
-    );
-    expect(contextLine(url(""), 5)).toBe("Adding a bank or card");
+    const first = addFrame(url("?run=setup"), 0);
+    expect(first.flow).toBe("Set up your books");
+    expect(first.steps?.list.map((step) => step.label)).toEqual([
+      "Chart",
+      "Banks & cards",
+      "Cash & loans",
+      "Review",
+    ]);
+    expect(first.steps?.at).toBe(1);
+    expect(first.steps?.list[1].note).toBeUndefined();
+    expect(addFrame(url("?run=setup"), 2).steps?.list[1].note).toBe("2 added");
+  });
+
+  it("names a later add alone, with no steps", () => {
+    expect(addFrame(url(""), 5)).toEqual({ flow: "Add a bank or card" });
   });
 });
 

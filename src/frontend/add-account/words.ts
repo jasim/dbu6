@@ -12,6 +12,7 @@ import {
   monthName,
   plural,
 } from "../format";
+import type { FocusFrame } from "../components/focus-card";
 import { suggestedName } from "./confirm-form";
 import { addMonths, monthOf, type AddUrl, type From, type Gap } from "./state";
 
@@ -53,15 +54,39 @@ export function downloadLine(from: From): string {
     : `Download your statements from ${formatMonth(from.month)} to now, then come back.`;
 }
 
+/** The first run's steps, as the list over its cards names them. */
+export type SetupStep = "chart" | "banks" | "other";
+
+const SETUP_STEPS: readonly SetupStep[] = ["chart", "banks", "other"];
+
 /**
- * The thin line over every card: the first run counts the banks and cards
- * in the books, so a return to /add counts the same.
+ * The frame of a first-run card: the flow, and its steps with the banks
+ * and cards in the books counted, so a return to /add counts the same.
+ * Review, the last step, is the app's own page.
  */
-export function contextLine(url: AddUrl, inBooks: number): string {
-  if (!url.setup) return "Adding a bank or card";
-  return inBooks === 0
-    ? "Setting up your books"
-    : `Setting up your books · ${plural(inBooks, "account")} added`;
+export function setupFrame(at: SetupStep, inBooks: number): FocusFrame {
+  return {
+    flow: "Set up your books",
+    steps: {
+      list: [
+        { label: "Chart" },
+        {
+          label: "Banks & cards",
+          note: inBooks === 0 ? undefined : `${inBooks} added`,
+        },
+        { label: "Cash & loans" },
+        { label: "Review" },
+      ],
+      at: SETUP_STEPS.indexOf(at),
+    },
+  };
+}
+
+/** /add's frame: the first run's step, or a later add on its own. */
+export function addFrame(url: AddUrl, inBooks: number): FocusFrame {
+  return url.setup
+    ? setupFrame("banks", inBooks)
+    : { flow: "Add a bank or card" };
 }
 
 /** The banks and cards the books hold transactions for. */

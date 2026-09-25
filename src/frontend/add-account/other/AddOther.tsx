@@ -15,7 +15,7 @@ import {
   type FocusFrame,
 } from "../../components/focus-card";
 import { SETUP_HAND_OFF_HREF } from "../../review/routes";
-import { accountsInBooks, contextLine } from "../words";
+import { accountsInBooks, setupFrame } from "../words";
 import { RecordBalance } from "./RecordBalance";
 import {
   afterRecording,
@@ -45,14 +45,12 @@ export function AddOther() {
     enabled: url.setup,
   });
 
-  const frame: FocusFrame = {
-    context: url.setup
-      ? contextLine(
-          { setup: true, from: null, added: null },
-          statements.data ? accountsInBooks(statements.data) : 0,
-        )
-      : "Adding a balance",
-  };
+  const frame: FocusFrame = url.setup
+    ? setupFrame(
+        "other",
+        statements.data ? accountsInBooks(statements.data) : 0,
+      )
+    : { flow: "Add a balance" };
 
   if (otherCard(url) === "anything-else") {
     return <AnythingElse frame={frame} data={balances.data} />;
