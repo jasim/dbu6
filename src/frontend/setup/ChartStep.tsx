@@ -96,10 +96,17 @@ function NewChart({
   const describing = source === "describe" && agent !== null;
   const shown = describing && described ? described : standard;
   const { accounts, ticks } = shown;
-  const setTicks = (next: Ticks) =>
-    shown === described
-      ? setDescribed({ ...described, ticks: next })
-      : setStandard({ ...standard, ticks: next });
+  // A refusal is about the chart that was sent: another chart, or other
+  // ticks, leave it behind.
+  const setTicks = (next: Ticks) => {
+    setProblem(null);
+    if (shown === described) setDescribed({ ...described, ticks: next });
+    else setStandard({ ...standard, ticks: next });
+  };
+  const choose = (next: Source) => {
+    setProblem(null);
+    setSource(next);
+  };
 
   async function create() {
     setCreating(true);
@@ -130,7 +137,7 @@ function NewChart({
           onValueChange={(value) => {
             // Pressing the lit one again keeps it.
             const [picked] = value;
-            if (picked !== undefined) setSource(picked);
+            if (picked !== undefined) choose(picked);
           }}
         >
           <ToggleGroupItem<Source> value="standard">
@@ -163,14 +170,15 @@ function NewChart({
         <DescribeMoney
           agent={agent}
           current={() => tickedAccounts(accounts, ticks)}
-          onProposal={(suggestion) =>
+          onProposal={(suggestion) => {
+            setProblem(null);
             setDescribed({
               accounts: suggestion.proposal.accounts,
               ticks: initialTicks(suggestion.proposal.accounts),
               notes: suggestion.notes,
-            })
-          }
-          onBack={() => setSource("standard")}
+            });
+          }}
+          onBack={() => choose("standard")}
         />
       )}
       {shown === described && described.notes.length > 0 && (

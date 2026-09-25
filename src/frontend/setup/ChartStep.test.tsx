@@ -38,6 +38,8 @@ vi.mock("./SetupWizard", () => ({
 let host: HTMLDivElement;
 let root: Root;
 let answers: Record<string, unknown>;
+// A status other than 200, by the answer's key.
+let statuses: Record<string, number>;
 let posted: { path: string; body: unknown }[];
 
 beforeAll(() => {
@@ -54,6 +56,7 @@ beforeEach(() => {
   root = createRoot(host);
   posted = [];
   answers = {};
+  statuses = {};
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -67,7 +70,7 @@ beforeEach(() => {
       }
       const key = `${method} ${path}`;
       if (!(key in answers)) throw new Error(`No answer for ${key}`);
-      return Response.json(answers[key]);
+      return Response.json(answers[key], { status: statuses[key] ?? 200 });
     }),
   );
 });
@@ -237,6 +240,32 @@ describe("a new system's chart", () => {
       "Food",
     ]);
     expect(where()).toBe("/setup/banks");
+  });
+
+  it("drops a refusal once the chart or its ticks change", async () => {
+    answers = {
+      "GET /setup/chart-of-accounts": NEW_CHART,
+      "GET /setup/chart-of-accounts/suggest": READY,
+      "POST /setup/chart-of-accounts": {
+        error: "The chart can't be created: NOPII problem.",
+        code: "invalid_chart",
+        problems: ["NOPII problem."],
+      },
+    };
+    statuses = { "POST /setup/chart-of-accounts": 422 };
+    await render();
+
+    await click(button("Create 11 accounts"));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+      "NOPII problem.",
+    );
+    await click(box("Food"));
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+
+    await click(button("Create 10 accounts"));
+    expect(host.querySelector('[role="alert"]')).not.toBeNull();
+    await click(button("✦ Describe your money"));
+    expect(host.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("says why describing is off when no agent is ready", async () => {
