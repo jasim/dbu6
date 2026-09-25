@@ -25,3 +25,23 @@ export function countDraftsByAccount(
     ).map((row) => [row.account_id, row.drafts]),
   );
 }
+
+/**
+ * How many drafts each account's own statements hold (`base_account_id`),
+ * for every account with any: the `drafts` of its draft status.
+ */
+export function countDraftsByBaseAccount(
+  sqlite: Database.Database,
+  auth: LedgerAuth,
+): Map<number, number> {
+  return new Map(
+    allRows<{ account_id: number; drafts: number }>(
+      sqlite,
+      auth,
+      `SELECT base_account_id AS account_id, COUNT(*) AS drafts
+       FROM scoped_draft_transactions
+       WHERE base_account_id IS NOT NULL
+       GROUP BY base_account_id`,
+    ).map((row) => [row.account_id, row.drafts]),
+  );
+}

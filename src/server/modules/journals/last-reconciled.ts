@@ -23,15 +23,15 @@ export type LastReconciledRow = {
 };
 
 /**
- * The last reconciled checkpoint of every account, or of the account named
- * `accountName`. An account whose last reconciled journal asserts its balance
+ * The last reconciled checkpoint of every account, or of the one account
+ * named `accountName` or with id `accountId`. An account whose last reconciled journal asserts its balance
  * more than once has a row for each assertion, and the last is its
  * checkpoint. Rows are ordered by account name, account id and entry id.
  */
 export function loadLastReconciled(
   sqlite: Parameters<typeof allRows>[0],
   auth: LedgerAuth,
-  filter: { accountName?: string } = {},
+  filter: { accountName?: string; accountId?: number } = {},
 ): LastReconciledRow[] {
   return allRows<LastReconciledRow>(
     sqlite,
@@ -48,6 +48,7 @@ export function loadLastReconciled(
     JOIN scoped_journals j ON j.id = je.journal_id
     WHERE je.account_balance_assertion IS NOT NULL
       AND (@accountName IS NULL OR a.name = @accountName)
+      AND (@accountId IS NULL OR a.id = @accountId)
       AND j.id = (
         SELECT je2.journal_id
         FROM scoped_journal_entries je2
@@ -58,7 +59,10 @@ export function loadLastReconciled(
         LIMIT 1
       )
     ORDER BY a.name, a.id, je.id`,
-    { accountName: filter.accountName ?? null },
+    {
+      accountName: filter.accountName ?? null,
+      accountId: filter.accountId ?? null,
+    },
   );
 }
 
