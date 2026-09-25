@@ -141,7 +141,11 @@ describe("creating a bank or card", () => {
 
     expect(outcome).toMatchObject({
       ok: false,
-      problem: { code: "account_identifier_required" },
+      problem: {
+        code: "account_identifier_required",
+        message:
+          "Sample Bank has two accounts, so each needs its number, and Sample Current has none.",
+      },
     });
     expect(ledgerRow(ledger, "Sample Current")).toBeUndefined();
   });
@@ -272,9 +276,26 @@ describe("changing a bank or card", () => {
     ] satisfies StatementAccountChange[]) {
       expect(await changeStatementAccount(ledger, change)).toMatchObject({
         ok: false,
-        problem: { code: "account_has_transactions" },
+        problem: {
+          code: "account_has_transactions",
+          message:
+            "Sample Savings has transactions, so change it on the Accounts page.",
+        },
       });
     }
+    expect(
+      await changeStatementAccount(ledger, {
+        action: "remove",
+        account_id: 99,
+        delete_account: false,
+      }),
+    ).toMatchObject({
+      ok: false,
+      problem: {
+        code: "unknown_account",
+        message: "That bank or card isn't set up any more.",
+      },
+    });
     expect(ledgerRow(ledger, "Sample Savings")).toBeDefined();
   });
 });

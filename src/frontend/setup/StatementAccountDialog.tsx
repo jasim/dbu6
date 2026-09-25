@@ -2,12 +2,12 @@ import { useId, useState } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { Input } from "@sapporta/ui";
+import { Switch } from "@sapporta/ui/switch";
 import type {
   AccountKind,
   StatementAccountChange,
@@ -15,28 +15,33 @@ import type {
   StatementAccounts,
 } from "../../shared/index";
 import { apiErrorMessage } from "../api";
+import { Disclosure } from "../components/disclosure";
 import { Button } from "../components/ui/button";
-import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group";
 import { AccountCombobox, InstitutionCombobox } from "./pickers";
 import {
   draftOf,
-  identifierHint,
+  formLayout,
   newDraft,
-  otherAccountAt,
+  numberField,
   readDraft,
-  withKind,
+  unlistedOf,
+  withInstitution,
+  withName,
   type StatementAccountDraft,
 } from "./statement-account-form";
 
 /*
- * Adding a bank or card, or changing one that has no transactions yet. One
- * name serves the ledger account and its statements. Where it sits in the
- * chart is picked, never guessed from a name.
+ * Adding a bank account or card, or editing one that has no transactions
+ * yet. It asks for the bank and nothing else it can work out: the name
+ * follows the bank, the number comes from the first statement unless
+ * another account at the bank needs telling apart, and where it sits in the
+ * chart waits under "More options".
  */
 
-/** Which form is open: a new row, or a change to one. */
+/** Which form is open: a new bank account or card, or an edit to one. */
 export type StatementAccountEditing =
-  { mode: "add" } | { mode: "edit"; row: StatementAccountRow };
+  | { mode: "add"; kind: AccountKind }
+  | { mode: "edit"; row: StatementAccountRow };
 
 export function StatementAccountDialog({
   editing,
@@ -52,11 +57,15 @@ export function StatementAccountDialog({
 }) {
   return (
     <Dialog open={editing !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-lg">
         {editing && (
           <DialogBody
-            key={editing.mode === "edit" ? editing.row.account_id : "add"}
-            row={editing.mode === "edit" ? editing.row : null}
+            key={
+              editing.mode === "edit"
+                ? editing.row.account_id
+                : `add-${editing.kind}`
+            }
+            editing={editing}
             data={data}
             save={save}
             onClose={onClose}
@@ -67,41 +76,45 @@ export function StatementAccountDialog({
   );
 }
 
+function title(editing: StatementAccountEditing): string {
+  if (editing.mode === "edit") return `Edit ${editing.row.name}`;
+  return editing.kind === "card" ? "Add a credit card" : "Add a bank account";
+}
+
 function DialogBody({
-  row,
+  editing,
   data,
   save,
   onClose,
 }: {
-  row: StatementAccountRow | null;
+  editing: StatementAccountEditing;
   data: StatementAccounts;
   save: (change: StatementAccountChange) => Promise<unknown>;
   onClose: () => void;
 }) {
   const ids = {
-    kind: useId(),
-    source: useId(),
     institution: useId(),
     name: useId(),
     existing: useId(),
     identifier: useId(),
     parent: useId(),
   };
+  const row = editing.mode === "edit" ? editing.row : null;
   const [draft, setDraft] = useState<StatementAccountDraft>(() =>
-    row === null ? newDraft(data) : draftOf(row),
+    editing.mode === "edit"
+      ? draftOf(editing.row)
+      : newDraft(data, editing.kind),
   );
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const set = (patch: Partial<StatementAccountDraft>) =>
     setDraft({ ...draft, ...patch });
 
-  const unlisted = data.unlisted.filter((one) => one.kind === draft.kind);
-  const existing = row === null && draft.source === "existing";
-  const other = otherAccountAt(
-    data,
-    draft.institution,
-    row?.account_id ?? null,
-  );
+  const layout = formLayout(draft, data, row);
+  const existing = draft.source === "existing";
+  const card = draft.kind === "card";
+  const number = numberField(draft.kind, layout, draft.institution);
+  const parentInView = layout.parentInView && !existing;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -122,124 +135,109 @@ function DialogBody({
     }
   }
 
+  const numberInput = (
+    <Field label={number.label} hint={number.caption} htmlFor={ids.identifier}>
+      <Input
+        id={ids.identifier}
+        value={draft.identifier}
+        maxLength={64}
+        placeholder={card ? "XXXX XXXX XXXX 0505" : undefined}
+        onChange={(event) => set({ identifier: event.target.value })}
+        className="tnum h-sap-ctl w-full rounded-control font-mono"
+      />
+    </Field>
+  );
+  const parentInput = (
+    <Field
+      label="Under"
+      hint="Where it sits in your chart."
+      htmlFor={ids.parent}
+    >
+      <AccountCombobox
+        id={ids.parent}
+        choices={data.parents[draft.kind]}
+        value={draft.parentId}
+        onChange={(parentId) => set({ parentId })}
+        placeholder="Choose an account…"
+      />
+    </Field>
+  );
+  const moreOptions = [
+    !parentInView && !existing && <div key="parent">{parentInput}</div>,
+    layout.other === null && <div key="number">{numberInput}</div>,
+    layout.canUseExisting && (
+      <label
+        key="existing"
+        className="flex cursor-pointer items-center gap-2 text-row text-foreground"
+      >
+        <Switch
+          checked={existing}
+          onCheckedChange={(on) => set({ source: on ? "existing" : "new" })}
+        />
+        Use an account already in your books
+      </label>
+    ),
+  ].filter(Boolean);
+
   return (
     <form onSubmit={submit} noValidate>
       <DialogHeader>
-        <DialogTitle>
-          {row === null ? "Add a bank or card" : `Change ${row.name}`}
-        </DialogTitle>
-        <DialogDescription>
-          {row === null
-            ? "An account you get statements for. dbu6 adds it to your books, under the account you pick."
-            : "It has no transactions yet, so it can still change here."}
-        </DialogDescription>
+        <DialogTitle>{title(editing)}</DialogTitle>
       </DialogHeader>
 
       <div className="mt-4 space-y-4">
-        <Field label="Bank account or card" labelId={ids.kind}>
-          <RadioGroup<AccountKind>
-            aria-labelledby={ids.kind}
-            value={draft.kind}
-            onValueChange={(kind) => setDraft(withKind(draft, kind, data))}
-          >
-            <RadioGroupItem value="bank">Bank account</RadioGroupItem>
-            <RadioGroupItem value="card">Card</RadioGroupItem>
-          </RadioGroup>
-        </Field>
-
-        <Field
-          label="Institution"
-          hint="The bank, or the company that issues the card. Its statements are read the same way."
-          htmlFor={ids.institution}
-        >
+        <Field label={card ? "Card issuer" : "Bank"} htmlFor={ids.institution}>
           <InstitutionCombobox
             id={ids.institution}
             institutions={data.institutions.map((one) => one.name)}
             value={draft.institution}
-            onChange={(institution) => set({ institution })}
+            onChange={(institution) =>
+              setDraft(withInstitution(draft, institution, data))
+            }
+            empty={
+              card ? "Type the card issuer's name." : "Type the bank's name."
+            }
           />
         </Field>
-
-        {row === null && unlisted.length > 0 && (
-          <Field label="In your books" labelId={ids.source}>
-            <RadioGroup<StatementAccountDraft["source"]>
-              aria-labelledby={ids.source}
-              value={draft.source}
-              onValueChange={(source) => set({ source })}
-            >
-              <RadioGroupItem value="new">Add a new account</RadioGroupItem>
-              <RadioGroupItem value="existing">
-                Use one already there
-              </RadioGroupItem>
-            </RadioGroup>
-          </Field>
-        )}
 
         {existing ? (
           <Field
             label="Account"
-            hint="An account in your books no bank or card uses yet. It keeps its name and place."
+            hint="It keeps its name and place in your chart."
             htmlFor={ids.existing}
           >
             <AccountCombobox
               id={ids.existing}
-              choices={unlisted}
+              choices={unlistedOf(data, draft.kind)}
               value={draft.existingId}
               onChange={(existingId) => set({ existingId })}
               placeholder="Choose an account…"
             />
           </Field>
         ) : (
-          <>
-            <Field
-              label="Name"
-              hint="What your books and every screen call it, such as HDFC Savings."
-              htmlFor={ids.name}
-            >
-              <Input
-                id={ids.name}
-                value={draft.name}
-                maxLength={120}
-                onChange={(event) => set({ name: event.target.value })}
-                className="h-sap-ctl w-full rounded-control"
-              />
-            </Field>
-            <Field
-              label="Where it sits in your chart"
-              hint={`Among your ${draft.kind === "card" ? "liabilities" : "assets"}, such as ${draft.kind === "card" ? "Credit Cards" : "Bank Accounts"}.`}
-              htmlFor={ids.parent}
-            >
-              <AccountCombobox
-                id={ids.parent}
-                choices={data.parents[draft.kind]}
-                value={draft.parentId}
-                onChange={(parentId) => set({ parentId })}
-                placeholder="Choose an account…"
-              />
-            </Field>
-          </>
+          <Field
+            label="Name"
+            hint="How it appears in your books."
+            htmlFor={ids.name}
+          >
+            <Input
+              id={ids.name}
+              value={draft.name}
+              maxLength={120}
+              onChange={(event) =>
+                setDraft(withName(draft, event.target.value))
+              }
+              className="h-sap-ctl w-full rounded-control"
+            />
+          </Field>
         )}
 
-        <Field
-          label={draft.kind === "card" ? "Card number" : "Account number"}
-          hint={
-            other
-              ? `${identifierHint(draft.kind)} Needed: ${draft.institution.trim()} already has ${other.name}.`
-              : `${identifierHint(draft.kind)} Optional; a sample statement in the next step can fill it.`
-          }
-          htmlFor={ids.identifier}
-        >
-          <Input
-            id={ids.identifier}
-            value={draft.identifier}
-            maxLength={64}
-            placeholder={
-              draft.kind === "card" ? "050505XXXXXX0505" : "050505000012"
-            }
-            onChange={(event) => set({ identifier: event.target.value })}
-            className="tnum h-sap-ctl w-full rounded-control font-mono"
-          />
-        </Field>
+        {layout.other !== null && numberInput}
+        {parentInView && parentInput}
+
+        {moreOptions.length > 0 && (
+          <Disclosure summary="More options">{moreOptions}</Disclosure>
+        )}
       </div>
 
       {problem && (
@@ -256,11 +254,7 @@ function DialogBody({
           Cancel
         </Button>
         <Button type="submit" disabled={saving}>
-          {saving
-            ? "Saving…"
-            : row === null
-              ? `Add ${draft.kind === "card" ? "card" : "bank account"}`
-              : "Save changes"}
+          {saving ? "Saving…" : row === null ? "Add account" : "Save"}
         </Button>
       </DialogFooter>
     </form>
@@ -271,21 +265,17 @@ function Field({
   label,
   hint,
   htmlFor,
-  labelId,
   children,
 }: {
   label: string;
   hint?: string;
-  /** The control the label names, for an input. */
-  htmlFor?: string;
-  /** The label's own id, for a group that is labelled by it. */
-  labelId?: string;
+  /** The control the label names. */
+  htmlFor: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
       <label
-        id={labelId}
         htmlFor={htmlFor}
         className="block text-row font-semibold text-foreground"
       >
