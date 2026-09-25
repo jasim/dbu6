@@ -15,6 +15,10 @@ import {
   loadChartOfAccounts,
   suggestChart,
 } from "../workflows/chart-of-accounts.js";
+import {
+  changeStatementAccount,
+  loadStatementAccounts,
+} from "../workflows/import-presets.js";
 import { requireOwner, requireWorkflowLedger } from "./workflow-auth.js";
 
 /*
@@ -74,6 +78,31 @@ api.register(
     return outcome.code === "llm_unavailable"
       ? { status: 503, body }
       : { status: 502, body };
+  },
+);
+
+api.register(
+  "statementAccounts",
+  setupContract.statementAccounts,
+  async ({ c }) => ({
+    status: 200,
+    body: loadStatementAccounts(requireWorkflowLedger(c)),
+  }),
+);
+
+api.register(
+  "changeStatementAccount",
+  setupContract.changeStatementAccount,
+  async ({ c, request }) => {
+    const outcome = await changeStatementAccount(
+      requireWorkflowLedger(c),
+      request.body,
+    );
+    if (outcome.ok) return { status: 200, body: outcome.accounts };
+    return {
+      status: 422,
+      body: { error: outcome.problem.message, code: outcome.problem.code },
+    };
   },
 );
 

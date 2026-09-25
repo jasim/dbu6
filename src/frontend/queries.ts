@@ -126,6 +126,13 @@ export const chartOfAccountsQuery = queryOptions({
   ...FRESH_QUERY,
 });
 
+/** Every bank and card statements come from, and what a new one needs. */
+export const statementAccountsQuery = queryOptions({
+  queryKey: [...SETUP_KEY, "statement-accounts"],
+  queryFn: () => setupApi.statementAccounts(),
+  ...FRESH_QUERY,
+});
+
 /**
  * Refreshes the wizard, and Home, whose first card follows from the
  * accounts the wizard sets up.

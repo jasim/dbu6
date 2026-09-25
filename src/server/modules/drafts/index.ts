@@ -27,6 +27,7 @@ export {
   type DraftRow,
   type PersistSummary,
 } from "./draft-persistence.js";
+export { countDraftsByAccount } from "./account-drafts.js";
 export { loadFirstDrafts, type FirstDrafts } from "./first-drafts.js";
 export {
   draftCounts,

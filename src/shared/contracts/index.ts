@@ -97,6 +97,7 @@ export {
   type ImportPresetsView,
 } from "./import-presets.js";
 export {
+  canonicalStatementIdentifier,
   statementAccountSchema,
   statementAccountIdentifierSchema,
   statementAccountKindSchema,
@@ -187,6 +188,10 @@ export {
   chartSuggestionSchema,
   ledgerAccountTypeSchema,
   setupStatusSchema,
+  statementAccountChangeSchema,
+  statementAccountRefusalSchema,
+  statementAccountRowSchema,
+  statementAccountsSchema,
   statementFormatReady,
   LEDGER_ACCOUNT_TYPES,
   OPENING_BALANCES_NAME,
@@ -198,5 +203,10 @@ export {
   type ChartSuggester,
   type ChartSuggestion,
   type LedgerAccountType,
+  type ChartChoice,
   type SetupStatus,
+  type StatementAccountChange,
+  type StatementAccountRefusal,
+  type StatementAccountRow,
+  type StatementAccounts,
 } from "./setup.js";

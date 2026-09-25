@@ -16,7 +16,7 @@ import {
   RECONCILIATION_DIFFERENCES_HREF,
 } from "../reports/links";
 import { reviewHref } from "../review/routes";
-import { SETUP_ROUTE } from "../setup/steps";
+import { SETUP_ROUTE, SETUP_STEP_ROUTES } from "../setup/steps";
 import { formatDate, plural } from "../format";
 import { homeState, type HomeCard } from "./state";
 
@@ -219,7 +219,8 @@ function ImportedUntil({ account }: { account: HomeAccount }) {
  * What waits on the account, and where to see it; nothing when nothing does.
  * Problems in its drafts come first, since Review shows them; then books that
  * miss a statement balance, as an entry changed after its statement was
- * added; then drafts waiting.
+ * added; then drafts waiting; then an institution with no parser, whose
+ * statements can't be imported until the wizard sets their format up.
  */
 function accountStatus(account: HomeAccount): {
   tone: StatusTone;
@@ -245,6 +246,13 @@ function accountStatus(account: HomeAccount): {
       tone: "attention",
       label: `${plural(account.drafts, "draft")} waiting`,
       to: review,
+    };
+  }
+  if (!account.has_parser) {
+    return {
+      tone: "attention",
+      label: "Needs a statement format",
+      to: SETUP_STEP_ROUTES.statements,
     };
   }
   return null;

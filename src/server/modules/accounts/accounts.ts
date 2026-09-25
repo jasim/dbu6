@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { and, eq, isNull } from "drizzle-orm";
+import { Temporal } from "@sapporta/shared/temporal";
 import {
   accounts,
   accountsTable,
@@ -169,7 +170,6 @@ export function insertChartAccounts(
   auth: LedgerAuth,
   chart: readonly ChartAccount[],
 ): ChartedAccount[] {
-  const access = auth.rowSecurity.forTable(accounts);
   const ids = new Map(
     loadAccountChart(tx, auth).map((account) => [account.name, account.id]),
   );
@@ -180,23 +180,66 @@ export function insertChartAccounts(
         `${account.name}'s parent ${account.parent} does not exist.`,
       );
     }
-    const created: ChartedAccount = tx
-      .insert(accountsTable)
-      .values(
-        access.insertValuesSync(tx, {
-          name: account.name,
-          account_type: account.account_type,
-          parent_id: parentId,
-        }),
-      )
-      .returning({
-        id: accountsTable.id,
-        name: accountsTable.name,
-        parent_id: accountsTable.parent_id,
-        account_type: accountsTable.account_type,
-      })
-      .get();
+    const created = insertAccount(tx, auth, {
+      name: account.name,
+      account_type: account.account_type,
+      parent_id: parentId,
+    });
     ids.set(created.name, created.id);
     return created;
   });
+}
+
+/** The columns that place an account: its name, type and parent. */
+export type AccountPlacement = Omit<ChartedAccount, "id">;
+
+/**
+ * Creates one account, in the caller's transaction. The tree triggers
+ * refuse a parent of another type; the unique index a taken name.
+ */
+export function insertAccount(
+  tx: any,
+  auth: LedgerAuth,
+  placement: AccountPlacement,
+): ChartedAccount {
+  const access = auth.rowSecurity.forTable(accounts);
+  return tx
+    .insert(accountsTable)
+    .values(access.insertValuesSync(tx, placement))
+    .returning({
+      id: accountsTable.id,
+      name: accountsTable.name,
+      parent_id: accountsTable.parent_id,
+      account_type: accountsTable.account_type,
+    })
+    .get();
+}
+
+/**
+ * Renames, retypes and moves one account in a single statement, so the tree
+ * triggers see its new type and parent together. In the caller's
+ * transaction; an account with sub-accounts can't change type.
+ */
+export function updateAccount(
+  tx: any,
+  auth: LedgerAuth,
+  id: number,
+  placement: AccountPlacement,
+): void {
+  const access = auth.rowSecurity.forTable(accounts);
+  tx.update(accountsTable)
+    .set({ ...placement, updated_at: Temporal.Now.instant() })
+    .where(access.ownedRows(eq(accountsTable.id, id)))
+    .run();
+}
+
+/**
+ * Deletes one account, in the caller's transaction. The caller makes sure
+ * nothing is on it or under it.
+ */
+export function deleteAccount(tx: any, auth: LedgerAuth, id: number): void {
+  const access = auth.rowSecurity.forTable(accounts);
+  tx.delete(accountsTable)
+    .where(access.ownedRows(eq(accountsTable.id, id)))
+    .run();
 }

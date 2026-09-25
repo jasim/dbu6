@@ -16,6 +16,7 @@ function account(
     path: "Sample Savings",
     name: "Sample Savings",
     kind: "bank",
+    has_parser: true,
     checkpoint: { date: "2026-08-31", balance: 250000 },
     statement_differences: 0,
     drafts: 0,
@@ -33,6 +34,7 @@ const deleted: HomeAccount = {
   account_id: 9,
   name: "Sample Deleted",
   kind: "bank",
+  has_parser: true,
 };
 
 function summary(

@@ -39,3 +39,20 @@ export const statementAccountSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 export type StatementAccount = z.infer<typeof statementAccountSchema>;
+
+/**
+ * A number as the user types it, in the canonical form above: spaces and
+ * dashes dropped, and a card's mask uppercased, an asterisk counting as X.
+ * Null when what is left is not an identifier of that kind.
+ */
+export function canonicalStatementIdentifier(
+  kind: StatementAccountKind,
+  typed: string,
+): string | null {
+  const compact = typed.replace(/[\s-]/g, "");
+  const identifier =
+    kind === "card" ? compact.toUpperCase().replace(/\*/g, "X") : compact;
+  return statementAccountSchema.safeParse({ kind, identifier }).success
+    ? identifier
+    : null;
+}
