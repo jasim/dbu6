@@ -5,6 +5,7 @@ import type {
 } from "../../shared/index";
 import { reviewHref, REVIEW_ROUTE } from "../review/routes";
 import { joinNames } from "../format";
+import { SETUP_ROUTE } from "../setup/steps";
 
 /*
  * What Home says, as a pure function of the summary (PLAN.md §11 P1). In
@@ -44,11 +45,11 @@ export function homeState(summary: HomeSummary): HomeView {
   if (accounts.length === 0) {
     return {
       state: "no-accounts",
-      greeting: "Let's set up your first account",
+      greeting: "Let's set up your accounts",
       card: {
-        title: "Add your first account",
-        body: "dbu6 imports statements from the banks and cards you set up. Each needs an account in your books, listed in its bank's import preset.",
-        action: { label: "Open accounts", to: "/accounts" },
+        title: "Set up your accounts",
+        body: "Pick the accounts your books sort money into, add the banks and cards you get statements from, and show dbu6 a sample statement for each.",
+        action: { label: "Set up your accounts", to: SETUP_ROUTE },
       },
     };
   }

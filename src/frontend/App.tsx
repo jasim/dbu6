@@ -40,6 +40,8 @@ import { JournalsTable } from "./views/JournalsTable";
 import { ReclassifyDrafts } from "./views/ReclassifyDrafts";
 import { RenderDraftHledger } from "./views/RenderDraftHledger";
 import { Settings as SettingsPage } from "./views/settings/Settings";
+import { ChartStep } from "./setup/ChartStep";
+import { SetupIndex } from "./setup/SetupWizard";
 
 /*
  * The sidebar: five everyday destinations, then the door to everything else
@@ -122,6 +124,8 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
       />
       <Route path="settings" element={<SettingsPage />} />
       <Route path="opening-balances" element={<OpeningBalances />} />
+      <Route path="setup" element={<SetupIndex />} />
+      <Route path="setup/accounts" element={<ChartStep />} />
       <Route path="tools" element={<Advanced />} />
 
       {/* The tool screens, linked from All tools. */}

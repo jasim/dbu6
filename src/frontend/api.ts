@@ -23,6 +23,7 @@ import {
   journalsContract,
   openingBalancesContract,
   reviewContract,
+  setupContract,
 } from "../shared/index";
 
 /**
@@ -65,6 +66,10 @@ export const agentHandoffApi = createApiClient(agentHandoffContract, {
 });
 
 export const codingAgentApi = createApiClient(codingAgentContract, {
+  baseUrl: getApiBase,
+});
+
+export const setupApi = createApiClient(setupContract, {
   baseUrl: getApiBase,
 });
 
