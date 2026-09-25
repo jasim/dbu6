@@ -274,7 +274,8 @@ describe("card 6, first run", () => {
   it("asks for cash, a deposit or a loan, and hands off to Review", async () => {
     await render("/add/other?run=setup");
     expect(title()).toBe("Cash, a deposit, a loan?");
-    expect(text()).toContain("Setting up your books · 1 account added");
+    expect(text()).toContain("Set up your books");
+    expect(text()).toContain("Banks & cards · 1 added");
     expect(button("That's all").getAttribute("href")).toBe(
       "/review?imported=1&run=setup",
     );
@@ -346,7 +347,7 @@ describe("C1", () => {
 
   it("records what the user owed as negative, and goes Home later", async () => {
     await render("/add/other");
-    expect(text()).toContain("Adding a balance");
+    expect(text()).toContain("Add a balance");
     expect(() => button("Back")).toThrow();
     await pick("Sample Car Loan");
     expect(title()).toBe("What did you owe on Sample Car Loan?");

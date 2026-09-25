@@ -33,7 +33,7 @@ export function RecordBalance({
   frame: FocusFrame;
   /** The chart's accounts with no opening yet, own then owe (`unrecorded`). */
   choices: readonly OpeningBalanceAccount[];
-  /** Card 6 on the first run; null later, where Leave is the way out. */
+  /** Card 6 on the first run; null later, where Back to Home is the way out. */
   back: string | null;
   onRecorded: () => void;
   /** The server refused: its list may be out of date. */

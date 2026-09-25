@@ -19,7 +19,7 @@ import {
   type FocusFrame,
 } from "../components/focus-card";
 import { addHref } from "../add-account/state";
-import { contextLine } from "../add-account/words";
+import { setupFrame } from "../add-account/words";
 import {
   initialTicks,
   lockedAccounts,
@@ -38,10 +38,8 @@ import { DescribeMoney } from "./DescribeMoney";
  * books; the Accounts page changes a chart.
  */
 
-// The first run's context line, before any bank or card is in.
-const FRAME: FocusFrame = {
-  context: contextLine({ setup: true, from: null, added: null }, 0),
-};
+// The first run's first step, before any bank or card is in.
+const FRAME: FocusFrame = setupFrame("chart", 0);
 
 export function ChartCard() {
   usePageTitle("Set up your books");

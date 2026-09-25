@@ -223,6 +223,13 @@ function button(label: string): HTMLElement {
   return found;
 }
 
+/** The first run's step this card is in, as the list over it names it. */
+function currentStep(): string | undefined {
+  return host
+    .querySelector('[aria-current="step"] > span:last-child')
+    ?.textContent?.trim();
+}
+
 /** The card's primary: its one filled button. */
 function primary(): string[] {
   return [...host.querySelectorAll<HTMLElement>("section button, section a")]
@@ -284,7 +291,8 @@ describe("adding a bank or card", () => {
     await render("/add?from=2025-01");
 
     expect(title()).toBe("Drop this account's statements");
-    expect(text()).toContain("Adding a bank or card");
+    expect(text()).toContain("Add a bank or card");
+    expect(button("Back to Home").getAttribute("href")).toBe("/");
     await drop("jan.xls", "feb.xls");
 
     expect(title()).toBe("Sample Bank · ending 0012");
@@ -368,7 +376,8 @@ describe("adding a bank or card", () => {
     await click("Add to books");
     expect(where()).toBe("/add?run=setup&from=2026-01&added=12 files:");
     expect(title()).toBe("Sample Savings added.");
-    expect(text()).toContain("Setting up your books · 1 account added");
+    expect(text()).toContain("Set up your books");
+    expect(currentStep()).toBe("Banks & cards · 1 added");
     expect(button("That's all").getAttribute("href")).toBe(
       "/add/other?run=setup",
     );
