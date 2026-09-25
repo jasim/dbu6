@@ -18,6 +18,7 @@ import type {
   ChartSuggester,
   ChartSuggestion,
 } from "../../shared/index";
+import { registerTypeScale } from "../type-scale";
 import { ChartStep } from "./ChartStep";
 
 /*
@@ -40,6 +41,8 @@ let answers: Record<string, unknown>;
 let posted: { path: string; body: unknown }[];
 
 beforeAll(() => {
+  // As startDbu6Frontend does, so class merging here is the app's.
+  registerTypeScale();
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -204,6 +207,12 @@ describe("a new system's chart", () => {
     ]);
     // Children starts unticked; the funds fold under Investments.
     expect(text()).toContain("11 of 12 ticked");
+    // An unticked name keeps its size beside the meta ink.
+    const children = Array.from(host.querySelectorAll("label span")).find(
+      (one) => one.textContent === "Children",
+    );
+    expect(children?.className).toContain("text-row");
+    expect(children?.className).toContain("text-ink-meta");
     expect(text()).not.toContain("Sample Fund");
     await click(button("▸ 2 more"));
     expect(text()).toContain("Sample Fund");

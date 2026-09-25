@@ -128,21 +128,23 @@ function ChartTreeRow({
 }) {
   const { account, depth } = row;
   const id = useId();
-  // Joined by hand: cn would drop text-row as a clash with the ink colour.
-  const nameClass = [
+  const nameClass = cn(
     "text-row",
-    depth === 0 ? "font-semibold" : "",
+    depth === 0 && "font-semibold",
     checklist && !checklist.ticks.has(account.name)
       ? "text-ink-meta"
       : "text-foreground",
-  ].join(" ");
+  );
   // A note shows on hover or focus, marked by a dotted underline.
   const name = account.note ? (
     <Tooltip>
       <TooltipTrigger
         delay={200}
         render={<span tabIndex={0} />}
-        className={`${nameClass} rounded-control underline decoration-ink-meta decoration-dotted underline-offset-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40`}
+        className={cn(
+          nameClass,
+          "rounded-control underline decoration-ink-meta decoration-dotted underline-offset-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
+        )}
       >
         {account.name}
       </TooltipTrigger>
