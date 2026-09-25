@@ -3,8 +3,11 @@ import { draftOrderSql } from "../reconciliation/index.js";
 import { allRows, type LedgerAuth } from "../ledger-sql/index.js";
 
 /*
- * Where an account's drafts begin. Its first balance check is the first draft,
- * in the order the check adds them up, that carries a statement balance; that
+ * Where an account's drafts begin. Posted, a draft lands on two accounts:
+ * its statement's (`base_account_id`) and the one it is categorized to
+ * (`account_id`), so each side has a first date here. An account's first
+ * balance check is the first draft from its own statements, in the order
+ * the check adds them up, that carries a statement balance; that
  * balance minus the drafts up to and including it is what the account held
  * before its first draft, as far as the drafts alone can tell. With nothing
  * posted on the account, it is the opening balance the checks are missing.
@@ -65,5 +68,26 @@ export function loadFirstDrafts(
             : Number(row.implied_opening.toFixed(2)),
       },
     ]),
+  );
+}
+
+/**
+ * The day of each account's first draft categorized to it (`account_id`),
+ * by id: a row on another account's statement that, once posted, is on this
+ * account too. `loadFirstDrafts` has the drafts from its own statements.
+ */
+export function loadFirstCategorizedDraftDates(
+  sqlite: Database.Database,
+  auth: LedgerAuth,
+): Map<number, string> {
+  return new Map(
+    allRows<{ account_id: number; first_date: string }>(
+      sqlite,
+      auth,
+      `SELECT account_id, MIN(date) AS first_date
+       FROM scoped_draft_transactions
+       WHERE account_id IS NOT NULL
+       GROUP BY account_id`,
+    ).map((row) => [row.account_id, row.first_date]),
   );
 }

@@ -47,7 +47,8 @@ export const openingBalanceAccountSchema = z.object({
   // Null for an account with accounts under it and no opening entry.
   section: openingSectionSchema.nullable(),
   // The account's first posted entry outside its opening entry, or its
-  // first draft; null with neither.
+  // first draft, from its own statements or categorized to it; null with
+  // neither.
   first_activity_date: z.string().nullable(),
   // The day before it; with neither, the day the books start (their
   // earliest opening entry); null when the books have no opening entry.

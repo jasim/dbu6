@@ -8,7 +8,10 @@ import {
   loadLedgerAccounts,
   type NamedAccount,
 } from "../modules/accounts/index.js";
-import { loadFirstDrafts } from "../modules/drafts/index.js";
+import {
+  loadFirstCategorizedDraftDates,
+  loadFirstDrafts,
+} from "../modules/drafts/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import type { JournalPlan } from "../modules/journal-plan/index.js";
 import {
@@ -63,7 +66,7 @@ export interface OpeningBalanceAccount {
   section: OpeningSection | null;
   /**
    * The account's first posted entry outside its opening entry, or its first
-   * draft; null with neither.
+   * draft, from its own statements or categorized to it; null with neither.
    */
   firstActivityDate: string | null;
   /**
@@ -98,6 +101,7 @@ export function loadOpeningBalances({
   const openings = loadOpeningEntries(sqlite, auth);
   const besideOpening = loadEntriesBesideOpening(sqlite, auth);
   const firstDrafts = loadFirstDrafts(sqlite, auth);
+  const firstCategorized = loadFirstCategorizedDraftDates(sqlite, auth);
   const equity = findOpeningBalancesAccount(db, auth);
   const parents = new Set(chart.map((account) => account.parent_id));
   const statementAccounts = new Set(
@@ -122,10 +126,11 @@ export function loadOpeningBalances({
       const beside = besideOpening.get(account.id) ?? null;
       const drafts = firstDrafts.get(account.id) ?? null;
       const opening = openings.get(account.id) ?? null;
-      const firstActivityDate = earlier(
+      const firstActivityDate = [
         beside?.first_date ?? null,
         drafts?.first_date ?? null,
-      );
+        firstCategorized.get(account.id) ?? null,
+      ].reduce<string | null>(earlier, null);
       return {
         accountId: account.id,
         name: account.name,

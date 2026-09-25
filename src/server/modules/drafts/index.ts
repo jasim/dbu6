@@ -39,7 +39,11 @@ export {
   loadCategorizationLessons,
   type NewCategorizationLesson,
 } from "./categorization-lessons.js";
-export { loadFirstDrafts, type FirstDrafts } from "./first-drafts.js";
+export {
+  loadFirstCategorizedDraftDates,
+  loadFirstDrafts,
+  type FirstDrafts,
+} from "./first-drafts.js";
 export {
   draftCounts,
   findDraftDuplicates,

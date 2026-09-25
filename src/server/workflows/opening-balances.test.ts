@@ -419,6 +419,15 @@ const SHARED_OPENING = `
     (313, 'workspace', 'user', 31, 7, 1500, 0, NULL, '', '');
 `;
 
+// A draft on Sample Savings's statement, 300 paid to Sample Card on 4
+// February: posted, it is on the card too.
+const CARD_PAYMENT = `
+  INSERT INTO draft_transactions
+    (id, workspace_id, scoped_to_user_id, date, narration, withdrawal, deposit,
+     account_id, base_account_id, created_at, updated_at)
+  VALUES (13, 'workspace', 'user', '2026-02-04', 'NOPII card payment', 300, 0, 4, 2, '', '');
+`;
+
 // Everything posted, to show a refusal wrote nothing.
 function posted(ledger: Ledger) {
   return {
@@ -517,6 +526,16 @@ describe("first activity and the default date", () => {
     expect(account(ledger, 4)?.defaultDate).toBe("2026-01-20");
   });
 
+  it("counts a draft categorized to the account, from another's statement", () => {
+    const ledger = books(CARD_PAYMENT);
+
+    expect(account(ledger, 4)).toMatchObject({
+      firstActivityDate: "2026-02-04",
+      defaultDate: "2026-02-03",
+      suggestedAmount: null,
+    });
+  });
+
   it("drops the suggestion once something besides the opening entry is posted", () => {
     const ledger = books(SPENT("2026-02-01"));
 
@@ -524,6 +543,46 @@ describe("first activity and the default date", () => {
       firstActivityDate: "2026-02-01",
       suggestedAmount: null,
     });
+  });
+});
+
+describe("a draft categorized to the account", () => {
+  it("refuses an opening on or after it, writing nothing", () => {
+    const ledger = books(CARD_PAYMENT);
+    const before = posted(ledger);
+
+    expect(
+      recordOpeningBalance(ledger, {
+        accountId: 4,
+        date: "2026-02-10",
+        amount: -2500,
+      }),
+    ).toEqual({
+      kind: "date-not-before-first-activity",
+      accountName: "Sample Card",
+      firstActivityDate: "2026-02-04",
+    });
+    expect(posted(ledger)).toEqual(before);
+  });
+
+  it("refuses to move an opening on or after it, writing nothing", () => {
+    const ledger = books(CARD_PAYMENT);
+    recorded(ledger, 4, "2026-01-31", -2500);
+    const before = posted(ledger);
+
+    expect(
+      changeOpeningBalance(ledger, {
+        accountId: 4,
+        date: "2026-02-10",
+        amount: -2500,
+      }),
+    ).toEqual({
+      kind: "date-not-before-first-activity",
+      accountName: "Sample Card",
+      firstActivityDate: "2026-02-04",
+    });
+    expect(posted(ledger)).toEqual(before);
+    expect(account(ledger, 4)?.opening?.locked).toBeNull();
   });
 });
 
