@@ -1,6 +1,3 @@
-These instructions apply only after the executable transaction mappings have
-failed to classify a transaction.
-
 - Restaurants, cafes, bakeries, and clearly food-related merchants map to
   'Food'.
 - Supermarkets, grocery stores, and clearly grocery-related merchants map to
@@ -13,4 +10,4 @@ failed to classify a transaction.
 
 Do not infer a category for a transfer to an individual person. If the
 merchant or purpose is not clear enough to apply one of these categories,
-return an empty string.
+leave it uncategorized.
