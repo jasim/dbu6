@@ -13,7 +13,11 @@ import { loadImportPresets } from "../modules/import-presets/index.js";
 import { importableAccounts } from "./account-names.js";
 import { loadAccountStandings } from "./account-standing.js";
 import { draftCounts } from "../modules/drafts/index.js";
-import { allRows, type LedgerAuth } from "../modules/ledger-sql/index.js";
+import type { LedgerAuth } from "../modules/ledger-sql/index.js";
+import {
+  hasTransactions,
+  loadStatementActivity,
+} from "../workflows/first-statement.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
 /*
@@ -45,13 +49,8 @@ export function loadHomeSummary(
   institutions: readonly ImportInstitution[],
 ): HomeSummary {
   const standings = loadAccountStandings(sqlite, auth, institutions);
-  const journalAccounts = new Set(
-    allRows<{ account_id: number }>(
-      sqlite,
-      auth,
-      `SELECT DISTINCT account_id FROM scoped_journal_entries`,
-    ).map((row) => row.account_id),
-  );
+  // Setup's rule: an opening entry alone is not an import.
+  const activity = loadStatementActivity({ sqlite, auth });
 
   const withParser = new Set(
     institutions
@@ -93,8 +92,9 @@ export function loadHomeSummary(
     totals: Array.from(standings.values())
       .map((standing) => draftCounts(standing.drafts))
       .reduce(addCounts, NO_DRAFTS),
-    has_journals: accounts.some(
-      (account) => account.in_ledger && journalAccounts.has(account.account_id),
+    any_imported: accounts.some(
+      (account) =>
+        account.in_ledger && hasTransactions(activity(account.account_id)),
     ),
   };
 }

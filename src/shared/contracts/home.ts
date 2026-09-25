@@ -50,8 +50,10 @@ export const homeSummarySchema = z.object({
   accounts: z.array(homeAccountSchema),
   // Over every draft, including ones on accounts no preset lists.
   totals: draftCountsSchema,
-  // Whether any listed account has posted entries.
-  has_journals: z.boolean(),
+  // Whether any listed account in the books has transactions from its own
+  // statements, entries or drafts (the setup wizard's first statements
+  // rule): an opening entry alone is not an import.
+  any_imported: z.boolean(),
 });
 export type HomeSummary = z.infer<typeof homeSummarySchema>;
 
