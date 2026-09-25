@@ -17,7 +17,7 @@ import { AgentPrompt } from "../components/agent-prompt";
 import { Button } from "../components/ui/button";
 import { plural } from "../format";
 import { categorizationLessonsQuery } from "../queries";
-import { CATEGORIZATION_RULES_ROUTE } from "../views/import-instructions/routes";
+import { categorizationRulesHref } from "../views/import-instructions/routes";
 import type { CategorizationLesson } from "../../shared/index";
 import { lessonsPrompt } from "./categorization-lessons";
 import { useReviewAccount } from "./ReviewAccount";
@@ -199,7 +199,7 @@ export function ImproveCategorizationTab() {
           )
         )}
         <Link
-          to={`${CATEGORIZATION_RULES_ROUTE}?${new URLSearchParams({ account: String(accountId) })}`}
+          to={categorizationRulesHref("ai", accountId)}
           className="inline-block text-meta text-ink-meta hover:text-foreground hover:underline"
         >
           See categorization rules
@@ -357,12 +357,7 @@ function SelectionPanel({
           {apiErrorMessage(teach.error)}
         </p>
       )}
-      <Button
-        type="button"
-        size="sm"
-        disabled={teach.isPending}
-        onClick={add}
-      >
+      <Button type="button" size="sm" disabled={teach.isPending} onClick={add}>
         Categorize {plural(selected.length, "draft")}
       </Button>
     </section>

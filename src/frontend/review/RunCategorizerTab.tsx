@@ -28,7 +28,7 @@ import {
   categorizationCounts,
   describeCategorizationProblem,
 } from "../views/categorization/describeCategorization";
-import { CATEGORIZATION_RULES_ROUTE } from "../views/import-instructions/routes";
+import { categorizationRulesHref } from "../views/import-instructions/routes";
 import { ReportTab } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 import {
@@ -298,7 +298,10 @@ export function RunCategorizerTab() {
                     <>
                       {chosenPreset !== null && (
                         <Link
-                          to={`${CATEGORIZATION_RULES_ROUTE}?${new URLSearchParams({ account: String(chosenPreset.account.account_id) })}`}
+                          to={categorizationRulesHref(
+                            "ai",
+                            chosenPreset.account.account_id,
+                          )}
                           className={buttonVariants({
                             variant: "ghost",
                             size: "sm",
