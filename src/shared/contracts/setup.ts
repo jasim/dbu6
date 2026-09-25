@@ -117,6 +117,39 @@ export const chartRefusalSchema = z.object({
 });
 export type ChartRefusal = z.infer<typeof chartRefusalSchema>;
 
+// Who would draw a chart from the user's description: the coding agent dbu6
+// uses, on the engine categorization runs on, or why nobody can.
+export const chartSuggesterSchema = z.discriminatedUnion("ready", [
+  z.object({ ready: z.literal(true), name: z.string() }),
+  z.object({ ready: z.literal(false), name: z.string(), reason: z.string() }),
+]);
+export type ChartSuggester = z.infer<typeof chartSuggesterSchema>;
+
+export const chartSuggestionRequestSchema = z.object({
+  // How money moves for the user, in their words.
+  description: z.string().trim().min(1).max(4000),
+  // The chart on screen, which the LLM revises rather than starting over.
+  current: z.array(chartAccountSchema),
+});
+
+export const chartSuggestionSchema = z.object({
+  // Every account of it is proposed; the user ticks through it.
+  proposal: chartProposalSchema,
+  // What the server fixed in the LLM's answer, one line each.
+  notes: z.array(z.string()),
+});
+export type ChartSuggestion = z.infer<typeof chartSuggestionSchema>;
+
+export const chartSuggestionRefusalSchema = z.object({
+  error: z.string(),
+  code: z.enum([
+    // No coding agent, or none of its models answers (see Settings).
+    "llm_unavailable",
+    // The call failed or answered with something that isn't a chart.
+    "llm_failed",
+  ]),
+});
+
 // Where the wizard stands, counted in the books.
 export const setupStatusSchema = z.object({
   // Accounts in the books; step 1 is done with any.
@@ -161,6 +194,29 @@ export const setupContract = c.router({
     responses: {
       200: chartOfAccountsSchema,
       403: errorBodySchema,
+    },
+  }),
+  chartSuggester: c.query({
+    method: "GET",
+    path: "/setup/chart-of-accounts/suggest",
+    summary:
+      "Which coding agent would propose a chart of accounts from a description, or why none can",
+    responses: {
+      200: chartSuggesterSchema,
+      403: errorBodySchema,
+    },
+  }),
+  suggestChartOfAccounts: c.mutation({
+    method: "POST",
+    path: "/setup/chart-of-accounts/suggest",
+    summary:
+      "Have the LLM revise the chart on screen to fit the user's description; one structured call that writes nothing",
+    body: chartSuggestionRequestSchema,
+    responses: {
+      200: chartSuggestionSchema,
+      403: errorBodySchema,
+      502: chartSuggestionRefusalSchema,
+      503: chartSuggestionRefusalSchema,
     },
   }),
   createChartOfAccounts: c.mutation({

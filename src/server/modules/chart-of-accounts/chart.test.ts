@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChartAccount } from "../../../shared/index.js";
-import { validateChartProposal } from "./chart.js";
+import { normalizeChartProposal, validateChartProposal } from "./chart.js";
 import {
   chartWithAccounts,
   STARTER_CHART,
@@ -149,5 +149,105 @@ describe("chartWithAccounts", () => {
     expect(() =>
       chartWithAccounts(MINIMAL, [{ name: "Assets", parent: "Equity" }]),
     ).toThrow("already has an account Assets");
+  });
+});
+
+describe("normalizeChartProposal", () => {
+  const fix = (accounts: ChartAccount[]) => {
+    const normalized = normalizeChartProposal(accounts);
+    expect(validateChartProposal(normalized.accounts).ok).toBe(true);
+    return normalized;
+  };
+  const named = (accounts: ChartAccount[], name: string) =>
+    accounts.find((a) => a.name === name);
+
+  it("leaves a valid chart as it is, with no notes", () => {
+    expect(normalizeChartProposal(STARTER_CHART)).toEqual({
+      accounts: STARTER_CHART,
+      notes: [],
+    });
+  });
+
+  it("adds a missing top account and Opening Balances", () => {
+    const { accounts, notes } = fix(
+      MINIMAL.filter(
+        (a) => a.name !== "Income" && a.name !== "Opening Balances",
+      ),
+    );
+    expect(named(accounts, "Income")).toEqual(account("Income", "Revenue"));
+    expect(named(accounts, "Opening Balances")).toEqual(
+      account("Opening Balances", "Equity", "Equity"),
+    );
+    expect(notes).toEqual([
+      "Opening Balances was added: every account's starting balance is posted against it.",
+      "There was no top Revenue account, so Income was added.",
+    ]);
+  });
+
+  it("makes Opening Balances an Equity account under the Equity top", () => {
+    const { accounts, notes } = fix([
+      ...MINIMAL.filter((a) => a.name !== "Opening Balances"),
+      account("Opening Balances", "Asset", "Assets"),
+    ]);
+    expect(named(accounts, "Opening Balances")).toEqual(
+      account("Opening Balances", "Equity", "Equity"),
+    );
+    expect(notes).toEqual([
+      "Opening Balances was proposed as an Asset account; it is an Equity account now, since opening entries need one.",
+    ]);
+  });
+
+  it("drops a repeated name and trims names", () => {
+    const { accounts, notes } = fix([
+      ...MINIMAL,
+      account(" Food ", "Expense", "Expenses "),
+      account("Food", "Expense", "Expenses"),
+      account("  ", "Expense", "Expenses"),
+    ]);
+    expect(accounts.filter((a) => a.name === "Food")).toEqual([
+      account("Food", "Expense", "Expenses"),
+    ]);
+    expect(notes).toEqual([
+      "Food was proposed twice; the second was left out.",
+      "An account with no name was left out.",
+    ]);
+  });
+
+  it("moves an account whose parent is missing, of another type or itself", () => {
+    const { accounts, notes } = fix([
+      ...MINIMAL,
+      account("Groceries", "Expense", "Food"),
+      account("Bonus", "Revenue", "Expenses"),
+      account("Rent", "Expense", "Rent"),
+    ]);
+    expect(named(accounts, "Groceries")?.parent).toBe("Expenses");
+    expect(named(accounts, "Bonus")?.parent).toBe("Income");
+    expect(named(accounts, "Rent")?.parent).toBe("Expenses");
+    expect(notes).toEqual([
+      "Groceries was under Food, which isn't in the chart; it is under Expenses now.",
+      "Bonus was under Expenses, which is an Expense account; it is under Income now.",
+      "Rent was under itself; it is under Expenses now.",
+    ]);
+  });
+
+  it("breaks a loop at one account, keeping what hangs under it", () => {
+    const { accounts, notes } = fix([
+      ...MINIMAL,
+      account("Dining Out", "Expense", "Food"),
+      account("Food", "Expense", "Groceries"),
+      account("Groceries", "Expense", "Food"),
+    ]);
+    expect(named(accounts, "Dining Out")?.parent).toBe("Food");
+    expect(notes).toEqual([
+      "Food was in a loop of accounts under each other; it is under Expenses now.",
+    ]);
+  });
+
+  it("names an added top account apart from a taken name", () => {
+    const { accounts } = fix([
+      account("Assets", "Asset"),
+      account("Income", "Asset", "Assets"),
+    ]);
+    expect(named(accounts, "Income 2")).toEqual(account("Income 2", "Revenue"));
   });
 });

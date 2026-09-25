@@ -1,12 +1,19 @@
-import type { ChartAccount, ChartOfAccounts } from "../../shared/index.js";
+import type {
+  ChartAccount,
+  ChartOfAccounts,
+  ChartProposal,
+} from "../../shared/index.js";
 import {
   insertChartAccounts,
   loadAccountChart,
 } from "../modules/accounts/index.js";
 import {
+  chartRequest,
+  normalizeChartProposal,
   STARTER_CHART,
   STARTER_UNTICKED,
   validateChartProposal,
+  type ChartLlm,
 } from "../modules/chart-of-accounts/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 
@@ -16,6 +23,10 @@ import type { Ledger } from "../modules/ledger-sql/index.js";
  * the ticked accounts, parents first, in one transaction. Books with any
  * account, even one made by hand, show their own chart and are changed on
  * the Accounts page.
+ *
+ * The user can also describe how money moves for them and have the LLM
+ * revise the proposal on screen (`suggestChart`), in as many rounds as they
+ * like. That call reads and writes nothing; its answer is only a proposal.
  */
 
 /** The starter chart for books with no accounts, or the books' own chart. */
@@ -75,4 +86,38 @@ export function createChart(
     const created = insertChartAccounts(tx, ledger.auth, valid.accounts);
     return { ok: true, created: created.length };
   });
+}
+
+export type ChartSuggestion =
+  | { ok: true; proposal: ChartProposal; notes: string[] }
+  | { ok: false; code: "llm_unavailable" | "llm_failed"; error: string };
+
+/**
+ * The LLM's revision of `current` to fit `description`, fixed where that
+ * needs no guess, with a note for each fix. One call, never retried.
+ */
+export async function suggestChart(
+  llm: ChartLlm,
+  description: string,
+  current: readonly ChartAccount[],
+): Promise<ChartSuggestion> {
+  if (!llm.caller.ready) {
+    return { ok: false, code: "llm_unavailable", error: llm.caller.reason };
+  }
+  const answer = await llm.caller.client.get(
+    chartRequest(description, current),
+  );
+  if (!answer.ok) {
+    return {
+      ok: false,
+      code: "llm_failed",
+      error: `${llm.name} couldn't propose accounts: ${answer.error}`,
+    };
+  }
+  const normalized = normalizeChartProposal(answer.value.accounts);
+  return {
+    ok: true,
+    proposal: { accounts: normalized.accounts },
+    notes: normalized.notes,
+  };
 }

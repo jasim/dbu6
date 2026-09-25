@@ -94,6 +94,16 @@ export const agentHandoffAvailabilityQuery = queryOptions({
   staleTime: 10 * 60_000,
 });
 
+/**
+ * Who would propose a chart of accounts from the user's description, or why
+ * nobody can. Choosing an agent in Settings refreshes it.
+ */
+export const chartSuggesterQuery = queryOptions({
+  queryKey: [...CODING_AGENT_KEY, "chart-suggester"],
+  queryFn: () => setupApi.chartSuggester(),
+  ...FRESH_QUERY,
+});
+
 /** Refreshes Settings and every screen's agent prompt buttons. */
 export function refreshCodingAgent(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: CODING_AGENT_KEY });

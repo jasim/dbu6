@@ -7,13 +7,15 @@ import {
   type SetupStatus,
 } from "../../shared/index.js";
 import { loadAccountChart } from "../modules/accounts/index.js";
+import { chartLlm } from "../modules/coding-agent/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import {
   createChart,
   loadChartOfAccounts,
+  suggestChart,
 } from "../workflows/chart-of-accounts.js";
-import { requireWorkflowLedger } from "./workflow-auth.js";
+import { requireOwner, requireWorkflowLedger } from "./workflow-auth.js";
 
 /*
  * The account setup wizard's routes (/setup), the owner's only. The wizard
@@ -41,6 +43,38 @@ api.register(
   setupContract.createChartOfAccounts,
   async ({ c, request }) =>
     createChartResponse(requireWorkflowLedger(c), request.body.accounts),
+);
+
+api.register("chartSuggester", setupContract.chartSuggester, async ({ c }) => {
+  requireOwner(c);
+  const llm = await chartLlm();
+  return {
+    status: 200,
+    body: llm.caller.ready
+      ? { ready: true as const, name: llm.name }
+      : { ready: false as const, name: llm.name, reason: llm.caller.reason },
+  };
+});
+
+// One headless call, up to the agent's time limit (nuabase.ts).
+api.register(
+  "suggestChartOfAccounts",
+  setupContract.suggestChartOfAccounts,
+  async ({ c, request }) => {
+    requireOwner(c);
+    const { description, current } = request.body;
+    const outcome = await suggestChart(await chartLlm(), description, current);
+    if (outcome.ok) {
+      return {
+        status: 200,
+        body: { proposal: outcome.proposal, notes: outcome.notes },
+      };
+    }
+    const body = { error: outcome.error, code: outcome.code };
+    return outcome.code === "llm_unavailable"
+      ? { status: 503, body }
+      : { status: 502, body };
+  },
 );
 
 export default api;

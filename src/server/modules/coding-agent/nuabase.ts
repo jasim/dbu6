@@ -7,6 +7,11 @@ import type {
   ListClient,
   ListRequest,
 } from "../categorization/index.js";
+import type {
+  GetAnswer,
+  GetClient,
+  GetRequest,
+} from "../chart-of-accounts/index.js";
 
 /*
  * The only module that imports nuabase. Its published declarations don't
@@ -21,7 +26,8 @@ import type {
  */
 
 // One call is one CLI process. A model check asks for one word; a
-// categorization call carries up to 50 descriptions (categorization-llm.ts).
+// categorization call carries up to 50 descriptions (categorization-llm.ts),
+// and a chart of accounts is one answer of a hundred or so accounts.
 const CALL_TIMEOUT_MS = 180_000;
 const CHECK_TIMEOUT_MS = 60_000;
 // Agent processes one client runs at once.
@@ -90,7 +96,7 @@ export function llmFailureMessage(error: string): string {
 // The two calls dbu6 makes on a nuabase client, as the untyped package
 // offers them.
 type UntypedNua = {
-  get(prompt: string): Promise<unknown>;
+  get(prompt: string, options?: Record<string, unknown>): Promise<unknown>;
   list(prompt: string, options: Record<string, unknown>): Promise<unknown>;
 };
 
@@ -104,6 +110,10 @@ const failedAnswerSchema = z.object({
 });
 const replySchema = z.union([
   z.object({ success: z.literal(true) }),
+  failedAnswerSchema,
+]);
+const getAnswerSchema = z.union([
+  z.object({ success: z.literal(true), data: z.unknown() }),
   failedAnswerSchema,
 ]);
 const listAnswerSchema = z.union([
@@ -209,6 +219,72 @@ function listClient(
         : failedList(llmFailureMessage(String(parsed.data.error)));
     },
   };
+}
+
+/** One structured answer on one of an installed agent's own models. */
+export function agentGetClient(
+  agent: InstalledAgent,
+  model: string,
+): GetClient {
+  const nua: UntypedNua = Nua.direct({
+    localAgent: localAgent({
+      agent: agent.agent,
+      model,
+      binaryPath: agent.binaryPath,
+      timeoutMs: CALL_TIMEOUT_MS,
+      concurrency: CONCURRENT_CALLS,
+    }),
+  });
+  return getClient(nua, undefined);
+}
+
+/** One structured answer on the deprecated Nuabase gateway. */
+export function gatewayGetClient(
+  apiKey: string,
+  model: ProviderModel,
+): GetClient {
+  const nua: UntypedNua = Nua.gateway({ apiKey });
+  return getClient(nua, model);
+}
+
+function getClient(
+  nua: UntypedNua,
+  model: ProviderModel | undefined,
+): GetClient {
+  return {
+    async get<T>(request: GetRequest<T>): Promise<GetAnswer<T>> {
+      let answered: unknown;
+      try {
+        answered = await nua.get(request.prompt, {
+          input: request.input,
+          output: request.output,
+          ...(model === undefined ? {} : { model }),
+        });
+      } catch (error) {
+        return failedGet(
+          llmFailureMessage(
+            error instanceof Error ? error.message : String(error),
+          ),
+        );
+      }
+      const parsed = getAnswerSchema.safeParse(answered);
+      if (!parsed.success) return failedGet(unexpectedShape(parsed.error));
+      if (!parsed.data.success) {
+        return failedGet(llmFailureMessage(String(parsed.data.error)));
+      }
+      // nuabase checks the answer against the schema too; this is dbu6's
+      // own parse, which also gives it its type.
+      const value = request.output.schema.safeParse(parsed.data.data);
+      return value.success
+        ? { ok: true, value: value.data }
+        : failedGet(unexpectedShape(value.error));
+    },
+  };
+}
+
+function failedGet(message: string): { ok: false; error: string } {
+  console.error("[nuabase] get call failed:", message);
+  return { ok: false, error: reportedError(message) };
 }
 
 // A failed call: the full message goes to the log, and the answer carries the

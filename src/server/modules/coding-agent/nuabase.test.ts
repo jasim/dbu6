@@ -10,7 +10,14 @@ vi.mock("nuabase/local-agent", () => ({
 }));
 vi.mock("nuabase", () => ({ Nua: { direct: vi.fn(), gateway: vi.fn() } }));
 
-import { detectAgents, llmFailureMessage, reportedError } from "./nuabase.js";
+import { Nua } from "nuabase";
+import { z } from "zod";
+import {
+  agentGetClient,
+  detectAgents,
+  llmFailureMessage,
+  reportedError,
+} from "./nuabase.js";
 
 // As nuabase reports it, with the fields dbu6 doesn't read.
 const CLAUDE = {
@@ -110,5 +117,54 @@ describe("reportedError", () => {
     const reported = reportedError("x".repeat(1000));
     expect(reported).toHaveLength(300);
     expect(reported.endsWith("…")).toBe(true);
+  });
+});
+
+describe("agentGetClient", () => {
+  const request = {
+    prompt: "Draw a chart.",
+    input: { description: "NOPII sample" },
+    output: { name: "chart", schema: z.object({ accounts: z.number() }) },
+  };
+  const answering = (answer: unknown) => {
+    const get = vi.fn(async () => answer);
+    vi.mocked(Nua.direct).mockReturnValue({ get } as never);
+    return get;
+  };
+  const client = () =>
+    agentGetClient(
+      { ...CLAUDE, agent: "claude-code", installed: true },
+      "sample-model",
+    );
+
+  it("sends the input and output, and parses the value it answers", async () => {
+    const get = answering({ success: true, data: { accounts: 3 } });
+    expect(await client().get(request)).toEqual({
+      ok: true,
+      value: { accounts: 3 },
+    });
+    expect(get).toHaveBeenCalledWith("Draw a chart.", {
+      input: request.input,
+      output: request.output,
+    });
+  });
+
+  it("reports a failed call in the agent's own words", async () => {
+    answering({
+      success: false,
+      error:
+        "LLM call failed after 3 attempts. Last error: claude: sample failure",
+    });
+    expect(await client().get(request)).toEqual({
+      ok: false,
+      error: "sample failure",
+    });
+  });
+
+  it("refuses a value that isn't what the schema says", async () => {
+    answering({ success: true, data: { accounts: "three" } });
+    const answer = await client().get(request);
+    expect(answer.ok).toBe(false);
+    expect(!answer.ok && answer.error).toMatch(/shape dbu6 doesn't know/);
   });
 });

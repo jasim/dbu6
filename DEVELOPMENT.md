@@ -643,6 +643,7 @@ through its `index.ts`:
 | `models.ts` | Which of an agent's models answer on this machine, and when to ask again. |
 | `nuabase.ts` | The only import of `nuabase`; every call into it and every value out of it. |
 | `categorization-llm.ts` | The engine categorization runs on: the agent, or the deprecated gateway. |
+| `chart-llm.ts` | The same engine for the setup wizard's chart of accounts, on the agent's most capable model. |
 | `handoff.ts`, `launcher.ts` | Starting an agent on a prompt in a terminal. |
 | `errors.ts` | Why the server refused, as the routes state it. |
 | `settings.ts` | What the Settings screen reads and changes. |
@@ -662,6 +663,12 @@ entry in each of those two tables.
   least capable model that answered, billed to your own Claude or ChatGPT plan
   rather than an API key. Nothing is cached, so reclassifying sends every
   description again.
+- **The chart of accounts** a new user describes in the setup wizard is one
+  more headless call (`Nua.direct`'s `get`, a structured answer checked
+  against `chartProposalSchema`), on the most capable model that answered,
+  since it is a single call. It reads no files, writes nothing and runs no
+  commands; its answer is a proposal the user ticks through
+  (`modules/chart-of-accounts/suggest.ts` has the prompt).
 - **Agent prompts** open on the most capable model that answered, in the
   agent's auto mode: the agent's own reviewer approves edits and commands, so
   the user isn't asked for each one. Every prompt opens with

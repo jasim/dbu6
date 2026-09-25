@@ -1,7 +1,9 @@
 // The coding-agent module: detecting the agents, their models, handing a
 // prompt to one, the Settings screen's reads and changes, and at its top the
-// engine categorization runs on. Import from here rather than from the files.
+// engines categorization and the setup wizard's chart of accounts run on.
+// Import from here rather than from the files.
 export { categorizationLlm, llmEngineSetting } from "./categorization-llm.js";
+export { chartLlm } from "./chart-llm.js";
 export {
   CodingAgentError,
   NoCodingAgentError,
