@@ -5,7 +5,7 @@ import type {
   HomeLedgerAccount,
   HomeSummary,
 } from "../../shared/index";
-import { homeState } from "./state";
+import { ADD_MENU, homeState } from "./state";
 
 function account(
   overrides: Partial<HomeLedgerAccount> = {},
@@ -43,6 +43,7 @@ function summary(
 ): HomeSummary {
   const listed = accounts.filter((a): a is HomeLedgerAccount => a.in_ledger);
   return {
+    has_chart: true,
     accounts,
     totals: {
       drafts: sum(listed, "drafts"),
@@ -61,23 +62,31 @@ function sum(accounts: HomeLedgerAccount[], key: keyof DraftCounts): number {
 }
 
 describe("homeState", () => {
-  it("asks for an account when no preset lists one", () => {
-    const view = homeState(summary([]));
-    expect(view.state).toBe("no-accounts");
+  it("starts setup with the chart when the books have none", () => {
+    const view = homeState(summary([], { has_chart: false }));
+    expect(view.state).toBe("no-chart");
     expect(view.greeting).toBe("Let's set up your books");
-    expect(view.card.count).toBeUndefined();
-    expect(view.card.body).toBe(
-      "A chart of accounts, your banks and cards, a statement each, other balances, then review.",
-    );
-    expect(view.card.action).toEqual({
-      label: "Start setup",
-      to: "/setup",
+    expect(view.card).toEqual({
+      title: "Start with a chart of accounts",
+      action: { label: "Start setup", to: "/setup" },
     });
     // The card is the one thing to do: no empty list of accounts below it.
     expect(view.listsAccounts).toBe(false);
   });
 
-  it("asks for the first statement when nothing has been imported", () => {
+  it("asks for the first bank or card, on the first run, once there is a chart", () => {
+    const view = homeState(summary([]));
+    expect(view.state).toBe("nothing-imported");
+    expect(view.greeting).toBe("Let's set up your books");
+    expect(view.card).toEqual({
+      title: "Add your first bank or card",
+      action: { label: "Add a bank or card", to: "/add?run=setup" },
+    });
+    expect(view.listsAccounts).toBe(false);
+  });
+
+  it("names the banks and cards set up with no transactions yet", () => {
+    // Set up by an agent, or an add left unfinished: /add finishes them.
     const view = homeState(
       summary([
         account({ checkpoint: null }),
@@ -88,15 +97,16 @@ describe("homeState", () => {
           kind: "card",
           checkpoint: null,
         }),
+        deleted,
       ]),
     );
     expect(view.state).toBe("nothing-imported");
     expect(view.listsAccounts).toBe(true);
-    expect(view.card.body).toContain("For Sample Savings and Sample Card.");
-    expect(view.card.action).toEqual({
-      label: "Import your first statements",
-      to: "/setup/statements",
-    });
+    // A preset whose account the books deleted isn't one to finish.
+    expect(view.card.body).toBe(
+      "Set up, no transactions yet: Sample Savings and Sample Card.",
+    );
+    expect(view.card.action.to).toBe("/add?run=setup");
   });
 
   it("says drafts are waiting, whatever they still need", () => {
@@ -160,5 +170,12 @@ describe("homeState", () => {
       label: "Import statements",
       to: "/import",
     });
+  });
+
+  it("adds a bank or card through /add, and anything else through C1", () => {
+    expect(ADD_MENU).toEqual([
+      { label: "Bank or card", to: "/add" },
+      { label: "Cash, deposit, investment or loan", to: "/add/other" },
+    ]);
   });
 });

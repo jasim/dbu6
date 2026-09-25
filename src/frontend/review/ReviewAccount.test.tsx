@@ -213,3 +213,77 @@ describe("the review account frame", () => {
     expect(text()).toContain("We couldn't find this account.");
   });
 });
+
+describe("what /add hands the account's review", () => {
+  const NOTE =
+    "Your transactions are imported. Categorize them, then post them to your books.";
+
+  it("shows the hand-off note where the flow landed, until another tab opens", async () => {
+    responses = [{ status: 200, body: detail() }];
+    await renderAt("/review/5/drafts?imported=1");
+
+    expect(text()).toContain(NOTE);
+    expect(text()).toContain("drafts: 3 uncategorised");
+
+    const overview = Array.from(host.querySelectorAll("nav a")).find(
+      (a) => a.textContent === "Overview",
+    );
+    // The note is read once: the tabs don't carry it.
+    expect(overview?.getAttribute("href")).toBe("/review/5");
+    await act(async () => (overview as HTMLAnchorElement).click());
+    await settle();
+
+    expect(pathname()).toBe("/review/5");
+    expect(text()).not.toContain(NOTE);
+  });
+
+  it("carries the first run on its tabs and the way back", async () => {
+    responses = [
+      {
+        status: 200,
+        body: {
+          ...detail(),
+          other_accounts: [{ account_id: 6, name: "Sample Card", drafts: 4 }],
+        },
+      },
+    ];
+    await renderAt("/review/5?run=setup");
+
+    const hrefs = Array.from(host.querySelectorAll("header a")).map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(hrefs.slice(0, 3)).toEqual([
+      "/review?run=setup",
+      "/review/5?run=setup",
+      "/review/5/drafts?run=setup",
+    ]);
+    expect(text()).not.toContain(NOTE);
+  });
+
+  it("says the books are set up on the first run once nothing is left to post", async () => {
+    responses = [
+      { status: 200, body: detail({ drafts: 0, uncategorised: 0 }) },
+    ];
+    await renderAt("/review/5?run=setup&imported=1");
+
+    expect(text()).toContain("Your books are set up.");
+    expect(text()).not.toContain(NOTE);
+    expect(text()).not.toContain("No drafts for");
+  });
+
+  it("keeps the account's own empty state while another account has drafts", async () => {
+    responses = [
+      {
+        status: 200,
+        body: {
+          ...detail({ drafts: 0, uncategorised: 0 }),
+          other_accounts: [{ account_id: 6, name: "Sample Card", drafts: 4 }],
+        },
+      },
+    ];
+    await renderAt("/review/5?run=setup");
+
+    expect(text()).toContain("No drafts for Sample Savings");
+    expect(text()).not.toContain("Your books are set up.");
+  });
+});

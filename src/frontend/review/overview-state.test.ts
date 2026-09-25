@@ -152,4 +152,34 @@ describe("postedView", () => {
     expect(view.next).toEqual({ label: "Import statements", to: "/import" });
     expect(view.also).toBeUndefined();
   });
+
+  it("carries the first run to the next account and to the picker", () => {
+    const view = postedView(
+      detail(),
+      21,
+      [{ account_id: 1, name: "Sample Card", drafts: 4 }],
+      true,
+    );
+
+    expect(view.verdict).toBe("Added to your books");
+    expect(view.next).toEqual({
+      label: "Review Sample Card",
+      to: "/review/1?run=setup",
+    });
+    expect(view.also).toEqual({
+      label: "All accounts",
+      to: "/review?run=setup",
+    });
+  });
+
+  it("ends the first run once nothing is left to post, with no net worth", () => {
+    const view = postedView(detail(), 21, [], true);
+
+    expect(view.verdict).toBe("Your books are set up.");
+    expect(phraseText(view.outcome)).toBe(
+      "21 transactions added. The last balance assertion for Sample Savings is now 3,30,000.00 on 13 Sep.",
+    );
+    expect(view.next).toEqual({ label: "Go to Home", to: "/" });
+    expect(view.also).toBeUndefined();
+  });
 });
