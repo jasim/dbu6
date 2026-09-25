@@ -28,6 +28,7 @@ import {
   recognizeSample,
   type SampleOutcome,
 } from "../workflows/first-statement.js";
+import { recordedOtherBalances } from "../workflows/opening-balances.js";
 import { batchResponse } from "./import-draft-statements-auto.js";
 import {
   removeStagedSample,
@@ -306,9 +307,10 @@ function sampleResponse(outcome: SampleOutcome, staged: StagedSample) {
 }
 
 /**
- * Where the wizard stands: the chart's size, and each bank or card's
- * transactions counted as the first statements step counts them. One the
- * books deleted counts nowhere: its row there only asks for it to go.
+ * Where the wizard stands: the chart's size, each bank or card's
+ * transactions counted as the first statements step counts them, and how
+ * many other balances are recorded. A bank or card the books deleted counts
+ * nowhere: its row there only asks for it to go.
  */
 export function loadSetupStatus(ledger: Ledger): SetupStatus {
   const banks = loadBanksAndCards(ledger).filter((bank) => bank.inLedger);
@@ -326,6 +328,7 @@ export function loadSetupStatus(ledger: Ledger): SetupStatus {
         drafts: activity.drafts,
         uncategorized: activity.uncategorized,
       })),
+    other_balances: recordedOtherBalances(ledger),
   };
 }
 

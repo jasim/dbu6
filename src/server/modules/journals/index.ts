@@ -1,6 +1,7 @@
 // The journals module: posted journals, writing them from a plan, their
 // hledger rendering, the last reconciled checkpoint, each account's
-// opening entry, and how many entries each account has. Import from here
+// opening entry and the entries beside it, rewriting or deleting a
+// standalone one, and how many entries each account has. Import from here
 // rather than from the files.
 export {
   countEntriesByAccount,
@@ -17,7 +18,10 @@ export {
   type ReconciledCheckpoint,
 } from "./last-reconciled.js";
 export {
-  loadFirstEntryDates,
+  deleteOpeningEntry,
+  loadEntriesBesideOpening,
   loadOpeningEntries,
+  rewriteOpeningEntry,
+  type EntriesBesideOpening,
   type OpeningEntry,
 } from "./opening-entries.js";

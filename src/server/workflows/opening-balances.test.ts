@@ -8,8 +8,11 @@ import type { Ledger } from "../modules/ledger-sql/index.js";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 import { packageDir } from "../paths.js";
 import {
+  changeOpeningBalance,
   loadOpeningBalances,
+  recordedOtherBalances,
   recordOpeningBalance,
+  removeOpeningBalance,
 } from "./opening-balances.js";
 
 /*
@@ -71,6 +74,7 @@ describe("loadOpeningBalances", () => {
           name: "Assets",
           path: "Assets",
           accountType: "Asset",
+          section: null,
           firstActivityDate: null,
           defaultDate: null,
           suggestedAmount: null,
@@ -81,6 +85,7 @@ describe("loadOpeningBalances", () => {
           name: "Sample Savings",
           path: "Assets:Sample Savings",
           accountType: "Asset",
+          section: "own",
           firstActivityDate: "2026-02-03",
           defaultDate: "2026-02-02",
           suggestedAmount: 1000,
@@ -91,6 +96,7 @@ describe("loadOpeningBalances", () => {
           name: "Liabilities",
           path: "Liabilities",
           accountType: "Liability",
+          section: null,
           firstActivityDate: null,
           defaultDate: null,
           suggestedAmount: null,
@@ -101,6 +107,7 @@ describe("loadOpeningBalances", () => {
           name: "Sample Card",
           path: "Liabilities:Sample Card",
           accountType: "Liability",
+          section: "owe",
           firstActivityDate: null,
           defaultDate: null,
           suggestedAmount: null,
@@ -154,12 +161,16 @@ describe("loadOpeningBalances", () => {
         (313, 'workspace', 'user', 31, 7, 1500, 0, NULL, '', '');
     `);
 
+    // The card payment before it is a posted entry beside it, and the
+    // journal is shared, so both are locked; the entry lock is named first.
     expect(account(ledger, 2)?.opening).toEqual({
       account_id: 2,
       journal_id: 31,
       date: "2026-01-31",
       amount: 1000,
       description: "Opening balances",
+      standalone: false,
+      locked: "has_entries",
     });
     expect(account(ledger, 4)?.opening).toEqual({
       account_id: 4,
@@ -167,6 +178,8 @@ describe("loadOpeningBalances", () => {
       date: "2026-01-31",
       amount: -2500,
       description: "Opening balances",
+      standalone: false,
+      locked: "has_entries",
     });
     expect(account(ledger, 1)?.opening).toBeNull();
     // Only an Equity account named Opening Balances is the default.
@@ -221,13 +234,17 @@ describe("recordOpeningBalance", () => {
     expect(
       lookupLastReconciled(ledger.sqlite, ledger.auth, "Sample Savings"),
     ).toEqual({ date: "2026-02-02", balance: 1000 });
+    // Nothing but the opening entry is posted, so the drafts' suggestion
+    // stays for the setup step's edit, and the entry isn't locked.
     expect(account(ledger, 2)).toMatchObject({
-      suggestedAmount: null,
+      suggestedAmount: 1000,
       opening: {
         journal_id: outcome.journalId,
         date: "2026-02-02",
         amount: 1000,
         description: "From the NOPII March statement",
+        standalone: true,
+        locked: null,
       },
     });
     expect(loadOpeningBalances(ledger).equityAccount).toEqual(
@@ -372,5 +389,316 @@ describe("recordOpeningBalance", () => {
         amount: -1000,
       }),
     ).toEqual({ kind: "opening-balances-not-equity" });
+  });
+});
+
+// Posts a journal of `amount` from Sample Savings to Groceries on `date`.
+const SPENT = (date: string, amount = 100) => `
+  INSERT INTO journals (id, workspace_id, scoped_to_user_id, date, description, created_at, updated_at)
+  VALUES (40, 'workspace', 'user', '${date}', 'NOPII groceries', '', '');
+  INSERT INTO journal_entries
+    (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit, created_at, updated_at)
+  VALUES
+    (401, 'workspace', 'user', 40, 5, ${amount}, 0, '', ''),
+    (402, 'workspace', 'user', 40, 2, 0, ${amount}, '', '');
+`;
+
+// A journal opening Sample Savings and Sample Card together.
+const SHARED_OPENING = `
+  INSERT INTO accounts
+    (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+  VALUES (7, 'workspace', 'user', 'Opening Balances', NULL, 'Equity', '', '');
+  INSERT INTO journals (id, workspace_id, scoped_to_user_id, date, description, created_at, updated_at)
+  VALUES (31, 'workspace', 'user', '2026-01-31', 'Opening balances', '', '');
+  INSERT INTO journal_entries
+    (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit,
+     account_balance_assertion, created_at, updated_at)
+  VALUES
+    (311, 'workspace', 'user', 31, 2, 1000, 0, 1000, '', ''),
+    (312, 'workspace', 'user', 31, 4, 0, 2500, -2500, '', ''),
+    (313, 'workspace', 'user', 31, 7, 1500, 0, NULL, '', '');
+`;
+
+// Everything posted, to show a refusal wrote nothing.
+function posted(ledger: Ledger) {
+  return {
+    journals: ledger.sqlite.prepare("SELECT * FROM journals ORDER BY id").all(),
+    entries: ledger.sqlite
+      .prepare("SELECT * FROM journal_entries ORDER BY id")
+      .all(),
+    accounts: ledger.sqlite.prepare("SELECT * FROM accounts ORDER BY id").all(),
+  };
+}
+
+function recorded(
+  ledger: Ledger,
+  accountId: number,
+  date: string,
+  amount: number,
+) {
+  const outcome = recordOpeningBalance(ledger, { accountId, date, amount });
+  if (outcome.kind !== "recorded") throw new Error(outcome.kind);
+  return outcome.journalId;
+}
+
+describe("the setup step's sections", () => {
+  it("puts preset banks and cards with their statements, leaves in own or owe, and hides empty groups", () => {
+    // Sample Savings is Sample Bank's; Sample Wallet is a leaf under Sample
+    // Cash, a group; Sample Loans is a group with an opening entry.
+    const ledger = books(`
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES
+        (8, 'workspace', 'user', 'Sample Cash', 1, 'Asset', '', ''),
+        (9, 'workspace', 'user', 'Sample Wallet', 8, 'Asset', '', ''),
+        (10, 'workspace', 'user', 'Sample Loans', 3, 'Liability', '', ''),
+        (11, 'workspace', 'user', 'Sample Car Loan', 10, 'Liability', '', '');
+      INSERT INTO import_presets
+        (workspace_id, scoped_to_user_id, name, parsers, accounts, updated_at)
+      VALUES ('workspace', 'user', 'Sample Bank', '[]',
+        '[{"account_id":2,"name":"Sample Savings","is_credit_card":false,"account_identifiers":[],"custom_mappings_filenames":[]}]',
+        '2026-09-01T00:00:00Z');
+    `);
+    recorded(ledger, 10, "2026-01-01", -5000);
+    recorded(ledger, 9, "2026-01-01", 300);
+
+    expect(
+      loadOpeningBalances(ledger).accounts.map((one) => [
+        one.name,
+        one.section,
+      ]),
+    ).toEqual([
+      ["Assets", null],
+      ["Sample Cash", null],
+      ["Sample Wallet", "own"],
+      ["Sample Savings", "statement"],
+      ["Liabilities", null],
+      ["Sample Card", "owe"],
+      ["Sample Loans", "owe"],
+      ["Sample Car Loan", "owe"],
+    ]);
+    expect(recordedOtherBalances(ledger)).toBe(2);
+  });
+
+  it("counts no bank or card among the other balances", () => {
+    const ledger = books(`
+      INSERT INTO import_presets
+        (workspace_id, scoped_to_user_id, name, parsers, accounts, updated_at)
+      VALUES ('workspace', 'user', 'Sample Bank', '[]',
+        '[{"account_id":2,"name":"Sample Savings","is_credit_card":false,"account_identifiers":[],"custom_mappings_filenames":[]}]',
+        '2026-09-01T00:00:00Z');
+    `);
+    recorded(ledger, 2, "2026-02-02", 1000);
+    expect(recordedOtherBalances(ledger)).toBe(0);
+
+    recorded(ledger, 4, "2026-01-31", -2500);
+    expect(recordedOtherBalances(ledger)).toBe(1);
+  });
+});
+
+describe("first activity and the default date", () => {
+  it("leaves the opening entry out of the first activity", () => {
+    const ledger = books();
+    recorded(ledger, 4, "2026-01-31", -2500);
+
+    expect(account(ledger, 4)).toMatchObject({
+      firstActivityDate: null,
+      opening: { date: "2026-01-31" },
+    });
+  });
+
+  it("defaults to the day before the first activity, else the day the books start", () => {
+    const ledger = books();
+    expect(account(ledger, 4)?.defaultDate).toBeNull();
+
+    recorded(ledger, 2, "2026-01-20", 1000);
+
+    expect(account(ledger, 2)?.defaultDate).toBe("2026-02-02");
+    expect(account(ledger, 4)?.defaultDate).toBe("2026-01-20");
+  });
+
+  it("drops the suggestion once something besides the opening entry is posted", () => {
+    const ledger = books(SPENT("2026-02-01"));
+
+    expect(account(ledger, 2)).toMatchObject({
+      firstActivityDate: "2026-02-01",
+      suggestedAmount: null,
+    });
+  });
+});
+
+describe("locks", () => {
+  it("locks an opening entry with a posted entry beside it", () => {
+    const ledger = books(SPENT("2026-02-01"));
+    const journalId = recorded(ledger, 2, "2026-01-31", 1000);
+
+    expect(account(ledger, 2)?.opening).toMatchObject({
+      journal_id: journalId,
+      locked: "has_entries",
+    });
+  });
+
+  it("leaves it open with only drafts beside it", () => {
+    const ledger = books();
+    recorded(ledger, 2, "2026-02-02", 1000);
+
+    expect(account(ledger, 2)?.opening?.locked).toBeNull();
+  });
+
+  it("locks an opening entry whose journal opens other accounts too", () => {
+    const ledger = books(SHARED_OPENING);
+
+    expect(account(ledger, 2)?.opening).toMatchObject({
+      journal_id: 31,
+      locked: "shared_entry",
+    });
+    expect(account(ledger, 4)?.opening?.locked).toBe("shared_entry");
+  });
+});
+
+describe("changeOpeningBalance", () => {
+  it("changes the entry in place, and the balance checks then pass", () => {
+    const ledger = books();
+    const journalId = recorded(ledger, 2, "2026-01-31", 900);
+    expect(findFailingChecks(ledger.sqlite, ledger.auth)).toHaveLength(1);
+
+    const outcome = changeOpeningBalance(ledger, {
+      accountId: 2,
+      date: "2026-02-02",
+      amount: 1000,
+      description: "  From the NOPII statement  ",
+    });
+
+    expect(outcome).toEqual({
+      kind: "changed",
+      accountName: "Sample Savings",
+      journalId,
+    });
+    expect(entries(ledger, journalId)).toEqual([
+      expect.objectContaining({
+        account_id: 2,
+        debit: 1000,
+        credit: 0,
+        assertion: 1000,
+      }),
+      expect.objectContaining({ debit: 0, credit: 1000, assertion: null }),
+    ]);
+    expect(account(ledger, 2)?.opening).toMatchObject({
+      journal_id: journalId,
+      date: "2026-02-02",
+      amount: 1000,
+      description: "From the NOPII statement",
+      locked: null,
+    });
+    expect(findFailingChecks(ledger.sqlite, ledger.auth)).toEqual([]);
+  });
+
+  it("names the journal for the books when the user says nothing", () => {
+    const ledger = books();
+    recorded(ledger, 4, "2026-01-31", -2500);
+
+    changeOpeningBalance(ledger, {
+      accountId: 4,
+      date: "2026-01-30",
+      amount: 500,
+      description: " ",
+    });
+
+    expect(account(ledger, 4)?.opening).toMatchObject({
+      amount: 500,
+      description: "Opening balance",
+    });
+  });
+
+  it("refuses, writing nothing", () => {
+    const ledger = books(SPENT("2026-02-10"));
+    recorded(ledger, 2, "2026-01-31", 1000);
+    const locked = books(SHARED_OPENING);
+    const open = books();
+    recorded(open, 2, "2026-01-31", 1000);
+    const change = (on: Ledger, accountId: number, date = "2026-01-01") => {
+      const before = posted(on);
+      const outcome = changeOpeningBalance(on, { accountId, date, amount: 5 });
+      expect(posted(on)).toEqual(before);
+      return outcome;
+    };
+
+    expect(change(ledger, 99)).toEqual({ kind: "account-not-found" });
+    expect(change(ledger, 5)).toEqual({
+      kind: "not-asset-or-liability",
+      accountName: "Groceries",
+    });
+    expect(change(ledger, 4)).toEqual({
+      kind: "not-recorded",
+      accountName: "Sample Card",
+    });
+    expect(change(ledger, 2)).toEqual({
+      kind: "locked",
+      accountName: "Sample Savings",
+      lock: "has_entries",
+      journalId: expect.any(Number),
+    });
+    expect(change(locked, 4)).toEqual({
+      kind: "locked",
+      accountName: "Sample Card",
+      lock: "shared_entry",
+      journalId: 31,
+    });
+    expect(change(open, 2, "2026-02-03")).toEqual({
+      kind: "date-not-before-first-activity",
+      accountName: "Sample Savings",
+      firstActivityDate: "2026-02-03",
+    });
+  });
+});
+
+describe("removeOpeningBalance", () => {
+  it("deletes the entry and keeps Opening Balances", () => {
+    const ledger = books();
+    const journalId = recorded(ledger, 2, "2026-02-02", 1000);
+
+    expect(removeOpeningBalance(ledger, 2)).toEqual({
+      kind: "removed",
+      accountName: "Sample Savings",
+      journalId,
+    });
+    expect(account(ledger, 2)?.opening).toBeNull();
+    expect(
+      ledger.sqlite.prepare("SELECT COUNT(*) AS n FROM journals").get(),
+    ).toEqual({ n: 0 });
+    expect(loadOpeningBalances(ledger).equityAccount).toMatchObject({
+      name: "Opening Balances",
+    });
+  });
+
+  it("refuses a locked entry and an account without one, writing nothing", () => {
+    const ledger = books(SPENT("2026-02-10"));
+    recorded(ledger, 2, "2026-01-31", 1000);
+    const shared = books(SHARED_OPENING);
+    const remove = (on: Ledger, accountId: number) => {
+      const before = posted(on);
+      const outcome = removeOpeningBalance(on, accountId);
+      expect(posted(on)).toEqual(before);
+      return outcome;
+    };
+
+    expect(remove(ledger, 2)).toMatchObject({
+      kind: "locked",
+      lock: "has_entries",
+    });
+    expect(remove(shared, 2)).toMatchObject({
+      kind: "locked",
+      lock: "shared_entry",
+      journalId: 31,
+    });
+    expect(remove(ledger, 4)).toEqual({
+      kind: "not-recorded",
+      accountName: "Sample Card",
+    });
+    expect(remove(ledger, 5)).toEqual({
+      kind: "not-asset-or-liability",
+      accountName: "Groceries",
+    });
+    expect(remove(ledger, 99)).toEqual({ kind: "account-not-found" });
   });
 });
