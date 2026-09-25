@@ -12,6 +12,7 @@ const status = (
   statement_accounts: banks,
   imported_accounts: imported,
   drafts,
+  to_review: [],
 });
 
 describe("the setup wizard's steps", () => {

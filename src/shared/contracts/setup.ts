@@ -385,7 +385,8 @@ const firstStatementBaseSchema = z.object({
 
 // One bank or card, in exactly one state, read from the books and the
 // staged statement: nothing yet; a staged statement a saved parser reads;
-// one none reads, or several do; or transactions in the books.
+// one none reads, or several do; transactions in the books; or its account
+// deleted from the books, when it can only be removed.
 export const firstStatementRowSchema = z.discriminatedUnion("status", [
   firstStatementBaseSchema.extend({ status: z.literal("needs_statement") }),
   firstStatementBaseSchema.extend({
@@ -397,6 +398,7 @@ export const firstStatementRowSchema = z.discriminatedUnion("status", [
     finding: unreadableFindingSchema,
   }),
   firstStatementBaseSchema.extend({ status: z.literal("imported") }),
+  firstStatementBaseSchema.extend({ status: z.literal("not_in_ledger") }),
 ]);
 export type FirstStatementRow = z.infer<typeof firstStatementRowSchema>;
 export type FirstStatementStatus = FirstStatementRow["status"];
@@ -459,8 +461,18 @@ export const firstStatementRefusalSchema = z.object({
 });
 export type FirstStatementRefusal = z.infer<typeof firstStatementRefusalSchema>;
 
+// A bank or card with drafts from its first statements, as Review lists it.
+export const setupToReviewSchema = z.object({
+  account_id: z.number().int(),
+  name: z.string(),
+  drafts: z.number().int(),
+  uncategorized: z.number().int(),
+});
+export type SetupToReview = z.infer<typeof setupToReviewSchema>;
+
 // Where the wizard stands, counted in the books. The steps' done rules are
-// the rail's (frontend `setup/steps.ts`).
+// the rail's (frontend `setup/steps.ts`). A bank or card whose account the
+// books deleted counts nowhere here: no statement can go in.
 export const setupStatusSchema = z.object({
   // Accounts in the books; the chart step is done with any.
   accounts: z.number().int(),
@@ -472,6 +484,8 @@ export const setupStatusSchema = z.object({
   // Drafts on the banks and cards; Review is done once the first statements
   // are and none remain.
   drafts: z.number().int(),
+  // The banks and cards with drafts, in the banks and cards step's order.
+  to_review: z.array(setupToReviewSchema),
 });
 export type SetupStatus = z.infer<typeof setupStatusSchema>;
 

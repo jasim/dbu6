@@ -12,11 +12,7 @@ import {
   it,
   vi,
 } from "vitest";
-import type {
-  FirstStatementRow,
-  FirstStatements,
-  SetupStatus,
-} from "../../shared/index";
+import type { SetupStatus } from "../../shared/index";
 import { ReviewStep } from "./ReviewStep";
 
 /*
@@ -72,34 +68,9 @@ afterEach(() => {
 
 const ok = (body: unknown): Answer => ({ status: 200, body });
 
-function row(
-  account_id: number,
-  name: string,
-  status: "needs_statement" | "imported",
-  activity: FirstStatementRow["activity"] = {
-    entries: 0,
-    drafts: 0,
-    uncategorized: 0,
-  },
-): FirstStatementRow {
-  return {
-    account_id,
-    name,
-    kind: "bank",
-    institution: "Sample Bank",
-    account_identifiers: [],
-    activity,
-    status,
-  };
-}
-
-function books(status: SetupStatus, ...accounts: FirstStatementRow[]) {
-  const statements: FirstStatements = {
-    categorizer: { ready: true, name: "Sample Agent" },
-    accounts,
-  };
+// Only where setup stands is read: Review never re-reads the statements.
+function books(status: SetupStatus) {
   answers["GET /setup"] = () => ok(status);
-  answers["GET /setup/first-statements"] = () => ok(statements);
 }
 
 async function render() {
@@ -148,30 +119,16 @@ function link(name: string): string | null {
 
 describe("the review step", () => {
   it("lists the accounts with transactions to review, and opens the first", async () => {
-    books(
-      {
-        accounts: 72,
-        statement_accounts: 4,
-        imported_accounts: 3,
-        drafts: 60,
-      },
-      row(2, "Sample Savings", "imported", {
-        entries: 0,
-        drafts: 42,
-        uncategorized: 4,
-      }),
-      row(4, "Sample Card", "imported", {
-        entries: 0,
-        drafts: 18,
-        uncategorized: 0,
-      }),
-      row(6, "Sample Current", "imported", {
-        entries: 120,
-        drafts: 0,
-        uncategorized: 0,
-      }),
-      row(8, "Sample Joint", "needs_statement"),
-    );
+    books({
+      accounts: 72,
+      statement_accounts: 4,
+      imported_accounts: 3,
+      drafts: 60,
+      to_review: [
+        { account_id: 2, name: "Sample Savings", drafts: 42, uncategorized: 4 },
+        { account_id: 4, name: "Sample Card", drafts: 18, uncategorized: 0 },
+      ],
+    });
     await render();
 
     expect(host.querySelector("h2")?.textContent).toBe(
@@ -198,19 +155,13 @@ describe("the review step", () => {
   });
 
   it("says the books are set up once every account is in and nothing waits", async () => {
-    books(
-      {
-        accounts: 72,
-        statement_accounts: 1,
-        imported_accounts: 1,
-        drafts: 0,
-      },
-      row(2, "Sample Savings", "imported", {
-        entries: 42,
-        drafts: 0,
-        uncategorized: 0,
-      }),
-    );
+    books({
+      accounts: 72,
+      statement_accounts: 1,
+      imported_accounts: 1,
+      drafts: 0,
+      to_review: [],
+    });
     await render();
 
     expect(text()).toContain("Your books are set up");
@@ -221,15 +172,13 @@ describe("the review step", () => {
   });
 
   it("has nothing to review before a statement is imported", async () => {
-    books(
-      {
-        accounts: 72,
-        statement_accounts: 1,
-        imported_accounts: 0,
-        drafts: 0,
-      },
-      row(2, "Sample Savings", "needs_statement"),
-    );
+    books({
+      accounts: 72,
+      statement_accounts: 1,
+      imported_accounts: 0,
+      drafts: 0,
+      to_review: [],
+    });
     await render();
 
     expect(text()).toContain("Nothing to review yet");
@@ -238,13 +187,7 @@ describe("the review step", () => {
   });
 
   it("says when it can't load", async () => {
-    books({
-      accounts: 72,
-      statement_accounts: 1,
-      imported_accounts: 0,
-      drafts: 0,
-    });
-    answers["GET /setup/first-statements"] = () => ({
+    answers["GET /setup"] = () => ({
       status: 403,
       body: { error: "Only the owner can set up the books." },
     });

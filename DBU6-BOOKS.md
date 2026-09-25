@@ -216,12 +216,15 @@ category ("Categorise these" above), and restart a server started with
   Then record its opening balance.
 - **Setting up the books** (`/setup`). `sapporta api get /api/setup` counts
   what the wizard's four steps read: `accounts` in the books,
-  `statement_accounts` (the preset accounts), `imported_accounts` (those
-  with entries or drafts, the `imported` rows below) and `drafts` on them.
-  The chart is done with any account, banks and cards with any preset
-  account, first statements when every preset account is imported, and
-  review when that holds and no drafts remain; `/setup` opens the first
-  step not done, else `/setup/review`.
+  `statement_accounts` (the preset accounts still in the books; one the
+  ledger deleted counts nowhere), `imported_accounts` (those with entries or
+  drafts, the `imported` rows below), `drafts` on them and `to_review`
+  (each one with drafts, with its `drafts` and `uncategorized`). The chart
+  is done with any account, banks and cards with any of those, first
+  statements when every one of them is imported, and review when that
+  holds and no drafts remain; `/setup` opens the first step not done, else
+  `/setup/review`. Home's "nothing imported yet" is the same rule: no bank
+  or card has entries (its opening entry aside) or drafts.
   - `sapporta api get /api/setup/chart-of-accounts` gives books with no
     accounts a starter chart, and `POST` with `{"accounts":[…]}` creates one,
     each account naming its parent by name. It refuses books that have any
@@ -230,9 +233,10 @@ category ("Categorise these" above), and restart a server started with
     first statement: `needs_statement`, `read` (a staged statement a saved
     parser reads, with its period, row count, opening balance and the preset
     `changes` importing makes), `unreadable` (one no parser reads, at
-    `saved_path`) or `imported`. `imported` means entries or drafts from the
-    account's own statements: a card payment another account's import
-    posted to it doesn't count. A `read` row's `existing_opening` is the
+    `saved_path`), `imported`, or `not_in_ledger` (the ledger deleted its
+    account; it only asks to be removed from the banks and cards).
+    `imported` means entries or drafts from the account's own statements: a
+    card payment another account's import posted to it doesn't count. A `read` row's `existing_opening` is the
     account's opening entry when it has one. The screen stages one with
     `POST /api/setup/sample-statement` (multipart `file` and `account_id`),
     which writes nothing to the books and replaces any earlier one in

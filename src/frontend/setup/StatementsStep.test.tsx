@@ -219,6 +219,7 @@ describe("the first statements step", () => {
               tried: ["sample-bank-xls"],
             },
           }),
+          row(10, "Closed Savings", { status: "not_in_ledger" }),
         ),
       );
     await render();
@@ -264,6 +265,17 @@ describe("the first statements step", () => {
       "Your coding agent can teach dbu6 its format",
     );
     expect(button(unreadable, "Check again")).toBeTruthy();
+
+    // Deleted from the books: it can only go, and isn't counted.
+    const closed = rowOf("Closed Savings");
+    expect(statusOf("Closed Savings")).toBe("Deleted from your books");
+    expect(closed.querySelector("a")?.textContent).toBe(
+      "Remove it in Banks & cards",
+    );
+    expect(closed.querySelector("a")?.getAttribute("href")).toBe(
+      "/setup/banks",
+    );
+    expect(closed.querySelector("button")).toBeNull();
 
     expect(text()).toContain("3 still to import");
   });

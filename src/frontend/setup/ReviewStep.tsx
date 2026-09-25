@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import type { FirstStatementRow } from "../../shared/index";
+import type { SetupToReview } from "../../shared/index";
 import { apiErrorMessage } from "../api";
 import { EmptyState } from "../components/empty-state";
 import { LinkCard } from "../components/link-card";
 import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
-import { firstStatementsQuery, setupStatusQuery } from "../queries";
+import { setupStatusQuery } from "../queries";
 import { reviewHref } from "../review/routes";
 import { OPENING_BALANCES_ROUTE } from "../views/opening-balances/OpeningBalances";
 import { SetupFrame, StepHeading } from "./SetupWizard";
@@ -20,9 +20,7 @@ import { SETUP_STEP_ROUTES, stepDone } from "./steps";
  */
 export function ReviewStep() {
   const status = useQuery(setupStatusQuery);
-  const statements = useQuery(firstStatementsQuery);
   const done = status.data !== undefined && stepDone("review", status.data);
-  const error = status.error ?? statements.error;
 
   return (
     <SetupFrame step="review">
@@ -33,17 +31,14 @@ export function ReviewStep() {
           <StepHeading title="Review and add to your books">
             Check each transaction's category. Nothing counts until you add it.
           </StepHeading>
-          {error ? (
+          {status.isError ? (
             <LoadError
               title="Couldn't load what waits to be reviewed"
-              message={apiErrorMessage(error)}
-              retry={() => {
-                void status.refetch();
-                void statements.refetch();
-              }}
+              message={apiErrorMessage(status.error)}
+              retry={() => void status.refetch()}
             />
-          ) : status.data && statements.data ? (
-            <ToReview rows={statements.data.accounts} />
+          ) : status.data ? (
+            <ToReview rows={status.data.to_review} />
           ) : (
             <p className="text-body text-ink-meta">Loading…</p>
           )}
@@ -53,9 +48,8 @@ export function ReviewStep() {
   );
 }
 
-function ToReview({ rows }: { rows: readonly FirstStatementRow[] }) {
-  const waiting = rows.filter((row) => row.activity.drafts > 0);
-  if (waiting.length === 0) {
+function ToReview({ rows }: { rows: readonly SetupToReview[] }) {
+  if (rows.length === 0) {
     return (
       <>
         <EmptyState
@@ -76,10 +70,10 @@ function ToReview({ rows }: { rows: readonly FirstStatementRow[] }) {
       </>
     );
   }
-  const [first] = waiting;
+  const [first] = rows;
   return (
     <>
-      <WaitingTable rows={waiting} />
+      <WaitingTable rows={rows} />
       <OtherBalances />
       <div className="mt-8 flex justify-end">
         <Button
@@ -93,7 +87,7 @@ function ToReview({ rows }: { rows: readonly FirstStatementRow[] }) {
   );
 }
 
-function WaitingTable({ rows }: { rows: readonly FirstStatementRow[] }) {
+function WaitingTable({ rows }: { rows: readonly SetupToReview[] }) {
   return (
     <div className="overflow-x-auto rounded-card border border-sap-border bg-card shadow-card">
       <table className="w-full text-row">
@@ -120,11 +114,11 @@ function WaitingTable({ rows }: { rows: readonly FirstStatementRow[] }) {
                 {row.name}
               </td>
               <td className="tnum px-3 py-2.5 text-right font-mono">
-                {row.activity.drafts}
+                {row.drafts}
               </td>
               <td className="tnum px-3 py-2.5 text-right font-mono">
-                {row.activity.uncategorized > 0 ? (
-                  row.activity.uncategorized
+                {row.uncategorized > 0 ? (
+                  row.uncategorized
                 ) : (
                   <span className="text-ink-meta">—</span>
                 )}

@@ -315,6 +315,13 @@ function StatementRow({ row }: { row: FirstStatementRow }) {
           />
         ) : row.status === "imported" ? (
           <Imported row={row} />
+        ) : row.status === "not_in_ledger" ? (
+          <Link
+            to={SETUP_STEP_ROUTES.banks}
+            className="text-row text-primary underline-offset-4 hover:underline"
+          >
+            Remove it in Banks &amp; cards
+          </Link>
         ) : row.status === "read" ? (
           <Read
             row={row}

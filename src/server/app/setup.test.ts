@@ -232,6 +232,7 @@ describe("where setup stands", () => {
       statement_accounts: 1,
       imported_accounts: 0,
       drafts: 0,
+      to_review: [],
     });
 
     recognizeStatementFile.mockResolvedValue(statement(14000));
@@ -245,6 +246,14 @@ describe("where setup stands", () => {
       statement_accounts: 1,
       imported_accounts: 1,
       drafts: 2,
+      to_review: [
+        {
+          account_id: 2,
+          name: "Sample Savings",
+          drafts: 2,
+          uncategorized: 0,
+        },
+      ],
     });
     expect(await statuses()).toEqual(["imported"]);
   });
@@ -261,6 +270,19 @@ describe("where setup stands", () => {
       drafts: 0,
     });
     expect(await statuses()).toEqual(["needs_statement"]);
+  });
+
+  it("counts no bank or card the books deleted, which only goes", async () => {
+    conn.sqlite.exec(`
+      UPDATE import_presets SET accounts = json_insert(accounts, '$[#]',
+        json('{"account_id":9,"name":"Sample Closed","is_credit_card":false,"account_identifiers":[],"custom_mappings_filenames":[]}'));
+    `);
+
+    expect(await setupStatus()).toMatchObject({
+      statement_accounts: 1,
+      imported_accounts: 0,
+    });
+    expect(await statuses()).toEqual(["needs_statement", "not_in_ledger"]);
   });
 
   it("writes nothing when the statement fails its balance checks", async () => {

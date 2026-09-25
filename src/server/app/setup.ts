@@ -10,7 +10,6 @@ import {
 import { loadAccountChart } from "../modules/accounts/index.js";
 import type { LoadCategorizer } from "../modules/categorization/index.js";
 import { chartLlm } from "../modules/coding-agent/index.js";
-import { loadImportPresets } from "../modules/import-presets/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import {
   createChart,
@@ -24,8 +23,8 @@ import {
 import {
   hasTransactions,
   importFirstStatement,
+  loadBanksAndCards,
   loadFirstStatements,
-  loadStatementActivity,
   recognizeSample,
   type SampleOutcome,
 } from "../workflows/first-statement.js";
@@ -140,8 +139,9 @@ export default function setupApi(
   );
 
   // A staged statement is kept until it is imported: an account that has
-  // transactions, or that no preset lists any more, loses it here. One that
-  // went while the page read it (a new upload replaces it) is left alone.
+  // transactions, that no preset lists any more or that the books deleted
+  // loses it here. One that went while the page read it (a new upload
+  // replaces it) is left alone.
   api.register(
     "firstStatements",
     setupContract.firstStatements,
@@ -151,7 +151,10 @@ export default function setupApi(
       const body = await loadFirstStatements(ledger, staged);
       const waiting = new Set(
         body.accounts
-          .filter((row) => row.status !== "imported")
+          .filter(
+            (row) =>
+              row.status !== "imported" && row.status !== "not_in_ledger",
+          )
           .map((row) => row.account_id),
       );
       for (const accountId of staged.keys()) {
@@ -304,19 +307,25 @@ function sampleResponse(outcome: SampleOutcome, staged: StagedSample) {
 
 /**
  * Where the wizard stands: the chart's size, and each bank or card's
- * transactions counted as the first statements step counts them.
+ * transactions counted as the first statements step counts them. One the
+ * books deleted counts nowhere: its row there only asks for it to go.
  */
 export function loadSetupStatus(ledger: Ledger): SetupStatus {
-  const activity = loadStatementActivity(ledger);
-  const banks = loadImportPresets(ledger.db, ledger.auth).flatMap(
-    (institution) =>
-      institution.accounts.map((account) => activity(account.account_id)),
-  );
+  const banks = loadBanksAndCards(ledger).filter((bank) => bank.inLedger);
   return {
     accounts: loadAccountChart(ledger.db, ledger.auth).length,
     statement_accounts: banks.length,
-    imported_accounts: banks.filter(hasTransactions).length,
-    drafts: banks.reduce((total, bank) => total + bank.drafts, 0),
+    imported_accounts: banks.filter((bank) => hasTransactions(bank.activity))
+      .length,
+    drafts: banks.reduce((total, bank) => total + bank.activity.drafts, 0),
+    to_review: banks
+      .filter((bank) => bank.activity.drafts > 0)
+      .map(({ account, activity }) => ({
+        account_id: account.account_id,
+        name: account.name,
+        drafts: activity.drafts,
+        uncategorized: activity.uncategorized,
+      })),
   };
 }
 

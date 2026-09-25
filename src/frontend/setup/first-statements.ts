@@ -67,6 +67,8 @@ export function rowStatus(
       return { tone: "attention", label: "Can't read yet" };
     case "needs_statement":
       return { tone: "waiting", label: "To do" };
+    case "not_in_ledger":
+      return { tone: "problem", label: "Deleted from your books" };
   }
 }
 
@@ -243,7 +245,12 @@ export function nothingNew(result: AutoImportResult): string | null {
   return texts.every((one) => one !== null) ? texts.join(" ") : null;
 }
 
-/** The banks and cards with no transactions yet. */
+/**
+ * The banks and cards with no transactions yet. One the books deleted can
+ * only be removed, so it isn't counted, as the rail doesn't count it.
+ */
 export function stillToImport(rows: readonly FirstStatementRow[]): number {
-  return rows.filter((row) => row.status !== "imported").length;
+  return rows.filter(
+    (row) => row.status !== "imported" && row.status !== "not_in_ledger",
+  ).length;
 }
