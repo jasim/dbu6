@@ -245,3 +245,21 @@ export {
   type StatementOpening,
   type UnreadableFinding,
 } from "./setup.js";
+export {
+  addAccountContract,
+  addAccountFileSchema,
+  addAccountStatusSchema,
+  addAccountCandidateSchema,
+  addAccountReadingSchema,
+  addAccountFieldsSchema,
+  addAccountAddedSchema,
+  addAccountRefusalSchema,
+  refusalPromptsAgent,
+  type AddAccountFile,
+  type AddAccountStatus,
+  type AddAccountCandidate,
+  type AddAccountReading,
+  type AddAccountFields,
+  type AddAccountAdded,
+  type AddAccountRefusal,
+} from "./add-account.js";

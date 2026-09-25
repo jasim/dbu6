@@ -17,7 +17,7 @@ import type { LedgerAuth } from "../modules/ledger-sql/index.js";
 import {
   hasTransactions,
   loadStatementActivity,
-} from "../workflows/first-statement.js";
+} from "../workflows/add-account.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
 /*

@@ -18,6 +18,7 @@ import {
   type SapportaEnv,
   type TsRestApi,
 } from "@sapporta/server";
+import addAccountApi from "./app/add-account.js";
 import agentHandoffApi from "./app/agent-handoff.js";
 import categorizationLessonsApi from "./app/categorization-lessons.js";
 import classifyDraftTransactionsApi from "./app/classify-draft-transactions.js";
@@ -110,6 +111,7 @@ export function loadDbu6App(
   mountApi(api, reviewApi);
   mountApi(api, openingBalancesApi);
   mountApi(api, setupApi(loadCategorizer));
+  mountApi(api, addAccountApi(loadCategorizer));
   mountApi(api, agentHandoffApi);
   mountApi(api, codingAgentApi);
 }

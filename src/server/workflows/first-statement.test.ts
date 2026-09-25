@@ -44,7 +44,6 @@ import {
   importFirstStatement,
   loadFirstStatements,
   recognizeSample,
-  statementOpening,
 } from "./first-statement.js";
 
 const loadCategorizer: LoadCategorizer = async (settings) => ({
@@ -53,10 +52,18 @@ const loadCategorizer: LoadCategorizer = async (settings) => ({
   llm: settings.llm,
 });
 
-// The import's tail refuses: the user's categorization config is broken.
-const failingCategorizer: LoadCategorizer = async () => {
-  throw new CategorizationConfigError("NOPII mappings file is broken.");
-};
+// The import's tail refuses: the config loads, and breaks on the first row
+// it classifies, past every check made before writing.
+const failingCategorizer: LoadCategorizer = async (settings) => ({
+  classify: {
+    ok: true,
+    value: () => {
+      throw new CategorizationConfigError("NOPII mappings file is broken.");
+    },
+  },
+  customMappings: { ok: true, value: "" },
+  llm: settings.llm,
+});
 
 /*
  * Sample Savings (2) and Sample Card (4), each alone in its institution.
@@ -284,45 +291,6 @@ describe("recognizeSample", () => {
       code: "unknown_account",
     });
     expect(recognizeStatementFile).not.toHaveBeenCalled();
-  });
-});
-
-describe("statementOpening", () => {
-  const statement = (
-    shape: Parameters<typeof savingsStatement>[0],
-  ): Parameters<typeof statementOpening>[0] =>
-    savingsStatement(shape).statement as never;
-
-  it("is the statement's own opening, the day before its first row", () => {
-    expect(statementOpening(statement({ opening: 10000 }))).toEqual({
-      date: "2026-08-02",
-      amount: 10000,
-    });
-  });
-
-  it("is the first printed balance less the rows up to it", () => {
-    expect(statementOpening(statement({ balances: [15000, 14000] }))).toEqual({
-      date: "2026-08-02",
-      amount: 10000,
-    });
-    expect(statementOpening(statement({ balances: [null, 14000] }))).toEqual({
-      date: "2026-08-02",
-      amount: 10000,
-    });
-  });
-
-  it("is the printed closing less every row, when that is all it prints", () => {
-    expect(statementOpening(statement({ closing: 14000 }))).toEqual({
-      date: "2026-08-02",
-      amount: 10000,
-    });
-  });
-
-  it("has no amount when the statement prints no balance", () => {
-    expect(statementOpening(statement({}))).toEqual({
-      date: "2026-08-02",
-      amount: null,
-    });
   });
 });
 

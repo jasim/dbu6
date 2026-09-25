@@ -217,10 +217,9 @@ describe("creating a bank or card", () => {
     );
 
     expect(accounts.accounts.map((row) => row.name)).toEqual(["Cash"]);
+    // Not Assets or Liabilities: accounts sit under them.
     expect(accounts.unlisted.map((row) => row.name)).toEqual([
-      "Assets",
       "Bank Accounts",
-      "Liabilities",
       "Credit Cards",
     ]);
     const again = await changeStatementAccount(
@@ -384,18 +383,34 @@ describe("removing a bank or card", () => {
 
   it("keeps an account with accounts under it in the books", async () => {
     const ledger = books();
+    // A group takes no statements...
+    expect(
+      await changeStatementAccount(
+        ledger,
+        savings({
+          identifier: null,
+          ledger: { source: "existing", account_id: 1 },
+        }),
+      ),
+    ).toMatchObject({ ok: false, problem: { code: "account_has_children" } });
+    // ...but a bank can become one, once an account is put under it.
     await created(
       ledger,
       savings({
         identifier: null,
-        ledger: { source: "existing", account_id: 1 },
+        ledger: { source: "existing", account_id: 7 },
       }),
     );
+    ledger.sqlite.exec(`
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES (8, 'workspace', 'user', 'Petty Cash', 7, 'Asset', '', '');
+    `);
 
     expect(
       await changeStatementAccount(ledger, {
         action: "remove",
-        account_id: 1,
+        account_id: 7,
         delete_account: true,
       }),
     ).toMatchObject({ ok: false, problem: { code: "account_has_children" } });

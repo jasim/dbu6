@@ -183,7 +183,7 @@ function checkedChanges(
 async function existingParsers(
   changes: readonly ImportPresetChange[],
 ): Promise<Set<string>> {
-  const named = new Set(
+  return savedParsersAmong(
     changes.flatMap((change) =>
       change.kind === "add_parser"
         ? [change.parser]
@@ -192,8 +192,14 @@ async function existingParsers(
           : [],
     ),
   );
+}
+
+// The saved parsers among `names`.
+async function savedParsersAmong(
+  names: readonly string[],
+): Promise<Set<string>> {
   const found = new Set<string>();
-  for (const parser of named) {
+  for (const parser of new Set(names)) {
     if ((await parserDirectory(parser)) !== null) found.add(parser);
   }
   return found;
@@ -370,7 +376,8 @@ export type StatementAccountProblem = {
 };
 
 export type StatementAccountOutcome =
-  | { ok: true; accounts: StatementAccounts }
+  // `accountId`: the account created, changed or removed.
+  | { ok: true; accounts: StatementAccounts; accountId: number }
   | { ok: false; problem: StatementAccountProblem };
 
 // Thrown inside the transaction, so that the account written before the
@@ -424,6 +431,7 @@ export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
     );
   const parentsOf = (kind: AccountKind) => sharedParents(accounts, kind);
   const listed = new Set(accounts.map((row) => row.account_id));
+  const parents = new Set(chart.map((account) => account.parent_id));
 
   return {
     institutions: institutions.map(({ name, parsers }) => ({ name, parsers })),
@@ -440,9 +448,12 @@ export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
       bank: parentsOf("bank").mixed,
       card: parentsOf("card").mixed,
     },
+    // A group account (one with accounts under it) takes no statements.
     unlisted: (["bank", "card"] as const).flatMap((kind) =>
       ofKind(kind)
-        .filter((account) => !listed.has(account.id))
+        .filter(
+          (account) => !listed.has(account.id) && !parents.has(account.id),
+        )
         .map((account) => ({ ...choice(account), kind })),
     ),
     account_names: chart.map((account) => account.name),
@@ -470,28 +481,47 @@ function sharedParents(
   return { mostShared, mixed: counts.size > 1 };
 }
 
-/** Creates, changes or removes one bank or card, or says why it can't. */
+/** The instruction files a new bank or card gets. */
+export function newStatementAccountMappingFiles(): string[] {
+  return readCustomMappingsFile(DEFAULT_MAPPING_FILE) === null
+    ? []
+    : [DEFAULT_MAPPING_FILE];
+}
+
+/**
+ * Creates, changes or removes one bank or card, or says why it can't. A
+ * create may name the `parsers` that read its statements: those no
+ * institution lists yet go to its institution in the same transaction, so
+ * the account never exists without the format its statements come in.
+ */
 export async function changeStatementAccount(
   ledger: Ledger,
   change: StatementAccountChange,
+  { parsers = [] }: { parsers?: readonly string[] } = {},
 ): Promise<StatementAccountOutcome> {
-  const mappingFiles =
-    readCustomMappingsFile(DEFAULT_MAPPING_FILE) === null
-      ? []
-      : [DEFAULT_MAPPING_FILE];
+  const mappingFiles = newStatementAccountMappingFiles();
+  const added = change.action === "create" ? parsers : [];
+  const savedParsers = await savedParsersAmong(added);
+  let accountId: number;
   try {
-    ledger.db.transaction((tx: any) => {
+    accountId = ledger.db.transaction((tx: any) => {
       const before = loadImportPresets(tx, ledger.auth);
-      const changes = writeStatementAccount(
+      const written = writeStatementAccount(
         { ...ledger, db: tx },
         before,
         change,
         mappingFiles,
+        added,
       );
-      // No change here adds a parser, so none is looked up.
-      const checked = checkedChanges(ledger, before, changes, new Set());
+      const checked = checkedChanges(
+        ledger,
+        before,
+        written.changes,
+        savedParsers,
+      );
       if (!checked.ok) refuse(checked.problem.code, checked.problem.message);
       saveImportPresets(tx, ledger.auth, before, checked.institutions);
+      return written.accountId;
     });
   } catch (error) {
     if (error instanceof StatementAccountRefused) {
@@ -499,17 +529,18 @@ export async function changeStatementAccount(
     }
     throw error;
   }
-  return { ok: true, accounts: loadStatementAccounts(ledger) };
+  return { ok: true, accounts: loadStatementAccounts(ledger), accountId };
 }
 
 // Writes the ledger side of `change` inside the transaction `ledger.db` is,
-// and returns the preset changes it takes.
+// and returns the account's id and the preset changes it takes.
 function writeStatementAccount(
   ledger: Ledger,
   before: readonly ImportInstitution[],
   change: StatementAccountChange,
   mappingFiles: string[],
-): ImportPresetChange[] {
+  parsers: readonly string[],
+): { accountId: number; changes: ImportPresetChange[] } {
   const { db: tx, auth } = ledger;
   const chart = loadAccountChart(tx, auth);
   const byId = new Map(chart.map((account) => [account.id, account]));
@@ -548,6 +579,12 @@ function writeStatementAccount(
           `A ${change.kind === "card" ? "card" : "bank account"} has to be ${LEDGER_ACCOUNT_TYPE[change.kind] === "Asset" ? "an Asset" : "a Liability"} account in your books.`,
         );
       }
+      if (chart.some((one) => one.parent_id === existing.id)) {
+        refuse(
+          "account_has_children",
+          `${existing.name} has accounts under it, so it takes no statements.`,
+        );
+      }
       if (listed.has(existing.id)) {
         refuse(
           "account_not_suitable",
@@ -556,18 +593,42 @@ function writeStatementAccount(
       }
       account = existing;
     }
-    return [
-      ...institutionChanges(change.institution),
-      {
-        kind: "add_account",
-        institution: change.institution,
-        account_id: account.id,
-        name: account.name,
-        is_credit_card: change.kind === "card",
-        account_identifiers: identifier === null ? [] : [identifier],
-        custom_mappings_filenames: mappingFiles,
-      },
-    ];
+    // A parser belongs to one institution: one that lists it already keeps it.
+    const unlisted = [...new Set(parsers)].filter(
+      (parser) =>
+        !before.some((institution) => institution.parsers.includes(parser)),
+    );
+    const known = before.some(
+      (institution) => institution.name === change.institution,
+    );
+    const parserChanges: ImportPresetChange[] = known
+      ? unlisted.map((parser) => ({
+          kind: "add_parser",
+          institution: change.institution,
+          parser,
+        }))
+      : [
+          {
+            kind: "add_institution",
+            name: change.institution,
+            parsers: unlisted,
+          },
+        ];
+    return {
+      accountId: account.id,
+      changes: [
+        ...parserChanges,
+        {
+          kind: "add_account",
+          institution: change.institution,
+          account_id: account.id,
+          name: account.name,
+          is_credit_card: change.kind === "card",
+          account_identifiers: identifier === null ? [] : [identifier],
+          custom_mappings_filenames: mappingFiles,
+        },
+      ],
+    };
   }
 
   const entry = listed.get(change.account_id);
@@ -587,7 +648,10 @@ function writeStatementAccount(
       }
       deleteAccount(tx, auth, account.id);
     }
-    return [{ kind: "remove_account", account_id: change.account_id }];
+    return {
+      accountId: change.account_id,
+      changes: [{ kind: "remove_account", account_id: change.account_id }],
+    };
   }
 
   if (account === undefined) {
@@ -626,19 +690,25 @@ function writeStatementAccount(
     account_identifiers: identifiers,
   };
   if (entry.institution.name === change.institution) {
-    return [{ kind: "update_account", account_id: account.id, ...fields }];
+    return {
+      accountId: account.id,
+      changes: [{ kind: "update_account", account_id: account.id, ...fields }],
+    };
   }
-  return [
-    { kind: "remove_account", account_id: account.id },
-    ...institutionChanges(change.institution),
-    {
-      kind: "add_account",
-      institution: change.institution,
-      account_id: account.id,
-      ...fields,
-      custom_mappings_filenames: entry.account.custom_mappings_filenames,
-    },
-  ];
+  return {
+    accountId: account.id,
+    changes: [
+      { kind: "remove_account", account_id: account.id },
+      ...institutionChanges(change.institution),
+      {
+        kind: "add_account",
+        institution: change.institution,
+        account_id: account.id,
+        ...fields,
+        custom_mappings_filenames: entry.account.custom_mappings_filenames,
+      },
+    ],
+  };
 }
 
 // The number in canonical form, null when none was typed.

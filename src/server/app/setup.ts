@@ -20,8 +20,8 @@ import {
   changeStatementAccount,
   loadStatementAccounts,
 } from "../workflows/import-presets.js";
+import { hasTransactions } from "../workflows/add-account.js";
 import {
-  hasTransactions,
   importFirstStatement,
   loadBanksAndCards,
   loadFirstStatements,
