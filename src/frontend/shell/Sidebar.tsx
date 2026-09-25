@@ -186,9 +186,10 @@ function AccountCard({
  * expanded and while it is collapsed to the rail. The control comes first in
  * the header, in a slot as wide as the rail's icon column, so it stays in one
  * place on screen and lines up with the icons at either density. The slot
- * also fixes the header's height, so the items keep their rows when the rail
- * opens to the full sidebar. In the rail, the header shows only the control
- * and each item shows only its icon.
+ * is as tall as the name over the workspace, so the header keeps its height
+ * and the items keep their rows when the rail opens to the full sidebar. In
+ * the rail, the header shows only the control and each item shows only its
+ * icon.
  *
  * Choosing a destination, or an item in the account menu, closes the sidebar
  * that hovering opened, so the page is not left under it.
@@ -217,7 +218,7 @@ export function Sidebar({
           <div
             data-shell-sidebar-toggle
             data-sidebar-toggle-location="sidebar"
-            className="flex size-(--height-sap-ctl) shrink-0 items-center justify-center"
+            className="flex h-10 w-(--height-sap-ctl) shrink-0 items-center justify-center"
           >
             {toggle}
           </div>
@@ -230,7 +231,7 @@ export function Sidebar({
                 dbu6
               </span>
               {workspaceName && (
-                <span className="truncate text-[13px] text-ink-meta">
+                <span className="truncate text-meta text-ink-meta">
                   {workspaceName}
                 </span>
               )}
