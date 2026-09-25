@@ -41,6 +41,8 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
   - Reports: `/reports/<report>`, for example
     `/reports/account-ledger?account_id=<id>`
   - Accounts: `/accounts`
+  - Setting up accounts: `/setup`, with the steps `/setup/accounts`,
+    `/setup/banks` and `/setup/statements`
   - Classify drafts: `/views/reclassify-drafts?account=<id>`
 
 ## Before changing anything
@@ -189,15 +191,41 @@ category ("Categorise these" above), and restart a server started with
 
 ### Accounts and imports
 
-- **"I opened a new account or card."**
-  1. Create the account:
-     `sapporta rows create accounts --values '{"name":"…","account_type":"Asset","parent_id":<id>}'`.
-     Its type is Asset or Liability. Names are unique, and a parent must have
-     the same type.
-  2. Add it to the import presets with an `add_account` change, in its
-     bank's institution (`add_institution` first when the bank has none).
-     See [Import presets](#import-presets).
-  3. Record its opening balance.
+- **"I opened a new account or card."** The setup wizard's Banks and cards
+  step (`/setup/banks`) does it on screen. Its endpoint makes the ledger
+  account and its preset entry in one transaction, adding the institution
+  when it is new; a refusal leaves neither:
+  `sapporta api post /api/setup/statement-accounts --body '{"action":"create","kind":"bank","institution":"…","identifier":"<number or null>","ledger":{"source":"new","name":"…","parent_id":<id>}}'`.
+  - `kind` is `bank` (an Asset) or `card` (a Liability, `is_credit_card`),
+    and the parent must be of that type; pick it with the user, never from a
+    name. `"ledger":{"source":"existing","account_id":<id>}` uses an Asset or
+    Liability account no preset lists instead.
+  - The number is the full account number, or a card's masked number as
+    the statement prints it (`050505XXXXXX0505`). An institution with two
+    accounts needs one on each.
+  - `{"action":"update",…}` and `{"action":"remove","account_id":<id>,"delete_account":true}`
+    change or remove one, but only while no entry or draft is on it
+    (`account_has_transactions`); after that, use the Accounts page and
+    [Import presets](#import-presets).
+  - `sapporta api get /api/setup/statement-accounts` lists them, each with
+    its count of entries and drafts.
+
+  Then record its opening balance.
+- **Setting up the books** (`/setup`). `sapporta api get /api/setup` counts
+  the accounts, the preset accounts and the ones whose statement format is
+  set up (their institution lists a parser and they have a number).
+  - `sapporta api get /api/setup/chart-of-accounts` gives books with no
+    accounts a starter chart, and `POST` with `{"accounts":[…]}` creates one,
+    each account naming its parent by name. It refuses books that have any
+    account.
+  - `sapporta api get /api/setup/statement-formats` says which accounts
+    still need a sample statement. The screen sends one to
+    `POST /api/setup/sample-statement` (multipart `file` and `account_id`),
+    which writes nothing: a recognized sample comes back with the preset
+    `changes` that tie the account to its parser, for
+    `/api/import-presets/changes`. One no parser reads stays in
+    `tmp/statement-uploads/setup-sample-<account id>/` until a parser reads
+    it.
 - **Opening balance.**
   The Opening balances screen (`/opening-balances`, linked from Settings)
   records it; send the user there. Its endpoint does the same:

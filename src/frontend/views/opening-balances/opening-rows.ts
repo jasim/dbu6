@@ -1,3 +1,4 @@
+import { Temporal } from "@sapporta/shared/temporal";
 import type {
   OpeningBalanceAccount,
   OpeningBalances,
@@ -66,6 +67,32 @@ function openingRow(account: OpeningBalanceAccount): OpeningRow {
           ? "credit"
           : "debit",
   };
+}
+
+/**
+ * The rows with `account`'s default date the day before `firstDate`: the
+ * first date of a sample statement the setup wizard read, which isn't in the
+ * books, so the account's own default can't come from it. Only an account
+ * with no default of its own and no entry takes it.
+ */
+export function withSampleDate(
+  rows: readonly OpeningRow[],
+  account: string,
+  firstDate: string,
+): OpeningRow[] {
+  let dayBefore: string;
+  try {
+    dayBefore = Temporal.PlainDate.from(firstDate)
+      .subtract({ days: 1 })
+      .toString();
+  } catch {
+    return [...rows];
+  }
+  return rows.map((row) =>
+    row.name === account && row.recorded === null && row.date === null
+      ? { ...row, date: dayBefore }
+      : row,
+  );
 }
 
 /** A signed amount on the side it belongs to; money owed is a credit. */
