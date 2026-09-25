@@ -414,7 +414,7 @@ function LessonList({
               disabled={remove.isPending || clear.isPending}
               title="Remove from the list. The drafts keep their category."
               aria-label={`Remove the lesson for ${lesson.narrations[0]}`}
-              className="self-start rounded-control p-1 text-ink-meta hover:bg-sap-row-hover hover:text-foreground"
+              className="self-start rounded-control p-1 text-ink-meta hover:bg-sap-row-hover hover:text-foreground disabled:opacity-50"
             >
               <X aria-hidden="true" className="size-3.5" />
             </button>
