@@ -100,6 +100,7 @@ describe("Home summary", () => {
         account_id: 9,
         name: "Sample Closed Statement",
         kind: "bank",
+        has_parser: true,
       },
       {
         in_ledger: true,
@@ -107,6 +108,7 @@ describe("Home summary", () => {
         path: "Sample Savings",
         name: "Sample Savings Statement",
         kind: "bank",
+        has_parser: true,
         checkpoint: { date: "2026-02-10", balance: 1500 },
         statement_differences: 0,
         drafts: 3,
@@ -121,6 +123,7 @@ describe("Home summary", () => {
         path: "Sample Card",
         name: "Sample Card Statement",
         kind: "card",
+        has_parser: true,
         checkpoint: { date: "2026-02-20", balance: 300 },
         statement_differences: 1,
         drafts: 0,
@@ -160,6 +163,8 @@ describe("Home summary", () => {
         path: "Sample Loan",
         name: "Sample Loan Statement",
         kind: "bank",
+        // Sample Lender lists no parser.
+        has_parser: false,
         checkpoint: null,
       },
     ]);

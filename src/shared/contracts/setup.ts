@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
+import { accountKindSchema } from "./account-kind.js";
+import { importPresetRefusalCodeSchema } from "./import-presets.js";
 
 const c = initContract();
 
@@ -150,6 +152,126 @@ export const chartSuggestionRefusalSchema = z.object({
   ]),
 });
 
+// Step 2: the banks and cards statements come from, each an account in an
+// import preset. A row can be changed only while its account has no
+// transactions: no journal entry on it, and no draft from or to it.
+export const statementAccountRowSchema = z.object({
+  account_id: z.number().int(),
+  // The preset's name for it, which the wizard keeps equal to the ledger's.
+  name: z.string(),
+  kind: accountKindSchema,
+  institution: z.string(),
+  account_identifiers: z.array(z.string()),
+  // Where the ledger account sits; null for a top account.
+  parent: z.object({ id: z.number().int(), name: z.string() }).nullable(),
+  // False when the preset names an account the ledger no longer has.
+  in_ledger: z.boolean(),
+  entries: z.number().int(),
+  drafts: z.number().int(),
+});
+export type StatementAccountRow = z.infer<typeof statementAccountRowSchema>;
+
+// An account a bank or card can sit under, or be.
+const chartChoiceSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  // "Assets:Bank Accounts", from the tree.
+  path: z.string(),
+});
+export type ChartChoice = z.infer<typeof chartChoiceSchema>;
+
+export const statementAccountsSchema = z.object({
+  institutions: z.array(
+    z.object({ name: z.string(), parsers: z.array(z.string()) }),
+  ),
+  accounts: z.array(statementAccountRowSchema),
+  // The accounts of each kind's type, where a new one can sit.
+  parents: z.object({
+    bank: z.array(chartChoiceSchema),
+    card: z.array(chartChoiceSchema),
+  }),
+  // The parent of a preset account of the same kind; null with none, when
+  // the user picks one. Never inferred from names.
+  default_parents: z.object({
+    bank: z.number().int().nullable(),
+    card: z.number().int().nullable(),
+  }),
+  // Asset and Liability accounts no preset lists, which a row can use
+  // instead of a new account.
+  unlisted: z.array(chartChoiceSchema.extend({ kind: accountKindSchema })),
+});
+export type StatementAccounts = z.infer<typeof statementAccountsSchema>;
+
+// A number as the user typed it; the server puts it in canonical form
+// (`canonicalStatementIdentifier`). Null or blank for none.
+const typedIdentifierSchema = z.string().max(64).nullable();
+
+export const statementAccountChangeSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("create"),
+    kind: accountKindSchema,
+    // A preset institution's name, or a new one, which is added.
+    institution: z.string().trim().min(1),
+    identifier: typedIdentifierSchema,
+    ledger: z.discriminatedUnion("source", [
+      // A new ledger account of the kind's type under `parent_id`.
+      z.object({
+        source: z.literal("new"),
+        name: z.string().trim().min(1),
+        parent_id: z.number().int().positive(),
+      }),
+      // An Asset or Liability account no preset lists yet.
+      z.object({
+        source: z.literal("existing"),
+        account_id: z.number().int().positive(),
+      }),
+    ]),
+  }),
+  z.object({
+    action: z.literal("update"),
+    account_id: z.number().int().positive(),
+    kind: accountKindSchema,
+    institution: z.string().trim().min(1),
+    name: z.string().trim().min(1),
+    // Replaces the account's first identifier; the rest are kept.
+    identifier: typedIdentifierSchema,
+    parent_id: z.number().int().positive(),
+  }),
+  z.object({
+    action: z.literal("remove"),
+    account_id: z.number().int().positive(),
+    // Also delete the ledger account, which has no transactions.
+    delete_account: z.boolean(),
+  }),
+]);
+export type StatementAccountChange = z.infer<
+  typeof statementAccountChangeSchema
+>;
+
+export const statementAccountRefusalSchema = z.object({
+  error: z.string(),
+  code: z.enum([
+    // The presets' own rules (`importPresetRefusalSchema`).
+    ...importPresetRefusalCodeSchema.options,
+    // An entry or a draft is on the account.
+    "account_has_transactions",
+    // The number isn't one a statement of that kind prints.
+    "identifier_invalid",
+    // The parent is not an account of the kind's type.
+    "parent_not_suitable",
+    // The ledger already has an account of that name.
+    "ledger_name_taken",
+    // The account to use is not an Asset or Liability of that kind, or a
+    // preset already lists it.
+    "account_not_suitable",
+    // An account with accounts under it isn't deleted or changed in kind.
+    "account_has_children",
+  ]),
+});
+export type StatementAccountRefusal = z.infer<
+  typeof statementAccountRefusalSchema
+>;
+
 // Where the wizard stands, counted in the books.
 export const setupStatusSchema = z.object({
   // Accounts in the books; step 1 is done with any.
@@ -217,6 +339,28 @@ export const setupContract = c.router({
       403: errorBodySchema,
       502: chartSuggestionRefusalSchema,
       503: chartSuggestionRefusalSchema,
+    },
+  }),
+  statementAccounts: c.query({
+    method: "GET",
+    path: "/setup/statement-accounts",
+    summary:
+      "The banks and cards statements come from: each preset account with its parent and its count of entries and drafts",
+    responses: {
+      200: statementAccountsSchema,
+      403: errorBodySchema,
+    },
+  }),
+  changeStatementAccount: c.mutation({
+    method: "POST",
+    path: "/setup/statement-accounts",
+    summary:
+      "Create, change or remove one bank or card: its ledger account and its preset entry together, in one transaction",
+    body: statementAccountChangeSchema,
+    responses: {
+      200: statementAccountsSchema,
+      403: errorBodySchema,
+      422: statementAccountRefusalSchema,
     },
   }),
   createChartOfAccounts: c.mutation({

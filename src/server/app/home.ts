@@ -53,8 +53,16 @@ export function loadHomeSummary(
     ).map((row) => row.account_id),
   );
 
+  const withParser = new Set(
+    institutions
+      .filter((institution) => institution.parsers.length > 0)
+      .flatMap((institution) =>
+        institution.accounts.map((account) => account.account_id),
+      ),
+  );
   const accounts = importableAccounts(institutions)
     .map((preset): HomeAccount => {
+      const has_parser = withParser.has(preset.account_id);
       const standing = standings.get(preset.account_id);
       // The preset still names an account the ledger deleted.
       if (standing === undefined) {
@@ -63,6 +71,7 @@ export function loadHomeSummary(
           account_id: preset.account_id,
           name: preset.name,
           kind: accountKindOf(preset.is_credit_card),
+          has_parser,
         };
       }
       return {
@@ -71,6 +80,7 @@ export function loadHomeSummary(
         path: standing.path,
         name: standing.name,
         kind: standing.kind,
+        has_parser,
         checkpoint: standing.checkpoint,
         statement_differences: standing.statement_differences,
         ...draftCounts(standing.drafts),

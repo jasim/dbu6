@@ -4,13 +4,17 @@
 // rather than from the file.
 export {
   createOpeningBalancesAccount,
+  deleteAccount,
   findOpeningBalancesAccount,
+  insertAccount,
   insertChartAccounts,
   loadAccountChart,
   loadAccountsByName,
   loadHledgerAccountNames,
   loadLedgerAccounts,
   OPENING_BALANCES_ACCOUNT,
+  updateAccount,
+  type AccountPlacement,
   type ChartedAccount,
   type LedgerAccount,
   type NamedAccount,
