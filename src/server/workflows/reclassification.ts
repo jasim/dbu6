@@ -15,7 +15,7 @@ import {
   saveReclassifiedDrafts,
   type ReclassifiedDraft,
 } from "../modules/drafts/index.js";
-import type { LedgerAuth } from "../modules/ledger-sql/index.js";
+import type { Ledger, LedgerAuth } from "../modules/ledger-sql/index.js";
 
 export interface ClassifiedDraftTransaction {
   id: number;
@@ -94,4 +94,47 @@ export async function classifyDraftTransactions(input: {
     categorization: report,
     categorizationTally: tallyCategorization(rows),
   };
+}
+
+export type SetDraftsCategoryOutcome =
+  | { kind: "set"; updated: number }
+  | { kind: "account-not-found" }
+  | { kind: "drafts-not-found"; ids: number[] }
+  | { kind: "own-account" };
+
+// Give every draft the one category the user chose, or none of them when the
+// category isn't in the books, a draft isn't, or the category is a draft's
+// own base account.
+export function setDraftsCategory(
+  ledger: Ledger,
+  ids: readonly number[],
+  accountId: number,
+): SetDraftsCategoryOutcome {
+  const { db, auth } = ledger;
+  const accounts = [...loadAccountsByName(db, auth).values()];
+  if (!accounts.some((account) => account.id === accountId)) {
+    return { kind: "account-not-found" };
+  }
+  const wanted = [...new Set(ids)];
+  const drafts = loadDraftsById(db, wanted, auth);
+  if (drafts.length !== wanted.length) {
+    const found = new Set(drafts.map((draft) => draft.id));
+    return {
+      kind: "drafts-not-found",
+      ids: wanted.filter((id) => !found.has(id)),
+    };
+  }
+  if (drafts.some((draft) => draft.base_account_id === accountId)) {
+    return { kind: "own-account" };
+  }
+  saveReclassifiedDrafts(
+    db,
+    drafts.map((draft) => ({
+      id: draft.id,
+      narration: draft.narration,
+      accountId,
+    })),
+    auth,
+  );
+  return { kind: "set", updated: drafts.length };
 }

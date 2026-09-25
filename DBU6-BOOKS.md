@@ -111,7 +111,9 @@ Look up an account's id with
     `sapporta rows list draft_transactions --where '{"base_account_id":{"eq":<id>},"account_id":{"is":"null"}}'`.
   - Set one by hand:
     `sapporta rows update draft_transactions <draft> --values '{"account_id":<category>}'`.
-    Never set a draft's category to its own base account.
+    Never set a draft's category to its own base account. For many drafts at
+    once, all or none:
+    `sapporta api post /api/draft-transactions/set-category --body '{"ids":[…],"account_id":<category>}'`.
   - Or run the categoriser again:
     `sapporta api post /api/draft-transactions/classify --body '{"ids":[…],"custom_mappings_filenames":[…]}'`.
     It overwrites every draft you pass, and leaves blank any it is unsure of.

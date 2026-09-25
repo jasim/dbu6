@@ -85,6 +85,23 @@ export const draftTransactionsContract = c.router({
       403: errorSchema,
     },
   }),
+  setDraftsCategory: c.mutation({
+    method: "POST",
+    path: "/draft-transactions/set-category",
+    summary: "Give the drafts one category, all or none",
+    body: z.object({
+      ids: z.array(z.number().int().positive()).min(1),
+      account_id: z.number().int().positive(),
+    }),
+    responses: {
+      200: z.object({ updated: z.number() }),
+      403: errorSchema,
+      // The account, or one of the drafts, isn't in the books.
+      404: errorSchema,
+      // The account is one of the drafts' own base account.
+      422: errorSchema,
+    },
+  }),
   renderDraftHledger: c.query({
     method: "GET",
     path: "/draft-transactions/hledger",
