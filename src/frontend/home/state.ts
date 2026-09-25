@@ -71,7 +71,7 @@ export function homeState(summary: HomeSummary): HomeView {
     };
   }
 
-  if (!summary.has_journals) {
+  if (!summary.any_imported) {
     const where = named(accounts);
     return {
       state: "nothing-imported",

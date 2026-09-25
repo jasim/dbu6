@@ -51,7 +51,7 @@ function summary(
       balance_checks: sum(listed, "balance_checks"),
       failing_checks: sum(listed, "failing_checks"),
     },
-    has_journals: listed.some((a) => a.checkpoint !== null),
+    any_imported: listed.some((a) => a.checkpoint !== null),
     ...overrides,
   };
 }

@@ -32,7 +32,8 @@ function ledger(): Database.Database {
       (3, 'workspace', 'user', 'Groceries', NULL, 'Expense'),
       (4, 'workspace', 'user', 'No Preset Bank', NULL, 'Asset'),
       (5, 'workspace', 'other-user', 'Sample Savings', NULL, 'Asset'),
-      (6, 'workspace', 'user', 'Sample Loan', NULL, 'Liability');
+      (6, 'workspace', 'user', 'Sample Loan', NULL, 'Liability'),
+      (7, 'workspace', 'user', 'Opening Balances', NULL, 'Equity');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-10', 'Opening'),
@@ -141,7 +142,7 @@ describe("Home summary", () => {
       balance_checks: 1,
       failing_checks: 1,
     });
-    expect(summary.has_journals).toBe(true);
+    expect(summary.any_imported).toBe(true);
   });
 
   it("names and kinds an account the way Review does", () => {
@@ -179,7 +180,7 @@ describe("Home summary", () => {
       institutions[1],
     ]);
 
-    expect(summary.has_journals).toBe(false);
+    expect(summary.any_imported).toBe(false);
     expect(summary.totals.drafts).toBe(0);
     expect(
       summary.accounts.map((a) => [a.name, a.in_ledger && a.checkpoint]),
@@ -189,9 +190,26 @@ describe("Home summary", () => {
     ]);
   });
 
+  it("reports nothing imported when an account has only its opening entry", () => {
+    // The first statements step's rule, so Home and setup agree.
+    const sqlite = ledger();
+    sqlite.exec(`
+      DELETE FROM journal_entries; DELETE FROM journals;
+      INSERT INTO journals VALUES
+        (20, 'workspace', 'user', '2026-01-31', 'Opening balance');
+      INSERT INTO journal_entries VALUES
+        (201, 'workspace', 'user', 20, 2, 1000, 0, 1000, NULL, NULL, NULL),
+        (202, 'workspace', 'user', 20, 7, 0, 1000, NULL, NULL, NULL, NULL);
+    `);
+
+    const summary = loadHomeSummary(sqlite, auth, institutions);
+
+    expect(summary.any_imported).toBe(false);
+  });
+
   it("returns no accounts without presets", () => {
     const summary = loadHomeSummary(ledger(), auth, []);
     expect(summary.accounts).toEqual([]);
-    expect(summary.has_journals).toBe(false);
+    expect(summary.any_imported).toBe(false);
   });
 });

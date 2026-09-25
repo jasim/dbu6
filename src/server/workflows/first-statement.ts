@@ -283,11 +283,11 @@ export function hasTransactions(activity: StatementActivity): boolean {
 /**
  * Each account's own entries (`countOwnEntriesByAccount`), its opening entry
  * left out, and the drafts from its own statements. The one rule for whether
- * a bank or card is imported: the step's rows, its import and GET /setup
- * all read it.
+ * a bank or card is imported: the step's rows, its import, GET /setup and
+ * Home's "nothing imported yet" all read it.
  */
 export function loadStatementActivity(
-  ledger: Ledger,
+  ledger: Pick<Ledger, "sqlite" | "auth">,
 ): (accountId: number) => StatementActivity {
   const { sqlite, auth } = ledger;
   // Its own: a card payment another account's import posted to it is not
