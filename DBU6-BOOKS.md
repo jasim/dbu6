@@ -230,18 +230,28 @@ category ("Categorise these" above), and restart a server started with
     first statement: `needs_statement`, `read` (a staged statement a saved
     parser reads, with its period, row count, opening balance and the preset
     `changes` importing makes), `unreadable` (one no parser reads, at
-    `saved_path`) or `imported`. The screen stages one with
+    `saved_path`) or `imported`. `imported` means entries or drafts from the
+    account's own statements: a card payment another account's import
+    posted to it doesn't count. A `read` row's `existing_opening` is the
+    account's opening entry when it has one. The screen stages one with
     `POST /api/setup/sample-statement` (multipart `file` and `account_id`),
     which writes nothing to the books and replaces any earlier one in
     `tmp/statement-uploads/setup-sample-<account id>/`.
   - `POST /api/setup/first-statement` with `{"account_id":<id>}` reads the
-    staged statement again, applies its preset changes, records the opening
-    balance (the statement's; `"opening_amount":<signed>` when it prints no
-    balances, else `opening_balance_needed`) unless the account has one,
-    and imports it as `/api/import-draft/statements/auto` does, replying the
-    same way. A number that differs from the account's is replaced only with
-    `"use_statement_number":true` (else `numbers_differ`). The staged file is
-    deleted once imported and kept when the import fails.
+    staged statement again, checks its balances as the import would (a
+    failure replies as the import's does and writes nothing), applies its
+    preset changes, records the opening balance (the statement's;
+    `"opening_amount":<signed>` when it prints no balances, else
+    `opening_balance_needed`) unless the account has one, and imports it as
+    `/api/import-draft/statements/auto` does, replying the same way. A
+    number that differs from the account's is replaced only with
+    `"use_statement_number":true` (else `numbers_differ`). An opening entry
+    dated on or after the statement's first row refuses it
+    (`opening_after_statement_start`), as does one the day before at
+    another balance (`opening_disagrees`), and a transaction another
+    account's import posted before it starts (`activity_before_statement`).
+    The staged file is deleted once imported (even with nothing new in it,
+    `draft_transaction_count` 0) and kept when the import fails.
   - The last step, `/setup/review`, lists the first-statements rows that
     have drafts (`activity.drafts`, and `activity.uncategorized` without a
     category) and sends each to `/review/<account id>`; they are posted

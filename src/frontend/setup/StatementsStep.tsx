@@ -34,6 +34,7 @@ import {
   balanceFact,
   importedSummary,
   importWaiting,
+  nothingNew,
   numberFact,
   numberLabel,
   openingAmount,
@@ -164,6 +165,8 @@ function StatementRow({ row }: { row: FirstStatementRow }) {
   const [numberAccepted, setNumberAccepted] = useState(false);
   const [typedBalance, setTypedBalance] = useState("");
   const [stillUnreadable, setStillUnreadable] = useState(false);
+  // An import that went in with nothing new, so the row is empty again.
+  const [notice, setNotice] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
   // A finding replaces the row's until the books say otherwise, so an upload
@@ -198,6 +201,7 @@ function StatementRow({ row }: { row: FirstStatementRow }) {
   const upload = (file: File) =>
     run("reading", async () => {
       setStopped(null);
+      setNotice(null);
       setNumberAccepted(false);
       setTypedBalance("");
       setStillUnreadable(false);
@@ -230,6 +234,7 @@ function StatementRow({ row }: { row: FirstStatementRow }) {
         });
       } else {
         setStopped(null);
+        setNotice(nothingNew(reply.result));
       }
       // The format and the opening balance stay even when the import
       // stops, so the row is read again either way.
@@ -321,6 +326,11 @@ function StatementRow({ row }: { row: FirstStatementRow }) {
           />
         ) : (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {notice && (
+              <p role="status" className="w-full text-row text-ink-soft">
+                {notice}
+              </p>
+            )}
             <Button variant="outline" size="sm" onClick={chooseFile}>
               Upload statement
             </Button>
@@ -423,8 +433,9 @@ function Read({
   );
   const balanceRow =
     balance.state === "in_books" ? (
-      <FactRow label="Balance" face="words">
-        already in your books
+      <FactRow label={balance.label}>
+        {balance.value}
+        <Mark ok={false}>already in your books</Mark>
       </FactRow>
     ) : balance.state === "from_statement" ? (
       <FactRow label={balance.label}>

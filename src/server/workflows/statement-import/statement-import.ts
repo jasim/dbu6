@@ -12,6 +12,7 @@ import type {
 } from "../../modules/categorization/index.js";
 import {
   type Account,
+  type Chrono,
   parseAccount,
   unsafeAsChrono,
 } from "../../modules/values/index.js";
@@ -20,6 +21,7 @@ import {
   assembleStatements,
   synthesizeRunningBalances,
   verifyClosingBalance,
+  type Abacus,
   type AbacusStatement,
   OpeningBalanceUnavailable,
   ClosingBalanceUnavailable,
@@ -136,26 +138,35 @@ export function pickClosingBalance(
   return { value: null, source: "none" };
 }
 
-// One account's statement parts → assembled, keyed, balance-validated
-// statement → rows the ledger doesn't hold yet → drafts.
-export async function runStatementImport(
-  parts: AbacusStatement[],
-  opts: ImportOptions,
-  ledger: Ledger,
-  sourceNames: readonly string[] = [],
-): Promise<StatementImportResult> {
-  // The drafts are the account's, so an account the ledger doesn't have
-  // refuses the import before the statement is looked at.
-  const accountsByName = loadAccountsByName(ledger.db, ledger.auth);
-  const baseAccountId = accountsByName.get(opts.baseAccount)?.id;
-  if (baseAccountId === undefined) {
-    throw new AccountNotFoundError(opts.baseAccount);
-  }
+/** A statement as the import checked it, before the ledger is looked at. */
+export interface CheckedStatement {
+  opening: number | null;
+  closing: number | null;
+  // Assembled and keyed, as the parts print them.
+  transactions: Chrono<Abacus>;
+  // The same rows with every balance filled in and walked to the closing.
+  withBalances: Chrono<Abacus>;
+  resolvedOpening: ResolvedBalance;
+  resolvedClosing: ResolvedBalance;
+}
 
+/**
+ * The statement's own checks: its parts assembled and keyed, a card's
+ * closing present, its balances filled in from its opening (else from
+ * `checkpointBalance`) and walked to its closing. Reads nothing from the
+ * ledger, so a caller can run it before writing anything; throws the
+ * import's refusals (`isImportRefusal`).
+ */
+export function checkStatement(
+  parts: AbacusStatement[],
+  opts: Pick<ImportOptions, "baseAccount" | "accountKind">,
+  checkpointBalance: number | null,
+  sourceNames: readonly string[] = [],
+): CheckedStatement {
   // Assemble first, key second. Keys number textually identical rows on one
   // day by occurrence, so two such rows that arrive one per part must be
   // numbered over the assembled sequence rather than collide at occurrence
-  // 1 in each file. Keying still precedes the reconciliation filter below:
+  // 1 in each file. Keying still precedes the reconciliation filter:
   // that filter trims mid-day at the checkpoint row, and keying after it
   // would renumber the checkpoint day depending on where the checkpoint fell.
   const assembled = assembleStatements(parts, sourceNames);
@@ -174,25 +185,9 @@ export async function runStatementImport(
     );
   }
 
-  const checkpoint = lookupLastReconciled(
-    ledger.sqlite,
-    ledger.auth,
-    opts.baseAccount,
-  );
-  console.log(
-    `[statement-import] reconciliation checkpoint for ${opts.baseAccount}: ${
-      checkpoint
-        ? `balance=${checkpoint.balance} as of ${checkpoint.date}`
-        : "none"
-    }`,
-  );
-
   const noPrintedBalances = transactions.every((t) => t.balance === null);
   const allPrintedBalances = transactions.every((t) => t.balance !== null);
-  const resolvedOpening = pickOpeningBalance(
-    opening,
-    checkpoint?.balance ?? null,
-  );
+  const resolvedOpening = pickOpeningBalance(opening, checkpointBalance);
   const finalPrintedBalance =
     transactions[transactions.length - 1]?.balance ?? null;
   const resolvedClosing = pickClosingBalance(closing, finalPrintedBalance);
@@ -230,6 +225,52 @@ export async function runStatementImport(
   console.log(
     `[statement-import] complete statement balance validation passed before reconciliation filtering`,
   );
+  return {
+    opening,
+    closing,
+    transactions,
+    withBalances,
+    resolvedOpening,
+    resolvedClosing,
+  };
+}
+
+// One account's statement parts → assembled, keyed, balance-validated
+// statement → rows the ledger doesn't hold yet → drafts.
+export async function runStatementImport(
+  parts: AbacusStatement[],
+  opts: ImportOptions,
+  ledger: Ledger,
+  sourceNames: readonly string[] = [],
+): Promise<StatementImportResult> {
+  // The drafts are the account's, so an account the ledger doesn't have
+  // refuses the import before the statement is looked at.
+  const accountsByName = loadAccountsByName(ledger.db, ledger.auth);
+  const baseAccountId = accountsByName.get(opts.baseAccount)?.id;
+  if (baseAccountId === undefined) {
+    throw new AccountNotFoundError(opts.baseAccount);
+  }
+
+  const checkpoint = lookupLastReconciled(
+    ledger.sqlite,
+    ledger.auth,
+    opts.baseAccount,
+  );
+  console.log(
+    `[statement-import] reconciliation checkpoint for ${opts.baseAccount}: ${
+      checkpoint
+        ? `balance=${checkpoint.balance} as of ${checkpoint.date}`
+        : "none"
+    }`,
+  );
+  const {
+    opening,
+    closing,
+    transactions,
+    withBalances,
+    resolvedOpening,
+    resolvedClosing,
+  } = checkStatement(parts, opts, checkpoint?.balance ?? null, sourceNames);
 
   const survivors = newTransactionsSinceReconciliation(
     withBalances,

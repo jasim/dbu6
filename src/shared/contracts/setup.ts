@@ -287,7 +287,8 @@ export type StatementAccountRefusal = z.infer<
 
 // The balance the account opened at, the day before the statement's first
 // row: the statement's own opening, else its first printed balance less the
-// rows up to it. Ledger sign: positive when held, negative when owed.
+// rows up to it, else its closing less every row. Ledger sign: positive when
+// held, negative when owed.
 export const statementOpeningSchema = z.object({
   date: z.string(),
   // Null when the statement prints no balances, and the user gives it.
@@ -308,8 +309,11 @@ export const recognizedFindingSchema = z.object({
   transactions: z.number().int(),
   // Null for a statement with no rows.
   opening: statementOpeningSchema.nullable(),
-  // The account has an opening entry already, so importing records none.
-  has_opening_entry: z.boolean(),
+  // The account's opening entry, when it has one already: importing then
+  // records none, and needs the statement to start after it.
+  existing_opening: z
+    .object({ date: z.string(), amount: z.number() })
+    .nullable(),
   // The institution that lists the parser now, if any.
   parser_institution: z.string().nullable(),
   // The account's institution after the changes.
@@ -439,6 +443,15 @@ export const firstStatementRefusalSchema = z.object({
     "opening_balance_needed",
     // The opening entry couldn't be posted.
     "opening_balance_refused",
+    // The account's opening entry is dated on or after the statement's
+    // first row, whose rows would fall behind it.
+    "opening_after_statement_start",
+    // The account's opening entry is dated the day before the statement
+    // starts, at another balance than the statement's.
+    "opening_disagrees",
+    // Another account's import posted a transaction on this one (a card
+    // payment, say) before the statement starts, where the opening goes.
+    "activity_before_statement",
     // The presets' own rules (`importPresetRefusalSchema`), and
     // `unknown_account` when no preset lists the account.
     ...importPresetRefusalCodeSchema.options,
@@ -556,7 +569,7 @@ export const setupContract = c.router({
     method: "POST",
     path: "/setup/first-statement",
     summary:
-      "Import an account's staged first statement: read it again, apply the preset changes it implies, record the opening balance (the statement's, else `opening_amount`) unless the account has one, then import it as /import-draft/statements/auto does, categorization included. Replies as that route does; the staged file is deleted once imported",
+      "Import an account's staged first statement: read it again, check it as the import would (a statement that fails its balance checks replies as a failed import and writes nothing), apply the preset changes it implies, record the opening balance (the statement's, else `opening_amount`) unless the account has one, then import it as /import-draft/statements/auto does, categorization included. Replies as that route does; the staged file is deleted once imported",
     body: firstStatementRequestSchema,
     responses: {
       200: autoImportResultSchema,

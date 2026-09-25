@@ -87,7 +87,7 @@ const FINDING: RecognizedFinding = {
   period: { first_date: "2026-08-01", last_date: "2026-08-31" },
   transactions: 42,
   opening: { date: "2026-07-31", amount: 12000 },
-  has_opening_entry: false,
+  existing_opening: null,
   parser_institution: null,
   institution: "Sample Bank",
   moves: false,
@@ -411,4 +411,98 @@ describe("the first statements step", () => {
       rowOf("Sample Savings").querySelector('[role="alert"]')?.textContent,
     ).toBe("This account has transactions already.");
   });
+
+  it("says so when an import finds nothing new, instead of starting over silently", async () => {
+    let imported = false;
+    answers["GET /setup/first-statements"] = () =>
+      ok(
+        step(
+          imported
+            ? row(2, "Sample Savings", { status: "needs_statement" })
+            : row(2, "Sample Savings", { status: "read", finding: FINDING }),
+        ),
+      );
+    answers["GET /setup"] = () =>
+      ok({
+        accounts: 5,
+        statement_accounts: 1,
+        imported_accounts: 0,
+        drafts: 0,
+      });
+    answers["POST /setup/first-statement"] = () => {
+      imported = true;
+      return ok({ files: [], groups: [nothingNewGroup()] });
+    };
+    await render();
+
+    await click(button(rowOf("Sample Savings"), "Import 42"));
+
+    const savings = rowOf("Sample Savings");
+    expect(savings.textContent).toContain(
+      "Nothing new: 42 transactions already in your books.",
+    );
+    expect(button(savings, "Upload statement")).toBeTruthy();
+  });
+
+  it("shows the opening balance already in the books", async () => {
+    answers["GET /setup/first-statements"] = () =>
+      ok(
+        step(
+          row(2, "Sample Savings", {
+            status: "read",
+            finding: {
+              ...FINDING,
+              existing_opening: { date: "2026-06-30", amount: 9000 },
+            },
+          }),
+        ),
+      );
+    await render();
+
+    expect(rowOf("Sample Savings").textContent).toContain(
+      "Balance on 30 Jun 20269,000.00already in your books",
+    );
+  });
 });
+
+// An account's import that found every row in the books already.
+function nothingNewGroup() {
+  return {
+    account_id: 2,
+    account_name: "Sample Savings",
+    base_account: "Sample Savings",
+    is_credit_card: false,
+    file_names: ["NOPII.xls"],
+    result: {
+      hledger_journal: "",
+      transaction_count: 42,
+      skipped_reconciled_count: 0,
+      draft_transaction_count: 0,
+      duplicate_count: 42,
+      draft_duplicate_count: 0,
+      journal_duplicate_count: 42,
+      legacy_match_count: 0,
+      backfilled_count: 0,
+      same_account_skips: [],
+      gpay_enriched_count: 0,
+      categorization: null,
+      categorization_tally: {
+        by_rule: 0,
+        by_llm: 0,
+        same_account: 0,
+        uncategorized: 0,
+        accounts: [],
+      },
+      base_account_id: 2,
+      opening_balance: 12000,
+      closing_balance_from_statement: null,
+      custom_statement_parser_paths: ["sample-bank-xls"],
+      balance_metadata: {
+        opening: { extracted: 12000, effective: 12000, source: "statement" },
+        closing: { extracted: null, effective: null, source: "none" },
+      },
+      statement_period: { first_date: "2026-08-01", last_date: "2026-08-31" },
+      reconciliation_checkpoint: { date: "2026-07-31", balance: 12000 },
+    },
+  };
+}

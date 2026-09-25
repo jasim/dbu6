@@ -1,4 +1,11 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hono } from "hono";
@@ -34,6 +41,8 @@ vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
 }));
 
 import { loadDbu6App } from "../mount.js";
+import type { Ledger } from "../modules/ledger-sql/index.js";
+import { recordOpeningBalance } from "../workflows/opening-balances.js";
 import { dbu6MigrationsDir } from "../paths.js";
 
 /*
@@ -92,6 +101,10 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
+function ledger(): Ledger {
+  return { db: conn.db, sqlite: conn.sqlite, auth: testLedgerAuth() } as Ledger;
+}
+
 // 5,000 in and 1,000 out in August, from an opening of 10,000; the closing
 // the statement prints is `closing`.
 function statement(closing: number | null) {
@@ -123,10 +136,10 @@ function statement(closing: number | null) {
   };
 }
 
-async function upload() {
+async function upload(name = "NOPII.xls") {
   const form = new FormData();
   form.append("account_id", "2");
-  form.append("file", new File(["NOPII"], "NOPII.xls"));
+  form.append("file", new File(["NOPII"], name));
   return app.request("/setup/sample-statement", { method: "POST", body: form });
 }
 
@@ -237,10 +250,22 @@ describe("where setup stands", () => {
   });
 
   it("doesn't count the opening entry as the statement", async () => {
-    recognizeStatementFile.mockResolvedValue(statement(14000));
-    await upload();
-    // A failed import leaves the opening balance behind, and nothing else.
+    recordOpeningBalance(ledger(), {
+      accountId: 2,
+      date: "2026-08-02",
+      amount: 10000,
+    });
+
+    expect(await setupStatus()).toMatchObject({
+      imported_accounts: 0,
+      drafts: 0,
+    });
+    expect(await statuses()).toEqual(["needs_statement"]);
+  });
+
+  it("writes nothing when the statement fails its balance checks", async () => {
     recognizeStatementFile.mockResolvedValue(statement(20000));
+    await upload();
     expect((await importIt()).status).toBe(422);
     expect(
       conn.sqlite
@@ -248,11 +273,39 @@ describe("where setup stands", () => {
           "SELECT COUNT(*) AS n FROM journal_entries WHERE account_id = 2",
         )
         .get(),
-    ).toEqual({ n: 1 });
+    ).toEqual({ n: 0 });
+  });
+});
 
-    expect(await setupStatus()).toMatchObject({
-      imported_accounts: 0,
-      drafts: 0,
-    });
+describe("the staged statements", () => {
+  const stagingDir = () => join(root, "tmp", "statement-uploads");
+
+  it("go when their account is imported or no longer set up", async () => {
+    recognizeStatementFile.mockResolvedValue(statement(14000));
+    await upload();
+    expect((await importIt()).status).toBe(200);
+    // Uploaded again once the account is in, and one for an account no
+    // preset lists.
+    await upload();
+    mkdirSync(join(stagingDir(), "setup-sample-9"), { recursive: true });
+    writeFileSync(join(stagingDir(), "setup-sample-9", "NOPII.xls"), "NOPII");
+
+    expect(await statuses()).toEqual(["imported"]);
+    expect(readdirSync(stagingDir())).toEqual([]);
+  });
+
+  it("are staged under a name that is safe to write and to find again", async () => {
+    recognizeStatementFile.mockResolvedValue(statement(14000));
+
+    expect((await upload("..")).status).toBe(200);
+    expect(readdirSync(join(stagingDir(), "setup-sample-2"))).toEqual([
+      "upload",
+    ]);
+
+    expect((await upload("NOPII.abacus.json")).status).toBe(200);
+    expect(readdirSync(join(stagingDir(), "setup-sample-2"))).toEqual([
+      "NOPII-abacus.json",
+    ]);
+    expect(await statuses()).toEqual(["read"]);
   });
 });

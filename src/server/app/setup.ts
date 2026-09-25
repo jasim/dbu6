@@ -140,7 +140,8 @@ export default function setupApi(
   );
 
   // A staged statement is kept until it is imported: an account that has
-  // transactions, or that no preset lists any more, loses it here.
+  // transactions, or that no preset lists any more, loses it here. One that
+  // went while the page read it (a new upload replaces it) is left alone.
   api.register(
     "firstStatements",
     setupContract.firstStatements,
@@ -150,7 +151,7 @@ export default function setupApi(
       const body = await loadFirstStatements(ledger, staged);
       const waiting = new Set(
         body.accounts
-          .filter((row) => row.status === "read" || row.status === "unreadable")
+          .filter((row) => row.status !== "imported")
           .map((row) => row.account_id),
       );
       for (const accountId of staged.keys()) {
@@ -192,22 +193,26 @@ export default function setupApi(
       const ledger = requireWorkflowLedger(c);
       const { account_id, opening_amount, use_statement_number } = request.body;
       const staged = (await stagedSamples()).get(account_id);
-      if (staged === undefined) {
-        return {
-          status: 404,
-          body: {
-            error:
-              "There is no statement waiting for this account; upload one.",
-            code: "no_staged_statement" as const,
-          },
-        };
-      }
+      const noStatement = {
+        status: 404 as const,
+        body: {
+          error: "There is no statement waiting for this account; upload one.",
+          code: "no_staged_statement" as const,
+        },
+      };
+      if (staged === undefined) return noStatement;
+      // The file is read once, and what was read is what is imported.
       const done = await importFirstStatement(ledger, loadCategorizer, {
         accountId: account_id,
         statement: { name: basename(staged.path), path: staged.path },
         openingAmount: opening_amount ?? null,
         useStatementNumber: use_statement_number ?? false,
+      }).catch((error: unknown) => {
+        // Removed since it was listed, by another import or an upload.
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
       });
+      if (done === null) return noStatement;
       if (!done.ok) return firstStatementRefusal(done.refusal);
       // The staged copy is what "Try again" imports, so it goes only once the
       // statement is in.
@@ -268,6 +273,9 @@ function firstStatementRefusal(refusal: FirstStatementRefusal) {
     case "already_imported":
     case "statement_unreadable":
     case "numbers_differ":
+    case "opening_after_statement_start":
+    case "opening_disagrees":
+    case "activity_before_statement":
       return { status: 409 as const, body: refusal };
     default:
       return { status: 422 as const, body: refusal };
