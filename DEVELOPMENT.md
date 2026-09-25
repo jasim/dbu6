@@ -624,7 +624,10 @@ the accounts the LLM may answer with and the `custom_mappings_*.prompt` files
 the statement's account lists in the import presets
 (`custom_mappings_filenames`, joined in that order), which `loadCategorizer`
 reads. `categorize` supplies the accounts: every account in the Accounts table
-(row-scoped) except Equity, one name per line. Notes about what an account is
+(row-scoped) except Equity, one name per line. Each row the LLM gets names its
+statement account in brackets ahead of the narration
+(`[cc:sample] Expense: …`), and the prompt keeps it from choosing another bank's
+or card's accounts except for a clear transfer. Notes about what an account is
 for belong in the `custom_mappings_*.prompt` files. An `hledger_accounts.prompt`
 left in `user-config/` from before is no longer read.
 `categorization/llm-categorization.ts` is the only LLM call site. It says what

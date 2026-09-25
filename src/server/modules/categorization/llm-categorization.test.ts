@@ -8,8 +8,8 @@ import {
   splitIntoCalls,
   type CategorizationLlm,
   type LLMCategorizationConfig,
+  type StatementTransaction,
 } from "./llm-categorization.js";
-import type { Abacus } from "../statement/index.js";
 
 const listMock = vi.fn();
 // Whether the engine can be used, asked after a failed call; it answers by
@@ -46,22 +46,35 @@ const config: LLMCategorizationConfig = {
   llm: engine(),
 };
 
-function withdrawal(narration: string, amount = 100): Abacus {
+// With no statement account unless one is given.
+function withdrawal(
+  narration: string,
+  statementAccount: string | null = null,
+): StatementTransaction {
   return {
-    date: "2026-01-01",
-    narration,
-    withdrawal: amount,
-    deposit: 0,
-    balance: 0,
+    transaction: {
+      date: "2026-01-01",
+      narration,
+      withdrawal: 100,
+      deposit: 0,
+      balance: 0,
+    },
+    statementAccount,
   };
 }
-function deposit(narration: string, amount = 100): Abacus {
+function deposit(
+  narration: string,
+  statementAccount: string | null = null,
+): StatementTransaction {
   return {
-    date: "2026-01-01",
-    narration,
-    withdrawal: 0,
-    deposit: amount,
-    balance: 0,
+    transaction: {
+      date: "2026-01-01",
+      narration,
+      withdrawal: 0,
+      deposit: 100,
+      balance: 0,
+    },
+    statementAccount,
   };
 }
 
@@ -100,6 +113,30 @@ describe("buildLLMInput", () => {
     expect(rows).toEqual([
       { id: "txn-0", text: "Expense: STARBUCKS" },
       { id: "txn-1", text: "Deposit: SALARY ACME" },
+    ]);
+  });
+
+  it("puts the statement account in brackets before the prefix", () => {
+    const txns = [
+      withdrawal("SAMPLE EMI", "cc:sample-card"),
+      deposit("SALARY ACME", "assets:bank:sample"),
+    ];
+    const { rows } = buildLLMInput(txns, [0, 1]);
+    expect(rows).toEqual([
+      { id: "txn-0", text: "[cc:sample-card] Expense: SAMPLE EMI" },
+      { id: "txn-1", text: "[assets:bank:sample] Deposit: SALARY ACME" },
+    ]);
+  });
+
+  it("sends the same narration on two statements as two rows", () => {
+    const txns = [
+      withdrawal("SAMPLE EMI", "cc:sample-card"),
+      withdrawal("SAMPLE EMI", "cc:other-card"),
+    ];
+    const { rows } = buildLLMInput(txns, [0, 1]);
+    expect(rows.map((r) => r.text)).toEqual([
+      "[cc:sample-card] Expense: SAMPLE EMI",
+      "[cc:other-card] Expense: SAMPLE EMI",
     ]);
   });
 

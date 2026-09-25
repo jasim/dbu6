@@ -143,7 +143,9 @@ describe("categorize", () => {
 
     expect(llmMock).toHaveBeenCalledTimes(1);
     const [passedTxns, unmappedIndices, llmConfig] = llmMock.mock.calls[0];
-    expect(passedTxns).toEqual(txns);
+    expect(passedTxns).toEqual(
+      txns.map((transaction) => ({ transaction, statementAccount: null })),
+    );
     expect(unmappedIndices).toEqual([1]);
     expect(llmConfig).toEqual({
       promptTemplate: PROMPT_TEMPLATE,
@@ -151,6 +153,27 @@ describe("categorize", () => {
       customMappings: "MAP A\n\nMAP B",
       llm,
     });
+  });
+
+  it("tells the LLM each row's statement account by name", async () => {
+    llmMock.mockResolvedValue(answered({}));
+    const onTheBank = withdrawal("MYSTERY");
+    const onNoAccount = withdrawal("OTHER MYSTERY");
+
+    await categorize(
+      await loadCategorizer(baseConfig(), dir),
+      [
+        { transaction: onTheBank, baseAccountId: 21 },
+        { transaction: onNoAccount, baseAccountId: null },
+      ],
+      ACCOUNTS,
+    );
+
+    const [passedTxns] = llmMock.mock.calls[0];
+    expect(passedTxns).toEqual([
+      { transaction: onTheBank, statementAccount: "Sample Bank" },
+      { transaction: onNoAccount, statementAccount: null },
+    ]);
   });
 
   it("offers the LLM the ledger's accounts but Equity, by name, and not hledger_accounts.prompt", async () => {
