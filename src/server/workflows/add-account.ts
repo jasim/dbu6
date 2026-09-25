@@ -625,7 +625,7 @@ export async function addAccount(
     case "in_books":
       return refused(
         "already_in_books",
-        `${groupName(group)} is already in your books. Import its statements on the Import page.`,
+        `${groupName(group)} is already in your books. Import its statements instead.`,
       );
 
     case "empty": {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   GUIDES,
   guideCommand,
+  refusalPromptsAgent,
   type AutoImportGroupResult,
   type AutoImportPlanFile,
   type StatementImportError,
@@ -889,6 +890,40 @@ describe("problem tones", () => {
       if (!/fixture|fingerprint/.test(prompt)) continue;
       expect(prompt).toContain("this project's custom-built-parsers/");
       expect(prompt).toContain("reports/");
+    }
+  });
+});
+
+// /add keeps a refusal's files, and its card shows "Check again", exactly
+// when `refusalPromptsAgent` says /import's card for it has a prompt. A gap
+// is left out: /add shows its own card for one.
+describe("refusalPromptsAgent", () => {
+  it("agrees with the prompts /import's cards give", () => {
+    const samples: StatementImportError[] = [
+      ...Object.values(PAYLOADS),
+      {
+        ...PAYLOADS.statement_boundary_mismatch,
+        reason: "same-statement-twice",
+      },
+    ].filter(
+      (refusal) =>
+        !(
+          refusal.error === "statement_boundary_mismatch" &&
+          refusal.reason === "gap"
+        ),
+    );
+    for (const refusal of samples) {
+      const [problem] = describeProblems(
+        refused(422, {
+          ...refusal,
+          files: [{ ...resolvedRow, file_name: "bank-aug.xls" }],
+          failed_group: failedGroup,
+        }),
+      );
+      expect({
+        refusal: refusal.error,
+        prompts: refusalPromptsAgent(refusal),
+      }).toEqual({ refusal: refusal.error, prompts: problem.agent !== null });
     }
   });
 });

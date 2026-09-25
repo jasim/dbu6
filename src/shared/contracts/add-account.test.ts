@@ -17,6 +17,15 @@ const GAP: StatementImportError = {
   difference: 2000,
 };
 const TWICE: StatementImportError = { ...GAP, reason: "same-statement-twice" };
+const MISMATCH: StatementImportError = {
+  error: "balance_mismatch",
+  message: "The rows don't add up to the closing balance.",
+  computed_final: 2000,
+  statement_closing: 3000,
+  difference: 1000,
+  tolerance: 0.01,
+  suspected_gap: false,
+};
 
 function account(more: Partial<AddAccountCandidate> = {}): AddAccountCandidate {
   return {
@@ -68,7 +77,9 @@ describe("promptedFiles", () => {
   });
 
   it("is all of one account's files when its refusal gets a prompt", () => {
-    expect(promptedFiles({ files, accounts: [account()] })).toEqual([0, 1]);
+    expect(
+      promptedFiles({ files, accounts: [account({ refusal: MISMATCH })] }),
+    ).toEqual([0, 1]);
   });
 
   it("is none where the card shows no prompt", () => {
@@ -78,6 +89,7 @@ describe("promptedFiles", () => {
       [account({ transactions: 0 })],
       [account({ opening: null })],
       [account({ refusal: GAP })],
+      [account({ refusal: TWICE })],
       [account({ refusal: null })],
     ]) {
       expect(promptedFiles({ files, accounts })).toBeNull();
