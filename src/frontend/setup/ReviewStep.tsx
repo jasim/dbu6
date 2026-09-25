@@ -3,20 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import type { SetupToReview } from "../../shared/index";
 import { apiErrorMessage } from "../api";
 import { EmptyState } from "../components/empty-state";
-import { LinkCard } from "../components/link-card";
 import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
 import { setupStatusQuery } from "../queries";
 import { reviewHref } from "../review/routes";
-import { OPENING_BALANCES_ROUTE } from "../views/opening-balances/OpeningBalances";
 import { SetupFrame, StepHeading } from "./SetupWizard";
 import { SETUP_STEP_ROUTES, stepDone } from "./steps";
 
 /*
- * Step 4, Review: the banks and cards whose first statements wait to be
+ * Step 5, Review: the banks and cards whose first statements wait to be
  * checked, each opening in Review. Once every one is in and nothing waits,
- * the books are set up. Other starting balances (cash, investments, loans)
- * are optional, on their own screen.
+ * the books are set up, whether or not the optional other balances are.
  */
 export function ReviewStep() {
   const status = useQuery(setupStatusQuery);
@@ -51,30 +48,26 @@ export function ReviewStep() {
 function ToReview({ rows }: { rows: readonly SetupToReview[] }) {
   if (rows.length === 0) {
     return (
-      <>
-        <EmptyState
-          title="Nothing to review yet"
-          body="Import a statement for each bank or card, then check it here."
-          action={
-            <Button
-              render={<Link to={SETUP_STEP_ROUTES.statements} />}
-              nativeButton={false}
-              variant="outline"
-              size="sm"
-            >
-              Import your first statements
-            </Button>
-          }
-        />
-        <OtherBalances />
-      </>
+      <EmptyState
+        title="Nothing to review yet"
+        body="Import a statement for each bank or card, then check it here."
+        action={
+          <Button
+            render={<Link to={SETUP_STEP_ROUTES.statements} />}
+            nativeButton={false}
+            variant="outline"
+            size="sm"
+          >
+            Import your first statements
+          </Button>
+        }
+      />
     );
   }
   const [first] = rows;
   return (
     <>
       <WaitingTable rows={rows} />
-      <OtherBalances />
       <div className="mt-8 flex justify-end">
         <Button
           render={<Link to={reviewHref(first.account_id)} />}
@@ -140,20 +133,6 @@ function WaitingTable({ rows }: { rows: readonly SetupToReview[] }) {
   );
 }
 
-/** Balances no statement brings in: optional, on their own screen. */
-function OtherBalances() {
-  return (
-    <section className="mt-8">
-      <h3 className="mb-2 text-label uppercase text-ink-meta">Optional</h3>
-      <LinkCard
-        label="Other starting balances"
-        description="Cash, investments and loans have no statements. Record what they held."
-        to={OPENING_BALANCES_ROUTE}
-      />
-    </section>
-  );
-}
-
 /** Every bank or card is in, and nothing waits. */
 function SetUp() {
   return (
@@ -172,7 +151,6 @@ function SetUp() {
           Each month, import the new statements.
         </p>
       </div>
-      <OtherBalances />
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
         <Button render={<Link to="/" />} nativeButton={false} variant="ghost">
           Back to Home

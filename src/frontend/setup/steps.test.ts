@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { SetupStatus } from "../../shared/index";
-import { firstOpenStep, railSteps, stepDone } from "./steps";
+import { balancesHref, firstOpenStep, railSteps, stepDone } from "./steps";
 
 const status = (
   accounts: number,
   banks: number,
   imported: number,
   drafts: number,
+  otherBalances = 0,
 ): SetupStatus => ({
   accounts,
   statement_accounts: banks,
   imported_accounts: imported,
   drafts,
   to_review: [],
+  other_balances: otherBalances,
 });
 
 describe("the setup wizard's steps", () => {
@@ -22,6 +24,20 @@ describe("the setup wizard's steps", () => {
     expect(firstOpenStep(status(40, 2, 1, 42))).toBe("statements");
     expect(firstOpenStep(status(40, 2, 2, 42))).toBe("review");
     expect(firstOpenStep(status(40, 2, 2, 0))).toBe("review");
+  });
+
+  it("passes the optional other balances, and never waits for them", () => {
+    // Statements in, nothing recorded: /setup opens on Review, not on it.
+    expect(firstOpenStep(status(40, 2, 2, 42))).toBe("review");
+    expect(stepDone("balances", status(40, 2, 2, 0))).toBe(false);
+    expect(stepDone("review", status(40, 2, 2, 0))).toBe(true);
+    expect(stepDone("balances", status(40, 2, 2, 0, 3))).toBe(true);
+  });
+
+  it("links to one account's row on the other balances step", () => {
+    expect(balancesHref("Assets:Bank:Sample Bank")).toBe(
+      "/setup/balances?account=Assets%3ABank%3ASample+Bank",
+    );
   });
 
   it("is done with Review once every bank or card is in and nothing waits", () => {
@@ -39,6 +55,7 @@ describe("the setup wizard's steps", () => {
       ["Chart of accounts", "done", "72 accounts"],
       ["Banks & cards", "done", "2 added"],
       ["First statements", "todo", "1 of 2 imported"],
+      ["Other balances", "todo", "Optional"],
       ["Review", "todo", "42 to review"],
     ]);
     expect(steps.map((step) => step.current)).toEqual([
@@ -46,13 +63,27 @@ describe("the setup wizard's steps", () => {
       true,
       false,
       false,
+      false,
     ]);
     expect(steps.map((step) => step.to)).toEqual([
       "/setup/accounts",
       "/setup/banks",
       "/setup/statements",
+      "/setup/balances",
       "/setup/review",
     ]);
+  });
+
+  it("marks the other balances done once any is recorded", () => {
+    expect(railSteps(status(72, 2, 2, 0, 3), "review")[3]).toMatchObject({
+      title: "Other balances",
+      mark: "done",
+      status: "3 recorded",
+    });
+    expect(railSteps(status(72, 2, 2, 0), "balances")[3]).toMatchObject({
+      mark: "current",
+      status: "Optional",
+    });
   });
 
   it("says what is missing on new books", () => {
@@ -65,9 +96,10 @@ describe("the setup wizard's steps", () => {
       ["current", "Not created"],
       ["todo", "None yet"],
       ["todo", "Add a bank or card first"],
+      ["todo", "Optional"],
       ["todo", "Nothing yet"],
     ]);
-    expect(railSteps(status(72, 2, 2, 0), "review")[3]).toMatchObject({
+    expect(railSteps(status(72, 2, 2, 0), "review")[4]).toMatchObject({
       mark: "done",
       status: "Done",
     });
@@ -78,6 +110,7 @@ describe("the setup wizard's steps", () => {
       railSteps(null, "accounts").map((step) => [step.mark, step.status]),
     ).toEqual([
       ["current", ""],
+      ["todo", ""],
       ["todo", ""],
       ["todo", ""],
       ["todo", ""],

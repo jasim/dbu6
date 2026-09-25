@@ -52,8 +52,8 @@ export function homeState(summary: HomeSummary): HomeView {
       state: "no-accounts",
       greeting: "Let's set up your books",
       card: {
-        title: "Four steps",
-        body: "A chart of accounts, your banks and cards, a statement each, then review.",
+        title: "Five steps",
+        body: "A chart of accounts, your banks and cards, a statement each, other balances, then review.",
         action: { label: "Start setup", to: SETUP_ROUTE },
       },
       listsAccounts: false,

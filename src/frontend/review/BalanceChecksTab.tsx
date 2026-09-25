@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import { postingCheck } from "../../shared/index";
 import { Button } from "../components/ui/button";
-import { openingBalanceHref } from "../views/opening-balances/OpeningBalances";
 import { reportsApi } from "../reports/client";
+import { balancesHref } from "../setup/steps";
 import { EmptyState } from "../components/empty-state";
 import { formatMoney, formatShortDate } from "../format";
 import { balanceChecksPrompt } from "./agentPrompts";
@@ -94,7 +94,7 @@ function MissingOpeningBalance({ accountName }: { accountName: string }) {
       </div>
       <Button
         size="sm"
-        render={<Link to={openingBalanceHref(accountName)} />}
+        render={<Link to={balancesHref(accountName)} />}
         nativeButton={false}
       >
         Record the opening balance

@@ -3,7 +3,7 @@ import { cn } from "@sapporta/ui/cn";
 import type { RailMark, RailStep } from "./steps";
 
 /*
- * The setup wizard's four steps down the left of the page: a mark, the
+ * The setup wizard's five steps down the left of the page: a mark, the
  * title and where the step stands, each a link to the step. On a phone it
  * is a row of the marks and titles above the step.
  */
@@ -17,7 +17,7 @@ const MARK_LABEL: Record<RailMark, string> = {
 export function SetupRail({ steps }: { steps: readonly RailStep[] }) {
   return (
     <nav aria-label="Setup steps" className="md:sticky md:top-6 md:self-start">
-      <ol className="grid grid-cols-4 gap-1 md:grid-cols-1 md:gap-0.5">
+      <ol className="grid grid-cols-5 gap-1 md:grid-cols-1 md:gap-0.5">
         {steps.map((step) => (
           <li key={step.id}>
             <Link

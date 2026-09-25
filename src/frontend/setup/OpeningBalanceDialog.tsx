@@ -1,0 +1,247 @@
+import { useId, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@sapporta/ui/dialog";
+import { Input } from "@sapporta/ui";
+import type { OpeningBalanceAccount, OpeningSection } from "../../shared/index";
+import { apiErrorMessage } from "../api";
+import { Disclosure } from "../components/disclosure";
+import { Button } from "../components/ui/button";
+import { today } from "../reports/shared";
+import {
+  amountHint,
+  amountLabel,
+  dateHint,
+  fieldsFor,
+  readBalance,
+  signReadback,
+  type BalanceFields,
+} from "./other-balances";
+
+/*
+ * Adding one account's opening balance, or changing one that nothing else
+ * in the books leans on yet. It asks for the amount the user's way up, what
+ * it held or what they owed, and the day; the note naming its journal entry
+ * waits under "More options".
+ */
+
+/** The account whose balance is open, and the table it is in. */
+export interface BalanceEditing {
+  account: OpeningBalanceAccount;
+  section: OpeningSection;
+}
+
+/** What the dialog sends: the ledger's signed amount. */
+export interface BalanceEntry {
+  date: string;
+  amount: number;
+  description?: string;
+}
+
+export function OpeningBalanceDialog({
+  editing,
+  save,
+  onClose,
+}: {
+  /** Null when the dialog is closed. */
+  editing: BalanceEditing | null;
+  save: (
+    account: OpeningBalanceAccount,
+    entry: BalanceEntry,
+  ) => Promise<unknown>;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={editing !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg">
+        {editing && (
+          <DialogBody
+            key={editing.account.account_id}
+            editing={editing}
+            save={save}
+            onClose={onClose}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DialogBody({
+  editing: { account, section },
+  save,
+  onClose,
+}: {
+  editing: BalanceEditing;
+  save: (
+    account: OpeningBalanceAccount,
+    entry: BalanceEntry,
+  ) => Promise<unknown>;
+  onClose: () => void;
+}) {
+  const ids = { amount: useId(), date: useId(), note: useId() };
+  const adding = account.opening === null;
+  const type = account.account_type;
+  const [opened] = useState<BalanceFields>(() => fieldsFor(account, today()));
+  const [fields, setFields] = useState<BalanceFields>(opened);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const set = (patch: Partial<BalanceFields>) =>
+    setFields({ ...fields, ...patch });
+
+  // The suggestion is named until the user types over it.
+  const fromSuggestion =
+    adding &&
+    account.suggested_amount !== null &&
+    fields.amount === opened.amount;
+  const readback = signReadback(type, fields.amount);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const reading = readBalance(account, fields);
+    if (!reading.ok) {
+      setProblem(reading.problem);
+      return;
+    }
+    setProblem(null);
+    setSaving(true);
+    try {
+      await save(account, {
+        date: reading.date,
+        amount: reading.amount,
+        description: reading.description,
+      });
+      onClose();
+    } catch (error) {
+      setProblem(apiErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} noValidate>
+      <DialogHeader>
+        <DialogTitle>
+          {adding
+            ? `Add a balance for ${account.name}`
+            : `Edit the balance for ${account.name}`}
+        </DialogTitle>
+        {!adding && section === "statement" && (
+          <DialogDescription>
+            Set from its first statement. Changing it moves its balance checks.
+          </DialogDescription>
+        )}
+      </DialogHeader>
+
+      <div className="mt-4 space-y-4">
+        <Field
+          label={amountLabel(type)}
+          hint={amountHint(type, fields.date, fromSuggestion)}
+          htmlFor={ids.amount}
+        >
+          <Input
+            id={ids.amount}
+            inputMode="decimal"
+            autoFocus
+            value={fields.amount}
+            placeholder="0.00"
+            onChange={(event) => set({ amount: event.target.value })}
+            className="tnum h-sap-ctl w-[190px] rounded-control text-right font-mono"
+          />
+          {readback && (
+            <span className="mt-1 block text-meta text-attention-ink">
+              {readback}
+            </span>
+          )}
+        </Field>
+
+        <Field
+          label="As of"
+          hint={dateHint(account, adding)}
+          htmlFor={ids.date}
+        >
+          <Input
+            id={ids.date}
+            type="date"
+            value={fields.date}
+            onChange={(event) => set({ date: event.target.value })}
+            className="tnum h-sap-ctl w-[190px] rounded-control font-mono"
+          />
+        </Field>
+
+        <Disclosure summary="More options">
+          <Field
+            label="Note"
+            hint="Optional. Names its journal entry."
+            htmlFor={ids.note}
+          >
+            <Input
+              id={ids.note}
+              value={fields.note}
+              maxLength={200}
+              placeholder="Opening balance"
+              onChange={(event) => set({ note: event.target.value })}
+              className="h-sap-ctl w-full rounded-control"
+            />
+          </Field>
+        </Disclosure>
+      </div>
+
+      {problem && (
+        <p
+          role="alert"
+          className="mt-4 text-body text-destructive [overflow-wrap:anywhere]"
+        >
+          {problem}
+        </p>
+      )}
+
+      <DialogFooter className="mt-6">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={saving}>
+          {adding
+            ? saving
+              ? "Adding…"
+              : "Add balance"
+            : saving
+              ? "Saving…"
+              : "Save"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  hint: string;
+  /** The control the label names. */
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={htmlFor}
+        className="block text-row font-semibold text-foreground"
+      >
+        {label}
+      </label>
+      <span className="mt-0.5 block text-meta text-ink-meta">{hint}</span>
+      <div className="mt-1.5">{children}</div>
+    </div>
+  );
+}

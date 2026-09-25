@@ -11,6 +11,7 @@ export const retiredPaths: Readonly<Record<string, string>> = {
   "/tables/accounts": "/accounts",
   "/views/import-statements": "/import",
   "/views/post-drafts": "/review",
+  "/opening-balances": "/setup/balances",
 };
 
 function Redirect({ to }: { to: string }) {

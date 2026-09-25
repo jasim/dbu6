@@ -16,9 +16,10 @@ import type { SetupStatus } from "../../shared/index";
 import { ReviewStep } from "./ReviewStep";
 
 /*
- * Step 4 (PLAN.md): the banks and cards whose first statements wait, each
+ * Step 5 (PLAN.md): the banks and cards whose first statements wait, each
  * opening in Review; "Your books are set up" once all are in and nothing
- * waits; and an empty state before anything is imported.
+ * waits, other balances or not; and an empty state before anything is
+ * imported.
  */
 
 // The frame is another screen's; the step renders inside a plain one.
@@ -128,6 +129,7 @@ describe("the review step", () => {
         { account_id: 2, name: "Sample Savings", drafts: 42, uncategorized: 4 },
         { account_id: 4, name: "Sample Card", drafts: 18, uncategorized: 0 },
       ],
+      other_balances: 2,
     });
     await render();
 
@@ -147,20 +149,18 @@ describe("the review step", () => {
         .filter((a) => a.textContent === "Review Sample Savings")
         .map((a) => a.getAttribute("href")),
     ).toEqual(["/review/2"]);
-    expect(text()).toContain("Optional");
-    expect(
-      host.querySelector('a[href="/opening-balances"]')?.textContent,
-    ).toContain("Other starting balances");
     expect(text()).not.toMatch(/draft/i);
   });
 
   it("says the books are set up once every account is in and nothing waits", async () => {
+    // No other balance recorded: that step is optional.
     books({
       accounts: 72,
       statement_accounts: 1,
       imported_accounts: 1,
       drafts: 0,
       to_review: [],
+      other_balances: 0,
     });
     await render();
 
@@ -178,6 +178,7 @@ describe("the review step", () => {
       imported_accounts: 0,
       drafts: 0,
       to_review: [],
+      other_balances: 0,
     });
     await render();
 

@@ -59,18 +59,6 @@ export function reviewAccountQuery(accountId: number) {
 }
 
 /**
- * Every asset and liability account and its opening entry. It has a key of
- * its own, not the drafts': its screen fetches it on mount, and recording an
- * opening balance leaves the grid's own rows alone while refreshing the
- * screens that count drafts.
- */
-export const openingBalancesQuery = queryOptions({
-  queryKey: ["opening-balances"],
-  queryFn: () => openingBalancesApi.list({ query: {} }),
-  ...FRESH_QUERY,
-});
-
-/**
  * A statement account's lessons for the categoriser. The user's coding agent
  * deletes each once it is taught, outside the app, so they are read again
  * when the user comes back to the window.
@@ -190,6 +178,16 @@ export const statementAccountsQuery = queryOptions({
 export const firstStatementsQuery = queryOptions({
   queryKey: [...SETUP_KEY, "first-statements"],
   queryFn: () => setupApi.firstStatements(),
+  ...FRESH_QUERY,
+});
+
+/**
+ * Every asset and liability account and its opening entry, for the Other
+ * balances step.
+ */
+export const openingBalancesQuery = queryOptions({
+  queryKey: [...SETUP_KEY, "opening-balances"],
+  queryFn: () => openingBalancesApi.list({ query: {} }),
   ...FRESH_QUERY,
 });
 

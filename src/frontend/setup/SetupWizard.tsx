@@ -16,7 +16,8 @@ import {
 
 /*
  * The setup wizard (/setup): the chart of accounts, the banks and cards
- * statements come from, a first statement for each, then Review. Every step
+ * statements come from, a first statement for each, the other balances
+ * (optional), then Review. Every step
  * reads where it stands from the books, so leaving and coming back shows
  * where things are.
  */
