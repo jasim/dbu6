@@ -593,7 +593,7 @@ describe("account import failures", () => {
     expect(problem.agent?.prompt).toContain("closing_balance_unavailable");
   });
 
-  it("links a missing opening balance to the opening balances screen, not an agent", () => {
+  it("links a missing opening balance to the Other balances step, not an agent", () => {
     const [problem] = describeProblems(
       refused(422, {
         ...PAYLOADS.opening_balance_unavailable,
@@ -606,7 +606,7 @@ describe("account import failures", () => {
       {
         kind: "link",
         label: "Record the opening balance",
-        to: "/opening-balances?account=Sample+Bank",
+        to: "/setup/balances?account=Sample+Bank",
       },
     ]);
     expect(problem.agent).toBeNull();

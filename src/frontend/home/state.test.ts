@@ -67,7 +67,7 @@ describe("homeState", () => {
     expect(view.greeting).toBe("Let's set up your books");
     expect(view.card.count).toBeUndefined();
     expect(view.card.body).toBe(
-      "A chart of accounts, your banks and cards, a statement each, then review.",
+      "A chart of accounts, your banks and cards, a statement each, other balances, then review.",
     );
     expect(view.card.action).toEqual({
       label: "Start setup",

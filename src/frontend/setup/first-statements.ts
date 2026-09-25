@@ -16,6 +16,7 @@ import {
 } from "../format";
 import type { StatusTone } from "../components/status-chip";
 import { describeGroup } from "../views/import-statements/describeGroup";
+import { ledgerAmount } from "./other-balances";
 
 /*
  * The first statements step's rows as words: what a read statement's
@@ -193,11 +194,7 @@ function openingFigure(
  * negative. Null for anything that isn't a number.
  */
 export function openingAmount(kind: AccountKind, typed: string): number | null {
-  const text = typed.replace(/[,\s]/g, "");
-  if (!/^-?\d+(\.\d+)?$/.test(text)) return null;
-  const amount = Math.round(Number(text) * 100) / 100;
-  // 0 owed is 0, not -0.
-  return kind === "card" ? 0 - amount : amount;
+  return ledgerAmount(kind === "card" ? "Liability" : "Asset", typed);
 }
 
 /**

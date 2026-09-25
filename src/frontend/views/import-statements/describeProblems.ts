@@ -19,7 +19,7 @@ import {
     unrecognizedPrompt,
 } from "./agentPrompts";
 import type {StatusTone} from "../../components/status-chip";
-import {openingBalanceHref} from "../opening-balances/OpeningBalances";
+import {balancesHref} from "../../setup/steps";
 import type {Stat} from "./describeGroup";
 import type {AccountRefusal, ImportFailure} from "./outcome";
 import {
@@ -535,7 +535,7 @@ function refusalProblem(refusal: AccountRefusal): ProblemBody {
                     {
                         kind: "link",
                         label: "Record the opening balance",
-                        to: openingBalanceHref(group.base_account),
+                        to: balancesHref(group.base_account),
                     },
                 ],
                 agent: null,

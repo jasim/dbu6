@@ -20,7 +20,6 @@ import { TablePage } from "@sapporta/frontend";
 import { Advanced } from "./Advanced";
 import { Home as HomePage } from "./home/Home";
 import { ImportInstructions } from "./views/import-instructions/ImportInstructions";
-import { OpeningBalances } from "./views/opening-balances/OpeningBalances";
 import { retiredRoutes } from "./redirects";
 import { ReportsIndex } from "./reports/ReportsIndex";
 import { reportDefinitions, type ReportDefinition } from "./reports/registry";
@@ -42,6 +41,7 @@ import { JournalsTable } from "./views/JournalsTable";
 import { ReclassifyDrafts } from "./views/ReclassifyDrafts";
 import { RenderDraftHledger } from "./views/RenderDraftHledger";
 import { Settings as SettingsPage } from "./views/settings/Settings";
+import { BalancesStep } from "./setup/BalancesStep";
 import { BanksStep } from "./setup/BanksStep";
 import { ChartStep } from "./setup/ChartStep";
 import { ReviewStep } from "./setup/ReviewStep";
@@ -129,11 +129,11 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
         element={<Navigate to="/reports" replace />}
       />
       <Route path="settings" element={<SettingsPage />} />
-      <Route path="opening-balances" element={<OpeningBalances />} />
       <Route path="setup" element={<SetupIndex />} />
       <Route path="setup/accounts" element={<ChartStep />} />
       <Route path="setup/banks" element={<BanksStep />} />
       <Route path="setup/statements" element={<StatementsStep />} />
+      <Route path="setup/balances" element={<BalancesStep />} />
       <Route path="setup/review" element={<ReviewStep />} />
       <Route path="import-instructions" element={<ImportInstructions />} />
       <Route path="tools" element={<Advanced />} />

@@ -278,6 +278,10 @@ describe("the first statements step", () => {
     expect(closed.querySelector("button")).toBeNull();
 
     expect(text()).toContain("3 still to import");
+    const next = Array.from(host.querySelectorAll("a")).find(
+      (candidate) => candidate.textContent === "Next: Other balances",
+    );
+    expect(next?.getAttribute("href")).toBe("/setup/balances");
   });
 
   it("asks for a balance the statement doesn't give, and imports it as owed", async () => {

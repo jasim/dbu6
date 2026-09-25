@@ -102,11 +102,11 @@ export function StatementsStep() {
               </span>
             )}
             <Button
-              render={<Link to={SETUP_STEP_ROUTES.review} />}
+              render={<Link to={SETUP_STEP_ROUTES.balances} />}
               nativeButton={false}
               variant={remaining > 0 ? "outline" : "default"}
             >
-              Next: Review
+              Next: Other balances
             </Button>
           </div>
         </>

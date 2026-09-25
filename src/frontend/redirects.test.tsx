@@ -53,6 +53,12 @@ describe("retired routes", () => {
     );
   });
 
+  it("sends an old opening balance link to its row on the setup step", async () => {
+    expect(await landingFor("/opening-balances?account=Sample+Card")).toBe(
+      "/setup/balances?account=Sample+Card",
+    );
+  });
+
   it("leaves paths that still exist alone", async () => {
     // The raw draft table is on All tools again; Review is per account.
     expect(
