@@ -1,6 +1,7 @@
 import type {
   AccountKind,
   AutoImportResult,
+  FirstStatementRefusal,
   FirstStatementRow,
   RecognizedFinding,
   SampleFinding,
@@ -13,6 +14,7 @@ import {
   formatMoney,
   maskIdentifier,
 } from "../format";
+import type { StatusTone } from "../components/status-chip";
 import { describeGroup } from "../views/import-statements/describeGroup";
 
 /*
@@ -38,6 +40,53 @@ export function withFinding(
   return finding.outcome === "recognized"
     ? { ...base, status: "read", finding }
     : { ...base, status: "unreadable", finding };
+}
+
+/** A row's status in its header: a tone and a word or two. */
+export interface RowStatus {
+  tone: StatusTone;
+  label: string;
+}
+
+/**
+ * The row's status as its header says it: from the books, unless the last
+ * import stopped, which only this screen knows.
+ */
+export function rowStatus(
+  row: Pick<FirstStatementRow, "status">,
+  importStopped: boolean,
+): RowStatus {
+  switch (row.status) {
+    case "imported":
+      return { tone: "ok", label: "Imported" };
+    case "read":
+      return importStopped
+        ? { tone: "problem", label: "Not imported" }
+        : { tone: "attention", label: "Ready to import" };
+    case "unreadable":
+      return { tone: "attention", label: "Can't read yet" };
+    case "needs_statement":
+      return { tone: "waiting", label: "To do" };
+  }
+}
+
+/*
+ * Refusals the same file meets again: its dates, balances, number or rows
+ * are what they are. Only another file, or a change elsewhere, gets past.
+ */
+const SAME_FILE_REFUSED_AGAIN: ReadonlySet<FirstStatementRefusal["code"]> =
+  new Set([
+    "opening_after_statement_start",
+    "opening_disagrees",
+    "activity_before_statement",
+    "numbers_differ",
+    "statement_has_no_transactions",
+    "statement_unreadable",
+  ]);
+
+/** Whether "Try again" with the same file could get past a refusal. */
+export function retryCanHelp(code: FirstStatementRefusal["code"]): boolean {
+  return !SAME_FILE_REFUSED_AGAIN.has(code);
 }
 
 /** "Account number" or "Card number". */
