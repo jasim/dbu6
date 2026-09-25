@@ -74,12 +74,19 @@ export function AgentPrompt({
 export function AgentActions({
   prompt,
   afterwards,
+  onActed,
   goal,
   standalone = false,
 }: {
   prompt: string;
   /** What the user does once the agent has the prompt. */
   afterwards?: ReactNode;
+  /**
+   * Once the user has taken the prompt: copied it, or the agent opened in a
+   * terminal. A command still to run is "command", since the user has it
+   * but the agent doesn't yet.
+   */
+  onActed?: (how: "copied" | "opened" | "command") => void;
   /**
    * What the agent does, for the button to say in place of "Open in". Where
    * it opens then drops to a muted second line, under the sparkle.
@@ -118,7 +125,12 @@ export function AgentActions({
                 : "h-auto min-h-sap-ctl px-4 py-2.5 text-left"
             }
             disabled={handoff.isPending}
-            onClick={() => handoff.mutate(text)}
+            onClick={() =>
+              handoff.mutate(text, {
+                onSuccess: (result) =>
+                  onActed?.(result.mode === "terminal" ? "opened" : "command"),
+              })
+            }
           >
             {goal === undefined ? (
               <>
@@ -144,7 +156,10 @@ export function AgentActions({
           // Beside the violet button, copying is the lesser way; alone, it
           // keeps its outline.
           quiet={standalone && handsOff}
-          onCopied={setCopied}
+          onCopied={(copiedText) => {
+            setCopied(copiedText);
+            onActed?.("copied");
+          }}
         />
       </div>
       {!handsOff && (

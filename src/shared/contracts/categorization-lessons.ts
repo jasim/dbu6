@@ -7,9 +7,9 @@ const errorSchema = z.object({ error: z.string() }).passthrough();
 
 /*
  * Lessons for the categoriser, taught on Review's Improve categorization tab
- * (schema/categorization-lessons.ts). Teaching one gives its drafts their
- * category; the user's coding agent turns each into a rule or guidance, and
- * then deletes it.
+ * (schema/categorization-lessons.ts), where the user calls them new rules.
+ * The user's coding agent turns each into a rule or guidance, and then
+ * deletes it; the categorizer then gives the drafts their category.
  */
 
 export const categorizationLessonSchema = z.object({
@@ -41,7 +41,7 @@ export const categorizationLessonsContract = c.router({
     method: "POST",
     path: "/categorization-lessons",
     summary:
-      "Give drafts of one statement account a category and record it as a lesson, all or none",
+      "Record that drafts of one statement account go to an account, as a lesson for the coding agent; the drafts keep no category",
     body: z.object({
       draft_ids: z.array(z.number().int().positive()).min(1),
       account_id: z.number().int().positive(),
@@ -61,7 +61,7 @@ export const categorizationLessonsContract = c.router({
     method: "DELETE",
     path: "/categorization-lessons/:id",
     summary:
-      "Delete a lesson once it is taught; its drafts keep their category",
+      "Delete a lesson once it is taught, or when the user no longer wants it",
     pathParams: z.object({ id: z.coerce.number().int().positive() }),
     body: z.object({}).optional(),
     responses: {
@@ -73,8 +73,7 @@ export const categorizationLessonsContract = c.router({
   clearCategorizationLessons: c.mutation({
     method: "DELETE",
     path: "/categorization-lessons",
-    summary:
-      "Delete every lesson of one statement account; the drafts keep their category",
+    summary: "Delete every lesson of one statement account",
     query: z.object({
       base_account_id: z.coerce.number().int().positive(),
     }),

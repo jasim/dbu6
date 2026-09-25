@@ -170,7 +170,7 @@ describe("teachCategorization", () => {
       .prepare("SELECT id, account_id FROM draft_transactions ORDER BY id")
       .all();
 
-  it("gives the drafts the category and records the lesson", () => {
+  it("records the lesson and leaves the drafts without a category", () => {
     const { db, sqlite } = setupDatabase();
     const ledger = { db, sqlite, auth };
     addDraft(db, 3, "UPI debit again", 1);
@@ -190,14 +190,14 @@ describe("teachCategorization", () => {
     };
     expect(outcome).toEqual({ kind: "taught", lesson });
     expect(categories(sqlite)).toEqual([
-      { id: 1, account_id: 2 },
-      { id: 3, account_id: 2 },
+      { id: 1, account_id: null },
+      { id: 3, account_id: null },
     ]);
     expect(loadCategorizationLessons(db, auth, 1)).toEqual([lesson]);
     expect(loadCategorizationLessons(db, auth, 4)).toEqual([]);
   });
 
-  it("does neither for drafts of more than one statement account", () => {
+  it("records no lesson for drafts of more than one statement account", () => {
     const { db, sqlite } = setupDatabase();
     const ledger = { db, sqlite, auth };
     addDraft(db, 3, "NOPII CARD DEBIT", 4);
@@ -222,7 +222,7 @@ describe("teachCategorization", () => {
     expect(loadCategorizationLessons(db, auth, 1)).toEqual([]);
   });
 
-  it("forgets a lesson, or an account's lessons, keeping the categories", () => {
+  it("forgets a lesson, or an account's lessons", () => {
     const { db, sqlite } = setupDatabase();
     const ledger = { db, sqlite, auth };
     addDraft(db, 3, "UPI debit again", 1);
@@ -236,10 +236,6 @@ describe("teachCategorization", () => {
     ).toEqual([2]);
     expect(forgetCategorizationLessons(ledger, 1)).toBe(1);
     expect(loadCategorizationLessons(db, auth, 1)).toEqual([]);
-    expect(categories(sqlite)).toEqual([
-      { id: 1, account_id: 2 },
-      { id: 3, account_id: 2 },
-    ]);
   });
 });
 

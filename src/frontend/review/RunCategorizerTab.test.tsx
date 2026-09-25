@@ -8,6 +8,7 @@ import {
   Routes,
   useLocation,
 } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   afterEach,
   beforeAll,
@@ -18,6 +19,7 @@ import {
   vi,
 } from "vitest";
 import type {
+  CategorizationLesson,
   DraftClassification,
   ImportPresetsView,
   ReviewAccountDetail,
@@ -128,9 +130,14 @@ const CLASSIFIED: DraftClassification = {
 let classifyAnswer: DraftClassification;
 // The drafts with no category; a test sets it to none.
 let draftsAnswer: typeof DRAFTS;
+// The new rules from Improve categorization the agent has yet to add.
+let lessonsAnswer: CategorizationLesson[];
 
 function respond(method: string, url: URL): unknown {
   if (url.pathname.endsWith("/import-presets")) return PRESETS;
+  if (url.pathname.endsWith("/categorization-lessons")) {
+    return { lessons: lessonsAnswer };
+  }
   if (url.pathname.endsWith("/tables/draft_transactions")) {
     return { data: draftsAnswer };
   }
@@ -157,6 +164,7 @@ beforeEach(() => {
   refreshed = 0;
   classifyAnswer = CLASSIFIED;
   draftsAnswer = DRAFTS;
+  lessonsAnswer = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -224,38 +232,45 @@ function Where() {
 }
 
 async function renderAt(url: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   await act(async () => {
     root.render(
       createElement(
-        MemoryRouter,
-        { initialEntries: [url] },
-        createElement(Where),
+        QueryClientProvider,
+        { client: queryClient },
         createElement(
-          Routes,
-          null,
-          createElement(Route, {
-            path: "/views/reclassify-drafts",
-            element: createElement(ReclassifyDraftsRedirect),
-          }),
-          createElement(Route, {
-            path: "/review",
-            element: createElement("p", null, "picker"),
-          }),
+          MemoryRouter,
+          { initialEntries: [url] },
+          createElement(Where),
           createElement(
-            Route,
-            { path: "/review/:accountId", element: createElement(Frame) },
+            Routes,
+            null,
             createElement(Route, {
-              index: true,
-              element: createElement("p", null, "overview"),
+              path: "/views/reclassify-drafts",
+              element: createElement(ReclassifyDraftsRedirect),
             }),
             createElement(Route, {
-              path: "drafts",
-              element: createElement("p", null, "drafts"),
+              path: "/review",
+              element: createElement("p", null, "picker"),
             }),
-            createElement(Route, {
-              path: "run-categorizer",
-              element: createElement(RunCategorizerTab),
-            }),
+            createElement(
+              Route,
+              { path: "/review/:accountId", element: createElement(Frame) },
+              createElement(Route, {
+                index: true,
+                element: createElement("p", null, "overview"),
+              }),
+              createElement(Route, {
+                path: "drafts",
+                element: createElement("p", null, "drafts"),
+              }),
+              createElement(Route, {
+                path: "run-categorizer",
+                element: createElement(RunCategorizerTab),
+              }),
+            ),
           ),
         ),
       ),
@@ -303,6 +318,31 @@ describe("Run categorizer", () => {
     );
     expect(host.querySelector("table")).toBeNull();
     expect(classifyButton()?.textContent).toBe("Categorize 4 drafts");
+    expect(text()).not.toContain("Waiting for your agent");
+  });
+
+  it("says the agent is still adding the new rules from Improve categorization", async () => {
+    lessonsAnswer = [
+      {
+        id: 11,
+        base_account_id: 5,
+        account: { id: 7, name: "Groceries" },
+        narrations: ["NOPII SHOP ONE"],
+        note: "",
+      },
+    ];
+    await renderAt(TAB);
+
+    expect(
+      requests
+        .find((r) => r.url.pathname.endsWith("/categorization-lessons"))
+        ?.url.searchParams.get("base_account_id"),
+    ).toBe("5");
+    expect(text()).toContain("Waiting for your agent to add 1 new rule");
+    expect(link("See them")?.getAttribute("href")).toBe(
+      "/review/5/improve-categorization",
+    );
+    expect(classifyButton()?.textContent).toBe("Categorize 4 drafts");
   });
 
   it("sums up the run in place of the card, and sends what is left to Drafts", async () => {
@@ -327,7 +367,7 @@ describe("Run categorizer", () => {
       ["Dining", "1"],
       ["Still need a category", "1"],
     ]);
-    expect(link("Teach the categorizer")?.getAttribute("href")).toBe(
+    expect(link("Improve categorization")?.getAttribute("href")).toBe(
       "/review/5/improve-categorization",
     );
     expect(link("Done")?.getAttribute("href")).toBe("/review/5");
@@ -358,7 +398,7 @@ describe("Run categorizer", () => {
     await settle();
 
     expect(heading()).toBe("All 4 drafts categorized");
-    expect(link("Teach the categorizer")).toBeUndefined();
+    expect(link("Improve categorization")).toBeUndefined();
     await act(async () => link("Done")!.click());
     await settle();
     expect(where()).toBe("/review/5");

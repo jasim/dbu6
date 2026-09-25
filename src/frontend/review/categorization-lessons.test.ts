@@ -56,7 +56,7 @@ describe("lessonsPrompt", () => {
 
     expect(prompt).toContain("/review/7/improve-categorization");
     expect(prompt).toContain(
-      "(ledger account Assets:Sample Card,\naccount id 7)",
+      "(ledger account Assets:Sample Card, account\nid 7)",
     );
     expect(prompt).toContain(
       [
@@ -76,7 +76,7 @@ describe("lessonsPrompt", () => {
 
     expect(prompt).toContain("`dbu6 docs books`");
     expect(prompt).toContain("user-config/transaction_mappings.mjs");
-    expect(prompt).toContain("leave them as they are");
+    expect(prompt).toContain("Don't categorise the drafts yourself");
     expect(prompt).toContain(
       "`sapporta api delete /api/categorization-lessons/<lesson id>`",
     );

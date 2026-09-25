@@ -118,6 +118,29 @@ export function setDraftsCategory(
   ids: readonly number[],
   accountId: number,
 ): SetDraftsCategoryOutcome {
+  const checked = checkDraftsCategory(ledger, ids, accountId);
+  if (checked.kind !== "valid") return checked;
+  saveReclassifiedDrafts(
+    ledger.db,
+    checked.drafts.map((draft) => ({
+      id: draft.id,
+      narration: draft.narration,
+      accountId,
+    })),
+    ledger.auth,
+  );
+  return { kind: "set", updated: checked.drafts.length };
+}
+
+// The drafts, when they may all go to the account: it is in the books, so is
+// every draft, and it isn't a draft's own base account.
+function checkDraftsCategory(
+  ledger: Ledger,
+  ids: readonly number[],
+  accountId: number,
+):
+  | { kind: "valid"; drafts: ReturnType<typeof loadDraftsById> }
+  | Exclude<SetDraftsCategoryOutcome, { kind: "set" }> {
   const { db, auth } = ledger;
   const accounts = [...loadAccountsByName(db, auth).values()];
   if (!accounts.some((account) => account.id === accountId)) {
@@ -135,16 +158,7 @@ export function setDraftsCategory(
   if (drafts.some((draft) => draft.base_account_id === accountId)) {
     return { kind: "own-account" };
   }
-  saveReclassifiedDrafts(
-    db,
-    drafts.map((draft) => ({
-      id: draft.id,
-      narration: draft.narration,
-      accountId,
-    })),
-    auth,
-  );
-  return { kind: "set", updated: drafts.length };
+  return { kind: "valid", drafts };
 }
 
 export type TeachCategorizationOutcome =
@@ -153,8 +167,9 @@ export type TeachCategorizationOutcome =
   | { kind: "not-one-account" };
 
 /**
- * Gives drafts of one statement account the category the user chose, and
- * records it as a lesson for the coding agent to encode, both or neither.
+ * Records that drafts of one statement account go to the account the user
+ * chose, as a lesson for the coding agent to turn into a rule. The drafts
+ * keep no category: the categorizer gives them one once the rule is in.
  */
 export function teachCategorization(
   ledger: Ledger,
@@ -162,23 +177,23 @@ export function teachCategorization(
 ): TeachCategorizationOutcome {
   const { auth } = ledger;
   return ledger.db.transaction((tx: any): TeachCategorizationOutcome => {
-    const drafts = loadDraftsById(tx, [...new Set(lesson.draftIds)], auth);
-    const baseAccounts = new Set(drafts.map((draft) => draft.base_account_id));
-    const [baseAccountId] = baseAccounts;
-    // Drafts that aren't found are setDraftsCategory's to name.
-    if (drafts.length > 0 && (baseAccounts.size > 1 || baseAccountId == null)) {
-      return { kind: "not-one-account" };
-    }
-    const outcome = setDraftsCategory(
+    const checked = checkDraftsCategory(
       { ...ledger, db: tx },
       lesson.draftIds,
       lesson.accountId,
     );
-    if (outcome.kind !== "set") return outcome;
+    if (checked.kind !== "valid") return checked;
+    const baseAccounts = new Set(
+      checked.drafts.map((draft) => draft.base_account_id),
+    );
+    const [baseAccountId] = baseAccounts;
+    if (baseAccounts.size > 1 || baseAccountId == null) {
+      return { kind: "not-one-account" };
+    }
     const id = insertCategorizationLesson(tx, auth, {
-      baseAccountId: baseAccountId!,
+      baseAccountId,
       accountId: lesson.accountId,
-      narrations: drafts.map((draft) => draft.narration),
+      narrations: checked.drafts.map((draft) => draft.narration),
       note: lesson.note.trim(),
     });
     const taught = loadCategorizationLesson(tx, auth, id);
@@ -187,7 +202,7 @@ export function teachCategorization(
   });
 }
 
-/** Deletes a lesson, taught or not wanted; its drafts keep their category. */
+/** Deletes a lesson, taught or not wanted. */
 export function forgetCategorizationLesson(ledger: Ledger, id: number): number {
   return deleteCategorizationLesson(ledger.db, ledger.auth, id);
 }
