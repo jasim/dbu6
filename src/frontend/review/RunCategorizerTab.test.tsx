@@ -29,23 +29,18 @@ import {
 } from "./RunCategorizerTab";
 
 /*
- * Run categorizer, a tab of the account's review: it sends the account's
- * drafts with no category, with the instructions the account imports with,
- * each file shown on a tab and another preset account's a choice away. A
- * dialog counts what the run categorized, what is left, and by category, and
- * OK goes back to the account's Overview. The old page's URL opens the tab.
+ * Run categorizer, a tab of the account's review: one card says how many of
+ * the account's drafts have no category and sends them, with the
+ * instructions the account imports with; another preset account's are a
+ * Change away. After the run the card counts what it categorized, by
+ * category, and what is left, and points at Drafts and Improve
+ * categorization for the rest. The old page's URL opens the tab.
  */
 
 let host: HTMLDivElement;
 let root: Root;
 let requests: Array<{ method: string; url: URL; body: string | null }>;
 let refreshed: number;
-
-const ACCOUNTS = [
-  { id: 5, name: "Sample Savings" },
-  { id: 7, name: "Groceries" },
-  { id: 8, name: "Dining" },
-];
 
 const PRESETS: ImportPresetsView = {
   institutions: [
@@ -135,19 +130,7 @@ let classifyAnswer: DraftClassification;
 let draftsAnswer: typeof DRAFTS;
 
 function respond(method: string, url: URL): unknown {
-  if (url.pathname.endsWith("/tables/accounts")) return { data: ACCOUNTS };
   if (url.pathname.endsWith("/import-presets")) return PRESETS;
-  const file = url.pathname.match(/\/import-presets\/mapping-files\/(.+)$/);
-  if (file) {
-    const filename = decodeURIComponent(file[1]!);
-    return {
-      filename,
-      content:
-        filename === "custom_mappings_sample.prompt"
-          ? "Sample cafes map to 'Dining'."
-          : null,
-    };
-  }
   if (url.pathname.endsWith("/tables/draft_transactions")) {
     return { data: draftsAnswer };
   }
@@ -266,6 +249,10 @@ async function renderAt(url: string) {
               element: createElement("p", null, "overview"),
             }),
             createElement(Route, {
+              path: "drafts",
+              element: createElement("p", null, "drafts"),
+            }),
+            createElement(Route, {
               path: "run-categorizer",
               element: createElement(RunCategorizerTab),
             }),
@@ -290,6 +277,9 @@ async function settle() {
 const text = () => host.textContent ?? "";
 const where = () => host.querySelector("code")?.textContent;
 const dialog = () => document.querySelector('[role="dialog"]');
+const heading = () => host.querySelector("h2")?.textContent;
+const link = (label: string) =>
+  [...host.querySelectorAll("a")].find((a) => a.textContent === label);
 
 describe("Run categorizer", () => {
   it("sends the account's drafts with no category, with the instructions it imports with", async () => {
@@ -300,19 +290,22 @@ describe("Run categorizer", () => {
         .find((r) => r.url.pathname.endsWith("/tables/draft_transactions"))
         ?.url.searchParams.get("filter[base_account_id][eq]"),
     ).toBe("5");
-    expect(text()).toContain("4 drafts without a category");
-    expect(text()).toContain("Sample Bank · Sample Savings");
-    expect(text()).toContain("The instructions Sample Savings imports with.");
-    expect(
-      [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent),
-    ).toEqual(["custom_mappings_sample.prompt"]);
-    expect(host.querySelector("pre")?.textContent).toBe(
-      "Sample cafes map to 'Dining'.",
+    expect(heading()).toBe("4 drafts need a category");
+    expect(settings()).toEqual([
+      ["Instructions", "Sample Savings · 1 file"],
+      ["Google Pay", "Not addedNames payees, from My Activities.html"],
+    ]);
+    expect(link("View")?.getAttribute("href")).toBe(
+      "/import-instructions?account=5",
     );
+    expect(link("See them in Drafts")?.getAttribute("href")).toBe(
+      "/review/5/drafts?filter%5Baccount_id%5D%5Bis%5D=null",
+    );
+    expect(host.querySelector("table")).toBeNull();
     expect(classifyButton()?.textContent).toBe("Categorize 4 drafts");
   });
 
-  it("sums up the run in a dialog, and OK goes back to the account's Overview", async () => {
+  it("sums up the run in place of the card, and sends what is left to Drafts", async () => {
     await renderAt(TAB);
     await act(async () => classifyButton()!.click());
     await settle();
@@ -323,28 +316,52 @@ describe("Run categorizer", () => {
       custom_mappings_filenames: ["custom_mappings_sample.prompt"],
     });
     expect(refreshed).toBe(1);
-    expect(dialog()?.querySelector("h2")?.textContent).toBe(
-      "Categorized 3 of 4 drafts",
-    );
-    expect(dialog()?.textContent).not.toMatch(/rules|Claude Code/);
-    const facts = [...(dialog()?.querySelectorAll("dl div") ?? [])].map((row) =>
+    expect(dialog()).toBeNull();
+    expect(heading()).toBe("3 of 4 drafts categorized");
+    expect(text()).not.toMatch(/rules|Claude Code/);
+    const facts = [...host.querySelectorAll("dl div")].map((row) =>
       [...row.children].map((cell) => cell.textContent),
     );
     expect(facts).toEqual([
-      ["Categorized", "3"],
-      ["Left to categorize", "1"],
       ["Groceries", "2"],
       ["Dining", "1"],
+      ["Still need a category", "1"],
     ]);
-
-    const ok = [...(dialog()?.querySelectorAll("button") ?? [])].find(
-      (b) => b.textContent === "OK",
+    expect(link("Teach the categorizer")?.getAttribute("href")).toBe(
+      "/review/5/improve-categorization",
     );
-    await act(async () => ok!.click());
+    expect(link("Done")?.getAttribute("href")).toBe("/review/5");
+
+    await act(async () => link("Categorize the 1 by hand")!.click());
     await settle();
 
+    expect(where()).toBe(
+      "/review/5/drafts?filter%5Baccount_id%5D%5Bis%5D=null",
+    );
+  });
+
+  it("says Done when the run left nothing to categorize", async () => {
+    classifyAnswer = {
+      ...CLASSIFIED,
+      transactions: CLASSIFIED.transactions.map((t) => ({
+        ...t,
+        account_id: t.account_id ?? 8,
+      })),
+      categorization_tally: {
+        ...CLASSIFIED.categorization_tally,
+        by_llm: 2,
+        uncategorized: 0,
+      },
+    };
+    await renderAt(TAB);
+    await act(async () => classifyButton()!.click());
+    await settle();
+
+    expect(heading()).toBe("All 4 drafts categorized");
+    expect(link("Teach the categorizer")).toBeUndefined();
+    await act(async () => link("Done")!.click());
+    await settle();
     expect(where()).toBe("/review/5");
-    expect(text()).toContain("overview");
   });
 
   it("says so when every draft already has a category", async () => {
@@ -365,6 +382,15 @@ describe("Run categorizer", () => {
     expect(where()).toBe("/review");
   });
 });
+
+// The ready card's rows: each label and what it is set to.
+function settings() {
+  return [...host.querySelectorAll("dl > div")].map((row) =>
+    [...row.querySelectorAll("dt, dd")]
+      .slice(0, 2)
+      .map((cell) => cell.textContent),
+  );
+}
 
 function classifyButton() {
   return [...host.querySelectorAll("button")].find((b) =>
@@ -416,12 +442,8 @@ describe("Run categorizer when the coding agent can't be used", () => {
     await act(async () => classifyButton()!.click());
     await settle();
 
-    expect(dialog()?.textContent).not.toContain("isn't working");
-    expect(dialog()?.textContent).toContain(
-      "Claude Code couldn't categorize some of them",
-    );
-    expect(dialog()?.textContent).toContain(
-      "Once that's fixed, run the categorizer again.",
-    );
+    expect(dialog()).toBeNull();
+    expect(text()).toContain("Claude Code couldn't categorize some of them");
+    expect(text()).toContain("Once that's fixed, run the categorizer again.");
   });
 });
