@@ -34,11 +34,12 @@ npx dbu6 dev
 `init` makes the folder, installs dbu6 into it, creates `.env` with a
 generated secret, fills `user-config/` from the examples, creates the database,
 and makes the first commit. Open http://localhost:2345 and sign up. Home then
-takes you through setting up your books in four steps: pick a chart of
+takes you through setting up your books in five steps: pick a chart of
 accounts (or describe your money and have your coding agent propose one), add
 the banks and cards you get statements from, import a recent statement for
-each (dbu6 learns its format and starting balance from it), then review what
-it categorized and add it to your books. For a year of sample data, run
+each (dbu6 learns its format and starting balance from it), optionally add
+what your cash, investments and loans held when the books start, then review
+what it categorized and add it to your books. For a year of sample data, run
 `npx dbu6 seed` while `dev` is running and sign in as `demo@example.com` /
 `demo-password`.
 

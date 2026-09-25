@@ -43,7 +43,8 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
     `/reports/account-ledger?account_id=<id>`
   - Accounts: `/accounts`
   - Setting up the books: `/setup`, with the steps `/setup/accounts`,
-    `/setup/banks`, `/setup/statements` and `/setup/review`
+    `/setup/banks`, `/setup/statements`, `/setup/balances` and
+    `/setup/review`
   - Classify drafts: `/views/reclassify-drafts?account=<id>`
 
 ## Before changing anything
@@ -225,16 +226,19 @@ you couldn't encode.
 
   Then record its opening balance.
 - **Setting up the books** (`/setup`). `sapporta api get /api/setup` counts
-  what the wizard's four steps read: `accounts` in the books,
+  what the wizard's five steps read: `accounts` in the books,
   `statement_accounts` (the preset accounts still in the books; one the
   ledger deleted counts nowhere), `imported_accounts` (those with entries or
-  drafts, the `imported` rows below), `drafts` on them and `to_review`
-  (each one with drafts, with its `drafts` and `uncategorized`). The chart
-  is done with any account, banks and cards with any of those, first
-  statements when every one of them is imported, and review when that
-  holds and no drafts remain; `/setup` opens the first step not done, else
-  `/setup/review`. Home's "nothing imported yet" is the same rule: no bank
-  or card has entries (its opening entry aside) or drafts.
+  drafts, the `imported` rows below), `drafts` on them, `to_review`
+  (each one with drafts, with its `drafts` and `uncategorized`) and
+  `other_balances` (the assets and liabilities other than banks and cards
+  with an opening entry). The chart is done with any account, banks and
+  cards with any of those, first statements when every one of them is
+  imported, other balances with any recorded, and review when the first
+  statements are done and no drafts remain. Other balances is optional:
+  `/setup` opens the first required step not done, else `/setup/review`,
+  and review never waits for it. Home's "nothing imported yet" is the same
+  rule: no bank or card has entries (its opening entry aside) or drafts.
   - `sapporta api get /api/setup/chart-of-accounts` gives books with no
     accounts a starter chart, and `POST` with `{"accounts":[…]}` creates one,
     each account naming its parent by name. It refuses books that have any
@@ -266,33 +270,52 @@ you couldn't encode.
     account's import posted before it starts (`activity_before_statement`).
     The staged file is deleted once imported (even with nothing new in it,
     `draft_transaction_count` 0) and kept when the import fails.
+  - The fourth step, `/setup/balances`, is the opening balances below.
   - The last step, `/setup/review`, lists the first-statements rows that
     have drafts (`activity.drafts`, and `activity.uncategorized` without a
     category) and sends each to `/review/<account id>`; they are posted
     there as any drafts are.
 - **Opening balance.**
-  The Opening balances screen (`/opening-balances`, linked from Settings)
-  records it; send the user there. Its endpoint does the same:
+  The setup wizard's optional Other balances step (`/setup/balances`, also
+  linked from Settings) records, changes and removes them; send the user
+  there. `/opening-balances` redirects to it, keeping its `?account=`,
+  which names an account by name or path and opens its row. Its endpoints
+  do the same:
   `sapporta api get /api/opening-balances` lists every asset and liability
-  account with its first transaction, a default date, a suggested amount and
-  its opening entry, and
+  account with its `section`, first transaction, a default date, a
+  suggested amount and its `opening` entry, and
   `sapporta api post /api/opening-balances --body '{"account_id":<id>,"date":"YYYY-MM-DD","amount":<signed>}'`
-  posts one.
-  - The screen is a table, a row per account, and it lists the accounts still
-    waiting for one until the box for the rest is ticked. Its button opens a
-    form asking three things: the date, the balance as a debit (money held)
-    or a credit (money owed), and a description of where it came from, which
-    names the journal. The endpoint's amount is the debit less the credit,
-    signed like the assertion. The date must be before the account's first
-    draft or entry; the default is the day before it.
+  posts one. `"description":"…"` names its journal; left out, it is
+  "Opening balance".
+  - `section` is where the step lists the account: `own` (an asset) or
+    `owe` (a liability), in account order, then `statement` (a bank or card
+    an import preset lists, whose first statement set its balance). A group
+    account with no opening entry is `null` and not listed.
+  - The step asks for what the account held, or what was owed on it, as a
+    positive number; a leading minus means overdrawn or in credit. The
+    endpoint's amount is signed like the assertion: positive when held,
+    negative when owed. The date must be before the account's first draft
+    or entry. `first_activity_date` is that first draft or entry, leaving
+    the opening entry out; `default_date` is the day before it, else the
+    day the books start (their earliest opening entry).
   - It posts one journal: the account's line, a debit for money held or a
     credit for money owed, with the same amount in
     `account_balance_assertion`, and the opposite line on the Equity account
     Opening Balances, created on the first save.
   - An account has an opening entry when one of its lines sits in a journal
     with a line on an Equity account. The endpoint refuses a second one
-    (`already_recorded`); to change it, edit the account's line and the
-    Equity line in that journal, which moves every later balance check.
+    (`already_recorded`).
+  - `sapporta api put /api/opening-balances/<account id> --body '{"date":"YYYY-MM-DD","amount":<signed>}'`
+    changes it in place, and
+    `sapporta api delete /api/opening-balances/<account id>` removes it
+    (Opening Balances stays). Both work while `opening.locked` is `null`:
+    the opening entry is the only posted entry on the account, and its
+    journal holds just the account's line and one Equity line. Drafts don't
+    count. Any other posted entry locks it (`has_entries`), as does a
+    journal that opens other accounts too (`shared_entry`, as the seeded
+    books' and an hledger import's do). A locked one refuses with a 409
+    naming `journal_id`; edit the account's line and the Equity line in
+    that journal instead, which moves every later balance check.
 
   Without an opening balance, every balance check fails by the same amount.
 - **"Rename or move an account."**
@@ -337,7 +360,7 @@ minus the statement's balance.
 Usual causes:
 
 - **The same difference from the very first check:** no opening balance is in
-  the books. Record it on the Opening balances screen, which suggests the
+  the books. Record it in the Other balances step, which suggests the
   amount from that first check.
 - **A difference that starts on one day:** a transfer or card payment is
   already in the books from the other account's statement, and a draft
