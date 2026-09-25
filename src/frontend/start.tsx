@@ -2,12 +2,12 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { extendCn } from "@sapporta/ui/cn";
 import { useThemeStore } from "@sapporta/frontend/shell";
 import type { Dbu6FrontendExtension } from "./extension";
 import { SapportaApp } from "./SapportaApp";
 import { buildApp } from "./App";
 import { queryClient } from "./query-client";
+import { registerTypeScale } from "./type-scale";
 
 let root: Root | undefined;
 
@@ -30,20 +30,7 @@ export function startDbu6Frontend(extension?: Dbu6FrontendExtension): void {
   // startup with a message, not a blank page.
   buildApp(extension);
 
-  // The type scale frontend.css registers, so class merging keeps a size next
-  // to a colour instead of reading `text-body` as one.
-  extendCn({
-    text: [
-      "display",
-      "title",
-      "heading",
-      "subheading",
-      "body",
-      "row",
-      "meta",
-      "label",
-    ],
-  });
+  registerTypeScale();
 
   // The design is light only: whatever the system prefers, the palette stays.
   useThemeStore.getState().forceMode("light");
