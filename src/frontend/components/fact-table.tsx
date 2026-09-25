@@ -34,11 +34,8 @@ export function FactTable({
   );
 }
 
-/**
- * FactTable's box, for rows built one by one: a value that carries a mark
- * or a control beside its figure.
- */
-export function FactList({ children }: { children: ReactNode }) {
+/** FactTable's box. */
+function FactList({ children }: { children: ReactNode }) {
   return (
     <dl className="divide-y divide-line-inner rounded-control border border-sap-border">
       {children}
@@ -47,7 +44,7 @@ export function FactList({ children }: { children: ReactNode }) {
 }
 
 /** One of FactTable's rows. */
-export function FactRow({
+function FactRow({
   label,
   face,
   children,

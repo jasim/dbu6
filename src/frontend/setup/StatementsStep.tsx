@@ -14,7 +14,6 @@ import { apiErrorMessage, setupApi } from "../api";
 import { AgentActions, PromptText } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
 import { EmptyState } from "../components/empty-state";
-import { FactList, FactRow } from "../components/fact-table";
 import { LoadError } from "../components/load-error";
 import { StatusChip } from "../components/status-chip";
 import { Button } from "../components/ui/button";
@@ -38,6 +37,8 @@ import {
   numberFact,
   numberLabel,
   openingAmount,
+  retryCanHelp,
+  rowStatus,
   stillToImport,
   withFinding,
 } from "./first-statements";
@@ -153,7 +154,7 @@ type Busy = "reading" | "checking" | "importing";
 // What stopped the last import, as /import words it, or the step's refusal.
 type Stopped =
   | { kind: "problems"; problems: Problem[] }
-  | { kind: "refused"; message: string };
+  | { kind: "refused"; message: string; retry: boolean };
 
 /** One bank or card: its header, then exactly one state. */
 function StatementRow({ row }: { row: FirstStatementRow }) {
@@ -226,7 +227,11 @@ function StatementRow({ row }: { row: FirstStatementRow }) {
         ...(numberAccepted ? { use_statement_number: true } : {}),
       });
       if (reply.kind === "refused") {
-        setStopped({ kind: "refused", message: reply.refusal.error });
+        setStopped({
+          kind: "refused",
+          message: reply.refusal.error,
+          retry: retryCanHelp(reply.refusal.code),
+        });
       } else if (reply.kind === "failed") {
         setStopped({
           kind: "problems",
@@ -275,6 +280,7 @@ function StatementRow({ row }: { row: FirstStatementRow }) {
       }
     : {};
 
+  const status = rowStatus(row, stopped !== null);
   return (
     <li
       {...drop}
@@ -283,13 +289,18 @@ function StatementRow({ row }: { row: FirstStatementRow }) {
         dragging ? "border-primary" : "border-sap-border",
       )}
     >
-      <h3 className="border-b border-sap-border bg-sap-nested px-4 py-2 text-row font-semibold text-foreground [overflow-wrap:anywhere]">
-        {row.name}
-        <span className="font-normal text-ink-meta">
-          {" · "}
-          {row.kind === "card" ? "Credit card" : "Bank account"}
-        </span>
-      </h3>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 border-b border-sap-border bg-sap-nested px-4 py-2">
+        <h3 className="min-w-0 text-row font-semibold text-foreground [overflow-wrap:anywhere]">
+          {row.name}
+          <span className="font-normal text-ink-meta">
+            {" · "}
+            {row.kind === "card" ? "Credit card" : "Bank account"}
+          </span>
+        </h3>
+        <StatusChip tone={status.tone} className="ml-auto">
+          {status.label}
+        </StatusChip>
+      </div>
       <div className="px-4 py-3">
         {fileInput}
         {busy === "reading" ? (
@@ -363,14 +374,9 @@ function Waiting({ children }: { children: ReactNode }) {
 function Imported({ row }: { row: FirstStatementRow }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-      <div className="flex flex-wrap items-baseline gap-x-3">
-        <OutcomeLine tone="ok" className="font-semibold">
-          Imported
-        </OutcomeLine>
-        <span className="tnum text-meta text-ink-meta">
-          {importedSummary(row.activity)}
-        </span>
-      </div>
+      <p className="tnum text-row text-ink-soft">
+        {importedSummary(row.activity)}
+      </p>
       {row.activity.drafts > 0 && (
         <Button
           render={<Link to={reviewHref(row.account_id)} />}
@@ -407,55 +413,49 @@ function Read({
 }) {
   const number = numberFact(row, finding, numberAccepted);
   const balance = balanceFact(row.kind, finding);
-  const numberRow = (
-    <FactRow
-      label={numberLabel(row.kind)}
-      face={number.state === "differs" ? "words" : "figure"}
-    >
-      {number.state === "differs" ? (
-        <span className="inline-flex flex-wrap items-center justify-end gap-x-2">
-          <span className="text-attention-ink">
-            Statement shows {number.printed}; you entered {number.own}
-          </span>
-          <Button variant="ghost" size="sm" onClick={acceptNumber}>
+  const numberCell =
+    number.state === "differs" ? (
+      <Fact label={numberLabel(row.kind)} wide>
+        <span className="text-attention-ink">
+          Statement shows <Figure>{number.printed}</Figure>; you entered{" "}
+          <Figure>{number.own}</Figure>
+        </span>
+        <span className="mt-1 block">
+          <Button variant="outline" size="sm" onClick={acceptNumber}>
             Use the statement's
           </Button>
         </span>
-      ) : (
-        <>
-          {number.value ?? "—"}
-          <Mark ok={number.state === "saved"}>
-            {number.state === "saved" ? "✓ saved" : "not on the statement"}
-          </Mark>
-        </>
-      )}
-    </FactRow>
-  );
-  const balanceRow =
-    balance.state === "in_books" ? (
-      <FactRow label={balance.label}>
-        {balance.value}
-        <Mark ok={false}>already in your books</Mark>
-      </FactRow>
-    ) : balance.state === "from_statement" ? (
-      <FactRow label={balance.label}>
-        {balance.value}
-        <Mark ok={false}>from the statement</Mark>
-      </FactRow>
+      </Fact>
+    ) : (
+      <Fact label={numberLabel(row.kind)}>
+        <Figure>{number.value ?? "—"}</Figure>
+        <Mark ok={number.state === "saved"}>
+          {number.state === "saved" ? "✓ saved" : "not on the statement"}
+        </Mark>
+      </Fact>
+    );
+  const balanceCell =
+    balance.state === "in_books" || balance.state === "from_statement" ? (
+      <Fact label={balance.label}>
+        <Figure>{balance.value}</Figure>
+        <Mark ok={false}>
+          {balance.state === "in_books"
+            ? "already in your books"
+            : "from the statement"}
+        </Mark>
+      </Fact>
     ) : balance.state === "ask" ? (
-      <FactRow label={balance.label} face="words">
-        <span className="inline-flex flex-col items-end gap-1">
-          <Input
-            inputMode="decimal"
-            aria-label={balance.label}
-            value={typedBalance}
-            placeholder="0.00"
-            onChange={(event) => setTypedBalance(event.target.value)}
-            className="tnum h-sap-ctl w-[160px] rounded-control text-right font-mono"
-          />
-          <span className="text-meta text-ink-meta">{balance.caption}</span>
-        </span>
-      </FactRow>
+      <Fact label={balance.label} wide>
+        <Input
+          inputMode="decimal"
+          aria-label={balance.label}
+          value={typedBalance}
+          placeholder="0.00"
+          onChange={(event) => setTypedBalance(event.target.value)}
+          className="tnum h-sap-ctl w-[160px] rounded-control text-right font-mono"
+        />
+        <Mark ok={false}>{balance.caption}</Mark>
+      </Fact>
     ) : null;
 
   const waiting = importWaiting(row.kind, finding, {
@@ -464,16 +464,17 @@ function Read({
   });
   return (
     <div>
-      <p className="mb-2 text-label uppercase text-ink-meta">Statement read</p>
-      <FactList>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-[max-content_max-content_minmax(0,1fr)_minmax(0,1fr)] md:gap-x-10">
         {finding.period && (
-          <FactRow label="Period">{formatDateRange(finding.period)}</FactRow>
+          <Fact label="Period">{formatDateRange(finding.period)}</Fact>
         )}
-        <FactRow label="Transactions">{finding.transactions}</FactRow>
-        {numberRow}
-        {balanceRow}
-      </FactList>
-      <div className="mt-3 flex flex-wrap items-start justify-end gap-2">
+        <Fact label="Transactions">
+          <Figure>{finding.transactions}</Figure>
+        </Fact>
+        {numberCell}
+        {balanceCell}
+      </dl>
+      <div className="mt-4 flex flex-wrap items-start justify-end gap-2">
         <Button variant="ghost" onClick={chooseFile}>
           Use another file
         </Button>
@@ -485,12 +486,40 @@ function Read({
   );
 }
 
-// A few words after a figure: "✓ saved" in the done colour, else meta.
+/**
+ * One cell of a read statement's strip: its label above its value. A wide
+ * cell holds a control or a sentence, and takes the full width on a phone.
+ */
+function Fact({
+  label,
+  wide = false,
+  children,
+}: {
+  label: string;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("min-w-0", wide && "col-span-2 md:col-span-1")}>
+      <dt className="text-meta text-ink-meta">{label}</dt>
+      <dd className="mt-0.5 text-row text-foreground [overflow-wrap:anywhere]">
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+/** A number or an amount, in figures. */
+function Figure({ children }: { children: ReactNode }) {
+  return <span className="tnum font-mono font-medium">{children}</span>;
+}
+
+// A few words under a figure: "✓ saved" in the done colour, else meta.
 function Mark({ ok, children }: { ok: boolean; children: ReactNode }) {
   return (
     <span
       className={cn(
-        "ml-1.5 font-sans text-meta font-normal",
+        "mt-0.5 block text-meta",
         ok ? "text-primary" : "text-ink-meta",
       )}
     >
@@ -523,11 +552,8 @@ function Unreadable({
     finding.outcome === "ambiguous" ? finding.parsers : finding.tried;
   return (
     <div>
-      <p className="text-subheading text-foreground">
-        dbu6 can't read this statement yet
-      </p>
-      <p className="mt-0.5 text-body text-ink-soft">
-        Your coding agent can teach it the format; you approve its plan.
+      <p className="text-row text-ink-soft">
+        Your coding agent can teach dbu6 its format; you approve its plan.
       </p>
       <div className="mt-3 flex flex-wrap items-start gap-2.5">
         <AgentActions
@@ -575,12 +601,20 @@ function ImportStopped({
   tryAgain: () => void;
   chooseFile: () => void;
 }) {
+  // A refusal the same file would meet again offers only another file.
+  const retry = stopped.kind === "problems" || stopped.retry;
   const buttons = (
-    <div className="mt-3 flex flex-wrap gap-2">
-      <Button variant="outline" size="sm" onClick={tryAgain}>
-        Try again
-      </Button>
-      <Button variant="ghost" size="sm" onClick={chooseFile}>
+    <div className="mt-3 flex flex-wrap justify-end gap-2">
+      {retry && (
+        <Button variant="outline" size="sm" onClick={tryAgain}>
+          Try again
+        </Button>
+      )}
+      <Button
+        variant={retry ? "ghost" : "outline"}
+        size="sm"
+        onClick={chooseFile}
+      >
         Use another file
       </Button>
     </div>

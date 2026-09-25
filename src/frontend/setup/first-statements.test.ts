@@ -6,6 +6,8 @@ import {
   importWaiting,
   numberFact,
   openingAmount,
+  retryCanHelp,
+  rowStatus,
   stillToImport,
   withFinding,
 } from "./first-statements";
@@ -253,5 +255,45 @@ describe("rows", () => {
         { ...ROW, account_id: 6, status: "read", finding: FINDING },
       ]),
     ).toBe(2);
+  });
+});
+
+describe("rowStatus", () => {
+  it("says each state from the books in a word", () => {
+    const said = (status: FirstStatementRow["status"]) =>
+      rowStatus({ status }, false);
+    expect(said("imported")).toEqual({ tone: "ok", label: "Imported" });
+    expect(said("read")).toEqual({
+      tone: "attention",
+      label: "Ready to import",
+    });
+    expect(said("unreadable")).toEqual({
+      tone: "attention",
+      label: "Can't read yet",
+    });
+    expect(said("needs_statement")).toEqual({
+      tone: "waiting",
+      label: "To do",
+    });
+  });
+
+  it("says a read statement whose import stopped wasn't imported", () => {
+    expect(rowStatus({ status: "read" }, true)).toEqual({
+      tone: "problem",
+      label: "Not imported",
+    });
+  });
+});
+
+describe("retryCanHelp", () => {
+  it("rules out the same file for what the file itself decides", () => {
+    expect(retryCanHelp("opening_disagrees")).toBe(false);
+    expect(retryCanHelp("numbers_differ")).toBe(false);
+    expect(retryCanHelp("statement_unreadable")).toBe(false);
+  });
+
+  it("allows another try when something else may have changed", () => {
+    expect(retryCanHelp("opening_balance_needed")).toBe(true);
+    expect(retryCanHelp("opening_balance_refused")).toBe(true);
   });
 });

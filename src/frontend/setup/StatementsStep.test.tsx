@@ -164,6 +164,11 @@ function rowOf(name: string): HTMLElement {
   return found;
 }
 
+/** The status word in a row's header. */
+function statusOf(name: string): string | null | undefined {
+  return rowOf(name).querySelector("h3")?.nextElementSibling?.textContent;
+}
+
 function button(within: HTMLElement, name: string): HTMLButtonElement {
   const found = Array.from(within.querySelectorAll("button")).find(
     (candidate) => candidate.textContent?.trim() === name,
@@ -225,9 +230,16 @@ describe("the first statements step", () => {
       "No coding agent: transactions import without categories",
     );
 
+    // Each row's status is a word in its header, beside the name.
+    expect(
+      ["Sample Savings", "Sample Card", "Other Current", "Third Savings"].map(
+        statusOf,
+      ),
+    ).toEqual(["Imported", "Ready to import", "To do", "Can't read yet"]);
+
     const savings = rowOf("Sample Savings");
-    expect(savings.textContent).toContain("Imported");
     expect(savings.textContent).toContain("42 to review · 4 need a category");
+    expect(savings.textContent).not.toContain("✓");
     expect(savings.querySelector("a")?.getAttribute("href")).toBe("/review/2");
 
     const card = rowOf("Sample Card");
@@ -249,7 +261,7 @@ describe("the first statements step", () => {
     expect(button(rowOf("Other Current"), "Upload statement")).toBeTruthy();
     const unreadable = rowOf("Third Savings");
     expect(unreadable.textContent).toContain(
-      "dbu6 can't read this statement yet",
+      "Your coding agent can teach dbu6 its format",
     );
     expect(button(unreadable, "Check again")).toBeTruthy();
 
@@ -384,6 +396,36 @@ describe("the first statements step", () => {
     );
     expect(button(savings, "Try again")).toBeTruthy();
     expect(button(savings, "Use another file")).toBeTruthy();
+    expect(statusOf("Sample Savings")).toBe("Not imported");
+  });
+
+  it("offers only another file when the same one would be refused again", async () => {
+    answers["GET /setup/first-statements"] = () =>
+      ok(step(row(2, "Sample Savings", { status: "read", finding: FINDING })));
+    answers["GET /setup"] = () =>
+      ok({
+        accounts: 5,
+        statement_accounts: 1,
+        imported_accounts: 0,
+        drafts: 0,
+      });
+    answers["POST /setup/first-statement"] = () => ({
+      status: 422,
+      body: {
+        code: "opening_disagrees",
+        error: "The balance in your books differs from the statement's.",
+      },
+    });
+    await render();
+
+    await click(button(rowOf("Sample Savings"), "Import 42"));
+
+    const savings = rowOf("Sample Savings");
+    expect(savings.querySelector('[role="alert"]')?.textContent).toBe(
+      "The balance in your books differs from the statement's.",
+    );
+    expect(button(savings, "Use another file")).toBeTruthy();
+    expect(() => button(savings, "Try again")).toThrow();
   });
 
   it("says a refusal in the server's words", async () => {
@@ -410,6 +452,7 @@ describe("the first statements step", () => {
     expect(
       rowOf("Sample Savings").querySelector('[role="alert"]')?.textContent,
     ).toBe("This account has transactions already.");
+    expect(button(rowOf("Sample Savings"), "Try again")).toBeTruthy();
   });
 
   it("says so when an import finds nothing new, instead of starting over silently", async () => {
