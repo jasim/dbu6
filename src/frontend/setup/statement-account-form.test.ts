@@ -8,8 +8,11 @@ import {
   formLayout,
   newDraft,
   numberField,
+  knownInstitution,
   readDraft,
+  refusalField,
   suggestedName,
+  underMoreOptions,
   withInstitution,
   withName,
 } from "./statement-account-form";
@@ -35,6 +38,16 @@ const DATA: StatementAccounts = {
   },
   default_parents: { bank: 2, card: null },
   unlisted: [{ id: 7, name: "Cash", path: "Assets:Cash", kind: "bank" }],
+  account_names: [
+    "Assets",
+    "Bank Accounts",
+    "Cash",
+    "Liabilities",
+    "Credit Cards",
+    "Sample Bank Savings",
+    // An expense that happens to have the name a card would get.
+    "Expense Bank Credit Card",
+  ],
 };
 
 // A bank with no account yet, and its account's name as the form fills it.
@@ -63,6 +76,10 @@ describe("the name a new account gets", () => {
     expect(suggestedName("bank", "  ", DATA)).toBe("");
     expect(suggestedName("bank", "Sample Bank", DATA)).toBe(
       "Sample Bank Savings 2",
+    );
+    // Any account in the books, not only assets and liabilities.
+    expect(suggestedName("card", "Expense Bank", DATA)).toBe(
+      "Expense Bank Credit Card 2",
     );
   });
 
@@ -113,6 +130,45 @@ describe("which fields the form shows", () => {
   });
 });
 
+describe("the bank typed", () => {
+  it("is the known one when only case or spaces differ", () => {
+    const banks = ["Sample Bank", "Other Bank"];
+    expect(knownInstitution(banks, "  sample   BANK ")).toBe("Sample Bank");
+    expect(knownInstitution(banks, " New  Bank ")).toBe("New Bank");
+    expect(knownInstitution(banks, "Sample Banking")).toBe("Sample Banking");
+    expect(knownInstitution(banks, " ")).toBe("");
+  });
+});
+
+describe("a problem's field", () => {
+  it("is under More options while the field is tucked away there", () => {
+    const draft = other();
+    const layout = formLayout(draft, DATA, null);
+    expect(underMoreOptions("identifier", draft, layout)).toBe(true);
+    expect(underMoreOptions("parent", draft, layout)).toBe(true);
+    expect(underMoreOptions("name", draft, layout)).toBe(false);
+
+    // At a bank with another account the number is in view; a card with no
+    // parent to start from shows Under.
+    const sample = withInstitution(newDraft(DATA, "bank"), "Sample Bank", DATA);
+    expect(
+      underMoreOptions("identifier", sample, formLayout(sample, DATA, null)),
+    ).toBe(false);
+    const card = other("card");
+    expect(underMoreOptions("parent", card, formLayout(card, DATA, null))).toBe(
+      false,
+    );
+  });
+
+  it("comes from the server's refusal code", () => {
+    const refused = (code: string) => ({ body: { error: "NOPII", code } });
+    expect(refusalField(refused("identifier_invalid"))).toBe("identifier");
+    expect(refusalField(refused("parent_not_suitable"))).toBe("parent");
+    expect(refusalField(refused("unknown_account"))).toBeNull();
+    expect(refusalField(new Error("NOPII"))).toBeNull();
+  });
+});
+
 describe("the change the form sends", () => {
   it("creates a new account under the kind's default parent", () => {
     const draft = withInstitution(newDraft(DATA, "bank"), " Other Bank ", DATA);
@@ -132,19 +188,23 @@ describe("the change the form sends", () => {
     expect(readDraft(newDraft(DATA, "bank"), DATA, null)).toEqual({
       ok: false,
       problem: "Name the bank.",
+      field: "institution",
     });
     expect(readDraft(newDraft(DATA, "card"), DATA, null)).toEqual({
       ok: false,
       problem: "Name the card issuer.",
+      field: "institution",
     });
     expect(readDraft(withName(other(), " "), DATA, null)).toEqual({
       ok: false,
       problem: "Give the account a name.",
+      field: "name",
     });
     // A card starts with no parent here, as the books have no card yet.
     expect(readDraft(other("card"), DATA, null)).toEqual({
       ok: false,
       problem: "Pick where it sits in your chart.",
+      field: "parent",
     });
   });
 
@@ -154,6 +214,7 @@ describe("the change the form sends", () => {
       ok: false,
       problem:
         "Sample Bank already has Sample Bank Savings, so each needs its number.",
+      field: "identifier",
     });
     expect(
       readDraft({ ...draft, identifier: "050505000034" }, DATA, null),
@@ -172,6 +233,7 @@ describe("the change the form sends", () => {
       ok: false,
       problem:
         "Add Sample Bank Savings's number first: each account at Sample Bank needs its number.",
+      field: "institution",
     });
   });
 
@@ -183,6 +245,7 @@ describe("the change the form sends", () => {
       ok: false,
       problem:
         "That isn't a card number as a statement prints it: digits, with the hidden ones as X.",
+      field: "identifier",
     });
     expect(
       readDraft({ ...card, identifier: "xxxx xxxx xxxx 0505" }, DATA, null),
@@ -192,7 +255,11 @@ describe("the change the form sends", () => {
     });
     expect(
       readDraft({ ...other(), identifier: "0505-05X" }, DATA, null),
-    ).toEqual({ ok: false, problem: "An account number is digits only." });
+    ).toEqual({
+      ok: false,
+      problem: "An account number is digits only.",
+      field: "identifier",
+    });
   });
 
   it("uses an account already in the books", () => {
@@ -200,6 +267,7 @@ describe("the change the form sends", () => {
     expect(readDraft(draft, DATA, null)).toEqual({
       ok: false,
       problem: "Pick the account in your books.",
+      field: "existing",
     });
     expect(readDraft({ ...draft, existingId: 7 }, DATA, null)).toMatchObject({
       ok: true,

@@ -17,17 +17,22 @@ function summaryClass(tone: DisclosureTone | undefined): string {
  * thing; everywhere else in the app's green.
  *
  * An `aside` sits at the right of the summary's line, for quiet actions that
- * belong at the foot of a card.
+ * belong at the foot of a card. Without one, `open` and `onOpenChange` let
+ * the screen open it, as a form does when a problem is about a field inside.
  */
 export function Disclosure({
   summary,
   tone,
   aside,
+  open,
+  onOpenChange,
   children,
 }: {
   summary: string;
   tone?: DisclosureTone;
   aside?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
   if (aside !== undefined) {
@@ -38,7 +43,12 @@ export function Disclosure({
     );
   }
   return (
-    <details>
+    <details
+      open={open}
+      onToggle={
+        onOpenChange && ((event) => onOpenChange(event.currentTarget.open))
+      }
+    >
       {/* The markers follow their own <details> only, not an open one
           around it, so a disclosure inside another reads right. */}
       <summary className={summaryClass(tone)}>

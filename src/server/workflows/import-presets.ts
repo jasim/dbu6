@@ -443,6 +443,7 @@ export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
         .filter((account) => !listed.has(account.id))
         .map((account) => ({ ...choice(account), kind })),
     ),
+    account_names: chart.map((account) => account.name),
   };
 }
 

@@ -207,6 +207,8 @@ export const statementAccountsSchema = z.object({
   // Asset and Liability accounts no preset lists, which a row can use
   // instead of a new account.
   unlisted: z.array(chartChoiceSchema.extend({ kind: accountKindSchema })),
+  // Every account name in the books, of any type: a new one must differ.
+  account_names: z.array(z.string()),
 });
 export type StatementAccounts = z.infer<typeof statementAccountsSchema>;
 
