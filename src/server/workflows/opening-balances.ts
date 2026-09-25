@@ -1,17 +1,22 @@
 import { Temporal } from "@sapporta/shared/temporal";
+import type { OpeningLock, OpeningSection } from "../../shared/index.js";
 import {
   createOpeningBalancesAccount,
   findOpeningBalancesAccount,
+  loadAccountChart,
   loadHledgerAccountNames,
   loadLedgerAccounts,
   type NamedAccount,
 } from "../modules/accounts/index.js";
 import { loadFirstDrafts } from "../modules/drafts/index.js";
+import { loadImportPresets } from "../modules/import-presets/index.js";
 import type { JournalPlan } from "../modules/journal-plan/index.js";
 import {
+  deleteOpeningEntry,
   insertJournalPlan,
-  loadFirstEntryDates,
+  loadEntriesBesideOpening,
   loadOpeningEntries,
+  rewriteOpeningEntry,
   type OpeningEntry,
 } from "../modules/journals/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
@@ -21,8 +26,14 @@ import type { Ledger } from "../modules/ledger-sql/index.js";
  * before its first transaction. Recording one posts the account's opening
  * entry, a journal with the account's line, which carries the amount as its
  * balance assertion, and the opposite line on Opening Balances (Equity). An
- * account has one opening entry (`loadOpeningEntries`); this never changes
- * or adds a second.
+ * account has one opening entry (`loadOpeningEntries`); recording never adds
+ * a second.
+ *
+ * The setup step changes or removes an opening entry while it is the only
+ * posted entry on its account and opens that account alone. Once anything
+ * else is posted on the account, or when its journal opens other accounts
+ * too, the entry is locked and the user changes the journal by hand. Drafts
+ * are not posted, so they never lock it.
  *
  * Amounts are signed like a balance assertion: positive when held, negative
  * when owed.
@@ -33,21 +44,41 @@ export type OpeningAccountType = "Asset" | "Liability";
 /** What an opening journal is called when the user says nothing more. */
 export const OPENING_DESCRIPTION = "Opening balance";
 
+/** An account's opening entry, and why the setup step can't change it. */
+export type OpeningBalance = OpeningEntry & {
+  /** Null while the setup step can change or remove it. */
+  locked: OpeningLock | null;
+};
+
 export interface OpeningBalanceAccount {
   accountId: number;
   name: string;
   path: string;
   accountType: OpeningAccountType;
-  /** The account's first posted entry or draft; null with neither. */
+  /**
+   * Where the setup step lists it: a bank or card an import preset lists,
+   * else what the user owns or owes. Null for an account with accounts under
+   * it and no opening entry, which the step leaves out.
+   */
+  section: OpeningSection | null;
+  /**
+   * The account's first posted entry outside its opening entry, or its first
+   * draft; null with neither.
+   */
   firstActivityDate: string | null;
-  /** The day before it: the date an opening entry defaults to. */
+  /**
+   * The date an opening entry defaults to: the day before its first
+   * activity, else the day the books start (their earliest opening entry),
+   * else null.
+   */
   defaultDate: string | null;
   /**
    * The opening balance the first balance check implies, when the account
-   * has drafts, nothing posted, and a draft carrying a statement balance.
+   * has drafts, nothing posted but its opening entry, and a draft carrying a
+   * statement balance.
    */
   suggestedAmount: number | null;
-  opening: OpeningEntry | null;
+  opening: OpeningBalance | null;
 }
 
 export interface OpeningBalances {
@@ -62,13 +93,24 @@ export function loadOpeningBalances({
   sqlite,
   auth,
 }: Ledger): OpeningBalances {
+  const chart = loadAccountChart(db, auth);
   const paths = loadHledgerAccountNames(db, auth);
   const openings = loadOpeningEntries(sqlite, auth);
-  const firstEntries = loadFirstEntryDates(sqlite, auth);
+  const besideOpening = loadEntriesBesideOpening(sqlite, auth);
   const firstDrafts = loadFirstDrafts(sqlite, auth);
   const equity = findOpeningBalancesAccount(db, auth);
+  const parents = new Set(chart.map((account) => account.parent_id));
+  const statementAccounts = new Set(
+    loadImportPresets(db, auth).flatMap((institution) =>
+      institution.accounts.map((account) => account.account_id),
+    ),
+  );
+  const booksStart = [...openings.values()].reduce<string | null>(
+    (first, opening) => earlier(first, opening.date),
+    null,
+  );
 
-  const accounts = loadLedgerAccounts(sqlite, auth)
+  const accounts = chart
     .filter(
       (
         account,
@@ -77,22 +119,33 @@ export function loadOpeningBalances({
         account.account_type === "Liability",
     )
     .map((account): OpeningBalanceAccount => {
-      const firstEntry = firstEntries.get(account.id) ?? null;
+      const beside = besideOpening.get(account.id) ?? null;
       const drafts = firstDrafts.get(account.id) ?? null;
       const opening = openings.get(account.id) ?? null;
-      const firstActivityDate = earlier(firstEntry, drafts?.first_date ?? null);
+      const firstActivityDate = earlier(
+        beside?.first_date ?? null,
+        drafts?.first_date ?? null,
+      );
       return {
         accountId: account.id,
         name: account.name,
         path: paths.get(account.name) ?? account.name,
         accountType: account.account_type,
+        section: sectionOf(account.account_type, {
+          fromStatements: statementAccounts.has(account.id),
+          leaf: !parents.has(account.id),
+          opened: opening !== null,
+        }),
         firstActivityDate,
-        defaultDate: firstActivityDate && dayBefore(firstActivityDate),
+        defaultDate: firstActivityDate
+          ? dayBefore(firstActivityDate)
+          : booksStart,
         suggestedAmount:
-          opening === null && firstEntry === null
-            ? (drafts?.implied_opening ?? null)
-            : null,
-        opening,
+          beside === null ? (drafts?.implied_opening ?? null) : null,
+        opening: opening && {
+          ...opening,
+          locked: lockOf(opening, beside?.entries ?? 0),
+        },
       };
     })
     .sort((a, b) => a.path.localeCompare(b.path));
@@ -104,6 +157,46 @@ export function loadOpeningBalances({
         : null,
     accounts,
   };
+}
+
+/*
+ * A bank or card goes with its statements, whatever its type. Any other
+ * account is listed when the user gives it a balance: a leaf, or a group
+ * account that already has one.
+ */
+function sectionOf(
+  type: OpeningAccountType,
+  account: { fromStatements: boolean; leaf: boolean; opened: boolean },
+): OpeningSection | null {
+  if (account.fromStatements) return "statement";
+  if (!account.leaf && !account.opened) return null;
+  return type === "Asset" ? "own" : "owe";
+}
+
+/*
+ * One posted entry beside the opening entry locks it, since changing it would
+ * move balances the books already carry forward. A journal that opens more
+ * than this account is the user's to change by hand.
+ */
+function lockOf(
+  opening: OpeningEntry,
+  entriesBeside: number,
+): OpeningLock | null {
+  if (entriesBeside > 0) return "has_entries";
+  if (!opening.standalone) return "shared_entry";
+  return null;
+}
+
+/**
+ * How many accounts the setup step's Other balances lists, not the banks and
+ * cards, have an opening entry.
+ */
+export function recordedOtherBalances(ledger: Ledger): number {
+  return loadOpeningBalances(ledger).accounts.filter(
+    (account) =>
+      (account.section === "own" || account.section === "owe") &&
+      account.opening !== null,
+  ).length;
 }
 
 export interface OpeningBalanceRequest {
@@ -198,6 +291,127 @@ export function recordOpeningBalance(
       equityAccountCreated: existing === null,
     };
   });
+}
+
+// Why an existing opening entry can't be changed or removed.
+type OpeningEditRefusal =
+  | { kind: "account-not-found" }
+  | { kind: "not-asset-or-liability"; accountName: string }
+  | { kind: "not-recorded"; accountName: string }
+  | {
+      kind: "locked";
+      accountName: string;
+      lock: OpeningLock;
+      journalId: number;
+    };
+
+export type OpeningChangeOutcome =
+  | OpeningEditRefusal
+  | {
+      kind: "date-not-before-first-activity";
+      accountName: string;
+      firstActivityDate: string;
+    }
+  | { kind: "changed"; accountName: string; journalId: number };
+
+export type OpeningRemovalOutcome =
+  | OpeningEditRefusal
+  | { kind: "removed"; accountName: string; journalId: number };
+
+/**
+ * Changes an account's opening entry in place: its date, amount and
+ * description. Refuses what `editableOpening` refuses, and a date on or after
+ * the account's first activity.
+ */
+export function changeOpeningBalance(
+  ledger: Ledger,
+  request: OpeningBalanceRequest,
+): OpeningChangeOutcome {
+  return ledger.db.transaction((tx: any): OpeningChangeOutcome => {
+    const found = editableOpening(ledger, request.accountId);
+    if (found.kind !== "editable") return found;
+    const { account, opening } = found;
+    if (
+      account.firstActivityDate !== null &&
+      Temporal.PlainDate.compare(request.date, account.firstActivityDate) >= 0
+    ) {
+      return {
+        kind: "date-not-before-first-activity",
+        accountName: account.name,
+        firstActivityDate: account.firstActivityDate,
+      };
+    }
+    rewriteOpeningEntry(tx, ledger.auth, opening, {
+      date: request.date,
+      amount: request.amount,
+      description: request.description?.trim() || OPENING_DESCRIPTION,
+    });
+    return {
+      kind: "changed",
+      accountName: account.name,
+      journalId: opening.journal_id,
+    };
+  });
+}
+
+/**
+ * Deletes an account's opening entry. Refuses what `editableOpening`
+ * refuses. Opening Balances stays, for the next one.
+ */
+export function removeOpeningBalance(
+  ledger: Ledger,
+  accountId: number,
+): OpeningRemovalOutcome {
+  return ledger.db.transaction((tx: any): OpeningRemovalOutcome => {
+    const found = editableOpening(ledger, accountId);
+    if (found.kind !== "editable") return found;
+    deleteOpeningEntry(tx, ledger.auth, found.opening);
+    return {
+      kind: "removed",
+      accountName: found.account.name,
+      journalId: found.opening.journal_id,
+    };
+  });
+}
+
+/*
+ * The account's opening entry, when the setup step may change it: the
+ * account is in the books, is an asset or a liability, has an opening entry,
+ * and nothing locks it. Read inside the caller's transaction.
+ */
+function editableOpening(
+  ledger: Ledger,
+  accountId: number,
+):
+  | OpeningEditRefusal
+  | {
+      kind: "editable";
+      account: OpeningBalanceAccount;
+      opening: OpeningBalance;
+    } {
+  const ledgerAccount = loadLedgerAccounts(ledger.sqlite, ledger.auth).find(
+    (candidate) => candidate.id === accountId,
+  );
+  if (ledgerAccount === undefined) return { kind: "account-not-found" };
+  const account = loadOpeningBalances(ledger).accounts.find(
+    (candidate) => candidate.accountId === accountId,
+  );
+  if (account === undefined) {
+    return { kind: "not-asset-or-liability", accountName: ledgerAccount.name };
+  }
+  const { opening } = account;
+  if (opening === null) {
+    return { kind: "not-recorded", accountName: account.name };
+  }
+  if (opening.locked !== null) {
+    return {
+      kind: "locked",
+      accountName: account.name,
+      lock: opening.locked,
+      journalId: opening.journal_id,
+    };
+  }
+  return { kind: "editable", account, opening };
 }
 
 /** The opening entry: the account's line and its assertion, against Equity. */

@@ -64,6 +64,6 @@ export function insertJournalPlan(
 }
 
 // Rounded as hledger prints it, so the books hold what the plan renders.
-function cents(value: number): number {
+export function cents(value: number): number {
   return Number(value.toFixed(2));
 }

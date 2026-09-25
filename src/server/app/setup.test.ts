@@ -233,6 +233,7 @@ describe("where setup stands", () => {
       imported_accounts: 0,
       drafts: 0,
       to_review: [],
+      other_balances: 0,
     });
 
     recognizeStatementFile.mockResolvedValue(statement(14000));
@@ -254,8 +255,29 @@ describe("where setup stands", () => {
           uncategorized: 0,
         },
       ],
+      other_balances: 0,
     });
     expect(await statuses()).toEqual(["imported"]);
+  });
+
+  it("counts other balances, not a bank's opening from its first statement", async () => {
+    recognizeStatementFile.mockResolvedValue(statement(14000));
+    await upload();
+    await importIt();
+    conn.sqlite.exec(`
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES (20, 'workspace', 'user', 'Sample Wallet', 1, 'Asset', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z');
+    `);
+    expect((await setupStatus()).other_balances).toBe(0);
+
+    recordOpeningBalance(ledger(), {
+      accountId: 20,
+      date: "2026-08-01",
+      amount: 500,
+    });
+
+    expect((await setupStatus()).other_balances).toBe(1);
   });
 
   it("doesn't count the opening entry as the statement", async () => {

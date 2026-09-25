@@ -488,6 +488,10 @@ export const setupStatusSchema = z.object({
   drafts: z.number().int(),
   // The banks and cards with drafts, in the banks and cards step's order.
   to_review: z.array(setupToReviewSchema),
+  // Assets and liabilities other than banks and cards (the Other balances
+  // step's) with an opening entry. That step is optional; Review's done
+  // rule never reads it.
+  other_balances: z.number().int(),
 });
 export type SetupStatus = z.infer<typeof setupStatusSchema>;
 

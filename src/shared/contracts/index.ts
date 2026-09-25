@@ -179,10 +179,14 @@ export {
   openingBalanceRefusalSchema,
   openingBalancesSchema,
   openingEntrySchema,
+  openingLockSchema,
+  openingSectionSchema,
   type OpeningBalanceAccount,
   type OpeningBalanceRefusal,
   type OpeningBalances,
   type OpeningEntry,
+  type OpeningLock,
+  type OpeningSection,
 } from "./opening-balances.js";
 export {
   setupContract,
