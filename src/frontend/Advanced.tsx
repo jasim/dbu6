@@ -5,7 +5,6 @@ import {
   FileUp,
   Settings,
   Settings2,
-  Wand2,
 } from "lucide-react";
 import { useSchemaStore } from "@sapporta/frontend/schema";
 import { usePageTitle } from "@sapporta/frontend/shell";
@@ -26,13 +25,6 @@ const importTools: readonly LinkCardProps[] = [
       "Paste transactions as text and let the agent turn them into draft rows.",
     to: "/views/import-freeform-transactions",
     icon: ClipboardPaste,
-  },
-  {
-    label: "Reclassify drafts",
-    description:
-      "Run the configured categorizer again for uncategorized draft rows.",
-    to: "/views/reclassify-drafts",
-    icon: Wand2,
   },
   {
     label: "Render draft hledger",

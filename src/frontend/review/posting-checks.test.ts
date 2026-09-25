@@ -51,10 +51,11 @@ describe("checkText", () => {
 });
 
 describe("REVIEW_TABS", () => {
-  it("follows the checks' order, Improve categorization after Drafts", () => {
+  it("follows the checks' order, Improve categorization and Run categorizer after Drafts", () => {
     expect(REVIEW_TABS).toEqual([
       "drafts",
       "improve-categorization",
+      "run-categorizer",
       "duplicates",
       "balance-checks",
     ]);

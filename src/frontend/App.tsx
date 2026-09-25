@@ -34,11 +34,14 @@ import { ImproveCategorizationTab } from "./review/ImproveCategorizationTab";
 import { Overview } from "./review/Overview";
 import { ReviewAccount } from "./review/ReviewAccount";
 import { ReviewAccounts } from "./review/ReviewAccounts";
+import {
+  ReclassifyDraftsRedirect,
+  RunCategorizerTab,
+} from "./review/RunCategorizerTab";
 import { REVIEW_TABS, type ReviewTab } from "./review/routes";
 import { AutoImportStatements } from "./views/AutoImportStatements";
 import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
 import { JournalsTable } from "./views/JournalsTable";
-import { ReclassifyDrafts } from "./views/ReclassifyDrafts";
 import { RenderDraftHledger } from "./views/RenderDraftHledger";
 import { Settings as SettingsPage } from "./views/settings/Settings";
 import { BalancesStep } from "./setup/BalancesStep";
@@ -81,6 +84,7 @@ const ownNavigation: Navigation = {
 const REVIEW_TAB_SCREENS: Record<ReviewTab, ComponentType> = {
   drafts: DraftsTab,
   "improve-categorization": ImproveCategorizationTab,
+  "run-categorizer": RunCategorizerTab,
   duplicates: DuplicatesTab,
   "balance-checks": BalanceChecksTab,
 };
@@ -143,7 +147,10 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
         path="views/import-freeform-transactions"
         element={<ImportFreeformTransactions />}
       />
-      <Route path="views/reclassify-drafts" element={<ReclassifyDrafts />} />
+      <Route
+        path="views/reclassify-drafts"
+        element={<ReclassifyDraftsRedirect />}
+      />
       <Route
         path="views/render-draft-hledger"
         element={<RenderDraftHledger />}

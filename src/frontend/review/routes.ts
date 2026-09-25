@@ -25,16 +25,28 @@ type CheckTab = (typeof CHECK_TABS)[PostingCheckKind];
  */
 export const IMPROVE_CATEGORIZATION_TAB = "improve-categorization";
 
-export type ReviewTab = CheckTab | typeof IMPROVE_CATEGORIZATION_TAB;
+/**
+ * Where the categoriser runs again over the drafts still without a category,
+ * once Improve categorization has taught it.
+ */
+export const RUN_CATEGORIZER_TAB = "run-categorizer";
+
+/** The tabs that follow Drafts, in order. */
+export const CATEGORIZATION_TABS = [
+  IMPROVE_CATEGORIZATION_TAB,
+  RUN_CATEGORIZER_TAB,
+] as const;
+
+export type ReviewTab = CheckTab | (typeof CATEGORIZATION_TABS)[number];
 
 /**
  * An account's tabs after Overview: one per check, in the checks' order, with
- * Improve categorization after Drafts.
+ * Improve categorization and Run categorizer after Drafts.
  */
 export const REVIEW_TABS: readonly ReviewTab[] = POSTING_CHECK_KINDS.flatMap(
   (kind): ReviewTab[] =>
     kind === "categories"
-      ? [CHECK_TABS[kind], IMPROVE_CATEGORIZATION_TAB]
+      ? [CHECK_TABS[kind], ...CATEGORIZATION_TABS]
       : [CHECK_TABS[kind]],
 );
 

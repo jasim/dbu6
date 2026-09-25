@@ -37,7 +37,8 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
   a second project on the same machine is on other ports.
   - Home: `/`
   - Import statements: `/import`
-  - Review: `/review/<account id>`, with the tabs `/drafts`, `/duplicates` and
+  - Review: `/review/<account id>`, with the tabs `/drafts`,
+    `/improve-categorization`, `/run-categorizer`, `/duplicates` and
     `/balance-checks`
   - Reports: `/reports/<report>`, for example
     `/reports/account-ledger?account_id=<id>`
@@ -45,7 +46,6 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
   - Setting up the books: `/setup`, with the steps `/setup/accounts`,
     `/setup/banks`, `/setup/statements`, `/setup/balances` and
     `/setup/review`
-  - Classify drafts: `/views/reclassify-drafts?account=<id>`
 
 ## Before changing anything
 
