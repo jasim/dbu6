@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  aiExample,
   containsExample,
   exactByAccount,
   exactExample,
@@ -35,12 +34,12 @@ const mappings: ReadMappings = {
 const empty: ReadMappings = { ...mappings, exact: [], includes: [] };
 
 describe("the exact rules by account", () => {
-  it("groups the narrations under their account, most rules first", () => {
+  it("groups the narrations under their account, those not in the books first, then most rules first", () => {
     expect(
       exactByAccount(mappings).map((row) => [row.account, row.narrations]),
     ).toEqual([
-      ["Food", ["SAMPLE CAFE 050505", "NOPII BAKERY"]],
       ["Sample Gone", ["NOPII SHOP"]],
+      ["Food", ["SAMPLE CAFE 050505", "NOPII BAKERY"]],
     ]);
   });
 
@@ -72,33 +71,29 @@ describe("the includes rules", () => {
 describe("the examples", () => {
   it("come from the user's first rules", () => {
     expect(exactExample(mappings)).toEqual({
-      kind: "whole",
       text: "SAMPLE CAFE 050505",
-      account: "Food",
-      sample: false,
+      longer: "SAMPLE CAFE 050505 050505",
     });
     expect(containsExample(mappings)).toEqual({
-      kind: "phrase",
-      text: "CARD PAYMENT 050505",
-      account: "Sample Card",
-      sample: false,
+      phrase: "CARD PAYMENT 050505",
+      before: "NEFT-",
+      after: "-050505",
     });
   });
 
-  it("are made up, and say so, when there are no rules", () => {
-    expect(exactExample(empty).sample).toBe(true);
-    expect(containsExample(empty).sample).toBe(true);
+  it("never show a UPI address as the exact example, which matches inside longer descriptions", () => {
+    const upiFirst: ReadMappings = {
+      ...mappings,
+      exact: [
+        { narration: "sample@okbank", account: "Food", in_ledger: true },
+        ...mappings.exact,
+      ],
+    };
+    expect(exactExample(upiFirst).text).toBe("SAMPLE CAFE 050505");
   });
 
-  it("name an account for the AI only when the books have it", () => {
-    const account = (name: string, parent: string | null = null) => ({
-      name,
-      parent,
-    });
-    expect(aiExample([account("Food")]).account).toBe("Food");
-    expect(
-      aiExample([account("Food"), account("Groceries", "Food")]).account,
-    ).toBeNull();
-    expect(aiExample([account("Groceries")]).account).toBeNull();
+  it("are made up when there are no rules", () => {
+    expect(exactExample(empty).text).toBe("ACME GROCERS");
+    expect(containsExample(empty).phrase).toBe("CITY POWER");
   });
 });

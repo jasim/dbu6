@@ -1,62 +1,73 @@
 import { useId } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { apiErrorMessage } from "../../api";
 import { CopyButton } from "../../components/agent-prompt";
 import { LoadError } from "../../components/load-error";
-import { accountInstructionsQuery, chartOfAccountsQuery } from "../../queries";
+import { accountInstructionsQuery } from "../../queries";
 import type { PresetAccount } from "../categorization/CategorizationInstructions";
 import { fileUsers, otherUsers, sameNotes } from "./file-users";
-import { aiExample } from "./mapping-rules";
-import { EditFooter, PanelHead, TabList } from "./rule-parts";
+import { EditFooter, HowItWorks, TabList } from "./rule-parts";
 
 /*
  * The AI tab: for whatever the rules miss, the notes the AI reads for each
  * bank or card, as the files have them. The notes are free text; nothing
- * here reads meaning into them. Read-only; the files are edited in
- * user-config/.
+ * here reads meaning into them. A bank or card whose notes name a file
+ * user-config/ doesn't have says so on its tab, since the AI then goes
+ * without it. Read-only; the files are edited in user-config/.
  */
 export function AiNotesPanel({
   accounts,
   names,
   chosen,
   onChoose,
-  teachHref,
 }: {
   accounts: readonly PresetAccount[];
   names: ReadonlyMap<number, string>;
   chosen: PresetAccount | null;
   onChoose: (accountId: number) => void;
-  teachHref: string | null;
 }) {
-  const chart = useQuery(chartOfAccountsQuery);
-  const ledger =
-    chart.data?.state === "existing" ? chart.data.chart.accounts : [];
   const baseId = useId();
   const tabId = (id: string) => `${baseId}-tab-${id}`;
   const panelId = `${baseId}-panel`;
   const files = chosen?.account.custom_mappings_filenames ?? [];
+  // Each account's notes, read to find those missing a file; the chosen
+  // one's is the same query Notes shows.
+  const notes = useQueries({
+    queries: accounts.map(({ account }) => ({
+      ...accountInstructionsQuery(account.account_id),
+      enabled: account.custom_mappings_filenames.length > 0,
+    })),
+  });
+  const missingFile = (index: number) =>
+    notes[index]?.data?.files.some((file) => file.content === null) ?? false;
 
   return (
     <>
-      <PanelHead
-        example={aiExample(ledger)}
-        caption="For whatever the rules miss, the AI reads these notes. When it isn't sure, you choose in Drafts."
+      <HowItWorks
+        title="Everything else: the AI decides"
+        detail="It reads your notes for the bank or card, and your account names. When it isn't sure, the transaction waits for you in Drafts."
       />
       {chosen === null ? (
-        <p className="text-body text-ink-meta">
+        <p className="mt-7 text-body text-ink-soft">
           No banks or cards yet. The AI goes by your account names.
         </p>
       ) : (
-        <>
+        <section className="mt-7">
+          <h3 className="mb-2 text-subheading text-foreground">
+            Your notes to the AI
+          </h3>
           <TabList
             label="Whose notes"
-            tabs={accounts.map(({ account }) => ({
+            tabs={accounts.map(({ account }, index) => ({
               id: String(account.account_id),
               label: names.get(account.account_id) ?? account.name,
               note:
                 account.custom_mappings_filenames.length === 0
                   ? "none"
-                  : undefined,
+                  : missingFile(index)
+                    ? "file missing"
+                    : undefined,
+              noteAttention: missingFile(index),
             }))}
             selected={String(chosen.account.account_id)}
             onSelect={(id) => onChoose(Number(id))}
@@ -67,7 +78,7 @@ export function AiNotesPanel({
             role="tabpanel"
             id={panelId}
             aria-labelledby={tabId(String(chosen.account.account_id))}
-            className="space-y-2.5 pt-3.5"
+            className="space-y-3 pt-4"
           >
             <Notes
               // Another account's notes start afresh.
@@ -77,11 +88,10 @@ export function AiNotesPanel({
               chosen={chosen}
             />
           </div>
-        </>
+        </section>
       )}
       <EditFooter
         file={files.length === 1 ? files[0]! : "custom_mappings_*.prompt"}
-        teachHref={teachHref}
       />
     </>
   );
@@ -110,12 +120,12 @@ function Notes({
   return (
     <>
       {account.ledger_account_name === null && (
-        <p className="text-meta text-ink-meta">
+        <p className="text-body text-ink-soft">
           Not in your books any more, so nothing imports into it.
         </p>
       )}
       {account.custom_mappings_filenames.length === 0 ? (
-        <p className="text-body text-ink-meta">
+        <p className="text-body text-ink-soft">
           No notes for {name}. The AI goes by your account names.
         </p>
       ) : instructions.isError ? (
@@ -125,7 +135,7 @@ function Notes({
           retry={() => void instructions.refetch()}
         />
       ) : !instructions.data ? (
-        <p className="text-meta text-ink-meta">Reading the notes…</p>
+        <p className="text-body text-ink-soft">Reading the notes…</p>
       ) : (
         <>
           {instructions.data.files.map((file, _, files) => {
@@ -139,7 +149,7 @@ function Notes({
             return (
               <div key={file.filename} className="space-y-1">
                 {labelled && (
-                  <p className="font-mono text-label font-normal tracking-normal text-ink-meta [overflow-wrap:anywhere]">
+                  <p className="font-mono text-meta text-ink-soft [overflow-wrap:anywhere]">
                     {file.filename}
                     {also.length > 0 && (
                       <span className="font-sans">
@@ -150,7 +160,7 @@ function Notes({
                   </p>
                 )}
                 {file.content === null ? (
-                  <p className="text-meta text-ink-meta">
+                  <p className="text-body text-attention-ink">
                     {labelled ? (
                       "Not"
                     ) : (
@@ -161,15 +171,15 @@ function Notes({
                     in user-config/, so the AI doesn't get it.
                   </p>
                 ) : (
-                  <div className="max-w-[78ch] whitespace-pre-wrap rounded-control bg-sap-nested px-4 py-3.5 text-body leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                  <div className="max-w-[80ch] whitespace-pre-wrap rounded-card border border-sap-border bg-card px-5 py-4 text-body leading-relaxed text-foreground shadow-card [overflow-wrap:anywhere]">
                     {file.content}
                   </div>
                 )}
               </div>
             );
           })}
-          <div className="flex max-w-[78ch] flex-wrap items-center justify-between gap-x-4 gap-y-1">
-            <p className="text-meta text-ink-meta">
+          <div className="flex max-w-[80ch] flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <p className="text-meta text-ink-soft">
               {same.length > 0 &&
                 `Same notes as ${same.map(nameOf).join(", ")}`}
             </p>

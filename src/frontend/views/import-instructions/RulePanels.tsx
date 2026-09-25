@@ -1,5 +1,6 @@
-import { Fragment, type ReactNode, useDeferredValue, useState } from "react";
+import { type ReactNode, useDeferredValue, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { cn } from "@sapporta/ui/cn";
 import { apiErrorMessage } from "../../api";
 import { LoadError } from "../../components/load-error";
 import { transactionMappingsQuery } from "../../queries";
@@ -11,11 +12,14 @@ import {
   type ReadMappings,
 } from "./mapping-rules";
 import {
+  Chip,
+  Description,
   EditFooter,
   FindInput,
+  HowItWorks,
+  Matched,
   NotInBooks,
-  PanelHead,
-  RuleArrow,
+  RuleCard,
 } from "./rule-parts";
 
 /*
@@ -23,19 +27,13 @@ import {
  * every account's transactions meet before the AI does. Read-only; the
  * file is edited in user-config/.
  */
-export function RulesPanel({
-  tab,
-  teachHref,
-}: {
-  tab: "exact" | "contains";
-  teachHref: string | null;
-}) {
+export function RulesPanel({ tab }: { tab: "exact" | "contains" }) {
   const mappings = useQuery(transactionMappingsQuery);
   const data = mappings.data;
   return (
     <>
       {mappings.isPending && (
-        <p className="text-meta text-ink-meta">Reading the rules…</p>
+        <p className="text-body text-ink-soft">Reading the rules…</p>
       )}
       {mappings.isError && (
         <LoadError
@@ -45,15 +43,11 @@ export function RulesPanel({
         />
       )}
       {data?.state === "unreadable" && (
-        <div className="space-y-1">
-          <p className="text-body text-foreground">
-            The rules file doesn't load, so nothing is categorized until it's
-            fixed.
-          </p>
-          <p className="font-mono text-meta text-ink-meta [overflow-wrap:anywhere]">
-            {data.error}
-          </p>
-        </div>
+        <LoadError
+          title="The rules file doesn't load, so nothing is categorized until it's fixed."
+          message={data.error}
+          retry={() => void mappings.refetch()}
+        />
       )}
       {data?.state === "read" &&
         (tab === "exact" ? (
@@ -61,18 +55,18 @@ export function RulesPanel({
         ) : (
           <ContainsRules mappings={data} />
         ))}
-      <EditFooter
-        file={data?.filename ?? "transaction_mappings.mjs"}
-        teachHref={teachHref}
-      />
+      <EditFooter file={data?.filename ?? "transaction_mappings.mjs"} />
     </>
   );
 }
 
 // How many of an account's descriptions show before "+N".
-const FIRST_DESCRIPTIONS = 3;
+const FIRST_DESCRIPTIONS = 6;
 
-/** One row per account, its descriptions beside it, most rules first. */
+/**
+ * One row per account, its descriptions under it: those whose account the
+ * books don't have first, then most rules first.
+ */
 function ExactRules({ mappings }: { mappings: ReadMappings }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -80,16 +74,21 @@ function ExactRules({ mappings }: { mappings: ReadMappings }) {
   // A search shows every description it finds.
   const finding = deferred.trim() !== "";
   const rows = exactByAccount(mappings, deferred);
+  const example = exactExample(mappings);
 
   return (
     <>
-      <PanelHead
-        example={exactExample(mappings)}
-        caption={
-          <span title="Case and spacing don't matter. A UPI address also matches inside a longer description.">
-            The whole description, word for word. Checked first.
-          </span>
+      <HowItWorks
+        title="When the whole description matches"
+        detail={
+          <>
+            e.g. <Description>{example.text}</Description>, but not{" "}
+            <Description>{example.longer}</Description>. Checked first.
+          </>
         }
+      />
+      <RuleCard
+        title="Descriptions, by account"
         search={
           mappings.exact.length > 0 && (
             <FindInput
@@ -99,50 +98,47 @@ function ExactRules({ mappings }: { mappings: ReadMappings }) {
             />
           )
         }
-      />
-      <RuleRows
-        empty={
-          mappings.exact.length === 0
-            ? "No exact rules yet."
-            : `Nothing matches “${query.trim()}”.`
-        }
       >
-        {rows.map((row) => {
-          const open = finding || expanded.has(row.account);
-          const shown = open
-            ? row.found
-            : row.found.slice(0, FIRST_DESCRIPTIONS);
-          const more = row.found.length - shown.length;
-          return (
-            <li
-              key={row.account}
-              className="grid gap-x-3.5 gap-y-0.5 border-b border-line-inner px-0.5 py-2.5 md:grid-cols-[minmax(0,1fr)_28px_220px] md:items-baseline"
-            >
-              <span className="font-mono text-meta text-ink-soft [overflow-wrap:anywhere]">
-                <Joined items={shown} render={(text) => text} />
-                {more > 0 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpanded((was) => new Set(was).add(row.account))
-                    }
-                    aria-label={`Show ${more} more for ${row.account}`}
-                    className="ml-2 font-sans text-meta font-semibold text-foreground underline decoration-sap-border-strong underline-offset-2 hover:decoration-foreground"
-                  >
-                    +{more}
-                  </button>
-                )}
-              </span>
-              <RuleArrow className="max-md:hidden" />
-              <Account name={row.account} inLedger={row.in_ledger}>
-                <span className="tnum text-meta font-normal text-ink-meta">
-                  {row.narrations.length}
-                </span>
-              </Account>
-            </li>
-          );
-        })}
-      </RuleRows>
+        <RuleRows
+          empty={
+            mappings.exact.length === 0
+              ? "No exact rules yet."
+              : `Nothing matches “${query.trim()}”.`
+          }
+        >
+          {rows.map((row) => {
+            const open = finding || expanded.has(row.account);
+            const shown = open
+              ? row.found
+              : row.found.slice(0, FIRST_DESCRIPTIONS);
+            const more = row.found.length - shown.length;
+            return (
+              <li key={row.account} className={ROW}>
+                <Account name={row.account} inLedger={row.in_ledger} />
+                <ul className={CHIPS}>
+                  {shown.map((text, index) => (
+                    <Chip key={index}>{text}</Chip>
+                  ))}
+                  {more > 0 && (
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpanded((was) => new Set(was).add(row.account))
+                        }
+                        aria-label={`Show ${more} more for ${row.account}`}
+                        className="rounded-[5px] px-1.5 py-0.5 text-meta font-semibold text-primary hover:underline hover:underline-offset-4"
+                      >
+                        +{more}
+                      </button>
+                    </li>
+                  )}
+                </ul>
+              </li>
+            );
+          })}
+        </RuleRows>
+      </RuleCard>
     </>
   );
 }
@@ -151,13 +147,26 @@ function ExactRules({ mappings }: { mappings: ReadMappings }) {
 function ContainsRules({ mappings }: { mappings: ReadMappings }) {
   const [query, setQuery] = useState("");
   const rules = findIncludes(mappings, useDeferredValue(query));
-  const faint = "text-ink-meta/50";
+  const example = containsExample(mappings);
 
   return (
     <>
-      <PanelHead
-        example={containsExample(mappings)}
-        caption="A phrase anywhere in the description. Checked top to bottom; the first match wins."
+      <HowItWorks
+        title="When the description contains a phrase"
+        detail={
+          <>
+            e.g. <Description>{example.phrase}</Description>, anywhere in{" "}
+            <Description>
+              {example.before}
+              <Matched>{example.phrase}</Matched>
+              {example.after}
+            </Description>
+            . Checked next; the first match wins.
+          </>
+        }
+      />
+      <RuleCard
+        title="Phrases, in the order they're checked"
         search={
           mappings.includes.length > 0 && (
             <FindInput
@@ -167,48 +176,48 @@ function ContainsRules({ mappings }: { mappings: ReadMappings }) {
             />
           )
         }
-      />
-      <RuleRows
-        empty={
-          mappings.includes.length === 0
-            ? "No contains rules yet."
-            : `Nothing matches “${query.trim()}”.`
-        }
       >
-        {rules.map((rule) => (
-          <li
-            key={rule.position}
-            className="grid gap-x-3.5 gap-y-0.5 border-b border-line-inner px-0.5 py-2.5 md:grid-cols-[26px_minmax(0,1fr)_28px_220px] md:items-baseline"
-          >
-            <span className="tnum text-meta text-ink-meta max-md:hidden">
-              {rule.position}
-            </span>
-            <span className="font-mono text-meta text-ink-soft [overflow-wrap:anywhere]">
-              <Joined
-                items={rule.values}
-                render={(value) => (
-                  <>
-                    <span className={faint}>…</span>
-                    {value}
-                    <span className={faint}>…</span>
-                  </>
-                )}
-              />
-            </span>
-            <RuleArrow className="max-md:hidden" />
-            <Account name={rule.account} inLedger={rule.in_ledger}>
-              {rule.direction !== null && (
-                <span className="text-meta font-normal text-ink-meta">
-                  {rule.direction === "withdrawal" ? "money out" : "money in"}
-                </span>
-              )}
-            </Account>
-          </li>
-        ))}
-      </RuleRows>
+        <RuleRows
+          empty={
+            mappings.includes.length === 0
+              ? "No contains rules yet."
+              : `Nothing matches “${query.trim()}”.`
+          }
+        >
+          {rules.map((rule) => (
+            <li
+              key={rule.position}
+              className={cn(ROW, "grid grid-cols-[24px_minmax(0,1fr)] gap-x-2")}
+            >
+              <span className="tnum pt-px text-row text-ink-meta">
+                {rule.position}
+              </span>
+              <div>
+                <Account name={rule.account} inLedger={rule.in_ledger}>
+                  {rule.direction !== null && (
+                    <span className="text-meta font-normal text-ink-soft">
+                      {rule.direction === "withdrawal"
+                        ? "money out"
+                        : "money in"}
+                    </span>
+                  )}
+                </Account>
+                <ul className={CHIPS}>
+                  {rule.values.map((value, index) => (
+                    <Chip key={index}>{value}</Chip>
+                  ))}
+                </ul>
+              </div>
+            </li>
+          ))}
+        </RuleRows>
+      </RuleCard>
     </>
   );
 }
+
+const ROW = "border-t border-line-inner px-5 py-3.5";
+const CHIPS = "mt-2 flex flex-wrap gap-1.5";
 
 function RuleRows({
   empty,
@@ -218,35 +227,15 @@ function RuleRows({
   children: ReactNode[];
 }) {
   return children.length === 0 ? (
-    <p className="border-t border-sap-border px-0.5 py-4 text-body text-ink-meta">
+    <p className="border-t border-line-inner px-5 py-4 text-body text-ink-soft">
       {empty}
     </p>
   ) : (
-    <ul className="border-t border-sap-border">{children}</ul>
+    <ul>{children}</ul>
   );
 }
 
-/** Items joined by a faint middle dot. */
-function Joined({
-  items,
-  render,
-}: {
-  items: readonly string[];
-  render: (item: string) => ReactNode;
-}) {
-  return items.map((item, index) => (
-    <Fragment key={index}>
-      {index > 0 && (
-        <span aria-hidden="true" className="px-1.5 text-ink-meta/50">
-          ·
-        </span>
-      )}
-      <span>{render(item)}</span>
-    </Fragment>
-  ));
-}
-
-/** A rule's account in bold, with muted facts beside it. */
+/** A rule's account in bold, with facts beside it. */
 function Account({
   name,
   inLedger,
@@ -257,16 +246,10 @@ function Account({
   children?: ReactNode;
 }) {
   return (
-    <span className="flex flex-wrap items-baseline gap-x-2 text-row font-semibold text-foreground">
-      <span
-        aria-hidden="true"
-        className="font-normal text-ink-meta/50 md:hidden"
-      >
-        →
-      </span>
+    <p className="flex flex-wrap items-baseline gap-x-2.5 text-row font-semibold text-foreground">
       {name}
       {children}
       {!inLedger && <NotInBooks />}
-    </span>
+    </p>
   );
 }

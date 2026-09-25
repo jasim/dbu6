@@ -86,7 +86,7 @@ const RULES: TransactionMappingsView = {
   filename: "transaction_mappings.mjs",
   exact: [
     { narration: "NOPII CAFE ONE", account: "Dining", in_ledger: true },
-    ...[1, 2, 3, 4, 5].map((n) => ({
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
       narration: `NOPII SHOP ${n}`,
       account: "Groceries",
       in_ledger: true,
@@ -137,16 +137,6 @@ function respond(url: URL): unknown {
           draft_span: null,
         },
       ],
-    };
-  }
-  if (url.pathname.endsWith("/setup/chart-of-accounts")) {
-    return {
-      state: "existing",
-      chart: {
-        accounts: [
-          { name: "Food", account_type: "expense", parent: null, note: null },
-        ],
-      },
     };
   }
   const instructions = url.pathname.match(
@@ -254,9 +244,19 @@ const primaryTab = (label: string) =>
   );
 // A rule row's text, without the arrows and "goes to" between a rule and
 // its account.
+// Each rule row as "<position> <account and its facts>: <chips>".
 const rows = () =>
-  [...host.querySelectorAll('[role="tabpanel"] li')].map((li) =>
-    (li.textContent ?? "").replace(/→|goes to/g, ""),
+  [...host.querySelectorAll('[role="tabpanel"] section > ul > li')].map(
+    (li) => {
+      const chips = [...li.querySelectorAll("ul > li")].map(
+        (chip) => chip.textContent,
+      );
+      const head = (li.textContent ?? "").slice(
+        0,
+        (li.textContent ?? "").length - chips.join("").length,
+      );
+      return `${head}: ${chips.join(" · ")}`;
+    },
   );
 
 describe("Automatic transaction categorization rules", () => {
@@ -270,7 +270,7 @@ describe("Automatic transaction categorization rules", () => {
       "When you import a bank or card statement, these decide which account each transaction goes to.",
     );
     expect(tabsOf(tabLists()[0])).toEqual([
-      { text: "Exact8", selected: true },
+      { text: "Exact11", selected: true },
       { text: "Contains3", selected: false },
       { text: "AI", selected: false },
     ]);
@@ -314,42 +314,44 @@ describe("Automatic transaction categorization rules", () => {
     await renderAt("/categorization-rules?account=6");
     expect(primaryTab("AI")?.getAttribute("aria-selected")).toBe("true");
     expect(tabsOf(tabLists()[1]).find((tab) => tab.selected)?.text).toBe(
-      "Sample Card",
+      "Sample Card· file missing",
     );
   });
 
   describe("Exact", () => {
-    it("opens on the first rule as an example, all of it matched", async () => {
+    it("says what it matches, with the first rule as an example", async () => {
       await renderAt("/categorization-rules?show=exact");
 
-      expect(host.querySelector("mark")?.textContent).toBe("NOPII CAFE ONE");
+      expect(host.querySelector("h2")?.textContent).toBe(
+        "When the whole description matches",
+      );
       expect(text()).toContain(
-        "The whole description, word for word. Checked first.",
+        "e.g. NOPII CAFE ONE, but not NOPII CAFE ONE 050505. Checked first.",
       );
     });
 
-    it("groups descriptions by account, most first, three before +N", async () => {
+    it("lists each account, then its descriptions: missing accounts first, then most, six before +N", async () => {
       await renderAt("/categorization-rules?show=exact");
 
       expect(rows()).toEqual([
-        "NOPII SHOP 1·NOPII SHOP 2·NOPII SHOP 3+2Groceries5",
-        "NOPII CAFE ONE·NOPII CAFE TWODining2",
-        "NOPII OLD PAYEESample Gone1not in your books",
+        "Sample Gonenot in your books: NOPII OLD PAYEE",
+        "Groceries: NOPII SHOP 1 · NOPII SHOP 2 · NOPII SHOP 3 · NOPII SHOP 4 · NOPII SHOP 5 · NOPII SHOP 6 · +2",
+        "Dining: NOPII CAFE ONE · NOPII CAFE TWO",
       ]);
 
       await click(host.querySelector('button[aria-label^="Show 2 more"]'));
-      expect(rows()[0]).toContain("NOPII SHOP 5");
-      expect(rows()[0]).not.toContain("+2");
+      expect(rows()[1]).toContain("NOPII SHOP 8");
+      expect(rows()[1]).not.toContain("+2");
     });
 
     it("finds descriptions and accounts, showing every match", async () => {
       await renderAt("/categorization-rules?show=exact");
 
       await find("shop 5");
-      expect(rows()).toEqual(["NOPII SHOP 5Groceries5"]);
+      expect(rows()).toEqual(["Groceries: NOPII SHOP 5"]);
 
       await find("groceries");
-      expect(rows()[0]).toContain("NOPII SHOP 4·NOPII SHOP 5");
+      expect(rows()[0]).toContain("NOPII SHOP 7 · NOPII SHOP 8");
 
       await find("nothing like it");
       expect(text()).toContain("Nothing matches “nothing like it”.");
@@ -360,11 +362,14 @@ describe("Automatic transaction categorization rules", () => {
     it("lists the rules in checking order, with their direction", async () => {
       await renderAt("/categorization-rules?show=contains");
 
+      expect(text()).toContain(
+        "e.g. NOPII CAFE, anywhere in NEFT-NOPII CAFE-050505. Checked next; the first match wins.",
+      );
       expect(host.querySelector("mark")?.textContent).toBe("NOPII CAFE");
       expect(rows()).toEqual([
-        "1…NOPII CAFE…·…NOPII BISTRO…Diningmoney out",
-        "2…NOPII PAYROLL…Salarymoney in",
-        "3…sample-payee@okaxis…Transfers",
+        "1Diningmoney out: NOPII CAFE · NOPII BISTRO",
+        "2Salarymoney in: NOPII PAYROLL",
+        "3Transfers: sample-payee@okaxis",
       ]);
     });
 
@@ -372,7 +377,7 @@ describe("Automatic transaction categorization rules", () => {
       await renderAt("/categorization-rules?show=contains");
 
       await find("payroll");
-      expect(rows()).toEqual(["2…NOPII PAYROLL…Salarymoney in"]);
+      expect(rows()).toEqual(["2Salarymoney in: NOPII PAYROLL"]);
     });
   });
 
@@ -380,11 +385,13 @@ describe("Automatic transaction categorization rules", () => {
     it("shows the notes as plain text, and who shares them", async () => {
       await renderAt("/categorization-rules?show=ai&account=5");
 
+      expect(host.querySelector("h2")?.textContent).toBe(
+        "Everything else: the AI decides",
+      );
       expect(host.querySelector("mark")).toBeNull();
-      expect(text()).toContain("POS 050505 THE BAKERS DOZEN");
       expect(tabsOf(tabLists()[1]).map((tab) => tab.text)).toEqual([
         "Sample Bank",
-        "Sample Card",
+        "Sample Card· file missing",
         "Sample Wallet· none",
         "Sample Savings",
       ]);
@@ -422,21 +429,29 @@ describe("Automatic transaction categorization rules", () => {
 
       const card = [
         ...(tabLists()[1]?.querySelectorAll('[role="tab"]') ?? []),
-      ].find((tab) => tab.textContent === "Sample Card");
+      ].find((tab) => tab.textContent?.startsWith("Sample Card"));
       await click(card);
       expect(location).toBe("/categorization-rules?show=ai&account=6");
     });
   });
 
-  it("says where to edit, and links to teaching from drafts", async () => {
+  it("says where to edit", async () => {
     await renderAt("/categorization-rules?show=ai&account=5");
 
     expect(text()).toContain(
       "Edit user-config/shared.prompt, or ask your coding agent.",
     );
+  });
+
+  it("offers Improve categorization beside the title while drafts need a category", async () => {
+    await renderAt("/categorization-rules?show=contains");
+
+    expect(host.querySelector("header")?.textContent).toContain(
+      "1 draft needs a category",
+    );
     expect(
-      [...host.querySelectorAll("a")]
-        .find((a) => a.textContent === "Teach from your drafts →")
+      [...host.querySelectorAll("header a")]
+        .find((a) => a.textContent === "Improve categorization")
         ?.getAttribute("href"),
     ).toBe("/review/5/improve-categorization");
   });

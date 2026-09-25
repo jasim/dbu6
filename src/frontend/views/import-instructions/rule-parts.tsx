@@ -1,11 +1,10 @@
 import { type KeyboardEvent, type ReactNode, useRef } from "react";
-import { Link } from "react-router-dom";
 import { cn } from "@sapporta/ui/cn";
-import type { RuleExample } from "./mapping-rules";
 
 /*
  * The pieces every tab of the categorization rules page shares: the tab
- * rows, the example atop a panel, and the one-line footer.
+ * rows, what the step does atop a panel, bank descriptions, the card of
+ * rules, and the one-line footer.
  */
 
 export interface TabItem<T extends string> {
@@ -13,8 +12,10 @@ export interface TabItem<T extends string> {
   label: string;
   // A muted figure beside the label.
   count?: number;
-  // Muted words after the label.
+  // Muted words after the label; in the attention ink when the user must
+  // act on them.
   note?: string;
+  noteAttention?: boolean;
 }
 
 /**
@@ -115,7 +116,14 @@ export function TabList<T extends string>({
               </span>
             )}
             {tab.note !== undefined && (
-              <span className="font-normal text-ink-meta">· {tab.note}</span>
+              <span
+                className={cn(
+                  "font-normal",
+                  tab.noteAttention ? "text-attention-ink" : "text-ink-meta",
+                )}
+              >
+                · {tab.note}
+              </span>
             )}
           </button>,
         ];
@@ -124,66 +132,71 @@ export function TabList<T extends string>({
   );
 }
 
-/** A bank description, its match marked, and the account it goes to. */
-export function ExampleLine({ example }: { example: RuleExample }) {
-  const faint = "text-ink-meta/50";
-  const mark = (text: string) => (
-    <mark className="rounded-[3px] bg-primary/15 px-[3px] py-px text-foreground">
-      {text}
-    </mark>
-  );
+/**
+ * What a tab's step does, for someone who has never seen it: a heading
+ * that says it in plain words, and a line with an example.
+ */
+export function HowItWorks({
+  title,
+  detail,
+}: {
+  title: string;
+  detail: ReactNode;
+}) {
   return (
-    <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
-      <span className="text-label uppercase text-ink-meta">
-        {example.sample ? "Sample" : "Example"}
-      </span>
-      <span className="font-mono text-body text-foreground [overflow-wrap:anywhere]">
-        {example.kind === "whole" ? (
-          mark(example.text)
-        ) : example.kind === "phrase" ? (
-          <>
-            <span className={faint}>…</span>
-            {mark(example.text)}
-            <span className={faint}>…</span>
-          </>
-        ) : (
-          example.text
-        )}
-      </span>
-      {example.account !== null && (
-        <>
-          <span aria-hidden="true" className={cn("text-heading", faint)}>
-            →
-          </span>
-          <span className="sr-only">goes to</span>
-          <span className="text-subheading font-bold text-foreground">
-            {example.account}
-          </span>
-        </>
-      )}
+    <div>
+      <h2 className="text-heading text-foreground">{title}</h2>
+      <p className="mt-1.5 max-w-[72ch] text-body text-ink-soft">{detail}</p>
     </div>
   );
 }
 
-/** A panel's example and one-line caption, and its search at the right. */
-export function PanelHead({
-  example,
-  caption,
+// A bank description as the page shows it: in a rule's chip, or in a
+// sentence.
+const DESCRIPTION =
+  "rounded-[5px] border border-line-inner bg-sap-nested px-2 py-0.5 font-mono text-meta text-foreground [overflow-wrap:anywhere]";
+
+/** A bank description inside a sentence; a part of it may be marked. */
+export function Description({ children }: { children: ReactNode }) {
+  return <span className={cn(DESCRIPTION, "px-1.5 py-px")}>{children}</span>;
+}
+
+/** The part of a description a rule matches. */
+export function Matched({ children }: { children: ReactNode }) {
+  return (
+    <mark className="rounded-[3px] bg-primary/15 px-[2px] text-foreground">
+      {children}
+    </mark>
+  );
+}
+
+/**
+ * The white card a tab's rules sit in: a heading that says how they are
+ * laid out, the search at its right, and the rules under it.
+ */
+export function RuleCard({
+  title,
   search,
+  children,
 }: {
-  example: RuleExample | null;
-  caption: ReactNode;
+  title: string;
   search?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-3 pb-4">
-      <div className="min-w-0 space-y-2">
-        {example !== null && <ExampleLine example={example} />}
-        <p className="text-meta text-ink-meta">{caption}</p>
+    <section className="mt-7 rounded-card border border-sap-border bg-card shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 pb-3 pt-4">
+        <h3 className="text-subheading text-foreground">{title}</h3>
+        {search}
       </div>
-      {search}
-    </div>
+      {children}
+    </section>
   );
+}
+
+/** One description or phrase of a rule. */
+export function Chip({ children }: { children: ReactNode }) {
+  return <li className={DESCRIPTION}>{children}</li>;
 }
 
 /** The search box above a list of rules. */
@@ -203,60 +216,35 @@ export function FindInput({
       onChange={(event) => onChange(event.target.value)}
       placeholder="Find"
       aria-label={label}
-      className="block w-full max-w-[260px] rounded-control border border-sap-border-strong bg-card px-3 py-1.5 text-meta text-foreground placeholder:text-ink-meta"
+      className="block h-sap-ctl w-full max-w-[240px] rounded-control border border-sap-border-strong bg-card px-3 text-row text-foreground placeholder:text-ink-meta"
     />
   );
 }
 
-/** The faint arrow between a rule and its account. */
-export function RuleArrow({ className }: { className?: string }) {
-  return (
-    <>
-      <span
-        aria-hidden="true"
-        className={cn("text-center text-ink-meta/50", className)}
-      >
-        →
-      </span>
-      <span className="sr-only">goes to</span>
-    </>
-  );
-}
-
-/** "not in your books" beside an account the ledger doesn't have. */
+/**
+ * "not in your books" beside an account the ledger doesn't have: what the
+ * rule matches stays uncategorized, so the user must act.
+ */
 export function NotInBooks() {
   return (
-    <span className="text-meta font-normal text-ink-meta">
+    <span
+      title="What this matches stays uncategorized. Add the account to your books, or change the rule."
+      className="text-meta font-normal text-attention-ink"
+    >
       not in your books
     </span>
   );
 }
 
-/** Where a tab's rules are edited, and where to teach them from drafts. */
-export function EditFooter({
-  file,
-  teachHref,
-}: {
-  file: string;
-  teachHref: string | null;
-}) {
+/** Where a tab's rules are edited. */
+export function EditFooter({ file }: { file: string }) {
   return (
-    <div className="mt-6 flex flex-wrap gap-x-5 gap-y-1 text-meta text-ink-meta">
-      <span>
-        Edit{" "}
-        <code className="font-mono [overflow-wrap:anywhere]">
-          user-config/{file}
-        </code>
-        , or ask your coding agent.
-      </span>
-      {teachHref !== null && (
-        <Link
-          to={teachHref}
-          className="font-semibold text-ink-soft no-underline hover:text-foreground hover:underline"
-        >
-          Teach from your drafts →
-        </Link>
-      )}
-    </div>
+    <p className="mt-5 text-meta text-ink-soft">
+      Edit{" "}
+      <code className="font-mono [overflow-wrap:anywhere]">
+        user-config/{file}
+      </code>
+      , or ask your coding agent.
+    </p>
   );
 }
