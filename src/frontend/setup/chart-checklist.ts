@@ -1,6 +1,5 @@
 import {
   chartInTreeOrder,
-  LEDGER_ACCOUNT_TYPES,
   OPENING_BALANCES_NAME,
   type ChartAccount,
   type ChartRow,
@@ -106,17 +105,6 @@ export function chartCards(accounts: readonly ChartAccount[]): ChartCard[] {
     else card.rows.push({ row, folded: [] });
   }
   return cards;
-}
-
-/** How many accounts of each type the chart has. */
-export function countsByType(
-  accounts: readonly ChartAccount[],
-): Record<LedgerAccountType, number> {
-  const counts = Object.fromEntries(
-    LEDGER_ACCOUNT_TYPES.map((type) => [type, 0]),
-  ) as Record<LedgerAccountType, number>;
-  for (const account of accounts) counts[account.account_type] += 1;
-  return counts;
 }
 
 // `name` and every account under it.

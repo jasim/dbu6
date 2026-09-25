@@ -40,7 +40,8 @@ import {
 } from "./review/RunCategorizerTab";
 import { REVIEW_TABS, type ReviewTab } from "./review/routes";
 import { AddAccount } from "./add-account/AddAccount";
-import { ADD_ROUTE } from "./add-account/state";
+import { AddOther } from "./add-account/other/AddOther";
+import { ADD_OTHER_ROUTE, ADD_ROUTE } from "./add-account/state";
 import { AutoImportStatements } from "./views/AutoImportStatements";
 import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
 import { JournalsTable } from "./views/JournalsTable";
@@ -48,9 +49,8 @@ import { RenderDraftHledger } from "./views/RenderDraftHledger";
 import { Settings as SettingsPage } from "./views/settings/Settings";
 import { BalancesStep } from "./setup/BalancesStep";
 import { BanksStep } from "./setup/BanksStep";
-import { ChartStep } from "./setup/ChartStep";
+import { ChartCard } from "./setup/ChartCard";
 import { ReviewStep } from "./setup/ReviewStep";
-import { SetupIndex } from "./setup/SetupWizard";
 import { StatementsStep } from "./setup/StatementsStep";
 
 /*
@@ -107,6 +107,10 @@ export const appPublicShellRoutes = <></>;
 const focusRoutes = (
   <>
     <Route path={ADD_ROUTE.slice(1)} element={<AddAccount />} />
+    <Route path={ADD_OTHER_ROUTE.slice(1)} element={<AddOther />} />
+    {/* Card 1, the chart; the old wizard's own path for it too. */}
+    <Route path="setup" element={<ChartCard />} />
+    <Route path="setup/accounts" element={<ChartCard />} />
   </>
 );
 
@@ -145,8 +149,6 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
         element={<Navigate to="/reports" replace />}
       />
       <Route path="settings" element={<SettingsPage />} />
-      <Route path="setup" element={<SetupIndex />} />
-      <Route path="setup/accounts" element={<ChartStep />} />
       <Route path="setup/banks" element={<BanksStep />} />
       <Route path="setup/statements" element={<StatementsStep />} />
       <Route path="setup/balances" element={<BalancesStep />} />

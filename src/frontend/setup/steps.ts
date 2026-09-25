@@ -7,18 +7,13 @@ import { plural } from "../format";
  * banks and cards once any account is set up for statements; the first
  * statements once every bank or card has transactions; the other balances
  * once any is recorded; and Review once the statements are in and no
- * drafts remain. Other balances is optional: `/setup` never stops on it,
- * and Review never waits for it.
+ * drafts remain. Other balances is optional: Review never waits for it.
  */
 
 export const SETUP_ROUTE = "/setup";
 
 export type SetupStepId =
-  | "accounts"
-  | "banks"
-  | "statements"
-  | "balances"
-  | "review";
+  "accounts" | "banks" | "statements" | "balances" | "review";
 
 export const SETUP_STEP_ROUTES: Record<SetupStepId, string> = {
   accounts: `${SETUP_ROUTE}/accounts`,
@@ -35,9 +30,6 @@ const ORDER: readonly SetupStepId[] = [
   "balances",
   "review",
 ];
-
-/** Steps the user may leave undone; the books are set up without them. */
-const OPTIONAL_STEPS: ReadonlySet<SetupStepId> = new Set(["balances"]);
 
 const TITLES: Record<SetupStepId, string> = {
   accounts: "Chart of accounts",
@@ -64,17 +56,6 @@ export function stepDone(id: SetupStepId, status: SetupStatus): boolean {
     case "review":
       return stepDone("statements", status) && status.drafts === 0;
   }
-}
-
-/**
- * Where `/setup` opens: the first step not done, passing optional ones,
- * else Review, which then says the books are set up.
- */
-export function firstOpenStep(status: SetupStatus): SetupStepId {
-  return (
-    ORDER.find((id) => !OPTIONAL_STEPS.has(id) && !stepDone(id, status)) ??
-    "review"
-  );
 }
 
 /** The Other balances step, on one account's row (by its name or path). */

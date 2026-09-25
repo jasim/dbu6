@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { ChartAccount } from "../../shared/index";
 import {
   chartCards,
-  countsByType,
   initialTicks,
   lockedAccounts,
   tickedAccounts,
@@ -107,15 +106,5 @@ describe("the chart's cards", () => {
       ["Food", ["Groceries", "Snacks", "Dining Out"]],
       ["Children", ["School Fees"]],
     ]);
-  });
-
-  it("counts the accounts of each type", () => {
-    expect(countsByType(CHART)).toEqual({
-      Asset: 1,
-      Liability: 0,
-      Equity: 3,
-      Revenue: 0,
-      Expense: 6,
-    });
   });
 });

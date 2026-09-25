@@ -7,20 +7,18 @@ import { Button } from "../components/ui/button";
  * "Describe your money": the user's own words go to the coding agent's LLM,
  * which revises the chart on screen to fit them. One call, up to three
  * minutes; nothing is created until the user ticks through the answer and
- * creates it. Shown only when an agent is ready (ChartStep checks).
+ * creates it. Shown only when an agent is ready (ChartCard checks).
  */
 export function DescribeMoney({
   agent,
   current,
   onProposal,
-  onBack,
 }: {
   /** The ready coding agent's name. */
   agent: string;
   /** The chart on screen, which the LLM revises rather than starting over. */
   current: () => ChartAccount[];
   onProposal: (suggestion: ChartSuggestion) => void;
-  onBack: () => void;
 }) {
   const [description, setDescription] = useState("");
   const [asking, setAsking] = useState(false);
@@ -57,16 +55,13 @@ export function DescribeMoney({
       <p className="mt-2 text-meta text-ink-meta">
         ✦ {agent} proposes accounts that fit. Nothing is created until you do.
       </p>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="mt-3">
         <Button
           variant="assist"
           disabled={asking || description.trim() === ""}
           onClick={() => void propose()}
         >
           {asking ? `${agent} is thinking…` : "Propose accounts"}
-        </Button>
-        <Button variant="ghost" onClick={onBack}>
-          Back to the standard chart
         </Button>
       </div>
       {problem && (

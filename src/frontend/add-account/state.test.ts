@@ -12,7 +12,6 @@ import {
   addOtherHref,
   carriedFrom,
   defaultMonth,
-  handOffHref,
   monthChoices,
   NOTHING_HELD,
   readAddUrl,
@@ -154,7 +153,6 @@ describe("the URL", () => {
     expect(addOtherHref({ ...SETUP_FROM_JAN, added: 12 })).toBe(
       "/add/other?run=setup&from=2025-01",
     );
-    expect(handOffHref(12)).toBe("/review/12/drafts?imported=1");
   });
 
   it("reads card 2's carried answer from the navigation state", () => {
