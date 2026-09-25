@@ -50,8 +50,8 @@ export function howFarBackTitle(url: AddUrl): string {
 /** Under card 2's choice: what to fetch from the bank before dropping. */
 export function downloadLine(from: From): string {
   return from.kind === "latest"
-    ? "Download your latest statement, then come back."
-    : `Download your statements from ${formatMonth(from.month)} to now, then come back.`;
+    ? "Download your latest statement, then continue."
+    : `Download your statements from ${formatMonth(from.month)} to now, then continue.`;
 }
 
 /** The first run's steps, as the list over its cards names them. */

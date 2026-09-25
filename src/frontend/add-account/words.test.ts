@@ -108,10 +108,10 @@ describe("card 2", () => {
 
   it("says what to download", () => {
     expect(downloadLine({ kind: "month", month: "2025-01" })).toBe(
-      "Download your statements from Jan 2025 to now, then come back.",
+      "Download your statements from Jan 2025 to now, then continue.",
     );
     expect(downloadLine({ kind: "latest" })).toBe(
-      "Download your latest statement, then come back.",
+      "Download your latest statement, then continue.",
     );
   });
 });

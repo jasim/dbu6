@@ -367,7 +367,7 @@ describe("adding a bank or card", () => {
       host.querySelectorAll<HTMLInputElement>('input[type="radio"]')[1].click(),
     );
     expect(text()).toContain(
-      "Download your statements from Jan 2026 to now, then come back.",
+      "Download your statements from Jan 2026 to now, then continue.",
     );
     await click("Continue");
     expect(title()).toBe("Drop this account's statements");

@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { Download } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { formatMonth } from "../format";
 import { today } from "../reports/shared";
@@ -87,7 +88,15 @@ export function HowFarBack({
         </Choice>
       </fieldset>
       {answer && (
-        <p role="status" className="mt-4 text-body text-ink-soft">
+        // What the user does next, away from dbu6: blue, as "this needs you".
+        <p
+          role="status"
+          className="mt-4 flex items-start gap-2.5 rounded-control border border-attention-border bg-attention-bg px-3.5 py-3 text-body font-medium text-attention-ink"
+        >
+          <Download
+            aria-hidden="true"
+            className="mt-0.5 size-[18px] shrink-0 text-attention"
+          />
           {downloadLine(answer)}
         </p>
       )}
