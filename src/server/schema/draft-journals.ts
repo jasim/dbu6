@@ -17,10 +17,10 @@ export const draftTransactionsTable = sqliteTable(
     workspace_id: text("workspace_id").notNull(),
     scoped_to_user_id: text("scoped_to_user_id").notNull(),
     date: date("date").notNull(),
+    account_id: integer("account_id").references(() => accountsTable.id),
     narration: text("narration").notNull(),
     withdrawal: money("withdrawal").notNull().default(0),
     deposit: money("deposit").notNull().default(0),
-    account_id: integer("account_id").references(() => accountsTable.id),
     base_account_id: integer("base_account_id").references(
       () => accountsTable.id,
     ),
