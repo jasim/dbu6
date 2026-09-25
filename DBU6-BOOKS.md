@@ -157,12 +157,13 @@ Neither is retroactive: re-run the categoriser over the drafts with no
 category ("Categorise these" above), and restart a server started with
 `dbu6 start`.
 
-**Lessons from Review.** The Improve categorization tab keeps what the user
-taught there as lessons, each with its drafts' narrations, the account they
-go to and a note:
+**New rules from Review.** The Improve categorization tab keeps the new rules
+the user made there as lessons, each with its drafts' narrations, the account
+they go to and a note:
 `sapporta api get /api/categorization-lessons --query '{"base_account_id":<id>}'`.
-Their drafts already have that category. Once a lesson is a rule or guidance,
-delete it, which takes it off the user's list:
+Their drafts have no category yet; the user runs the categorizer once the
+rules are in. Once a lesson is a rule or guidance, delete it, which takes it
+off the user's list:
 `sapporta api delete /api/categorization-lessons/<lesson id>`. Leave a lesson
 you couldn't encode.
 

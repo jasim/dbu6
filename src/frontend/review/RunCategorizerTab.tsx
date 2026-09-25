@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CircleCheck, Loader2, Wand2 } from "lucide-react";
 import { getApiBase } from "@sapporta/frontend/platform";
 import { cn } from "@sapporta/ui/cn";
@@ -14,6 +15,7 @@ import { EmptyState } from "../components/empty-state";
 import { FactTable, type Fact } from "../components/fact-table";
 import { Button, buttonVariants } from "../components/ui/button";
 import { plural } from "../format";
+import { categorizationLessonsQuery } from "../queries";
 import { CategorizationNote } from "../views/categorization/CategorizationFigures";
 import { AgentUnavailableDialog } from "../views/categorization/AgentUnavailableDialog";
 import {
@@ -100,6 +102,7 @@ export function RunCategorizerTab() {
   const [loadingRows, setLoadingRows] = useState(true);
   const [classifying, setClassifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const rulesAdded = useRulesAdded(accountId);
 
   useEffect(() => {
     importPresetsApi
@@ -273,6 +276,32 @@ export function RunCategorizerTab() {
                 ? "Loading drafts…"
                 : `${plural(uncategorized.length, "draft")} ${uncategorized.length === 1 ? "needs" : "need"} a category`}
             </h2>
+            {rulesAdded.waiting > 0 ? (
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-row text-ink-soft">
+                <Loader2
+                  aria-hidden="true"
+                  className="size-4 animate-spin text-primary"
+                />
+                Waiting for your agent to add{" "}
+                {plural(rulesAdded.waiting, "new rule")}
+                <Link
+                  to={inRun(reviewHref(accountId, IMPROVE_CATEGORIZATION_TAB))}
+                  className="text-meta text-ink-meta hover:text-foreground hover:underline"
+                >
+                  See them
+                </Link>
+              </p>
+            ) : (
+              rulesAdded.added && (
+                <p className="flex items-center gap-2 text-row text-ink-soft">
+                  <CircleCheck
+                    aria-hidden="true"
+                    className="size-4 text-primary"
+                  />
+                  New rules added
+                </p>
+              )
+            )}
 
             <dl className="divide-y divide-line-inner border-y border-line-inner">
               <Setting
@@ -406,6 +435,32 @@ export function RunCategorizerTab() {
   );
 }
 
+/**
+ * The new rules from Improve categorization that the user's coding agent is
+ * still adding, read again every few seconds while there are any, since the
+ * agent takes each off the list outside the app; and whether it took the
+ * last of them off while this was open.
+ */
+function useRulesAdded(accountId: number): { waiting: number; added: boolean } {
+  const lessons = useQuery({
+    ...categorizationLessonsQuery(accountId),
+    refetchInterval: (query) =>
+      (query.state.data?.length ?? 0) > 0 ? 3000 : false,
+  });
+  const waiting = lessons.data?.length ?? 0;
+  const hadSome = useRef(false);
+  const [added, setAdded] = useState(false);
+  useEffect(() => {
+    if (waiting > 0) {
+      hadSome.current = true;
+      setAdded(false);
+    } else if (hadSome.current) {
+      setAdded(true);
+    }
+  }, [waiting]);
+  return { waiting, added };
+}
+
 /** One row of the card: what it is, what it's set to, and how to change it. */
 function Setting({
   label,
@@ -451,7 +506,7 @@ function InstructionsValue({
  * What a run did, in place of the card that started it: how many it
  * categorized and where they went, and then the way on. Drafts still without
  * a category go to Drafts, to categorize by hand, or to Improve
- * categorization, to teach the categoriser.
+ * categorization, to make rules for them.
  */
 function RunResult({
   run,
@@ -525,7 +580,7 @@ function RunResult({
               to={improveHref}
               className={buttonVariants({ variant: "outline" })}
             >
-              Teach the categorizer
+              Improve categorization
             </Link>
             <Link
               to={overviewHref}

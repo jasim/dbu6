@@ -20,11 +20,11 @@ import { ImproveCategorizationTab } from "./ImproveCategorizationTab";
 import type { ReviewAccountContext } from "./ReviewAccount";
 
 /*
- * Improve categorization's side panel: it says what to select, or that every
- * draft has a category; the drafts already categorized here wait under Teach
- * the categorizer, in the panel that hands them to the coding agent, each
- * with a way to leave it out. With nothing to teach there is no panel. The
- * grid needs the table's schema, which no test here loads.
+ * Improve categorization's New rules column: it says what to select, or that
+ * every draft has a category; the new rules made here wait under it, account
+ * first, each with a way to remove it, above the button that hands them to
+ * the coding agent and then goes to Run categorizer. The grid needs the
+ * table's schema, which no test here loads.
  */
 
 let host: HTMLDivElement;
@@ -64,7 +64,15 @@ function respond(method: string, url: URL): unknown {
     return { deleted: 1 };
   }
   if (url.pathname.endsWith("/agent-handoff")) {
-    return { mode: "terminal", agent: "claude-code" };
+    return method === "POST"
+      ? {
+          mode: "terminal",
+          agent: "claude-code",
+          prompt_path: "tmp/agent-prompts/sample.md",
+          launcher_path: "tmp/agent-prompts/sample.sh",
+          command: "sh 'tmp/agent-prompts/sample.sh'",
+        }
+      : { mode: "terminal", agent: "claude-code" };
   }
   throw new Error(`Unexpected request: ${method} ${url}`);
 }
@@ -154,6 +162,10 @@ async function render(uncategorised = 4) {
                 path: "improve-categorization",
                 element: createElement(ImproveCategorizationTab),
               }),
+              createElement(Route, {
+                path: "run-categorizer",
+                element: createElement("p", null, "run categorizer"),
+              }),
             ),
           ),
         ),
@@ -172,25 +184,34 @@ async function settle() {
 }
 
 const panel = () => host.querySelector("aside")?.textContent ?? "";
-const teaching = () =>
-  [...host.querySelectorAll("aside ol > li")].map((li) => li.textContent);
+const rules = () =>
+  [...host.querySelectorAll("aside ol > li")].map((li) => ({
+    account: li.querySelector("p")?.textContent,
+    descriptions: [...li.querySelectorAll("ul > li")].map(
+      (chip) => chip.textContent,
+    ),
+  }));
 const button = (label: string) =>
   [...host.querySelectorAll("button")].find(
-    (b) => b.textContent === label || b.getAttribute("aria-label") === label,
+    (b) =>
+      b.textContent?.startsWith(label) ||
+      b.getAttribute("aria-label") === label,
   );
 
 describe("Improve categorization", () => {
-  it("says what to select, and lists what the categorizer is to learn", async () => {
+  it("says what to select, and lists the new rules account first", async () => {
     await render();
 
-    expect(panel()).toContain("Select drafts that go to the same account.");
-    expect(host.querySelector("aside h3")?.textContent).toBe(
-      "Teach the categorizer",
-    );
-    expect(teaching()).toEqual([
-      "NOPII SHOP ONE+1→ GroceriesA sample grocery shop",
-      "NOPII CAFE→ Dining",
+    expect(panel()).toContain("Select drafts to make a rule");
+    expect(rules()).toEqual([
+      {
+        account: "Groceries",
+        descriptions: ["NOPII SHOP ONE", "NOPII SHOP ONE AGAIN"],
+      },
+      { account: "Dining", descriptions: ["NOPII CAFE"] },
     ]);
+    expect(panel()).toContain("A sample grocery shop");
+    expect(button("Add 2 to categorization rules")).toBeDefined();
     expect(
       requests
         .find((r) => r.url.pathname.endsWith("/categorization-lessons"))
@@ -203,26 +224,38 @@ describe("Improve categorization", () => {
     ).toBe("/categorization-rules?show=ai&account=5");
   });
 
-  it("leaves one out, and shows no panel once nothing is left to teach", async () => {
+  it("removes a rule, and offers nothing to add once none is left", async () => {
     await render();
 
-    await act(async () => button("Don't teach NOPII CAFE")?.click());
+    await act(async () => button("Remove the rule for Dining")?.click());
     await settle();
-    expect(teaching()).toEqual([
-      "NOPII SHOP ONE+1→ GroceriesA sample grocery shop",
-    ]);
+    expect(rules().map((rule) => rule.account)).toEqual(["Groceries"]);
+    expect(button("Add 1 to categorization rules")).toBeDefined();
 
-    await act(async () => button("Don't teach NOPII SHOP ONE")?.click());
+    await act(async () => button("Remove the rule for Groceries")?.click());
     await settle();
-    expect(teaching()).toEqual([]);
-    expect(panel()).not.toContain("Teach the categorizer");
+    expect(rules()).toEqual([]);
+    expect(button("Add")).toBeUndefined();
+  });
+
+  it("hands the new rules to the agent, then goes to Run categorizer", async () => {
+    await render();
+
+    await act(async () => button("Add 2 to categorization rules")?.click());
+    await settle();
+
+    const handoff = requests.find(
+      (r) => r.method === "POST" && r.url.pathname.endsWith("/agent-handoff"),
+    );
+    expect(handoff).toBeDefined();
+    expect(host.textContent).toBe("run categorizer");
   });
 
   it("says so when every draft has a category", async () => {
     lessons = [];
     await render(0);
 
-    expect(panel()).toContain("Every draft has a category.");
+    expect(panel()).toContain("Every draft has a category");
     expect(panel()).not.toContain("Select drafts");
   });
 });

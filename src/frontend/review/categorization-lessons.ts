@@ -1,9 +1,10 @@
-// What the user teaches the categoriser from Review's Improve categorization
-// tab: drafts they picked and the account those drafts go to, with a note
-// for next time. Lessons wait in the books (categorization_lessons) until the
-// user hands them to their coding agent, which decides how each is encoded,
-// a rule in transaction_mappings.mjs, a line of guidance, or both, and then
-// deletes it from the list.
+// The new rules the user makes on Review's Improve categorization tab: drafts
+// they picked and the account those drafts go to, with a note for next time.
+// They wait in the books as lessons (categorization_lessons) until the user
+// hands them to their coding agent, which decides how each is encoded, a rule
+// in transaction_mappings.mjs, a line of guidance, or both, and then deletes
+// it from the list. The drafts get their category when the user next runs
+// the categorizer.
 
 import {
   guideCommand,
@@ -27,10 +28,10 @@ export function lessonsPrompt(
 ): string {
   const { account } = detail;
   const books = guideCommand("books");
-  return `I'm teaching my books app (this repository) how to categorise my bank
-transactions, on the screen ${reviewHref(account.account_id, "improve-categorization")}.
-These are drafts imported for ${account.name} (ledger account ${account.path},
-account id ${account.account_id}), and where I've said they go:
+  return `I'm adding categorization rules to my books app (this repository), on the
+screen ${reviewHref(account.account_id, "improve-categorization")}. These are
+drafts imported for ${account.name} (ledger account ${account.path}, account
+id ${account.account_id}), and where I've said they go:
 
 ${lessons.map(lessonText).join("\n\n")}
 
@@ -43,19 +44,16 @@ this account's import preset. A rule applies to every account; an instruction
 file applies to every account whose preset lists it. If this account lists no
 instruction file, or only an empty one, tell me, and propose which to use.
 
-I have already given these drafts their categories, so leave them as they are.
-Once the rules and guidance are in place, run the categoriser again on this
-account's drafts that still have no category, as the same guide describes
-under "Categorise these".
+Don't categorise the drafts yourself: once the rules are in, I run the
+categoriser from the app.
 
 When a lesson is encoded, delete it from my list with
-\`sapporta api delete /api/categorization-lessons/<lesson id>\`. Its drafts
-keep their category. Leave any lesson you could not encode on the list.
+\`sapporta api delete /api/categorization-lessons/<lesson id>\`. Leave any
+lesson you could not encode on the list.
 
 ${PII_RULE}
 
-Report back what you did for each numbered lesson and why, and how many of the
-remaining drafts the categoriser then categorised.`;
+Report back what you did for each numbered lesson and why.`;
 }
 
 function lessonText(lesson: CategorizationLesson, index: number): string {
