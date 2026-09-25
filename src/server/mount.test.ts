@@ -34,6 +34,16 @@ describe("mounted app routes", () => {
     expect(paths["/api/agent-handoff"]?.post).toBeDefined();
     expect(paths["/api/coding-agent"]?.get).toBeDefined();
     expect(paths["/api/coding-agent"]?.put).toBeDefined();
+    expect(paths["/api/setup"]?.get).toBeDefined();
+    expect(paths["/api/setup/chart-of-accounts"]?.post).toBeDefined();
+    expect(paths["/api/setup/chart-of-accounts/suggest"]?.post).toBeDefined();
+    expect(paths["/api/setup/statement-accounts"]?.post).toBeDefined();
+    expect(paths["/api/setup/statement-formats"]?.get).toBeDefined();
+    expect(paths["/api/setup/sample-statement"]?.post).toBeDefined();
+    expect(paths["/api/setup/sample-statement/recheck"]?.post).toBeDefined();
+    expect(
+      paths["/api/setup/sample-statement/{accountId}"]?.delete,
+    ).toBeDefined();
   });
 
   it("no longer publishes the retired statement upload routes", () => {
