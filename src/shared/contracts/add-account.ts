@@ -222,15 +222,15 @@ export const addAccountRefusalSchema = z.object({
 export type AddAccountRefusal = z.infer<typeof addAccountRefusalSchema>;
 
 /**
- * Whether /import hands the user a coding-agent prompt for this refusal
- * (views/import-statements/describeProblems.ts). A gap has the flow's own
- * card (add the missing statement, or start after it), and a part with no
- * balances or a missing opening are the user's to fix, so those get none.
+ * Whether /add's card for this refusal hands the user a coding-agent prompt:
+ * /import's (views/import-statements/describeProblems.ts), but for a gap,
+ * which has the flow's own card (add the missing statement, or start after
+ * it). The same statement twice is removed, and a part with no balances or
+ * a missing opening are the user's to fix, so those get none.
  */
 export function refusalPromptsAgent(error: StatementImportError): boolean {
   switch (error.error) {
     case "statement_boundary_mismatch":
-      return error.reason === "same-statement-twice";
     case "statement_part_unjoinable":
     case "opening_balance_unavailable":
       return false;

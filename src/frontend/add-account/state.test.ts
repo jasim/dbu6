@@ -373,9 +373,9 @@ describe("which card shows", () => {
         card: "refused",
         account,
         refusal,
-        // The same statement twice gets /import's prompt; a part with no
-        // balances is the user's to fix.
-        promptsAgent: refusal === twice,
+        // Neither gets a prompt: the duplicate is removed, and a part with
+        // no balances is the user's to fix.
+        promptsAgent: false,
       });
     }
     // A gap whose files the read has no dates for is shown as it is.
