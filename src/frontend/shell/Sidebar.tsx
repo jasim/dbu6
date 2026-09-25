@@ -40,11 +40,15 @@ export function Brand({ size = 28 }: { size?: number }) {
   );
 }
 
+/*
+ * An item is a wash of ink over the sidebar, never a raised card: a hover
+ * shows at once rather than fading in, and the current page is a deeper wash
+ * in darker text at the same weight, so its label keeps its width.
+ */
 const ITEM_BASE =
-  "flex items-center no-underline transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40";
-const ITEM_INACTIVE =
-  "font-normal text-ink-soft hover:bg-card/70 hover:text-foreground";
-const ITEM_ACTIVE = "bg-card font-semibold text-foreground shadow-pill";
+  "flex items-center font-medium no-underline transition-[background-color] duration-[20ms] ease-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60";
+const ITEM_INACTIVE = "text-sap-nav-fg hover:bg-sap-nav-hover";
+const ITEM_ACTIVE = "bg-sap-nav-selected text-foreground";
 
 function CountBadge({ count, compact }: { count: number; compact?: boolean }) {
   if (compact) {
@@ -88,16 +92,21 @@ export function NavItem({
       aria-label={count === null ? undefined : `${item.label}, ${count}`}
       className={cn(
         ITEM_BASE,
-        "relative min-h-sap-ctl gap-2 rounded-control px-2.5 py-0.5",
+        "relative min-h-sap-ctl gap-1.5 rounded-control px-1 py-0.5",
         secondary ? "text-meta" : "text-row",
         active ? ITEM_ACTIVE : ITEM_INACTIVE,
       )}
     >
-      {Icon ? (
-        <Icon className="size-4 shrink-0" strokeWidth={1.7} />
-      ) : (
-        <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-      )}
+      <span className="flex size-[22px] shrink-0 items-center justify-center text-sap-nav-icon">
+        {Icon ? (
+          <Icon className="size-[18px]" strokeWidth={1.5} />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="size-1.5 rounded-full bg-current"
+          />
+        )}
+      </span>
       <span className={cn("min-w-0 flex-1 truncate", rail && "sr-only")}>
         {item.label}
       </span>
@@ -199,7 +208,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full shrink-0 flex-col border-r border-sap-border bg-sap-sidebar text-foreground",
+        "flex h-full shrink-0 flex-col bg-sap-nav text-foreground",
         rail ? "w-full" : "w-[216px]",
       )}
     >
@@ -234,7 +243,7 @@ export function Sidebar({
         className="flex-1 overflow-y-auto px-2 py-1"
         onClick={sidebar.closeTemporary}
       >
-        <div className="flex flex-col gap-px">
+        <div className="flex flex-col">
           {navigation.everyday.map((item) => (
             <NavItem
               key={item.to}
@@ -246,7 +255,7 @@ export function Sidebar({
           ))}
         </div>
         <hr className="mx-2 my-2 border-0 border-t border-sap-border" />
-        <div className="flex flex-col gap-px">
+        <div className="flex flex-col">
           {navigation.more.map((item) => (
             <NavItem
               key={item.to}
@@ -274,7 +283,7 @@ export function MobileBottomNav({ navigation, counts }: NavigationProps) {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-[var(--sap-z-shell-sticky)] flex h-[56px] items-center justify-around border-t border-sap-border bg-sap-sidebar/95 px-2 md:hidden"
+      className="fixed inset-x-0 bottom-0 z-[var(--sap-z-shell-sticky)] flex h-[56px] items-center justify-around border-t border-sap-border bg-sap-nav/95 px-2 md:hidden"
     >
       {navigation.everyday.map((item) => (
         <BottomBarItem

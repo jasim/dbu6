@@ -86,6 +86,17 @@
   --sap-kbd-bg: #ffffff;
   --sap-proj-chip-kbd-bg: #f6f7f7;
 
+  /* The navigation sidebar and bottom bar: items are washes of ink over a
+     cool fill, the current page's deeper than a hover's. Labels keep to the
+     text floor; icons are a step lighter (4.2:1 on the fill, above the 3:1
+     an icon needs) so the column of them stays quiet. */
+  --sap-nav-bg: #f6f7f7;
+  --sap-nav-fg: #5f6363;
+  --sap-nav-icon: #737777;
+  --sap-nav-section: #5f6363;
+  --sap-nav-hover-bg: rgb(20 22 22 / 0.04);
+  --sap-nav-selected-bg: rgb(20 22 22 / 0.065);
+
   /* The one shadow for floating layers (popovers, menus, dialogs). Cards
      use --shadow-card from section 3; nothing else casts a shadow. */
   --sap-shadow-elevated:
