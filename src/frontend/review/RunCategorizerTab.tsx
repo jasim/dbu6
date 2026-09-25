@@ -1,14 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { AlertCircle, Loader2, Wand2 } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { AlertCircle, CircleCheck, Loader2, Wand2 } from "lucide-react";
 import { getApiBase } from "@sapporta/frontend/platform";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@sapporta/ui/dialog";
+import { cn } from "@sapporta/ui/cn";
 import {
   gpayDraftClassificationSchema,
   type CategorizationReport,
@@ -18,14 +12,15 @@ import {
 import { draftTransactionsApi, importPresetsApi } from "../api";
 import { EmptyState } from "../components/empty-state";
 import { FactTable, type Fact } from "../components/fact-table";
-import { Button } from "../components/ui/button";
+import { Button, buttonVariants } from "../components/ui/button";
 import { plural } from "../format";
 import { CategorizationNote } from "../views/categorization/CategorizationFigures";
 import { AgentUnavailableDialog } from "../views/categorization/AgentUnavailableDialog";
 import {
   accountPreset,
-  CategorizationInstructions,
+  InstructionsChoice,
   presetAccounts,
+  presetNames,
   type PresetAccount,
 } from "../views/categorization/CategorizationInstructions";
 import {
@@ -33,26 +28,21 @@ import {
   categorizationCounts,
   describeCategorizationProblem,
 } from "../views/categorization/describeCategorization";
+import { IMPORT_INSTRUCTIONS_ROUTE } from "../views/import-instructions/ImportInstructions";
 import { ReportTab } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 import {
+  IMPROVE_CATEGORIZATION_TAB,
+  needsCategoryHref,
   parseAccountId,
   REVIEW_ROUTE,
   reviewHref,
   RUN_CATEGORIZER_TAB,
+  withReviewRun,
 } from "./routes";
-
-interface Account {
-  id: number;
-  name: string;
-}
 
 interface DraftRow {
   id: number;
-  date: string;
-  narration: string;
-  withdrawal: string;
-  deposit: string;
   account_id: number | null;
 }
 
@@ -61,7 +51,7 @@ interface DraftRow {
 // parsed against the contract here.
 type ClassifyResult = DraftClassification["transactions"][number];
 
-// What one run did, for the dialog that sums it up.
+// What one run did, for the card that sums it up.
 interface CategorizerRun {
   tally: CategorizationTally;
   report: CategorizationReport;
@@ -89,15 +79,13 @@ export function ReclassifyDraftsRedirect() {
 
 /**
  * Run categorizer: the categoriser again over the account's drafts that have
- * no category, with the instructions it imports with or another preset
- * account's, and optionally a Google Pay export. A dialog sums up the run,
- * and closing it goes back to the account's Overview.
+ * no category. One card says how many and runs it, with the account's own
+ * instructions unless the user changes them, and optionally a Google Pay
+ * export. After the run the card sums it up and points at what is left.
  */
 export function RunCategorizerTab() {
-  const { detail, refresh } = useReviewAccount();
+  const { detail, refresh, setup } = useReviewAccount();
   const { account_id: accountId, name: accountName } = detail.account;
-  const navigate = useNavigate();
-  const [accounts, setAccounts] = useState<Account[]>([]);
   // Null until they load.
   const [presets, setPresets] = useState<PresetAccount[] | null>(null);
   // The preset account whose instructions the user chose, by its account_id,
@@ -105,6 +93,7 @@ export function RunCategorizerTab() {
   const [presetChoice, setPresetChoice] = useState<number | null | undefined>(
     undefined,
   );
+  const [changingPreset, setChangingPreset] = useState(false);
   const [gpayFile, setGpayFile] = useState<File | null>(null);
   const [run, setRun] = useState<CategorizerRun | null>(null);
   const [rows, setRows] = useState<DraftRow[]>([]);
@@ -113,25 +102,11 @@ export function RunCategorizerTab() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${getApiBase()}/tables/accounts?limit=1000&sort=name`)
-      .then((r) => r.json())
-      .then((body: { data: Account[] }) => setAccounts(body.data))
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : "Failed to load accounts"),
-      );
-  }, []);
-
-  useEffect(() => {
     importPresetsApi
       .listImportPresets({})
       .then((view) => setPresets(presetAccounts(view)))
       .catch(() => setPresets([]));
   }, []);
-
-  const accountLookups = useMemo<Record<string, string>>(
-    () => Object.fromEntries(accounts.map((a) => [String(a.id), a.name])),
-    [accounts],
-  );
 
   useEffect(() => {
     setLoadingRows(true);
@@ -161,8 +136,7 @@ export function RunCategorizerTab() {
       .finally(() => setLoadingRows(false));
   }, [accountId]);
 
-  // What a run sends: the drafts still without an account. The table keeps
-  // the ones a run categorized, to show what it chose.
+  // What a run sends: the drafts still without an account.
   const uncategorized = rows.filter((row) => row.account_id === null);
 
   const chosenPresetId = presetChoice === undefined ? accountId : presetChoice;
@@ -174,6 +148,7 @@ export function RunCategorizerTab() {
   async function handleRun() {
     if (uncategorized.length === 0) return;
     setClassifying(true);
+    setChangingPreset(false);
     setError(null);
     setRun(null);
     const customMappings =
@@ -234,11 +209,7 @@ export function RunCategorizerTab() {
         prev.map((row) => {
           const transaction = byId.get(row.id);
           return transaction
-            ? {
-                ...row,
-                narration: transaction.narration,
-                account_id: transaction.account_id,
-              }
+            ? { ...row, account_id: transaction.account_id }
             : row;
         }),
       );
@@ -254,21 +225,13 @@ export function RunCategorizerTab() {
   // The coding agent couldn't be used: its dialog, which sends the user to
   // Settings, says so instead of the run's summary.
   const unavailable = agentUnavailable([run?.report ?? null]);
-
-  // Why a run can't start yet; undefined once it can.
-  const runWaiting = loadingRows
-    ? "Loading its drafts"
-    : presets === null
-      ? "Loading the presets"
-      : uncategorized.length === 0
-        ? "Every draft has a category"
-        : undefined;
+  const inRun = (href: string) => withReviewRun(href, { setup });
 
   if (!loadingRows && rows.length === 0 && error === null) {
     return (
       <ReportTab>
         <EmptyState
-          className="max-w-[760px]"
+          className="max-w-[640px]"
           title="Every draft has a category"
           body={`None of the drafts for ${accountName} need the categorizer.`}
         />
@@ -276,75 +239,158 @@ export function RunCategorizerTab() {
     );
   }
 
+  // Why a run can't start yet; undefined once it can.
+  const runWaiting = loadingRows
+    ? "Loading its drafts"
+    : presets === null
+      ? "Loading the instructions"
+      : undefined;
+
   return (
     <ReportTab>
       <AgentUnavailableDialog problem={unavailable} />
-      {run && !unavailable && (
-        <CategorizerRunDialog
-          run={run}
-          onDone={() => navigate(reviewHref(accountId))}
-        />
-      )}
-      <div className="max-w-6xl space-y-4">
-        <div className="space-y-5 rounded-card border bg-card p-4">
-          <p className="text-row text-ink-soft">
-            {loadingRows
-              ? "Loading drafts…"
-              : uncategorized.length === 0
-                ? "Every draft has a category."
-                : `${plural(uncategorized.length, "draft")} without a category`}
-          </p>
-
-          {presets !== null && (
-            <CategorizationInstructions
-              presets={presets}
-              accountId={accountId}
-              accountName={accountName}
-              chosen={chosenPreset}
-              onChoose={setPresetChoice}
-              disabled={classifying}
-            />
-          )}
-
-          <div className="space-y-1">
-            <label
-              htmlFor="classify-gpay"
-              className="text-meta font-medium text-ink-soft"
-            >
-              Google Pay activity{" "}
-              <span className="font-normal text-ink-meta">
-                (optional, My Activities.html)
-              </span>
-            </label>
-            <input
-              id="classify-gpay"
-              type="file"
-              accept=".html,.htm"
-              disabled={classifying}
-              onChange={(event) => {
-                setGpayFile(event.target.files?.[0] ?? null);
-                setError(null);
-              }}
-              className="block w-full text-meta text-ink-meta file:mr-3 file:cursor-pointer file:rounded-control file:border file:border-sap-border-strong file:bg-card file:px-3 file:py-1 file:text-meta file:font-semibold file:text-foreground hover:file:bg-muted"
-            />
-            <p className="text-meta text-ink-meta">
-              Names the payees of matching withdrawals before your rules run.
-            </p>
-          </div>
-
-          <Button
-            onClick={handleRun}
-            waiting={runWaiting}
-            disabled={classifying}
+      <div className="max-w-[640px] space-y-4">
+        {run && !unavailable ? (
+          <RunResult
+            run={run}
+            draftsHref={inRun(needsCategoryHref(accountId))}
+            improveHref={inRun(
+              reviewHref(accountId, IMPROVE_CATEGORIZATION_TAB),
+            )}
+            overviewHref={inRun(reviewHref(accountId))}
+            onRunAgain={() => setRun(null)}
+          />
+        ) : (
+          <section
+            aria-labelledby="run-categorizer-heading"
+            className="space-y-4 rounded-card border bg-card p-5"
           >
-            {classifying ? <Loader2 className="animate-spin" /> : <Wand2 />}
-            {classifying
-              ? "Categorizing…"
-              : uncategorized.length === 0
-                ? "Categorize"
-                : `Categorize ${plural(uncategorized.length, "draft")}`}
-          </Button>
-        </div>
+            <h2
+              id="run-categorizer-heading"
+              className="text-heading text-foreground"
+            >
+              {loadingRows
+                ? "Loading drafts…"
+                : `${plural(uncategorized.length, "draft")} ${uncategorized.length === 1 ? "needs" : "need"} a category`}
+            </h2>
+
+            <dl className="divide-y divide-line-inner border-y border-line-inner">
+              <Setting
+                label="Instructions"
+                value={
+                  changingPreset && presets !== null ? (
+                    <InstructionsChoice
+                      presets={presets}
+                      chosen={chosenPreset}
+                      onChoose={setPresetChoice}
+                      onClose={() => setChangingPreset(false)}
+                    />
+                  ) : (
+                    <InstructionsValue
+                      presets={presets}
+                      chosen={chosenPreset}
+                    />
+                  )
+                }
+                actions={
+                  !changingPreset &&
+                  presets !== null && (
+                    <>
+                      {chosenPreset !== null && (
+                        <Link
+                          to={`${IMPORT_INSTRUCTIONS_ROUTE}?${new URLSearchParams({ account: String(chosenPreset.account.account_id) })}`}
+                          className={buttonVariants({
+                            variant: "ghost",
+                            size: "sm",
+                          })}
+                        >
+                          View
+                        </Link>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={classifying}
+                        onClick={() => setChangingPreset(true)}
+                      >
+                        Change
+                      </Button>
+                    </>
+                  )
+                }
+              />
+              <Setting
+                label="Google Pay"
+                value={
+                  gpayFile === null ? (
+                    <span className="text-ink-meta">
+                      Not added
+                      <span className="block text-meta">
+                        Names payees, from My Activities.html
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="[overflow-wrap:anywhere]">
+                      {gpayFile.name}
+                    </span>
+                  )
+                }
+                actions={
+                  gpayFile === null ? (
+                    <label
+                      className={cn(
+                        buttonVariants({ variant: "ghost", size: "sm" }),
+                        "cursor-pointer has-disabled:pointer-events-none has-disabled:opacity-50",
+                      )}
+                    >
+                      Add file
+                      <input
+                        type="file"
+                        accept=".html,.htm"
+                        disabled={classifying}
+                        className="sr-only"
+                        onChange={(event) => {
+                          setGpayFile(event.target.files?.[0] ?? null);
+                          setError(null);
+                        }}
+                      />
+                    </label>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={classifying}
+                      onClick={() => setGpayFile(null)}
+                    >
+                      Remove
+                    </Button>
+                  )
+                }
+              />
+            </dl>
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <Button
+                onClick={handleRun}
+                waiting={runWaiting}
+                disabled={classifying}
+              >
+                {classifying ? <Loader2 className="animate-spin" /> : <Wand2 />}
+                {classifying
+                  ? "Categorizing…"
+                  : `Categorize ${plural(uncategorized.length, "draft")}`}
+              </Button>
+              {!loadingRows && (
+                <Link
+                  to={inRun(needsCategoryHref(accountId))}
+                  className="text-meta text-ink-soft hover:text-foreground hover:underline"
+                >
+                  See them in Drafts
+                </Link>
+              )}
+            </div>
+          </section>
+        )}
 
         {error && (
           <div className="flex items-start gap-3 rounded-card border border-destructive/30 bg-destructive/10 p-3">
@@ -352,116 +398,145 @@ export function RunCategorizerTab() {
             <div className="text-row text-destructive break-words">{error}</div>
           </div>
         )}
-
-        <div className="overflow-x-auto rounded-card border bg-card">
-          <table className="w-full text-row">
-            <thead className="bg-muted text-left text-ink-meta">
-              <tr>
-                <th className="px-3 py-2 font-medium">Date</th>
-                <th className="px-3 py-2 font-medium">Narration</th>
-                <th className="px-3 py-2 text-right font-medium">Withdrawal</th>
-                <th className="px-3 py-2 text-right font-medium">Deposit</th>
-                <th className="px-3 py-2 font-medium">Account</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loadingRows ? (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-3 py-6 text-center text-muted-foreground"
-                  >
-                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id} className="border-t">
-                    <td className="tnum whitespace-nowrap px-3 py-2 font-mono">
-                      {row.date}
-                    </td>
-                    <td className="px-3 py-2">{row.narration}</td>
-                    <td className="tnum whitespace-nowrap px-3 py-2 text-right font-mono">
-                      {row.withdrawal}
-                    </td>
-                    <td className="tnum whitespace-nowrap px-3 py-2 text-right font-mono">
-                      {row.deposit}
-                    </td>
-                    <td className="px-3 py-2">
-                      {row.account_id === null
-                        ? "Uncategorized"
-                        : (accountLookups[String(row.account_id)] ??
-                          row.account_id)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
     </ReportTab>
   );
 }
 
+/** One row of the card: what it is, what it's set to, and how to change it. */
+function Setting({
+  label,
+  value,
+  actions,
+}: {
+  label: string;
+  value: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 text-row">
+      <dt className="w-28 shrink-0 text-ink-soft">{label}</dt>
+      <dd className="min-w-0 flex-1 text-foreground">{value}</dd>
+      {actions && <dd className="flex shrink-0 gap-2">{actions}</dd>}
+    </div>
+  );
+}
+
+/** Whose instructions a run uses, and how many files they are. */
+function InstructionsValue({
+  presets,
+  chosen,
+}: {
+  presets: readonly PresetAccount[] | null;
+  chosen: PresetAccount | null;
+}) {
+  if (presets === null) return <span className="text-ink-meta">Loading…</span>;
+  if (chosen === null) return <span className="text-ink-meta">None</span>;
+  const files = chosen.account.custom_mappings_filenames.length;
+  return (
+    <>
+      {presetNames(presets).get(chosen.account.account_id)}
+      <span className="text-ink-meta">
+        {" · "}
+        {files === 0 ? "no files" : plural(files, "file")}
+      </span>
+    </>
+  );
+}
+
 /**
- * What a run did, as figures: how many it categorized, how many are left,
- * and where they went. Closing it, by OK or otherwise, is done with the run.
+ * What a run did, in place of the card that started it: how many it
+ * categorized and where they went, and then the way on. Drafts still without
+ * a category go to Drafts, to categorize by hand, or to Improve
+ * categorization, to teach the categoriser.
  */
-function CategorizerRunDialog({
+function RunResult({
   run,
-  onDone,
+  draftsHref,
+  improveHref,
+  overviewHref,
+  onRunAgain,
 }: {
   run: CategorizerRun;
-  onDone: () => void;
+  draftsHref: string;
+  improveHref: string;
+  overviewHref: string;
+  onRunAgain: () => void;
 }) {
   const counts = categorizationCounts(run.tally);
   const problem = describeCategorizationProblem(run.report);
   const sent = counts.categorized + counts.remaining;
-  const figures: Fact[] = [
-    { label: "Categorized", value: String(counts.categorized) },
-    { label: "Left to categorize", value: String(counts.remaining) },
-  ];
+  const figures: Fact[] = run.tally.accounts.map((account) => ({
+    label: account.account_name,
+    value: String(account.count),
+  }));
   if (run.gpayEnrichedCount !== null) {
     figures.push({
       label: "Named by Google Pay",
       value: String(run.gpayEnrichedCount),
     });
   }
+  if (counts.remaining > 0) {
+    figures.push({
+      label: "Still need a category",
+      value: String(counts.remaining),
+    });
+  }
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onDone();
-      }}
+    <section
+      aria-labelledby="categorizer-run-heading"
+      className="space-y-4 rounded-card border bg-card p-5"
     >
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {counts.remaining === 0
-              ? "All drafts categorized"
-              : `Categorized ${counts.categorized} of ${plural(sent, "draft")}`}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <FactTable rows={figures} />
-          <FactTable
-            heading="By category"
-            rows={run.tally.accounts.map((account) => ({
-              label: account.account_name,
-              value: String(account.count),
-            }))}
-          />
-          {problem && (
-            <CategorizationNote problem={problem}>
-              Once that's fixed, run the categorizer again.
-            </CategorizationNote>
-          )}
-        </div>
-        <DialogFooter>
-          <Button onClick={onDone}>OK</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <h2
+        id="categorizer-run-heading"
+        className="flex items-center gap-2 text-heading text-foreground"
+      >
+        {counts.categorized > 0 && (
+          <CircleCheck aria-hidden="true" className="size-5 text-primary" />
+        )}
+        {counts.remaining === 0
+          ? `All ${plural(sent, "draft")} categorized`
+          : `${counts.categorized} of ${plural(sent, "draft")} categorized`}
+      </h2>
+      <FactTable rows={figures} />
+      {problem && (
+        <CategorizationNote problem={problem}>
+          Once that's fixed,{" "}
+          <button
+            type="button"
+            onClick={onRunAgain}
+            className="font-semibold underline underline-offset-4"
+          >
+            run the categorizer again
+          </button>
+          .
+        </CategorizationNote>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {counts.remaining > 0 ? (
+          <>
+            <Link to={draftsHref} className={buttonVariants()}>
+              Categorize the {counts.remaining} by hand
+            </Link>
+            <Link
+              to={improveHref}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              Teach the categorizer
+            </Link>
+            <Link
+              to={overviewHref}
+              className={buttonVariants({ variant: "ghost" })}
+            >
+              Done
+            </Link>
+          </>
+        ) : (
+          <Link to={overviewHref} className={buttonVariants()}>
+            Done
+          </Link>
+        )}
+      </div>
+    </section>
   );
 }

@@ -107,13 +107,14 @@ export function readReviewRun(params: URLSearchParams): ReviewRun {
   };
 }
 
-/** `href` with the run's query appended; `href` itself carries none. */
+/** `href` with the run's query appended to any query it already has. */
 export function withReviewRun(href: string, run: Partial<ReviewRun>): string {
   const params = new URLSearchParams();
   if (run.imported) params.set("imported", "1");
   if (run.setup) params.set("run", "setup");
   const query = params.toString();
-  return query === "" ? href : `${href}?${query}`;
+  if (query === "") return href;
+  return `${href}${href.includes("?") ? "&" : "?"}${query}`;
 }
 
 /**
