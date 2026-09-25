@@ -83,7 +83,7 @@ describe("validateChartProposal", () => {
       ]),
     ).toEqual([
       "Groceries is under Food, which is not in the list.",
-      "Bonus is a Revenue account under Expenses, which is an Expense account.",
+      "Bonus is an income account under Expenses, which is an expense account.",
     ]);
   });
 
@@ -104,11 +104,11 @@ describe("validateChartProposal", () => {
         account("Opening Balances", "Asset", "Assets"),
       ]),
     ).toEqual([
-      "There is no top Liability account.",
-      "There is no top Equity account.",
-      "There is no top Revenue account.",
-      "There is no top Expense account.",
-      "Opening Balances is an Asset account; it must be an Equity account.",
+      "There is no top liability account.",
+      "There is no top equity account.",
+      "There is no top income account.",
+      "There is no top expense account.",
+      "Opening Balances is an asset account; it must be an equity account.",
     ]);
     expect(
       problems(MINIMAL.filter((a) => a.name !== "Opening Balances")),
@@ -180,7 +180,7 @@ describe("normalizeChartProposal", () => {
     );
     expect(notes).toEqual([
       "Opening Balances was added: every account's starting balance is posted against it.",
-      "There was no top Revenue account, so Income was added.",
+      "There was no top income account, so Income was added.",
     ]);
   });
 
@@ -193,7 +193,7 @@ describe("normalizeChartProposal", () => {
       account("Opening Balances", "Equity", "Equity"),
     );
     expect(notes).toEqual([
-      "Opening Balances was proposed as an Asset account; it is an Equity account now, since opening entries need one.",
+      "Opening Balances was proposed as an asset account; it is an equity account now, since starting balances are posted against it.",
     ]);
   });
 
@@ -225,7 +225,7 @@ describe("normalizeChartProposal", () => {
     expect(named(accounts, "Rent")?.parent).toBe("Expenses");
     expect(notes).toEqual([
       "Groceries was under Food, which isn't in the chart; it is under Expenses now.",
-      "Bonus was under Expenses, which is an Expense account; it is under Income now.",
+      "Bonus was under Expenses, which is an expense account; it is under Income now.",
       "Rent was under itself; it is under Expenses now.",
     ]);
   });
@@ -239,7 +239,7 @@ describe("normalizeChartProposal", () => {
     ]);
     expect(named(accounts, "Dining Out")?.parent).toBe("Food");
     expect(notes).toEqual([
-      "Food was in a loop of accounts under each other; it is under Expenses now.",
+      "Food was under one of its own sub-accounts; it is under Expenses now.",
     ]);
   });
 

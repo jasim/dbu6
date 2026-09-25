@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ChartAccount } from "../../shared/index";
 import {
+  chartCards,
+  countsByType,
   initialTicks,
   lockedAccounts,
   tickedAccounts,
@@ -77,5 +79,43 @@ describe("the chart checklist", () => {
       "Children",
       "School Fees",
     ]);
+  });
+});
+
+describe("the chart's cards", () => {
+  it("shows two levels and folds what is deeper under its parent", () => {
+    const deep = [
+      ...CHART,
+      account("Snacks", "Expense", "Groceries"),
+      account("Income", "Revenue"),
+    ];
+    const cards = chartCards(deep);
+    expect(cards.map((card) => card.type)).toEqual([
+      "Asset",
+      "Equity",
+      "Revenue",
+      "Expense",
+    ]);
+    const expenses = cards.find((card) => card.type === "Expense")!;
+    expect(
+      expenses.rows.map(({ row, folded }) => [
+        row.account.name,
+        folded.map((below) => below.account.name),
+      ]),
+    ).toEqual([
+      ["Expenses", []],
+      ["Food", ["Groceries", "Snacks", "Dining Out"]],
+      ["Children", ["School Fees"]],
+    ]);
+  });
+
+  it("counts the accounts of each type", () => {
+    expect(countsByType(CHART)).toEqual({
+      Asset: 1,
+      Liability: 0,
+      Equity: 3,
+      Revenue: 0,
+      Expense: 6,
+    });
   });
 });
