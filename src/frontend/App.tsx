@@ -19,6 +19,7 @@ import {
 import { TablePage } from "@sapporta/frontend";
 import { Advanced } from "./Advanced";
 import { Home as HomePage } from "./home/Home";
+import { ImportInstructions } from "./views/import-instructions/ImportInstructions";
 import { OpeningBalances } from "./views/opening-balances/OpeningBalances";
 import { retiredRoutes } from "./redirects";
 import { ReportsIndex } from "./reports/ReportsIndex";
@@ -130,6 +131,7 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
       <Route path="setup/accounts" element={<ChartStep />} />
       <Route path="setup/banks" element={<BanksStep />} />
       <Route path="setup/statements" element={<StatementsStep />} />
+      <Route path="import-instructions" element={<ImportInstructions />} />
       <Route path="tools" element={<Advanced />} />
 
       {/* The tool screens, linked from All tools. */}

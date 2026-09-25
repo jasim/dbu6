@@ -72,6 +72,9 @@ function books() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ changes }),
       }),
+    instructions: (accountId: number) =>
+      call(`/import-presets/accounts/${accountId}/instructions`),
+    mappings: () => call("/import-presets/transaction-mappings"),
     rows: () =>
       sqlite
         .prepare(
@@ -281,6 +284,128 @@ describe("the import presets routes", () => {
       },
     ]);
     expect(refused.status).toBe(400);
+  });
+});
+
+describe("an account's instructions", () => {
+  it("reads its files in order and joins the ones there are", async () => {
+    mkdirSync(join(root, "user-config"), { recursive: true });
+    writeFileSync(
+      join(root, "user-config", "custom_mappings_default.prompt"),
+      "sample default rules",
+    );
+    rmSync(join(root, "user-config", "custom_mappings_personal.prompt"), {
+      force: true,
+    });
+    const presets = books();
+    await presets.change(bankWithSavings);
+
+    expect(await presets.instructions(1)).toEqual({
+      status: 200,
+      body: {
+        account_id: 1,
+        files: [
+          {
+            filename: "custom_mappings_default.prompt",
+            content: "sample default rules",
+          },
+          { filename: "custom_mappings_personal.prompt", content: null },
+        ],
+        text: "sample default rules",
+      },
+    });
+
+    writeFileSync(
+      join(root, "user-config", "custom_mappings_personal.prompt"),
+      "sample personal rules",
+    );
+    expect((await presets.instructions(1)).body.text).toBe(
+      "sample default rules\n\nsample personal rules",
+    );
+  });
+
+  it("answers 404 for an account no preset lists", async () => {
+    const presets = books();
+    await presets.change(bankWithSavings);
+    expect((await presets.instructions(2)).status).toBe(404);
+  });
+});
+
+describe("the transaction mappings", () => {
+  const file = () => join(root, "user-config", "transaction_mappings.mjs");
+  function writeMappings(mappings: unknown) {
+    mkdirSync(join(root, "user-config"), { recursive: true });
+    writeFileSync(
+      file(),
+      `export const mappings = ${JSON.stringify(mappings)};\n`,
+    );
+  }
+
+  it("lists the rules in order, each account checked against the ledger", async () => {
+    writeMappings({
+      exact: { "SAMPLE CAFE 050505": "Sample Card" },
+      includes: [
+        {
+          account: "Sample Savings",
+          direction: "deposit",
+          values: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
+        },
+        { account: "Sample Gone", values: ["SAMPLE SHOP"] },
+      ],
+    });
+    expect(await books().mappings()).toEqual({
+      status: 200,
+      body: {
+        state: "read",
+        filename: "transaction_mappings.mjs",
+        exact: [
+          {
+            narration: "SAMPLE CAFE 050505",
+            account: "Sample Card",
+            in_ledger: true,
+          },
+        ],
+        includes: [
+          {
+            account: "Sample Savings",
+            in_ledger: true,
+            direction: "deposit",
+            values: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
+          },
+          {
+            account: "Sample Gone",
+            in_ledger: false,
+            direction: null,
+            values: ["SAMPLE SHOP"],
+          },
+        ],
+      },
+    });
+  });
+
+  it("reads an edit without a restart", async () => {
+    const presets = books();
+    writeMappings({ exact: { "SAMPLE ONE": "Sample Card" }, includes: [] });
+    expect((await presets.mappings()).body.exact).toHaveLength(1);
+
+    writeMappings({
+      exact: { "SAMPLE ONE": "Sample Card", "SAMPLE TWO": "Sample Card" },
+      includes: [],
+    });
+    expect((await presets.mappings()).body.exact).toHaveLength(2);
+  });
+
+  it("says why a file no run can use is refused", async () => {
+    const presets = books();
+    writeMappings({ exact: "not rules" });
+    const invalid = await presets.mappings();
+    expect(invalid.body).toMatchObject({ state: "unreadable" });
+    expect(invalid.body.error).toContain("Invalid categorization config file");
+
+    rmSync(file());
+    const missing = await presets.mappings();
+    expect(missing.body).toMatchObject({ state: "unreadable" });
+    expect(missing.body.error).toContain("Missing required");
   });
 });
 

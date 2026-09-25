@@ -72,6 +72,7 @@ export {
   type AbacusJson,
 } from "./abacus.js";
 export {
+  accountInstructionsSchema,
   customMappingsFileSchema,
   importAccountSchema,
   importAccountViewSchema,
@@ -85,6 +86,8 @@ export {
   importPresetsViewSchema,
   mappingFilenameSchema,
   parserNameSchema,
+  transactionMappingsViewSchema,
+  type AccountInstructions,
   type CustomMappingsFile,
   type ImportAccount,
   type ImportAccountView,
@@ -95,6 +98,7 @@ export {
   type ImportPresetsFileConversionBody,
   type ImportPresetsFileRefusal,
   type ImportPresetsView,
+  type TransactionMappingsView,
 } from "./import-presets.js";
 export {
   canonicalStatementIdentifier,

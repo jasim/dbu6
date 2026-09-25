@@ -211,7 +211,7 @@ function Command({ command }: { command: string }) {
 }
 
 /** Copies text, says so for two seconds, and tells the panel what it copied. */
-function CopyButton({
+export function CopyButton({
   text,
   label,
   quiet = false,

@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
@@ -63,17 +64,30 @@ function readRequiredConfigFile(configDir: string, filename: string): string {
  * The user's `transaction_mappings.mjs`, read and validated: the file exists,
  * is a JavaScript module, exports `mappings` in the schema's shape, and its
  * rules compile. Every failure is a `CategorizationConfigError` naming the
- * file. `dbu6 check` calls this to say whether the file still parses.
+ * file. It is read afresh on every call. `dbu6 check` calls this to say
+ * whether the file still parses, and Categorization instructions to show it.
  */
 export async function readTransactionMappings(
-  configDir: string,
+  configDir: string = userConfigDir(),
 ): Promise<MappingRules> {
   const filePath = join(configDir, TRANSACTION_MAPPINGS_FILENAME);
-  readRequiredConfigFile(configDir, TRANSACTION_MAPPINGS_FILENAME);
+  const source = readRequiredConfigFile(
+    configDir,
+    TRANSACTION_MAPPINGS_FILENAME,
+  );
+
+  // Node keeps the first module it imports from a URL, so the file's contents
+  // go in the URL: an edit is read on the next call without a restart, and
+  // unchanged contents reuse the module already loaded.
+  const url = pathToFileURL(filePath);
+  url.searchParams.set(
+    "contents",
+    createHash("sha256").update(source).digest("hex").slice(0, 16),
+  );
 
   let loaded: Record<string, unknown>;
   try {
-    loaded = await import(pathToFileURL(filePath).href);
+    loaded = await import(url.href);
   } catch (error) {
     throw new CategorizationConfigError(
       `Invalid categorization config file: ${filePath}. ` +
@@ -130,13 +144,27 @@ export function readCustomMappingsFile(
   }
 }
 
-function loadCustomMappings(
+/** An account's instruction files and the text the LLM gets from them. */
+export interface AccountInstructions {
+  // Each file the account lists, in order; content null when it is missing.
+  files: { filename: string; content: string | null }[];
+  // The files there are, joined in order: what `{custom_mapping}` becomes.
+  text: string;
+}
+
+/** An account's instruction files, read now and joined as a run joins them. */
+export function readAccountInstructions(
   filenames: readonly string[],
-  configDir: string,
-): string {
-  return filenames
-    .flatMap((filename) => readCustomMappingsFile(filename, configDir) ?? [])
-    .join("\n\n");
+  configDir: string = userConfigDir(),
+): AccountInstructions {
+  const files = filenames.map((filename) => ({
+    filename,
+    content: readCustomMappingsFile(filename, configDir),
+  }));
+  return {
+    files,
+    text: files.flatMap((file) => file.content ?? []).join("\n\n"),
+  };
 }
 
 /**
@@ -150,8 +178,10 @@ export async function loadCategorizer(
 ): Promise<Categorizer> {
   return {
     classify: await settle(() => loadTransactionClassifier(configDir)),
-    customMappings: await settle(() =>
-      loadCustomMappings(settings.customMappingsFilenames, configDir),
+    customMappings: await settle(
+      () =>
+        readAccountInstructions(settings.customMappingsFilenames, configDir)
+          .text,
     ),
     llm: settings.llm,
   };
