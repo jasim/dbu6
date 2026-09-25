@@ -37,6 +37,11 @@ export interface HomeView {
   /** The page heading; absent when the card says it all. */
   greeting?: string;
   card: HomeCard;
+  /**
+   * Whether the page lists the accounts under the card: not before there
+   * are any, when the card's is the one thing to do.
+   */
+  listsAccounts: boolean;
 }
 
 export function homeState(summary: HomeSummary): HomeView {
@@ -47,10 +52,11 @@ export function homeState(summary: HomeSummary): HomeView {
       state: "no-accounts",
       greeting: "Let's set up your books",
       card: {
-        title: "Set up your books",
-        body: "Four steps: a chart of accounts, your banks and cards, a statement each, then review.",
-        action: { label: "Set up your books", to: SETUP_ROUTE },
+        title: "Four steps",
+        body: "A chart of accounts, your banks and cards, a statement each, then review.",
+        action: { label: "Start setup", to: SETUP_ROUTE },
       },
+      listsAccounts: false,
     };
   }
 
@@ -61,6 +67,7 @@ export function homeState(summary: HomeSummary): HomeView {
         title: "There are draft entries waiting to be posted to your books",
         action: { label: "Review transactions", to: reviewTarget(summary) },
       },
+      listsAccounts: true,
     };
   }
 
@@ -79,6 +86,7 @@ export function homeState(summary: HomeSummary): HomeView {
           to: SETUP_STEP_ROUTES.statements,
         },
       },
+      listsAccounts: true,
     };
   }
 
@@ -88,6 +96,7 @@ export function homeState(summary: HomeSummary): HomeView {
       title: "Import new statements",
       action: { label: "Import statements", to: "/import" },
     },
+    listsAccounts: true,
   };
 }
 

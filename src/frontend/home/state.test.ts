@@ -67,12 +67,14 @@ describe("homeState", () => {
     expect(view.greeting).toBe("Let's set up your books");
     expect(view.card.count).toBeUndefined();
     expect(view.card.body).toBe(
-      "Four steps: a chart of accounts, your banks and cards, a statement each, then review.",
+      "A chart of accounts, your banks and cards, a statement each, then review.",
     );
     expect(view.card.action).toEqual({
-      label: "Set up your books",
+      label: "Start setup",
       to: "/setup",
     });
+    // The card is the one thing to do: no empty list of accounts below it.
+    expect(view.listsAccounts).toBe(false);
   });
 
   it("asks for the first statement when nothing has been imported", () => {
@@ -89,6 +91,7 @@ describe("homeState", () => {
       ]),
     );
     expect(view.state).toBe("nothing-imported");
+    expect(view.listsAccounts).toBe(true);
     expect(view.card.body).toContain("For Sample Savings and Sample Card.");
     expect(view.card.action).toEqual({
       label: "Import your first statements",

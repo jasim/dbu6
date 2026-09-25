@@ -5,7 +5,6 @@ import { useAuthStore } from "@sapporta/frontend/auth";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { apiErrorMessage } from "../api";
 import { Button } from "../components/ui/button";
-import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
 import { NextStepCard } from "../components/next-step-card";
@@ -16,7 +15,7 @@ import {
   RECONCILIATION_DIFFERENCES_HREF,
 } from "../reports/links";
 import { reviewHref } from "../review/routes";
-import { SETUP_ROUTE, SETUP_STEP_ROUTES } from "../setup/steps";
+import { SETUP_STEP_ROUTES } from "../setup/steps";
 import { formatDate, plural } from "../format";
 import { homeState, type HomeCard } from "./state";
 
@@ -77,23 +76,25 @@ export function Home() {
         )}
       </div>
 
-      <section className="mt-4 rounded-card border border-sap-border bg-card shadow-card">
-        <div className="px-4 pb-3 pt-5">
-          <h2 className="text-heading text-foreground">Your accounts</h2>
-        </div>
-        {summary ? (
-          <AccountTable accounts={summary.accounts} />
-        ) : error ? null : (
-          <ul aria-hidden="true" className="px-4 pb-5">
-            {[0, 1, 2].map((i) => (
-              <li
-                key={i}
-                className="my-2 h-[52px] rounded-control bg-sap-nested"
-              />
-            ))}
-          </ul>
-        )}
-      </section>
+      {(view === null || view.listsAccounts) && (
+        <section className="mt-4 rounded-card border border-sap-border bg-card shadow-card">
+          <div className="px-4 pb-3 pt-5">
+            <h2 className="text-heading text-foreground">Your accounts</h2>
+          </div>
+          {summary ? (
+            <AccountTable accounts={summary.accounts} />
+          ) : error ? null : (
+            <ul aria-hidden="true" className="px-4 pb-5">
+              {[0, 1, 2].map((i) => (
+                <li
+                  key={i}
+                  className="my-2 h-[52px] rounded-control bg-sap-nested"
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </Screen>
   );
 }
@@ -114,26 +115,6 @@ function StepCard({ card }: { card: HomeCard }) {
 }
 
 function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
-  if (accounts.length === 0) {
-    return (
-      <div className="px-4 pb-6">
-        <EmptyState
-          title="No banks or cards set up yet"
-          body="Add the banks and cards you get statements from, then import each one's first statement."
-          action={
-            <Button
-              render={<Link to={SETUP_ROUTE} />}
-              nativeButton={false}
-              variant="outline"
-              size="sm"
-            >
-              Set up your books
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
   return (
     <div className="overflow-x-auto pb-2">
       <table className="w-full text-row">
@@ -181,8 +162,13 @@ function AccountRow({ account }: { account: HomeAccount }) {
         )}
         {!account.in_ledger && (
           <div className="mt-0.5 text-meta text-ink-meta">
-            Its account was deleted from the books; point the preset at another
-            account.
+            Deleted from your books. Remove it in{" "}
+            <Link
+              to={SETUP_STEP_ROUTES.banks}
+              className="font-semibold text-primary underline-offset-4 hover:underline"
+            >
+              Banks &amp; cards
+            </Link>
           </div>
         )}
       </td>
