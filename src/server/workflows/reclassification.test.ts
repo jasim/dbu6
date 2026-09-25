@@ -13,7 +13,10 @@ import {
 import { accountsTable } from "../schema/accounts.js";
 import { draftTransactionsTable } from "../schema/draft-journals.js";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
-import { classifyDraftTransactions } from "./reclassification.js";
+import {
+  classifyDraftTransactions,
+  setDraftsCategory,
+} from "./reclassification.js";
 
 const auth = testLedgerAuth();
 
@@ -113,6 +116,47 @@ describe("classifyDraftTransactions", () => {
     expect(second.transactions[0].narration).toBe("Coffee Shop | UPI debit");
 
     sqlite.close();
+  });
+});
+
+describe("setDraftsCategory", () => {
+  const category = (sqlite: Database.Database) =>
+    sqlite
+      .prepare("SELECT account_id FROM draft_transactions WHERE id = 1")
+      .get();
+
+  it("gives the drafts the category", () => {
+    const { db, sqlite } = setupDatabase();
+    expect(setDraftsCategory({ db, sqlite, auth }, [1, 1], 2)).toEqual({
+      kind: "set",
+      updated: 1,
+    });
+    expect(category(sqlite)).toEqual({ account_id: 2 });
+  });
+
+  it("changes nothing for an account that isn't in the books", () => {
+    const { db, sqlite } = setupDatabase();
+    expect(setDraftsCategory({ db, sqlite, auth }, [1], 99)).toEqual({
+      kind: "account-not-found",
+    });
+    expect(category(sqlite)).toEqual({ account_id: null });
+  });
+
+  it("changes nothing when a draft isn't there", () => {
+    const { db, sqlite } = setupDatabase();
+    expect(setDraftsCategory({ db, sqlite, auth }, [1, 7], 2)).toEqual({
+      kind: "drafts-not-found",
+      ids: [7],
+    });
+    expect(category(sqlite)).toEqual({ account_id: null });
+  });
+
+  it("refuses the drafts' own base account", () => {
+    const { db, sqlite } = setupDatabase();
+    expect(setDraftsCategory({ db, sqlite, auth }, [1], 1)).toEqual({
+      kind: "own-account",
+    });
+    expect(category(sqlite)).toEqual({ account_id: null });
   });
 });
 

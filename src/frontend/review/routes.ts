@@ -17,14 +17,28 @@ const CHECK_TABS = {
   "balance-checks": "balance-checks",
 } as const satisfies Record<PostingCheckKind, string>;
 
-export type ReviewTab = (typeof CHECK_TABS)[PostingCheckKind];
+type CheckTab = (typeof CHECK_TABS)[PostingCheckKind];
 
-/** An account's tabs after Overview, in the checks' order. */
-export const REVIEW_TABS: readonly ReviewTab[] = POSTING_CHECK_KINDS.map(
-  (kind) => CHECK_TABS[kind],
+/**
+ * Where the user teaches the categoriser from the drafts, beside the Drafts
+ * tab, which is for setting a category by hand.
+ */
+export const IMPROVE_CATEGORIZATION_TAB = "improve-categorization";
+
+export type ReviewTab = CheckTab | typeof IMPROVE_CATEGORIZATION_TAB;
+
+/**
+ * An account's tabs after Overview: one per check, in the checks' order, with
+ * Improve categorization after Drafts.
+ */
+export const REVIEW_TABS: readonly ReviewTab[] = POSTING_CHECK_KINDS.flatMap(
+  (kind): ReviewTab[] =>
+    kind === "categories"
+      ? [CHECK_TABS[kind], IMPROVE_CATEGORIZATION_TAB]
+      : [CHECK_TABS[kind]],
 );
 
-export function checkTab(kind: PostingCheckKind): ReviewTab {
+export function checkTab(kind: PostingCheckKind): CheckTab {
   return CHECK_TABS[kind];
 }
 

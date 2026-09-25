@@ -51,7 +51,12 @@ describe("checkText", () => {
 });
 
 describe("REVIEW_TABS", () => {
-  it("follows the checks' order, categories in the Drafts tab", () => {
-    expect(REVIEW_TABS).toEqual(["drafts", "duplicates", "balance-checks"]);
+  it("follows the checks' order, Improve categorization after Drafts", () => {
+    expect(REVIEW_TABS).toEqual([
+      "drafts",
+      "improve-categorization",
+      "duplicates",
+      "balance-checks",
+    ]);
   });
 });

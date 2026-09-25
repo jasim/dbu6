@@ -29,6 +29,7 @@ import {
 } from "../queries";
 import {
   checkTab,
+  IMPROVE_CATEGORIZATION_TAB,
   parseAccountId,
   REVIEW_ROUTE,
   reviewHref,
@@ -88,9 +89,10 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
   const detail = query.isError ? null : (query.data ?? null);
   usePageTitle(detail ? `${detail.account.name} · Review` : "Review");
 
-  // The Drafts grid scrolls itself inside the frame; the other tabs scroll
-  // with the header, like a page.
-  const gridTab = reviewPage(pathname, accountId) === "drafts";
+  // The Drafts grids scroll themselves inside the frame; the other tabs
+  // scroll with the header, like a page.
+  const page = reviewPage(pathname, accountId);
+  const gridTab = page === "drafts" || page === IMPROVE_CATEGORIZATION_TAB;
 
   if (missing) {
     return (
@@ -226,6 +228,7 @@ function FrameHeader({
 
 const TAB_LABELS: Record<ReviewTab, string> = {
   drafts: "Drafts",
+  [IMPROVE_CATEGORIZATION_TAB]: "Improve categorization",
   duplicates: "Duplicates",
   "balance-checks": "Balance checks",
 };
@@ -243,16 +246,25 @@ function Tabs({ detail }: { detail: ReviewAccountDetail }) {
   const { account } = detail;
   const tabs: TabLink[] = [
     { label: "Overview", to: reviewHref(account.account_id), end: true },
-    // One tab per check, in the checks' order. Drafts counts every draft;
-    // a check's own tab counts the problems it flags.
-    ...postingChecks(account).map((check) => {
+    // One tab per check, in the checks' order, and Improve categorization
+    // after Drafts. Drafts counts every draft; a check's own tab counts the
+    // problems it flags.
+    ...postingChecks(account).flatMap((check): TabLink[] => {
       const tab = checkTab(check.kind);
-      return {
+      const link = {
         label: TAB_LABELS[tab],
         to: reviewHref(account.account_id, tab),
         count: tab === "drafts" ? account.drafts : undefined,
         problems: isBlock(check) && isProblem(check) ? check.count : undefined,
       };
+      if (check.kind !== "categories") return [link];
+      return [
+        link,
+        {
+          label: TAB_LABELS[IMPROVE_CATEGORIZATION_TAB],
+          to: reviewHref(account.account_id, IMPROVE_CATEGORIZATION_TAB),
+        },
+      ];
     }),
   ];
   return (

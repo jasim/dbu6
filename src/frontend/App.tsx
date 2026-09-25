@@ -31,6 +31,7 @@ import {
 import { BalanceChecksTab } from "./review/BalanceChecksTab";
 import { DraftsTab } from "./review/DraftsTab";
 import { DuplicatesTab } from "./review/DuplicatesTab";
+import { ImproveCategorizationTab } from "./review/ImproveCategorizationTab";
 import { Overview } from "./review/Overview";
 import { ReviewAccount } from "./review/ReviewAccount";
 import { ReviewAccounts } from "./review/ReviewAccounts";
@@ -78,6 +79,7 @@ const ownNavigation: Navigation = {
 // The screen behind each of an account's Review tabs.
 const REVIEW_TAB_SCREENS: Record<ReviewTab, ComponentType> = {
   drafts: DraftsTab,
+  "improve-categorization": ImproveCategorizationTab,
   duplicates: DuplicatesTab,
   "balance-checks": BalanceChecksTab,
 };
