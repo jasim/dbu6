@@ -10,7 +10,11 @@ import {
   type TGridSession,
 } from "@sapporta/frontend";
 import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
-import { rowKeyOfRowId } from "@sapporta/grid";
+import {
+  ROW_MULTISELECT_LIST,
+  rowKeyOfRowId,
+  type GridInteractionConfig,
+} from "@sapporta/grid";
 import { eqCondition, mintFilterId } from "@sapporta/shared/filter";
 import { apiErrorMessage, categorizationLessonsApi } from "../api";
 import { AgentPrompt } from "../components/agent-prompt";
@@ -36,6 +40,15 @@ const HIDDEN_COLUMNS = [
 ];
 // Repeat payees sit together, so a run of them is one shift-click.
 const BY_NARRATION = [{ colId: "narration", direction: "asc" }] as const;
+// Whole rows, never cells: a click selects the row, Shift-click the run up
+// to it, and nothing in the grid is editable.
+const SELECT_ROWS = {
+  ...ROW_MULTISELECT_LIST,
+  activeRow: {
+    ...ROW_MULTISELECT_LIST.activeRow,
+    activation: { startsOn: ["click"] },
+  },
+} satisfies GridInteractionConfig;
 // Narrations shown for a selection before the rest are counted.
 const SHOWN_SELECTED = 4;
 
@@ -109,11 +122,11 @@ export function ImproveCategorizationTab() {
   // The grid owns the selection; the panel follows it.
   const [selected, setSelected] = useState<SelectedDraft[]>([]);
   const session = useRef<TGridSession<SchemaTableRowsByLevel> | null>(null);
-  const unsubscribe = useRef<(() => void) | null>(null);
+  const unsubscribe = useRef<(() => void)[]>([]);
   const sessionRef = useCallback(
     (current: TGridSession<SchemaTableRowsByLevel> | null) => {
-      unsubscribe.current?.();
-      unsubscribe.current = null;
+      for (const each of unsubscribe.current) each();
+      unsubscribe.current = [];
       session.current = current;
       if (current === null) {
         setSelected([]);
@@ -128,7 +141,14 @@ export function ImproveCategorizationTab() {
               selectedDraft(current.getLoadedRow(rowKeyOfRowId(rowId))),
             ),
         );
-      unsubscribe.current = level.subscribeSelectedRowIds(read);
+      unsubscribe.current = [
+        level.subscribeSelectedRowIds(read),
+        // A plain click only moves the row cursor in a row list; here it
+        // selects the row too.
+        current.runtime.on("rowActivated", ({ activeRow }) =>
+          activeRow.level.selectRow(activeRow.row.id),
+        ),
+      ];
       read();
     },
     [],
@@ -157,7 +177,7 @@ export function ImproveCategorizationTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-      <div className="h-[60vh] min-h-0 min-w-0 flex-1 [--sap-page-header-inset:0px] md:h-auto">
+      <div className="h-[60vh] min-h-0 min-w-0 flex-1 [--sap-page-header-inset:0px] [--sap-selection:var(--sap-brand-soft)] md:h-auto">
         {source ? (
           <SchemaTableGridView
             source={source}
@@ -166,6 +186,7 @@ export function ImproveCategorizationTab() {
             header="toolbar"
             hiddenColumns={HIDDEN_COLUMNS}
             rootRows={rootRows}
+            interaction={SELECT_ROWS}
             sessionRef={sessionRef}
           />
         ) : (
