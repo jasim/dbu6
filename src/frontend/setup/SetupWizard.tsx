@@ -4,24 +4,24 @@ import { useQuery } from "@tanstack/react-query";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { apiErrorMessage } from "../api";
 import { LoadError } from "../components/load-error";
-import { ProgressSteps } from "../components/progress-steps";
 import { Screen, ScreenTitle } from "../components/screen";
 import { setupStatusQuery } from "../queries";
+import { SetupRail } from "./SetupRail";
 import {
   firstOpenStep,
-  setupSteps,
+  railSteps,
   SETUP_STEP_ROUTES,
   type SetupStepId,
 } from "./steps";
 
 /*
- * The account setup wizard (/setup): the chart of accounts, the banks and
- * cards statements come from, and a sample statement for each, then the
- * opening balances screen. Every step reads where it stands from the books,
- * so leaving and coming back shows where things are.
+ * The setup wizard (/setup): the chart of accounts, the banks and cards
+ * statements come from, a first statement for each, then Review. Every step
+ * reads where it stands from the books, so leaving and coming back shows
+ * where things are.
  */
 
-/** `/setup`: the first step the books haven't done. */
+/** `/setup`: the first step the books haven't done, else Review. */
 export function SetupIndex() {
   const status = useQuery(setupStatusQuery);
   if (status.isError) {
@@ -41,7 +41,7 @@ export function SetupIndex() {
   );
 }
 
-/** A step's screen: the wizard's title and steps above its own content. */
+/** A step's screen: the wizard's title and rail beside its own content. */
 export function SetupFrame({
   step,
   children,
@@ -49,44 +49,30 @@ export function SetupFrame({
   step: SetupStepId;
   children: ReactNode;
 }) {
-  usePageTitle("Set up your accounts");
+  usePageTitle("Set up your books");
   const status = useQuery(setupStatusQuery);
   return (
-    <Screen
-      width="wide"
-      header={
-        <ScreenTitle title="Set up your accounts">
-          <p>
-            The accounts your books sort money into, the banks and cards you get
-            statements from, and what each statement looks like. Come back any
-            time from Settings.
-          </p>
-        </ScreenTitle>
-      }
-    >
-      <nav className="mt-6" aria-label="Setup steps">
-        <ProgressSteps
-          label="Setup steps"
-          steps={setupSteps(status.data ?? null, step)}
-        />
-      </nav>
-      <div className="mt-8">{children}</div>
+    <Screen width="wide" header={<ScreenTitle title="Set up your books" />}>
+      <div className="mt-6 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-8">
+        <SetupRail steps={railSteps(status.data ?? null, step)} />
+        <div className="mt-6 min-w-0 md:mt-0">{children}</div>
+      </div>
     </Screen>
   );
 }
 
-/** A step's heading and the sentence or two under it. */
+/** A step's heading, a verb phrase, and the one line of why under it. */
 export function StepHeading({
   title,
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="mb-5">
       <h2 className="text-heading text-foreground">{title}</h2>
-      <p className="mt-1 max-w-[700px] text-body text-ink-soft">{children}</p>
+      <p className="mt-1 text-meta text-ink-meta">{children}</p>
     </div>
   );
 }

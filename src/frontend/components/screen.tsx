@@ -39,20 +39,22 @@ export function Screen({
   );
 }
 
-/** A screen's title and the sentence or two under it. */
+/** A screen's title and the sentence or two under it, if any. */
 export function ScreenTitle({
   title,
   children,
 }: {
   title: string;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <>
       <h1 className="text-title text-foreground">{title}</h1>
-      <div className="mt-2 max-w-[700px] space-y-2 text-body text-ink-soft">
-        {children}
-      </div>
+      {children && (
+        <div className="mt-2 max-w-[700px] space-y-2 text-body text-ink-soft">
+          {children}
+        </div>
+      )}
     </>
   );
 }

@@ -2,7 +2,6 @@ import { basename } from "node:path";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   setupContract,
-  statementFormatReady,
   type FirstStatementRefusal,
   type ChartAccount,
   type ChartRefusal,
@@ -23,8 +22,10 @@ import {
   loadStatementAccounts,
 } from "../workflows/import-presets.js";
 import {
+  hasTransactions,
   importFirstStatement,
   loadFirstStatements,
+  loadStatementActivity,
   recognizeSample,
   type SampleOutcome,
 } from "../workflows/first-statement.js";
@@ -293,17 +294,21 @@ function sampleResponse(outcome: SampleOutcome, staged: StagedSample) {
   };
 }
 
+/**
+ * Where the wizard stands: the chart's size, and each bank or card's
+ * transactions counted as the first statements step counts them.
+ */
 export function loadSetupStatus(ledger: Ledger): SetupStatus {
-  const institutions = loadImportPresets(ledger.db, ledger.auth);
-  const presetAccounts = institutions.flatMap((institution) =>
-    institution.accounts.map((account) => ({ institution, account })),
+  const activity = loadStatementActivity(ledger);
+  const banks = loadImportPresets(ledger.db, ledger.auth).flatMap(
+    (institution) =>
+      institution.accounts.map((account) => activity(account.account_id)),
   );
   return {
     accounts: loadAccountChart(ledger.db, ledger.auth).length,
-    preset_accounts: presetAccounts.length,
-    ready_accounts: presetAccounts.filter(({ institution, account }) =>
-      statementFormatReady(institution, account),
-    ).length,
+    statement_accounts: banks.length,
+    imported_accounts: banks.filter(hasTransactions).length,
+    drafts: banks.reduce((total, bank) => total + bank.drafts, 0),
   };
 }
 

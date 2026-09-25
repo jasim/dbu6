@@ -1,90 +1,112 @@
 import type { SetupStatus } from "../../shared/index";
-import type { Step } from "../components/progress-steps";
 import { plural } from "../format";
-import { OPENING_BALANCES_ROUTE } from "../views/opening-balances/OpeningBalances";
 
 /*
- * The setup wizard's steps. Each one's state comes from the books, never
- * from the wizard: the chart is done once there is any account, the banks
- * and cards once any account is in a preset, and the statement formats once
- * every preset account's is set up. Opening balances is its own screen.
+ * The setup wizard's four steps. Each one's state comes from the books,
+ * never from the wizard: the chart is done once there is any account; the
+ * banks and cards once any account is set up for statements; the first
+ * statements once every bank or card has transactions; and Review once
+ * those are in and no drafts remain.
  */
 
 export const SETUP_ROUTE = "/setup";
 
-export type SetupStepId = "accounts" | "banks" | "statements";
+export type SetupStepId = "accounts" | "banks" | "statements" | "review";
 
 export const SETUP_STEP_ROUTES: Record<SetupStepId, string> = {
   accounts: `${SETUP_ROUTE}/accounts`,
   banks: `${SETUP_ROUTE}/banks`,
   statements: `${SETUP_ROUTE}/statements`,
+  review: `${SETUP_ROUTE}/review`,
 };
 
-function isDone(id: SetupStepId, status: SetupStatus): boolean {
+const ORDER: readonly SetupStepId[] = [
+  "accounts",
+  "banks",
+  "statements",
+  "review",
+];
+
+const TITLES: Record<SetupStepId, string> = {
+  accounts: "Chart of accounts",
+  banks: "Banks & cards",
+  statements: "First statements",
+  review: "Review",
+};
+
+/** Whether the books have done the step. */
+export function stepDone(id: SetupStepId, status: SetupStatus): boolean {
   switch (id) {
     case "accounts":
       return status.accounts > 0;
     case "banks":
-      return status.preset_accounts > 0;
+      return status.statement_accounts > 0;
     case "statements":
       return (
-        status.preset_accounts > 0 &&
-        status.ready_accounts === status.preset_accounts
+        status.statement_accounts > 0 &&
+        status.imported_accounts === status.statement_accounts
       );
+    case "review":
+      return stepDone("statements", status) && status.drafts === 0;
   }
 }
 
-/** Where `/setup` opens: the first step not done, else the last. */
+/**
+ * Where `/setup` opens: the first step not done, else Review, which then
+ * says the books are set up.
+ */
 export function firstOpenStep(status: SetupStatus): SetupStepId {
-  if (!isDone("accounts", status)) return "accounts";
-  if (!isDone("banks", status)) return "banks";
-  return "statements";
+  return ORDER.find((id) => !stepDone(id, status)) ?? "review";
 }
 
-/** The four cards across the top of the wizard, `current` being shown. */
-export function setupSteps(
+/** ✓ done, ● the step shown (not yet done), ○ still to do. */
+export type RailMark = "done" | "current" | "todo";
+
+export interface RailStep {
+  id: SetupStepId;
+  title: string;
+  to: string;
+  mark: RailMark;
+  /** The step on screen. */
+  current: boolean;
+  /** "72 accounts"; empty until the status has loaded. */
+  status: string;
+}
+
+/** The rail's four steps, `current` being the one on screen. */
+export function railSteps(
   status: SetupStatus | null,
   current: SetupStepId,
-): Step[] {
-  const state = (id: SetupStepId) =>
-    id === current
-      ? "current"
-      : status !== null && isDone(id, status)
-        ? "done"
-        : "waiting";
-  return [
-    {
-      title: "Chart of accounts",
-      status: state("accounts"),
-      detail:
-        status && status.accounts > 0
-          ? plural(status.accounts, "account")
-          : "The accounts your money is sorted into",
-      to: SETUP_STEP_ROUTES.accounts,
-    },
-    {
-      title: "Banks and cards",
-      status: state("banks"),
-      detail:
-        status && status.preset_accounts > 0
-          ? plural(status.preset_accounts, "bank or card", "banks and cards")
-          : "Where your statements come from",
-      to: SETUP_STEP_ROUTES.banks,
-    },
-    {
-      title: "Statement formats",
-      status: state("statements"),
-      detail:
-        status && status.preset_accounts > 0
-          ? `${status.ready_accounts} of ${status.preset_accounts} ready`
-          : "A sample statement for each",
-      to: SETUP_STEP_ROUTES.statements,
-    },
-    {
-      title: "Opening balances",
-      status: "waiting",
-      detail: "What each account held when you start",
-      to: OPENING_BALANCES_ROUTE,
-    },
-  ];
+): RailStep[] {
+  return ORDER.map((id) => {
+    const done = status !== null && stepDone(id, status);
+    return {
+      id,
+      title: TITLES[id],
+      to: SETUP_STEP_ROUTES[id],
+      mark: done ? "done" : id === current ? "current" : "todo",
+      current: id === current,
+      status: status === null ? "" : statusLine(id, status),
+    };
+  });
+}
+
+function statusLine(id: SetupStepId, status: SetupStatus): string {
+  switch (id) {
+    case "accounts":
+      return status.accounts > 0
+        ? plural(status.accounts, "account")
+        : "Not created";
+    case "banks":
+      return status.statement_accounts > 0
+        ? `${status.statement_accounts} added`
+        : "None yet";
+    case "statements":
+      return status.statement_accounts > 0
+        ? `${status.imported_accounts} of ${status.statement_accounts} imported`
+        : "Add a bank or card first";
+    case "review":
+      if (stepDone("review", status)) return "Done";
+      return status.drafts > 0 ? `${status.drafts} to review` : "Nothing yet";
+  }
 }

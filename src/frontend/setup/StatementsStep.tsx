@@ -42,7 +42,7 @@ import {
 } from "./first-statements";
 import { sendFirstStatement, uploadSample } from "./sample-upload";
 import { SetupFrame, StepHeading } from "./SetupWizard";
-import { SETUP_ROUTE, SETUP_STEP_ROUTES } from "./steps";
+import { SETUP_STEP_ROUTES } from "./steps";
 
 /*
  * Step 3, first statements: one statement per bank or card. dbu6 reads it,
@@ -100,7 +100,7 @@ export function StatementsStep() {
               </span>
             )}
             <Button
-              render={<Link to={`${SETUP_ROUTE}/review`} />}
+              render={<Link to={SETUP_STEP_ROUTES.review} />}
               nativeButton={false}
               variant={remaining > 0 ? "outline" : "default"}
             >

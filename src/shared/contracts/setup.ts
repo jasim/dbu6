@@ -446,31 +446,21 @@ export const firstStatementRefusalSchema = z.object({
 });
 export type FirstStatementRefusal = z.infer<typeof firstStatementRefusalSchema>;
 
-// Where the wizard stands, counted in the books.
+// Where the wizard stands, counted in the books. The steps' done rules are
+// the rail's (frontend `setup/steps.ts`).
 export const setupStatusSchema = z.object({
-  // Accounts in the books; step 1 is done with any.
+  // Accounts in the books; the chart step is done with any.
   accounts: z.number().int(),
-  // Accounts an import preset lists; step 2 is done with any.
-  preset_accounts: z.number().int(),
-  // Preset accounts whose statement format is set up
-  // (`statementFormatReady`).
-  ready_accounts: z.number().int(),
+  // Banks and cards set up for statements; that step is done with any.
+  statement_accounts: z.number().int(),
+  // Of those, the ones with transactions (entries or drafts), whose first
+  // statements step row is `imported`; that step is done when all are.
+  imported_accounts: z.number().int(),
+  // Drafts on the banks and cards; Review is done once the first statements
+  // are and none remain.
+  drafts: z.number().int(),
 });
 export type SetupStatus = z.infer<typeof setupStatusSchema>;
-
-/**
- * Whether a preset account's statements can be imported without asking:
- * its institution lists a parser, and it has an identifier to tell it from
- * the institution's other accounts.
- */
-export function statementFormatReady(
-  institution: { parsers: readonly string[] },
-  account: { account_identifiers: readonly unknown[] },
-): boolean {
-  return (
-    institution.parsers.length > 0 && account.account_identifiers.length > 0
-  );
-}
 
 export const setupContract = c.router({
   setupStatus: c.query({

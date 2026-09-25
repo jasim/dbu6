@@ -223,13 +223,19 @@ async function categorizerStatus(): Promise<CategorizerStatus> {
     : { ready: false, name: llm.name, reason: llm.caller.reason };
 }
 
-function hasTransactions(activity: StatementActivity): boolean {
+/**
+ * Whether a bank or card's first statement is in: it has entries or drafts.
+ * Its row is then `imported`, and the setup wizard's status counts it.
+ */
+export function hasTransactions(activity: StatementActivity): boolean {
   return activity.entries > 0 || activity.drafts > 0;
 }
 
-// Each account's entries, its opening entry left out, and the drafts from
-// its own statements.
-function loadStatementActivity(
+/**
+ * Each account's entries, its opening entry left out, and the drafts from
+ * its own statements.
+ */
+export function loadStatementActivity(
   ledger: Ledger,
 ): (accountId: number) => StatementActivity {
   const { sqlite, auth } = ledger;
