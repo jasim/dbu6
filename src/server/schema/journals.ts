@@ -50,6 +50,10 @@ export const journalEntriesTable = sqliteTable(
       .notNull(),
   },
   (table) => [
+    // A journal's lines and an account's lines are what the ledger's
+    // correlated subqueries look up (opening entries, last reconciled).
+    index("journal_entries_journal_idx").on(table.journal_id),
+    index("journal_entries_account_idx").on(table.account_id),
     index("journal_entries_source_key_idx").on(
       table.workspace_id,
       table.scoped_to_user_id,

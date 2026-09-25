@@ -193,6 +193,19 @@ describe("the last reconciled checkpoint", () => {
     });
     expect(lookupLastReconciled(sqlite, auth, "Missing Account")).toBeNull();
   });
+
+  it("is found for the account with an id, for its review", () => {
+    expect(
+      loadLastReconciled(tiedLedger(), auth, { accountId: 2 }).map((row) => [
+        row.account_id,
+        row.journal_id,
+        row.last_balance,
+      ]),
+    ).toEqual([
+      [2, 22, 300],
+      [2, 22, 500],
+    ]);
+  });
 });
 
 /*

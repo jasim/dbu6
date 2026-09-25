@@ -19,10 +19,14 @@ export type OpeningEntry = {
   description: string;
 };
 
-/** The opening entry of each asset and liability account that has one. */
+/**
+ * The opening entry of each asset and liability account that has one, or of
+ * the one account with id `accountId`.
+ */
 export function loadOpeningEntries(
   sqlite: Parameters<typeof allRows>[0],
   auth: LedgerAuth,
+  filter: { accountId?: number } = {},
 ): Map<number, OpeningEntry> {
   const rows = allRows<OpeningEntry>(
     sqlite,
@@ -38,6 +42,7 @@ export function loadOpeningEntries(
     JOIN scoped_journals j ON j.id = je.journal_id
     JOIN scoped_accounts a ON a.id = je.account_id
     WHERE a.account_type IN ('Asset', 'Liability')
+      AND (@accountId IS NULL OR je.account_id = @accountId)
       AND EXISTS (
         SELECT 1
         FROM scoped_journal_entries equity_line
@@ -47,6 +52,7 @@ export function loadOpeningEntries(
       )
     GROUP BY je.account_id, j.id, j.date, j.description
     ORDER BY j.date, j.id`,
+    { accountId: filter.accountId ?? null },
   );
   const openings = new Map<number, OpeningEntry>();
   for (const row of rows) {

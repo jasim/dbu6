@@ -111,10 +111,14 @@ posted_assertion_failures AS (
     AND ${assertionFailsSql("running_balance", "assertion")}
 )`;
 
-/** How many posted balance assertions each account's books miss, by id. */
+/**
+ * How many posted balance assertions each account's books miss, by id; of
+ * the one account with id `accountId` when given.
+ */
 export function countPostedAssertionFailures(
   sqlite: Database.Database,
   auth: LedgerAuth,
+  filter: { accountId?: number } = {},
 ): Map<number, number> {
   const rows = allRows<{ account_id: number; failures: number }>(
     sqlite,
@@ -122,7 +126,9 @@ export function countPostedAssertionFailures(
     `${postedAssertionFailuresCtes}
     SELECT account_id, COUNT(*) AS failures
     FROM posted_assertion_failures
+    WHERE @accountId IS NULL OR account_id = @accountId
     GROUP BY account_id`,
+    { accountId: filter.accountId ?? null },
   );
   return new Map(rows.map((row) => [row.account_id, row.failures]));
 }

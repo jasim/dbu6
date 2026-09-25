@@ -28,31 +28,42 @@ export interface AccountStanding extends AccountLabel {
   drafts: DraftAccountStatus | undefined;
 }
 
-/** Every account in scope, by id. */
+/** Narrows the standings to one account. */
+export interface AccountStandingFilter {
+  accountId?: number;
+}
+
+/** Every account in scope, or the one the filter names, by id. */
 export function loadAccountStandings(
   sqlite: Database.Database,
   auth: LedgerAuth,
   institutions: readonly ImportInstitution[],
+  filter: AccountStandingFilter = {},
 ): Map<number, AccountStanding> {
   const checkpoints = new Map(
-    loadLastReconciled(sqlite, auth).map((row) => [
+    loadLastReconciled(sqlite, auth, filter).map((row) => [
       row.account_id,
       { date: row.last_reconciled_date, balance: row.last_balance },
     ]),
   );
-  const differences = countPostedAssertionFailures(sqlite, auth);
-  const drafts = loadDraftStatus(sqlite, auth);
+  const differences = countPostedAssertionFailures(sqlite, auth, filter);
+  const drafts = loadDraftStatus(sqlite, auth, filter);
   return new Map(
-    loadLedgerAccounts(sqlite, auth).map((account) => [
-      account.id,
-      {
-        account_id: account.id,
-        path: account.name,
-        ...accountLabel(account, institutions),
-        checkpoint: checkpoints.get(account.id) ?? null,
-        statement_differences: differences.get(account.id) ?? 0,
-        drafts: drafts.get(account.id),
-      },
-    ]),
+    loadLedgerAccounts(sqlite, auth)
+      .filter(
+        (account) =>
+          filter.accountId === undefined || account.id === filter.accountId,
+      )
+      .map((account) => [
+        account.id,
+        {
+          account_id: account.id,
+          path: account.name,
+          ...accountLabel(account, institutions),
+          checkpoint: checkpoints.get(account.id) ?? null,
+          statement_differences: differences.get(account.id) ?? 0,
+          drafts: drafts.get(account.id),
+        },
+      ]),
   );
 }
