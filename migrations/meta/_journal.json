@@ -71,6 +71,13 @@
       "when": 1790329788262,
       "tag": "0009_journal_entries_lookup_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790339346334,
+      "tag": "0010_categorization_lessons",
+      "breakpoints": true
     }
   ]
 }

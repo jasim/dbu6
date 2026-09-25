@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { ReviewAccountDetail } from "../../shared/index";
+import type {
+  CategorizationLesson,
+  ReviewAccountDetail,
+} from "../../shared/index";
 import {
   LESSON_NARRATION_LIMIT,
   lessonsPrompt,
-  type CategorizationLesson,
 } from "./categorization-lessons";
 
 const detail: ReviewAccountDetail = {
@@ -31,8 +33,15 @@ function lesson(
   narrations: string[],
   note = "",
   name = "Food",
+  id = 1,
 ): CategorizationLesson {
-  return { narrations, account: { id: 12, name }, note };
+  return {
+    id,
+    base_account_id: 7,
+    narrations,
+    account: { id: 12, name },
+    note,
+  };
 }
 
 describe("lessonsPrompt", () => {
@@ -42,7 +51,7 @@ describe("lessonsPrompt", () => {
         ["UPI-sample-foodapp-050505", "UPI-sample-foodapp-050511"],
         "A food delivery app.",
       ),
-      lesson(["NOPII PHARMACY 050505"], "", "Health"),
+      lesson(["NOPII PHARMACY 050505"], "", "Health", 2),
     ]);
 
     expect(prompt).toContain("/review/7/improve-categorization");
@@ -51,12 +60,12 @@ describe("lessonsPrompt", () => {
     );
     expect(prompt).toContain(
       [
-        '1. 2 drafts go to "Food":',
+        '1. 2 drafts go to "Food" (lesson id 1):',
         "   - UPI-sample-foodapp-050505",
         "   - UPI-sample-foodapp-050511",
         "   My note: A food delivery app.",
         "",
-        '2. 1 draft goes to "Health":',
+        '2. 1 draft goes to "Health" (lesson id 2):',
         "   - NOPII PHARMACY 050505",
       ].join("\n"),
     );
@@ -68,6 +77,9 @@ describe("lessonsPrompt", () => {
     expect(prompt).toContain("`dbu6 docs books`");
     expect(prompt).toContain("user-config/transaction_mappings.mjs");
     expect(prompt).toContain("leave them as they are");
+    expect(prompt).toContain(
+      "`sapporta api delete /api/categorization-lessons/<lesson id>`",
+    );
     expect(prompt).not.toContain("My note");
   });
 
@@ -78,8 +90,12 @@ describe("lessonsPrompt", () => {
     );
     const prompt = lessonsPrompt(detail, [lesson(narrations)]);
 
-    expect(prompt).toContain(`   - NOPII SAMPLE 050505${LESSON_NARRATION_LIMIT - 1}`);
-    expect(prompt).not.toContain(`NOPII SAMPLE 050505${LESSON_NARRATION_LIMIT}\n`);
+    expect(prompt).toContain(
+      `   - NOPII SAMPLE 050505${LESSON_NARRATION_LIMIT - 1}`,
+    );
+    expect(prompt).not.toContain(
+      `NOPII SAMPLE 050505${LESSON_NARRATION_LIMIT}\n`,
+    );
     expect(prompt).toContain("   - and 3 more like these");
   });
 });
