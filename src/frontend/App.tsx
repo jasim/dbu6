@@ -39,6 +39,8 @@ import {
   RunCategorizerTab,
 } from "./review/RunCategorizerTab";
 import { REVIEW_TABS, type ReviewTab } from "./review/routes";
+import { AddAccount } from "./add-account/AddAccount";
+import { ADD_ROUTE } from "./add-account/state";
 import { AutoImportStatements } from "./views/AutoImportStatements";
 import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
 import { JournalsTable } from "./views/JournalsTable";
@@ -97,6 +99,16 @@ export const appPublicRoutes = <></>;
 
 // Routes here render in the app shell without requiring a signed-in session.
 export const appPublicShellRoutes = <></>;
+
+/*
+ * The routes in focus mode (add-account/FocusCard.tsx): signed in, but
+ * outside the app shell, with no sidebar or navigation. One card at a time.
+ */
+const focusRoutes = (
+  <>
+    <Route path={ADD_ROUTE.slice(1)} element={<AddAccount />} />
+  </>
+);
 
 // dbu6's routes inside the authenticated app shell, around the reports.
 function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
@@ -166,6 +178,8 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
 export interface App {
   navigation: Navigation;
   protectedRoutes: ReactElement;
+  /** Routes that render in focus mode, without the shell. */
+  focusRoutes: ReactElement;
 }
 
 /**
@@ -184,6 +198,7 @@ export function buildApp(extension: Dbu6FrontendExtension = {}): App {
       "",
       ...routePaths(sapportaPublicRoutes),
       ...routePaths(own),
+      ...routePaths(focusRoutes),
       ...routePaths(sapportaProtectedRoutes),
     ],
     pages.map((page) => routeKey(page.path)),
@@ -204,6 +219,7 @@ export function buildApp(extension: Dbu6FrontendExtension = {}): App {
         ))}
       </>
     ),
+    focusRoutes,
   };
 }
 

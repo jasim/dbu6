@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
 import { Screen, ScreenTitle } from "../components/screen";
@@ -29,7 +29,12 @@ import {
   problemTone,
   type ProblemAction,
 } from "./import-statements/describeProblems";
-import { Dropzone, FileRow, GooglePayRow } from "./import-statements/files";
+import {
+  carriedFiles,
+  Dropzone,
+  FileRow,
+  GooglePayRow,
+} from "./import-statements/files";
 import {
   importedGroups,
   plannedFiles,
@@ -56,7 +61,9 @@ const CHOOSING: ImportRun = { phase: "choosing" };
  */
 export function AutoImportStatements() {
   usePageTitle("Import statements");
-  const [files, setFiles] = useState<File[]>([]);
+  // Another screen may open the page with files (`importWithFiles`).
+  const { state } = useLocation();
+  const [files, setFiles] = useState<File[]>(() => carriedFiles(state));
   const [gpayFile, setGpayFile] = useState<File | null>(null);
   // Any change to the batch sets the run back to choosing, so a shown outcome
   // always describes the files as they were sent.
