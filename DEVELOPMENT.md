@@ -519,7 +519,7 @@ ledger's tables. The workflows are
 and freeform transactions; imported through its `index.ts`),
 `workflows/posting.ts`, `workflows/reclassification.ts`,
 `workflows/opening-balances.ts` (each asset and liability account's opening
-entry: listing them, and posting one against Opening Balances) and
+entry: listing them, and posting one against Opening Balances),
 `workflows/import-presets.ts` (the presets' one writer: a batch of changes
 applied, checked against the whole table, and written in one transaction),
 `workflows/chart-of-accounts.ts` (the setup wizard's first step: the

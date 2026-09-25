@@ -13,13 +13,22 @@ import {
   type OpeningBalanceEntry,
 } from "./OpeningBalanceDialog";
 import { OpeningBalancesTable } from "./OpeningBalancesTable";
-import { openingRows, type OpeningRow } from "./opening-rows";
+import { openingRows, withSampleDate, type OpeningRow } from "./opening-rows";
 
 export const OPENING_BALANCES_ROUTE = "/opening-balances";
 
-/** The screen, scrolled to one account's row (names are unique). */
-export function openingBalanceHref(accountName: string): string {
-  return `${OPENING_BALANCES_ROUTE}?${new URLSearchParams({ account: accountName })}`;
+/**
+ * The screen, scrolled to one account's row (names are unique). With
+ * `sampleFirstDate`, the first date of a sample statement the setup wizard
+ * read, the account's date defaults to the day before it.
+ */
+export function openingBalanceHref(
+  accountName: string,
+  sampleFirstDate?: string,
+): string {
+  const params = new URLSearchParams({ account: accountName });
+  if (sampleFirstDate) params.set("date", sampleFirstDate);
+  return `${OPENING_BALANCES_ROUTE}?${params}`;
 }
 
 /*
@@ -35,13 +44,16 @@ export function OpeningBalances() {
   const balances = useQuery(openingBalancesQuery);
   const [params] = useSearchParams();
   const focused = params.get("account");
+  const sampleDate = params.get("date");
   const [showRecorded, setShowRecorded] = useState(false);
   const [adding, setAdding] = useState<OpeningRow | null>(null);
 
-  const all = useMemo(
-    () => (balances.data ? openingRows(balances.data) : []),
-    [balances.data],
-  );
+  const all = useMemo(() => {
+    const rows = balances.data ? openingRows(balances.data) : [];
+    return focused && sampleDate
+      ? withSampleDate(rows, focused, sampleDate)
+      : rows;
+  }, [balances.data, focused, sampleDate]);
   const recorded = all.filter((row) => row.recorded !== null).length;
   // An account the books already hold is out of the way unless asked for, so
   // what is left is what still needs an opening balance. A link from

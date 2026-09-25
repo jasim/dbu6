@@ -1,6 +1,12 @@
 import { useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, RefreshCw, Scale } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ListChecks,
+  RefreshCw,
+  Scale,
+} from "lucide-react";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
 import { CODING_AGENTS, type CodingAgent } from "../../../shared/index";
@@ -10,6 +16,7 @@ import { LoadError } from "../../components/load-error";
 import { Screen } from "../../components/screen";
 import { Button } from "../../components/ui/button";
 import { OPENING_BALANCES_ROUTE } from "../opening-balances/OpeningBalances";
+import { SETUP_ROUTE } from "../../setup/steps";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { codingAgentSettingsQuery, refreshCodingAgent } from "../../queries";
 import {
@@ -24,7 +31,8 @@ const CHECKING_POLL_MS = 2000;
 /*
  * The coding agent dbu6 uses for everything AI, installed on the server's
  * machine, and the models it runs on. Until the user picks one, dbu6 uses the
- * first installed. Below it, the way to the accounts' opening balances.
+ * first installed. Below it, the way to setting up accounts and to their
+ * opening balances.
  */
 export function Settings() {
   usePageTitle("Settings");
@@ -109,7 +117,13 @@ export function Settings() {
       </section>
       <section className="mt-10 space-y-3">
         <h2 className="text-heading text-foreground">Accounts</h2>
-        <div className="max-w-[480px]">
+        <div className="max-w-[480px] space-y-2">
+          <LinkCard
+            label="Set up accounts and statement formats"
+            description="Your chart of accounts, banks and cards, and what their statements look like"
+            to={SETUP_ROUTE}
+            icon={ListChecks}
+          />
           <LinkCard
             label="Opening balances"
             description="What each bank, card and loan account started at"

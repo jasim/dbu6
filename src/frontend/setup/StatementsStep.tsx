@@ -301,7 +301,7 @@ function ReadyNote({
       Its statements are read with {row.parsers.map(parserLabel).join(", ")}.{" "}
       {firstDate && (
         <Link
-          to={openingBalanceHref(row.name)}
+          to={openingBalanceHref(row.name, firstDate)}
           className="text-primary underline-offset-4 hover:underline"
         >
           Add its opening balance

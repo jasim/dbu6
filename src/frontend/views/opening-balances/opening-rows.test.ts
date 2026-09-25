@@ -4,6 +4,7 @@ import {
   amountOf,
   openingRows,
   readRow,
+  withSampleDate,
   type OpeningRow,
 } from "./opening-rows";
 
@@ -189,5 +190,25 @@ describe("amountOf", () => {
     for (const text of ["abc", "10-5", "1.2.3", "-"]) {
       expect(amountOf(text), text).toBe("invalid");
     }
+  });
+});
+
+describe("withSampleDate", () => {
+  it("dates a new account the day before its sample statement's first row", () => {
+    const fresh = row({ date: null, firstActivityDate: null });
+    expect(withSampleDate([fresh], "Sample Savings", "2026-03-01")).toEqual([
+      { ...fresh, date: "2026-02-28" },
+    ]);
+  });
+
+  it("leaves an account with a date of its own, another account, or a bad date", () => {
+    const own = row();
+    const other = row({ name: "Sample Card", date: null });
+    expect(
+      withSampleDate([own, other], "Sample Savings", "2026-03-01"),
+    ).toEqual([own, other]);
+    expect(
+      withSampleDate([row({ date: null })], "Sample Savings", "not a date"),
+    ).toEqual([row({ date: null })]);
   });
 });

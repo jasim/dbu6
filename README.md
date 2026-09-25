@@ -33,9 +33,13 @@ npx dbu6 dev
 
 `init` makes the folder, installs dbu6 into it, creates `.env` with a
 generated secret, fills `user-config/` from the examples, creates the database,
-and makes the first commit. Open http://localhost:2345 and sign up. For a
-year of sample data, run `npx dbu6 seed` while `dev` is running and sign in as
-`demo@example.com` / `demo-password`.
+and makes the first commit. Open http://localhost:2345 and sign up. Home then
+takes you through setting up: pick the accounts your books start with (or
+describe your money and have your coding agent propose them), add the banks
+and cards you get statements from, show dbu6 a sample statement of each, and
+record what each account held when you start. For a year of sample data, run
+`npx dbu6 seed` while `dev` is running and sign in as `demo@example.com` /
+`demo-password`.
 
 The folder is yours; the program is the `dbu6` package in `node_modules`.
 `npx dbu6 upgrade` moves it to a newer version, migrating the database on a
