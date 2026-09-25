@@ -37,6 +37,7 @@ const DATA: StatementAccounts = {
     card: [{ id: 4, name: "Credit Cards", path: "Liabilities:Credit Cards" }],
   },
   default_parents: { bank: 2, card: null },
+  mixed_parents: { bank: false, card: false },
   unlisted: [{ id: 7, name: "Cash", path: "Assets:Cash", kind: "bank" }],
   account_names: [
     "Assets",
@@ -121,6 +122,15 @@ describe("which fields the form shows", () => {
     ).toBe(true);
   });
 
+  it("shows Under when the bank accounts sit under different parents", () => {
+    const mixed = { ...DATA, mixed_parents: { bank: true, card: false } };
+    const layout = formLayout(other(), mixed, null);
+    expect(layout.parentInView).toBe(true);
+    expect(underMoreOptions("parent", other(), layout)).toBe(false);
+    // It still starts from the parent most of them share.
+    expect(newDraft(mixed, "bank").parentId).toBe(2);
+  });
+
   it("offers an account already in the books for a new row of its type", () => {
     expect(formLayout(other(), DATA, null).canUseExisting).toBe(true);
     expect(formLayout(other("card"), DATA, null).canUseExisting).toBe(false);
@@ -203,7 +213,7 @@ describe("the change the form sends", () => {
     // A card starts with no parent here, as the books have no card yet.
     expect(readDraft(other("card"), DATA, null)).toEqual({
       ok: false,
-      problem: "Pick where it sits in your chart.",
+      problem: "Pick the parent account grouping it belongs to.",
       field: "parent",
     });
   });

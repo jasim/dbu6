@@ -150,7 +150,10 @@ export interface FormLayout {
    * view; without, it is optional and under More options.
    */
   other: StatementAccountRow | null;
-  /** "Under" is in view when there's no parent to start from. */
+  /**
+   * "Under" is in view when there's no parent to start from, or the kind's
+   * accounts sit under more than one and the default is only a guess.
+   */
   parentInView: boolean;
   /** The switch to use an account already in the books, for a new row. */
   canUseExisting: boolean;
@@ -165,7 +168,8 @@ export function formLayout(
     other: otherAccountAt(data, draft.institution, editing?.account_id ?? null),
     parentInView:
       editing === null
-        ? data.default_parents[draft.kind] === null
+        ? data.default_parents[draft.kind] === null ||
+          data.mixed_parents[draft.kind]
         : editing.parent === null,
     canUseExisting: editing === null && unlistedOf(data, draft.kind).length > 0,
   };
@@ -321,7 +325,7 @@ export function readDraft(
   if (draft.parentId === null) {
     return {
       ok: false,
-      problem: "Pick where it sits in your chart.",
+      problem: "Pick the parent account grouping it belongs to.",
       field: "parent",
     };
   }

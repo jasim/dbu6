@@ -37,8 +37,8 @@ import {
  * Adding a bank account or card, or editing one that has no transactions
  * yet. It asks for the bank and nothing else it can work out: the name
  * follows the bank, the number comes from the first statement unless
- * another account at the bank needs telling apart, and where it sits in the
- * chart waits under "More options".
+ * another account at the bank needs telling apart, and its parent account
+ * grouping waits under "More options" unless the books leave it unclear.
  */
 
 /** Which form is open: a new bank account or card, or an edit to one. */
@@ -161,7 +161,7 @@ function DialogBody({
   const parentInput = (
     <Field
       label="Under"
-      hint="Where it sits in your chart."
+      hint="The parent account grouping it belongs to in your chart."
       htmlFor={ids.parent}
     >
       <AccountCombobox
