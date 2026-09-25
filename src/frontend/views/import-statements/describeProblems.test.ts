@@ -125,6 +125,14 @@ const resolvedRow = {
   account_name: "Sample Bank",
 };
 
+const failedGroup = {
+  account_id: 1,
+  account_name: "Sample Bank",
+  base_account: "Sample Bank",
+  is_credit_card: false,
+  file_names: ["bank-aug.xls"],
+};
+
 describe("plan rejections", () => {
   it("turns an unrecognised file into one problem with a parser-building prompt", () => {
     const unrecognized: AutoImportPlanFile = {
@@ -363,14 +371,6 @@ describe("plan rejections", () => {
 });
 
 describe("account import failures", () => {
-  const failedGroup = {
-    account_id: 1,
-    account_name: "Sample Bank",
-    base_account: "Sample Bank",
-    is_credit_card: false,
-    file_names: ["bank-aug.xls"],
-  };
-
   /** The problem for a closing balance that doesn't add up. */
   function balanceMismatch(
     suspectedGap: boolean,
@@ -716,14 +716,6 @@ describe("account import failures", () => {
 });
 
 describe("problem tones", () => {
-  const failedGroup = {
-    account_id: 1,
-    account_name: "Sample Bank",
-    base_account: "Sample Bank",
-    is_credit_card: false,
-    file_names: ["bank-aug.xls"],
-  };
-
   function toneOf(code: StatementImportErrorCode) {
     const error = refused(422, {
       ...PAYLOADS[code],
@@ -903,7 +895,7 @@ describe("refusalPromptsAgent", () => {
       ...Object.values(PAYLOADS),
       {
         ...PAYLOADS.statement_boundary_mismatch,
-        reason: "same-statement-twice",
+        reason: "same-statement-twice" as const,
       },
     ].filter(
       (refusal) =>
