@@ -1,12 +1,15 @@
+import { basename } from "node:path";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   setupContract,
   statementFormatReady,
+  type FirstStatementRefusal,
   type ChartAccount,
   type ChartRefusal,
   type SetupStatus,
 } from "../../shared/index.js";
 import { loadAccountChart } from "../modules/accounts/index.js";
+import type { LoadCategorizer } from "../modules/categorization/index.js";
 import { chartLlm } from "../modules/coding-agent/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
@@ -20,10 +23,12 @@ import {
   loadStatementAccounts,
 } from "../workflows/import-presets.js";
 import {
-  loadStatementFormats,
+  importFirstStatement,
+  loadFirstStatements,
   recognizeSample,
   type SampleOutcome,
-} from "../workflows/sample-statements.js";
+} from "../workflows/first-statement.js";
+import { batchResponse } from "./import-draft-statements-auto.js";
 import {
   removeStagedSample,
   stagedSamples,
@@ -38,188 +43,242 @@ import { requireOwner, requireWorkflowLedger } from "./workflow-auth.js";
  * keeps no state: each step reads where it stands from the books.
  */
 
-const api = new TsRestApi<SapportaEnv>();
+export default function setupApi(
+  loadCategorizer: LoadCategorizer,
+): TsRestApi<SapportaEnv> {
+  const api = new TsRestApi<SapportaEnv>();
 
-api.register("setupStatus", setupContract.setupStatus, async ({ c }) => ({
-  status: 200,
-  body: loadSetupStatus(requireWorkflowLedger(c)),
-}));
-
-api.register(
-  "chartOfAccounts",
-  setupContract.chartOfAccounts,
-  async ({ c }) => ({
+  api.register("setupStatus", setupContract.setupStatus, async ({ c }) => ({
     status: 200,
-    body: loadChartOfAccounts(requireWorkflowLedger(c)),
-  }),
-);
+    body: loadSetupStatus(requireWorkflowLedger(c)),
+  }));
 
-api.register(
-  "createChartOfAccounts",
-  setupContract.createChartOfAccounts,
-  async ({ c, request }) =>
-    createChartResponse(requireWorkflowLedger(c), request.body.accounts),
-);
+  api.register(
+    "chartOfAccounts",
+    setupContract.chartOfAccounts,
+    async ({ c }) => ({
+      status: 200,
+      body: loadChartOfAccounts(requireWorkflowLedger(c)),
+    }),
+  );
 
-api.register("chartSuggester", setupContract.chartSuggester, async ({ c }) => {
-  requireOwner(c);
-  const llm = await chartLlm();
-  return {
-    status: 200,
-    body: llm.caller.ready
-      ? { ready: true as const, name: llm.name }
-      : { ready: false as const, name: llm.name, reason: llm.caller.reason },
-  };
-});
+  api.register(
+    "createChartOfAccounts",
+    setupContract.createChartOfAccounts,
+    async ({ c, request }) =>
+      createChartResponse(requireWorkflowLedger(c), request.body.accounts),
+  );
 
-// One headless call, up to the agent's time limit (nuabase.ts).
-api.register(
-  "suggestChartOfAccounts",
-  setupContract.suggestChartOfAccounts,
-  async ({ c, request }) => {
-    requireOwner(c);
-    const { description, current } = request.body;
-    const outcome = await suggestChart(await chartLlm(), description, current);
-    if (outcome.ok) {
+  api.register(
+    "chartSuggester",
+    setupContract.chartSuggester,
+    async ({ c }) => {
+      requireOwner(c);
+      const llm = await chartLlm();
       return {
         status: 200,
-        body: { proposal: outcome.proposal, notes: outcome.notes },
+        body: llm.caller.ready
+          ? { ready: true as const, name: llm.name }
+          : {
+              ready: false as const,
+              name: llm.name,
+              reason: llm.caller.reason,
+            },
       };
-    }
-    const body = { error: outcome.error, code: outcome.code };
-    return outcome.code === "llm_unavailable"
-      ? { status: 503, body }
-      : { status: 502, body };
-  },
-);
+    },
+  );
 
-api.register(
-  "statementAccounts",
-  setupContract.statementAccounts,
-  async ({ c }) => ({
-    status: 200,
-    body: loadStatementAccounts(requireWorkflowLedger(c)),
-  }),
-);
+  // One headless call, up to the agent's time limit (nuabase.ts).
+  api.register(
+    "suggestChartOfAccounts",
+    setupContract.suggestChartOfAccounts,
+    async ({ c, request }) => {
+      requireOwner(c);
+      const { description, current } = request.body;
+      const outcome = await suggestChart(
+        await chartLlm(),
+        description,
+        current,
+      );
+      if (outcome.ok) {
+        return {
+          status: 200,
+          body: { proposal: outcome.proposal, notes: outcome.notes },
+        };
+      }
+      const body = { error: outcome.error, code: outcome.code };
+      return outcome.code === "llm_unavailable"
+        ? { status: 503, body }
+        : { status: 502, body };
+    },
+  );
 
-api.register(
-  "changeStatementAccount",
-  setupContract.changeStatementAccount,
-  async ({ c, request }) => {
-    const outcome = await changeStatementAccount(
-      requireWorkflowLedger(c),
-      request.body,
-    );
-    if (outcome.ok) return { status: 200, body: outcome.accounts };
-    return {
-      status: 422,
-      body: { error: outcome.problem.message, code: outcome.problem.code },
-    };
-  },
-);
-
-// A sample is kept only while it waits for a parser: an account that is
-// ready, or that no preset lists any more, loses it here.
-api.register(
-  "statementFormats",
-  setupContract.statementFormats,
-  async ({ c }) => {
-    const ledger = requireWorkflowLedger(c);
-    const staged = await stagedSamples();
-    const rows = loadStatementFormats(
-      ledger,
-      new Map([...staged].map(([id, sample]) => [id, sample.projectPath])),
-    );
-    const waiting = new Set(
-      rows
-        .filter((row) => row.status === "waiting_for_parser")
-        .map((row) => row.account_id),
-    );
-    for (const accountId of staged.keys()) {
-      if (!waiting.has(accountId)) await removeStagedSample(accountId);
-    }
-    return {
+  api.register(
+    "statementAccounts",
+    setupContract.statementAccounts,
+    async ({ c }) => ({
       status: 200,
-      body: {
-        accounts: rows.map((row) =>
-          waiting.has(row.account_id) ? row : { ...row, staged_sample: null },
-        ),
-      },
-    };
-  },
-);
+      body: loadStatementAccounts(requireWorkflowLedger(c)),
+    }),
+  );
 
-// The upload is staged in the project either way; a sample the parsers
-// recognized isn't kept.
-api.register(
-  "uploadSampleStatement",
-  setupContract.uploadSampleStatement,
-  async ({ c, request, files }) => {
-    const ledger = requireWorkflowLedger(c);
-    const file = uploadedFile(files, "file");
-    if (file === null) {
+  api.register(
+    "changeStatementAccount",
+    setupContract.changeStatementAccount,
+    async ({ c, request }) => {
+      const outcome = await changeStatementAccount(
+        requireWorkflowLedger(c),
+        request.body,
+      );
+      if (outcome.ok) return { status: 200, body: outcome.accounts };
       return {
-        status: 400,
-        body: {
-          error: "Upload the sample statement as `file`.",
-          code: "missing_multipart_field" as const,
-        },
+        status: 422,
+        body: { error: outcome.problem.message, code: outcome.problem.code },
       };
-    }
-    const { account_id } = request.body;
-    const staged = await stageSample(account_id, file);
-    const outcome = await recognizeSample(ledger, account_id, staged.path);
-    if (!outcome.ok || outcome.finding.outcome === "recognized") {
-      await removeStagedSample(account_id);
-    }
-    return sampleResponse(outcome, staged);
-  },
-);
+    },
+  );
 
-api.register(
-  "recheckSampleStatement",
-  setupContract.recheckSampleStatement,
-  async ({ c, request }) => {
-    const ledger = requireWorkflowLedger(c);
-    const { account_id } = request.body;
-    const staged = (await stagedSamples()).get(account_id);
-    if (staged === undefined) {
+  // A staged statement is kept until it is imported: an account that has
+  // transactions, or that no preset lists any more, loses it here.
+  api.register(
+    "firstStatements",
+    setupContract.firstStatements,
+    async ({ c }) => {
+      const ledger = requireWorkflowLedger(c);
+      const staged = await stagedSamples();
+      const body = await loadFirstStatements(ledger, staged);
+      const waiting = new Set(
+        body.accounts
+          .filter((row) => row.status === "read" || row.status === "unreadable")
+          .map((row) => row.account_id),
+      );
+      for (const accountId of staged.keys()) {
+        if (!waiting.has(accountId)) await removeStagedSample(accountId);
+      }
+      return { status: 200, body };
+    },
+  );
+
+  // The upload replaces the account's staged statement, read or not.
+  api.register(
+    "uploadSampleStatement",
+    setupContract.uploadSampleStatement,
+    async ({ c, request, files }) => {
+      const ledger = requireWorkflowLedger(c);
+      const file = uploadedFile(files, "file");
+      if (file === null) {
+        return {
+          status: 400,
+          body: {
+            error: "Upload the statement as `file`.",
+            code: "missing_multipart_field" as const,
+          },
+        };
+      }
+      const { account_id } = request.body;
+      const staged = await stageSample(account_id, file);
+      const outcome = await recognizeSample(ledger, account_id, staged.path);
+      if (!outcome.ok) await removeStagedSample(account_id);
+      return sampleResponse(outcome, staged);
+    },
+  );
+
+  // One headless import, categorization included, as long as /import's.
+  api.register(
+    "importFirstStatement",
+    setupContract.importFirstStatement,
+    async ({ c, request }) => {
+      const ledger = requireWorkflowLedger(c);
+      const { account_id, opening_amount, use_statement_number } = request.body;
+      const staged = (await stagedSamples()).get(account_id);
+      if (staged === undefined) {
+        return {
+          status: 404,
+          body: {
+            error:
+              "There is no statement waiting for this account; upload one.",
+            code: "no_staged_statement" as const,
+          },
+        };
+      }
+      const done = await importFirstStatement(ledger, loadCategorizer, {
+        accountId: account_id,
+        statement: { name: basename(staged.path), path: staged.path },
+        openingAmount: opening_amount ?? null,
+        useStatementNumber: use_statement_number ?? false,
+      });
+      if (!done.ok) return firstStatementRefusal(done.refusal);
+      // The staged copy is what "Try again" imports, so it goes only once the
+      // statement is in.
+      const imported = done.outcome.kind === "imported";
+      if (imported) await removeStagedSample(account_id);
+      return batchResponse(done.outcome, () =>
+        imported ? null : staged.projectPath,
+      );
+    },
+  );
+
+  api.register(
+    "recheckSampleStatement",
+    setupContract.recheckSampleStatement,
+    async ({ c, request }) => {
+      const ledger = requireWorkflowLedger(c);
+      const { account_id } = request.body;
+      const staged = (await stagedSamples()).get(account_id);
+      if (staged === undefined) {
+        return {
+          status: 404,
+          body: {
+            error:
+              "There is no statement waiting for this account; upload one.",
+            code: "no_staged_sample" as const,
+          },
+        };
+      }
+      return sampleResponse(
+        await recognizeSample(ledger, account_id, staged.path),
+        staged,
+      );
+    },
+  );
+
+  api.register(
+    "removeSampleStatement",
+    setupContract.removeSampleStatement,
+    async ({ c, request }) => {
+      requireOwner(c);
       return {
-        status: 404,
-        body: {
-          error:
-            "There is no sample statement waiting for this account; upload one.",
-          code: "no_staged_sample" as const,
-        },
+        status: 200,
+        body: { removed: await removeStagedSample(request.params.accountId) },
       };
-    }
-    return sampleResponse(
-      await recognizeSample(ledger, account_id, staged.path),
-      staged,
-    );
-  },
-);
+    },
+  );
 
-api.register(
-  "removeSampleStatement",
-  setupContract.removeSampleStatement,
-  async ({ c, request }) => {
-    requireOwner(c);
-    return {
-      status: 200,
-      body: { removed: await removeStagedSample(request.params.accountId) },
-    };
-  },
-);
+  return api;
+}
 
-export default api;
+// A missing account or file isn't there, a state the step must leave first
+// conflicts, and the rest is what the request brought.
+function firstStatementRefusal(refusal: FirstStatementRefusal) {
+  switch (refusal.code) {
+    case "unknown_account":
+    case "no_staged_statement":
+      return { status: 404 as const, body: refusal };
+    case "already_imported":
+    case "statement_unreadable":
+    case "numbers_differ":
+      return { status: 409 as const, body: refusal };
+    default:
+      return { status: 422 as const, body: refusal };
+  }
+}
 
 function sampleResponse(outcome: SampleOutcome, staged: StagedSample) {
   if (!outcome.ok) {
     return {
       status: 404 as const,
       body: {
-        error: "No bank or card has that account id.",
+        error: "That bank or card isn't set up any more.",
         code: outcome.code,
       },
     };

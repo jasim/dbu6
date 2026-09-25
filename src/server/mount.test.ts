@@ -38,7 +38,7 @@ describe("mounted app routes", () => {
     expect(paths["/api/setup/chart-of-accounts"]?.post).toBeDefined();
     expect(paths["/api/setup/chart-of-accounts/suggest"]?.post).toBeDefined();
     expect(paths["/api/setup/statement-accounts"]?.post).toBeDefined();
-    expect(paths["/api/setup/statement-formats"]?.get).toBeDefined();
+    expect(paths["/api/setup/first-statements"]?.get).toBeDefined();
     expect(paths["/api/setup/sample-statement"]?.post).toBeDefined();
     expect(paths["/api/setup/sample-statement/recheck"]?.post).toBeDefined();
     expect(

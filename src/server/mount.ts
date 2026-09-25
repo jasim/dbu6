@@ -107,7 +107,7 @@ export function loadDbu6App(
   mountApi(api, homeApi);
   mountApi(api, reviewApi);
   mountApi(api, openingBalancesApi);
-  mountApi(api, setupApi);
+  mountApi(api, setupApi(loadCategorizer));
   mountApi(api, agentHandoffApi);
   mountApi(api, codingAgentApi);
 }

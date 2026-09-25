@@ -164,10 +164,14 @@ export const statementAccountsQuery = queryOptions({
   ...FRESH_QUERY,
 });
 
-/** Each bank or card's statement format, and any sample waiting for a parser. */
-export const statementFormatsQuery = queryOptions({
-  queryKey: [...SETUP_KEY, "statement-formats"],
-  queryFn: () => setupApi.statementFormats(),
+/**
+ * Each bank or card's first statement: none yet, read, unreadable, or
+ * imported; and who categorizes. Reading it runs the parsers over every
+ * staged statement.
+ */
+export const firstStatementsQuery = queryOptions({
+  queryKey: [...SETUP_KEY, "first-statements"],
+  queryFn: () => setupApi.firstStatements(),
   ...FRESH_QUERY,
 });
 

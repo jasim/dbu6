@@ -135,7 +135,7 @@ function groupResult({
 
 // The reply for a batch's outcome. `savedPath` says where a file's staged copy
 // is, by the name it was uploaded under.
-function batchResponse(
+export function batchResponse(
   outcome: BatchImportOutcome,
   savedPath: (fileName: string) => string | null,
 ): AutoImportRouteResponse {
