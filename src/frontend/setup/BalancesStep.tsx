@@ -205,7 +205,8 @@ function SectionTable({
         </span>
       </h3>
       <div className="overflow-x-auto rounded-card border border-sap-border bg-card shadow-card">
-        <table className="w-full text-row">
+        {/* Fixed widths line the three tables' columns up. */}
+        <table className="w-full table-fixed text-row">
           <thead className="text-left text-meta text-ink-meta">
             <tr>
               <th scope="col" className="py-2.5 pl-5 pr-3 font-medium">
@@ -213,14 +214,17 @@ function SectionTable({
               </th>
               <th
                 scope="col"
-                className="hidden px-3 py-2.5 font-medium sm:table-cell"
+                className="hidden w-36 px-3 py-2.5 font-medium sm:table-cell"
               >
                 As of
               </th>
-              <th scope="col" className="px-3 py-2.5 text-right font-medium">
+              <th
+                scope="col"
+                className="w-[7.5rem] px-3 py-2.5 text-right font-medium sm:w-48"
+              >
                 {section.amountHeading}
               </th>
-              <th scope="col" className="py-2.5 pl-3 pr-4">
+              <th scope="col" className="w-[4.75rem] py-2.5 pl-3 pr-4 sm:w-40">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -288,7 +292,7 @@ function BalanceRow({
           dash
         )}
       </td>
-      <td className="whitespace-nowrap px-3 py-2.5 text-right">
+      <td className="px-3 py-2.5 text-right">
         {figure === null ? (
           dash
         ) : (
@@ -313,7 +317,7 @@ function BalanceRow({
               <TooltipTrigger
                 delay={0}
                 aria-label={lockText(opening.locked)}
-                className="inline-flex h-sap-ctl w-[var(--height-sap-ctl)] items-center justify-center rounded-control text-ink-meta outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 [&_svg]:size-4"
+                className="hidden h-sap-ctl w-[var(--height-sap-ctl)] items-center justify-center rounded-control text-ink-meta outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:inline-flex [&_svg]:size-4"
               >
                 <Lock />
               </TooltipTrigger>
@@ -321,12 +325,14 @@ function BalanceRow({
                 {lockText(opening.locked)}
               </TooltipContent>
             </Tooltip>
+            {/* On a phone, where there is no hover, the lock is the link. */}
             <Link
               to={`/tables/journals?filter[id][eq]=${opening.journal_id}`}
               aria-label={`Open the journal entry for ${account.name}`}
-              className="text-meta text-primary underline-offset-4 hover:underline"
+              className="inline-flex h-sap-ctl w-[var(--height-sap-ctl)] items-center justify-center rounded-control text-ink-meta outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:w-auto sm:text-meta sm:text-primary sm:underline-offset-4 sm:hover:underline [&_svg]:size-4"
             >
-              Journal entry
+              <Lock aria-hidden="true" className="sm:hidden" />
+              <span className="hidden sm:inline">Journal entry</span>
             </Link>
           </span>
         )}
