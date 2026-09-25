@@ -1,12 +1,12 @@
-import type {
-  AccountKind,
-  AddAccountCandidate,
-  AddAccountFields,
-  StatementAccounts,
+import {
+  knownInstitution,
+  type AccountKind,
+  type AddAccountCandidate,
+  type AddAccountFields,
+  type StatementAccounts,
 } from "../../shared/index";
 import {
   formLayout,
-  knownInstitution,
   newDraft,
   withInstitution,
   type StatementAccountDraft,

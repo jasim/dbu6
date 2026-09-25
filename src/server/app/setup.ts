@@ -4,7 +4,7 @@ import {
   type ChartAccount,
   type ChartRefusal,
 } from "../../shared/index.js";
-import { chartLlm } from "../modules/coding-agent/index.js";
+import { chartLlm, llmStatus } from "../modules/coding-agent/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import {
   createChart,
@@ -48,17 +48,7 @@ export default function setupApi(): TsRestApi<SapportaEnv> {
     setupContract.chartSuggester,
     async ({ c }) => {
       requireOwner(c);
-      const llm = await chartLlm();
-      return {
-        status: 200,
-        body: llm.caller.ready
-          ? { ready: true as const, name: llm.name }
-          : {
-              ready: false as const,
-              name: llm.name,
-              reason: llm.caller.reason,
-            },
-      };
+      return { status: 200, body: llmStatus(await chartLlm()) };
     },
   );
 

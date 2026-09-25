@@ -8,7 +8,6 @@ import {
   formLayout,
   newDraft,
   numberField,
-  knownInstitution,
   readDraft,
   refusalField,
   suggestedName,
@@ -141,16 +140,6 @@ describe("which fields the form shows", () => {
     expect(formLayout(draftOf(savings), DATA, savings).canUseExisting).toBe(
       false,
     );
-  });
-});
-
-describe("the bank typed", () => {
-  it("is the known one when only case or spaces differ", () => {
-    const banks = ["Sample Bank", "Other Bank"];
-    expect(knownInstitution(banks, "  sample   BANK ")).toBe("Sample Bank");
-    expect(knownInstitution(banks, " New  Bank ")).toBe("New Bank");
-    expect(knownInstitution(banks, "Sample Banking")).toBe("Sample Banking");
-    expect(knownInstitution(banks, " ")).toBe("");
   });
 });
 

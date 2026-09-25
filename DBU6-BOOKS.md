@@ -233,32 +233,43 @@ you couldn't encode.
     agent needs them: a file no parser reads or several do, or a refusal
     `/import` gives a prompt for.
   - `POST /api/add-account/add` takes one account's files again, with form
-    fields: `name` (a new account, under `parent_id`, by default the parent
-    most banks or cards of its kind share) or `account_id` (an Asset or
-    Liability from the chart that no bank or card uses); `institution`, the
-    bank's name, only when `institution_listed` is false; `kind` only when
-    it is `null`; and `opening_amount`, signed, only when `needs_opening`.
-    An `empty` account needs only `opening_amount`, when asked. In order,
-    each step refusing before the next writes, it checks the files as the
-    import would, makes
-    the ledger account and its preset entry (for an `empty` one, lists the
-    parser and number it lacks), records the opening balance unless the
-    account has one that agrees, and imports the files as `/import` does,
-    categorization included. It replies `account_id`, `account_name` and
-    `drafts`. A refusal has a `code` and an `error`: `several_accounts`
-    (the files are two accounts'; add one at a time), `already_in_books`,
+    fields: `name` (a new account, under `parent_id`) or `account_id` (an
+    Asset or Liability from the chart that no bank or card uses);
+    `institution`, the bank's name, only when `institution_listed` is false
+    (a preset institution of that name, whatever its case and spacing, is
+    the one used); `kind` only when it is `null`; and `opening_amount`,
+    signed, only when `needs_opening`. `parent_id` defaults to the parent
+    most banks or cards of the kind share; for the first bank or card of
+    its kind there is none, so send it, picked with the user from
+    `parents.bank` or `parents.card` of
+    `sapporta api get /api/setup/statement-accounts` (else "Pick a group
+    for it."). An `empty` account needs only `opening_amount`, when asked.
+    In order, each step refusing before the next writes, it checks the
+    files as the import would, makes the ledger account and its preset
+    entry (for an `empty` one, lists the parser and number it lacks),
+    records the opening balance unless the account has one that agrees,
+    and imports the files as `/import` does, categorization included. It
+    replies `account_id`, `account_name` and `drafts`. A refusal has a
+    `code` and an `error`; among them `several_accounts` (the files are two
+    accounts'; add one at a time), `already_in_books`,
     `opening_balance_needed`, `opening_after_statement_start` (the
     account's opening entry is dated on or after the first row),
     `opening_disagrees` (dated the day before, at another balance),
     `activity_before_statement` (another account's import put a
-    transaction on it before the statements start), or `import_refused`
+    transaction on it before the statements start), and `import_refused`
     with the import's own `import_error`. Only the import's own last step
     (duplicates, the categorizer failing) can leave an account set up with
     no transactions; dropping its files again finishes it, as `empty`.
+  - For example, read a drop, then add it as a new account:
+    `mise exec -- sh -c 'curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/add-account/read" -F "files=@<path>" -F "files=@<path>"'`,
+    then
+    `mise exec -- sh -c 'curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/add-account/add" -F "files=@<path>" -F "files=@<path>" -F "name=<account name>" -F "parent_id=<id>" -F "opening_amount=<signed>"'`,
+    leaving out `opening_amount` unless the read said `needs_opening`.
 
-  To set a bank or card up without its statements, the endpoint `/add`
-  uses makes the ledger account and its preset entry in one transaction,
-  adding the institution when it is new; a refusal leaves neither:
+  To set a bank or card up without its statements, the endpoint behind
+  Settings › Banks & cards makes the ledger account and its preset entry in
+  one transaction, adding the institution when it is new; a refusal leaves
+  neither:
   `sapporta api post /api/setup/statement-accounts --body '{"action":"create","kind":"bank","institution":"…","identifier":"<number or null>","ledger":{"source":"new","name":"…","parent_id":<id>}}'`.
   Its statements, dropped at `/add` later, find it (`empty`).
   - `kind` is `bank` (an Asset) or `card` (a Liability, `is_credit_card`),

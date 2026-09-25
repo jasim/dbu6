@@ -17,7 +17,7 @@ import {
 import { recordOpeningBalance } from "./opening-balances.js";
 
 /*
- * The setup wizard's banks and cards: each one a ledger account and a preset
+ * Banks and cards: each one a ledger account and a preset
  * entry, written together. Assets (1) has Bank Accounts (2) and Cash (7)
  * under it, Liabilities (3) has Credit Cards (4), and Expenses (5) has
  * Groceries (6). user-config/ has the default instructions file.

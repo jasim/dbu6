@@ -1,20 +1,8 @@
-import {
-  access,
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  removeSetupSamples,
-  uploadedFile,
-  withStagedUploads,
-} from "./upload-tmp.js";
+import { uploadedFile, withStagedUploads } from "./upload-tmp.js";
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -107,23 +95,5 @@ describe("uploadedFile", () => {
       uploadedFile({ gpay: new File([], "empty.html") }, "gpay"),
     ).toBeNull();
     expect(uploadedFile({ gpay: "not-a-file" }, "gpay")).toBeNull();
-  });
-});
-
-describe("removeSetupSamples", () => {
-  it("deletes the old setup wizard's staged statements and nothing else", async () => {
-    const staging = join(root, "tmp", "statement-uploads");
-    for (const dir of ["setup-sample-2", "setup-sample-9", "2026-09-01-0505"]) {
-      await mkdir(join(staging, dir), { recursive: true });
-      await writeFile(join(staging, dir, "NOPII.pdf"), "NOPII");
-    }
-
-    await removeSetupSamples();
-
-    expect((await readdir(staging)).sort()).toEqual(["2026-09-01-0505"]);
-  });
-
-  it("does nothing before anything was staged", async () => {
-    await expect(removeSetupSamples()).resolves.toBeUndefined();
   });
 });

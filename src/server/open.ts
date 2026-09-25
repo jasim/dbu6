@@ -53,7 +53,12 @@ export async function openDbu6(options: OpenDbu6Options): Promise<Dbu6App> {
     loadCategorizer: project.config.loadCategorizer,
   });
   try {
-    await removeSetupSamples();
+    // Best-effort: a copy left behind never stops the server.
+    await removeSetupSamples().catch((error: unknown) => {
+      console.warn(
+        `[upload-staging] couldn't delete the old setup wizard's staged statements: ${String(error)}`,
+      );
+    });
     return await mountDbu6(runtime, project, options.appDir);
   } catch (error) {
     // A project file that fails to load must not leave the database open.

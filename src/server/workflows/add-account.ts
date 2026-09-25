@@ -8,13 +8,14 @@ import {
   type AddAccountFields,
   type AddAccountFile,
   type AddAccountRefusal,
-  type CategorizerStatus,
   type ImportAccount,
   type ImportInstitution,
   type StatementAccount,
+  type LlmStatus,
   type StatementAccountChange,
-  type StatementAccountRefusal,
   type StatementOpening,
+  knownInstitution,
+  tidyBankName,
 } from "../../shared/index.js";
 import {
   findOpeningBalancesAccount,
@@ -22,7 +23,7 @@ import {
   loadLedgerAccounts,
 } from "../modules/accounts/index.js";
 import type { LoadCategorizer } from "../modules/categorization/index.js";
-import { categorizationLlm } from "../modules/coding-agent/index.js";
+import { categorizationLlm, llmStatus } from "../modules/coding-agent/index.js";
 import { loadDraftStatus } from "../modules/drafts/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import {
@@ -68,14 +69,17 @@ import {
  * to onboarding: the files are read as /import reads them, and added with
  * /import's own import at the end.
  *
- *   readStatements                    /import's recognition and plan, no writes
+ *   readDrop                          /import's recognition, no writes
  *     per file: savedCustomStatementParserNames, recognizeStatementFile
  *     -> groupDrop                       pure: one group per account
+ *     -> placed                          new, empty or in_books
+ *
+ *   readStatements                    readDrop, then per group describeGroup:
  *     -> checkStatements                 opening, rows, the opening to record,
  *                                        the import's refusal
  *
- *   addAccount                        the same reading; then in order, each
- *                                     step refusing before the next writes:
+ *   addAccount                        readDrop; then in order, each step
+ *                                     refusing before the next writes:
  *     1  checkBeforeWriting              checkStatements, and the config the
  *                                        writes need
  *     2  new:   changeStatementAccount   the account and its preset, with the
@@ -112,7 +116,7 @@ export interface DropReading {
   // the drop.
   files: AddAccountFile[];
   accounts: CandidateReading[];
-  categorizer: CategorizerStatus;
+  categorizer: LlmStatus;
 }
 
 // A file one parser read, under the name it was dropped as.
@@ -207,15 +211,26 @@ function firstDate(statement: RecognizedStatement): string {
   return statement.statement.transactions[0]?.date ?? "~";
 }
 
-// One group, read: what the reply says of it, and what adding needs.
-interface Share {
-  candidate: CandidateReading;
+/** A preset account and the institution that lists it. */
+interface PresetHome {
+  institution: ImportInstitution;
+  account: ImportAccount;
+}
+
+/**
+ * One account's files in a drop, and where they go: a bank or card the
+ * presets list (`home`, with its ledger name, null when the books deleted
+ * it), or a new one, with the institution that lists one of its parsers,
+ * if any, and the bank as the reply names it.
+ */
+interface PlacedGroup {
+  key: string;
   statements: RecognizedStatement[];
-  // The institution that lists one of its parsers, if any: the account's
-  // own for `empty` and `in_books`.
-  lister: ImportInstitution | null;
-  // The preset account, for `empty` and `in_books`.
-  preset: ImportAccount | null;
+  parsers: string[];
+  printed: StatementAccount | null;
+  place:
+    | { status: "new"; lister: ImportInstitution | null; institution: string }
+    | { status: "empty" | "in_books"; home: PresetHome; name: string | null };
 }
 
 /** What the dropped files are, as /import would take them. Writes nothing. */
@@ -223,18 +238,22 @@ export async function readStatements(
   ledger: Ledger,
   files: readonly DroppedStatement[],
 ): Promise<DropReading> {
-  const { files: read, shares } = await readDrop(ledger, files);
+  const drop = await readDrop(ledger, files);
   return {
-    files: read,
-    accounts: shares.map((share) => share.candidate),
-    categorizer: await categorizerStatus(),
+    files: drop.files,
+    accounts: drop.groups.map((group) => describeGroup(ledger, group)),
+    categorizer: llmStatus(await categorizationLlm()),
   };
 }
 
+/*
+ * The recognition and placing both endpoints share: each file as the reply
+ * lists it, and the read files by the account they go to, earliest first.
+ */
 async function readDrop(
   ledger: Ledger,
   files: readonly DroppedStatement[],
-): Promise<{ files: AddAccountFile[]; shares: Share[] }> {
+): Promise<{ files: AddAccountFile[]; groups: PlacedGroup[] }> {
   const recognitions: FileRecognition[] = [];
   for (const file of files) {
     const parsers = await savedCustomStatementParserNames(extname(file.path));
@@ -289,91 +308,115 @@ async function readDrop(
       one.name,
     ]),
   );
-  const shares = groups.map(({ key, accountId, statements }): Share => {
-    const common = {
+  const placed = groups.map(({ key, accountId, statements }): PlacedGroup => {
+    const group = {
       key,
+      statements,
       parsers: [...new Set(statements.map((one) => one.parserName))],
-      file_names: statements.map((one) => one.file),
-      identifier: printedAccount(statements)?.identifier ?? null,
-      period: periodOf(statements.map((one) => one.statement)),
+      printed:
+        statements.find((one) => one.statement.account)?.statement.account ??
+        null,
     };
     const home = accountId === null ? null : presetHome(presets, accountId);
-
     if (home === null) {
       const lister =
         presets.find((one) =>
-          common.parsers.some((parser) => one.parsers.includes(parser)),
+          group.parsers.some((parser) => one.parsers.includes(parser)),
         ) ?? null;
       const printedName = statements.find((one) => one.statement.institution)
         ?.statement.institution;
-      const kind = printedAccount(statements)?.kind ?? null;
-      const checked = checkStatements(
-        ledger,
-        // A statement that prints no number doesn't say bank or card, so it
-        // is checked here as a bank's; a refusal only a card gets (no
-        // closing) shows at `add`, which checks it as the kind the user says.
-        { id: null, name: "New account", kind: kind ?? "bank" },
-        statements,
-        null,
-      );
       return {
-        candidate: {
-          ...common,
+        ...group,
+        place: {
           status: "new",
-          account: null,
+          lister,
           institution:
             lister?.name ??
-            knownSpelling(presets, tidyBankName(printedName ?? "")),
-          institution_listed: lister !== null,
-          kind,
-          ...reported(checked),
-          refusal: checked.importRefusal,
+            knownInstitution(
+              presets.map((one) => one.name),
+              tidyBankName(printedName ?? ""),
+            ),
         },
-        statements,
-        lister,
-        preset: null,
       };
     }
-
-    const { institution, account } = home;
-    const name = ledgerNames.get(account.account_id);
-    const kind = accountKindOf(account.is_credit_card);
-    const checked = checkStatements(
-      ledger,
-      { id: account.account_id, name: name ?? account.name, kind },
-      statements,
-      null,
-    );
+    const id = home.account.account_id;
     return {
-      candidate: {
-        ...common,
-        status: hasTransactions(activity(account.account_id))
-          ? "in_books"
-          : "empty",
-        account: { id: account.account_id, name: name ?? account.name },
-        institution: institution.name,
-        institution_listed: true,
-        kind,
-        ...reported(checked),
-        refusal:
-          name === undefined
-            ? new AccountNotFoundError(account.name, account.account_id)
-            : checked.importRefusal,
+      ...group,
+      place: {
+        status: hasTransactions(activity(id)) ? "in_books" : "empty",
+        home,
+        name: ledgerNames.get(id) ?? null,
       },
-      statements,
-      lister: institution,
-      preset: account,
     };
   });
 
   // Earliest first; those with no rows last.
-  shares.sort(
-    (a, b) =>
-      (a.candidate.period?.first_date ?? "~").localeCompare(
-        b.candidate.period?.first_date ?? "~",
-      ) || a.candidate.key.localeCompare(b.candidate.key),
+  const first = (group: PlacedGroup) =>
+    periodOf(group.statements.map((one) => one.statement))?.first_date ?? "~";
+  placed.sort(
+    (a, b) => first(a).localeCompare(first(b)) || a.key.localeCompare(b.key),
   );
-  return { files: rows, shares };
+  return { files: rows, groups: placed };
+}
+
+// A placed group as the read's reply gives it, checked as the import would.
+function describeGroup(ledger: Ledger, group: PlacedGroup): CandidateReading {
+  const { key, statements, parsers, printed, place } = group;
+  const common = {
+    key,
+    parsers,
+    file_names: statements.map((one) => one.file),
+    identifier: printed?.identifier ?? null,
+    period: periodOf(statements.map((one) => one.statement)),
+  };
+  if (place.status === "new") {
+    const checked = checkStatements(
+      ledger,
+      // A statement that prints no number doesn't say bank or card, so it
+      // is checked here as a bank's; a refusal only a card gets (no
+      // closing) shows at `add`, which checks it as the kind the user says.
+      { id: null, name: "New account", kind: printed?.kind ?? "bank" },
+      statements,
+      null,
+    );
+    return {
+      ...common,
+      status: "new",
+      account: null,
+      institution: place.institution,
+      institution_listed: place.lister !== null,
+      kind: printed?.kind ?? null,
+      ...reported(checked),
+      refusal: checked.importRefusal,
+    };
+  }
+  const { home, name } = place;
+  const account = {
+    id: home.account.account_id,
+    name: name ?? home.account.name,
+  };
+  const kind = accountKindOf(home.account.is_credit_card);
+  const checked = checkStatements(
+    ledger,
+    { ...account, kind },
+    statements,
+    null,
+  );
+  return {
+    ...common,
+    status: place.status,
+    account,
+    institution: home.institution.name,
+    institution_listed: true,
+    kind,
+    ...reported(checked),
+    refusal: name === null ? accountGone(home) : checked.importRefusal,
+  };
+}
+
+// Why no statement can go into a preset account the books deleted.
+function accountGone({ account }: PresetHome): AccountNotFoundError {
+  return new AccountNotFoundError(account.name, account.account_id);
 }
 
 // What the reply says of a check but the import's refusal: the opening, the
@@ -395,25 +438,6 @@ function reported(
         ? null
         : { code: refused.code, error: refused.error },
   };
-}
-
-function printedAccount(
-  statements: readonly RecognizedStatement[],
-): StatementAccount | null {
-  return (
-    statements.find((one) => one.statement.account)?.statement.account ?? null
-  );
-}
-
-// A preset institution's own spelling of a name, when one has it.
-function knownSpelling(
-  presets: readonly ImportInstitution[],
-  name: string,
-): string {
-  return (
-    presets.find((one) => one.name.toLowerCase() === name.toLowerCase())
-      ?.name ?? name
-  );
 }
 
 function periodOf(
@@ -534,54 +558,6 @@ export function statementOpening(
 }
 
 /*
- * The bank's name as a statement prints it, tidied for the presets:
- * "Ltd", "Ltd." and "Limited" go, and so does trailing punctuation. An
- * all-caps word longer than four letters is title-cased ("STANDARD" is
- * "Standard"); a shorter one is kept as an acronym ("HDFC", "SBI"), except
- * the words a bank's name is made of ("BANK" is "Bank"; "OF" is "of", and
- * "The" when it leads). Words printed in mixed case are kept as printed.
- */
-const COMPANY_SUFFIX = /^(ltd|limited)\.?$/i;
-const COMMON_WORDS = new Map([
-  ["BANK", "Bank"],
-  ["CARD", "Card"],
-  ["CARDS", "Cards"],
-]);
-const JOINING_WORDS = new Set(["OF", "AND", "THE", "FOR"]);
-
-export function tidyBankName(printed: string): string {
-  const words = printed
-    .split(/\s+/)
-    .map((word) => word.replace(/[,;:]+$/, ""))
-    .filter((word) => word !== "" && !COMPANY_SUFFIX.test(word));
-  return words
-    .map((word, index) => {
-      const letters = word.replace(/[^A-Za-z]/g, "");
-      if (letters === "" || letters !== letters.toUpperCase()) return word;
-      const common = COMMON_WORDS.get(letters);
-      if (common !== undefined) return word.replace(letters, common);
-      if (JOINING_WORDS.has(letters)) {
-        return index > 0 ? word.toLowerCase() : titleCase(word);
-      }
-      return letters.length <= 4 ? word : titleCase(word);
-    })
-    .join(" ")
-    .replace(/[\s.,;:\-–—]+$/, "");
-}
-
-function titleCase(word: string): string {
-  return word.toLowerCase().replace(/[a-z]/, (first) => first.toUpperCase());
-}
-
-// Who categorizes an import: the engine the import itself asks.
-async function categorizerStatus(): Promise<CategorizerStatus> {
-  const llm = await categorizationLlm();
-  return llm.caller.ready
-    ? { ready: true, name: llm.name }
-    : { ready: false, name: llm.name, reason: llm.caller.reason };
-}
-
-/*
  * Adding the one account the dropped files belong to.
  */
 
@@ -633,44 +609,44 @@ export async function addAccount(
       `dbu6 can't read ${unreadable.map((file) => file.file_name).join(", ")} yet. Teach it the format, then drop the files again.`,
     );
   }
-  if (drop.shares.length !== 1) {
+  if (drop.groups.length !== 1) {
     return refused(
       "several_accounts",
-      `These are from ${drop.shares.map((share) => candidateName(share.candidate)).join(" and ")}. Add one account's statements at a time.`,
+      `These are from ${drop.groups.map(groupName).join(" and ")}. Add one account's statements at a time.`,
     );
   }
-  const [{ candidate, statements, lister, preset }] = drop.shares;
+  const [group] = drop.groups;
+  const { statements, place } = group;
   const openingAmount = fields.opening_amount ?? null;
 
-  switch (candidate.status) {
+  switch (place.status) {
     case "in_books":
       return refused(
         "already_in_books",
-        `${candidateName(candidate)} is already in your books. Import its statements on the Import page.`,
+        `${groupName(group)} is already in your books. Import its statements on the Import page.`,
       );
 
     case "empty": {
-      const account = candidate.account!;
+      const { home } = place;
+      const account = {
+        id: home.account.account_id,
+        name: place.name ?? home.account.name,
+      };
       if (fields.account_id !== undefined && fields.account_id !== account.id) {
         return refused(
           "account_not_suitable",
           `These statements are ${account.name}'s, already one of your banks and cards.`,
         );
       }
-      if (candidate.refusal instanceof AccountNotFoundError) {
-        return refused(
-          "opening_balance_refused",
-          openingRefusal("account-not-found"),
-        );
-      }
+      if (place.name === null) return importRefused(accountGone(home));
       const checked = await checkBeforeWriting(
         ledger,
         loadCategorizer,
         {
           id: account.id,
           name: account.name,
-          kind: candidate.kind!,
-          mappingFiles: preset!.custom_mappings_filenames,
+          kind: accountKindOf(home.account.is_credit_card),
+          mappingFiles: home.account.custom_mappings_filenames,
         },
         statements,
         openingAmount,
@@ -682,16 +658,16 @@ export async function addAccount(
       const changes = [
         ...changesListingParsers(
           loadImportPresets(ledger.db, ledger.auth),
-          lister!.name,
-          candidate.parsers,
+          home.institution.name,
+          group.parsers,
         ),
-        ...(candidate.identifier !== null &&
-        preset!.account_identifiers.length === 0
+        ...(group.printed !== null &&
+        home.account.account_identifiers.length === 0
           ? [
               {
                 kind: "update_account" as const,
                 account_id: account.id,
-                account_identifiers: [candidate.identifier],
+                account_identifiers: [group.printed.identifier],
               },
             ]
           : []),
@@ -712,9 +688,17 @@ export async function addAccount(
     }
 
     case "new": {
-      const kind = candidate.kind ?? fields.kind;
-      // A parser belongs to one institution: the one listing it wins.
-      const institution = lister?.name ?? fields.institution;
+      const kind = group.printed?.kind ?? fields.kind;
+      // A parser belongs to one institution: the one listing it wins. A
+      // bank named is the preset institution of that name, if any.
+      const institution =
+        place.lister?.name ??
+        (fields.institution === undefined
+          ? undefined
+          : knownInstitution(
+              loadImportPresets(ledger.db, ledger.auth).map((one) => one.name),
+              fields.institution,
+            ));
       if (kind === undefined) {
         return refused(
           "invalid_fields",
@@ -782,16 +766,13 @@ export async function addAccount(
           action: "create",
           kind,
           institution,
-          identifier: candidate.identifier,
+          identifier: group.printed?.identifier ?? null,
           ledger: ledgerChoice,
         },
-        { parsers: candidate.parsers },
+        { parsers: group.parsers },
       );
       if (!created.ok) {
-        return refused(
-          creationCode(created.problem.code),
-          created.problem.message,
-        );
+        return refused(created.problem.code, created.problem.message);
       }
       return importAdded(
         ledger,
@@ -805,26 +786,10 @@ export async function addAccount(
 }
 
 // The account as a refusal names it.
-function candidateName(candidate: CandidateReading): string {
-  if (candidate.account !== null) return candidate.account.name;
-  const bank = candidate.institution || "a bank";
-  return candidate.identifier === null
-    ? bank
-    : `${bank} ${candidate.identifier}`;
-}
-
-// A create refuses with none of the codes only a change or a removal gives,
-// nor an invalid number: the statement's is canonical.
-function creationCode(
-  code: StatementAccountRefusal["code"],
-): AddAccountRefusal["code"] {
-  switch (code) {
-    case "identifier_invalid":
-    case "account_has_transactions":
-      throw new Error(`Creating a bank or card refused with ${code}.`);
-    default:
-      return code;
-  }
+function groupName({ place, printed }: PlacedGroup): string {
+  if (place.status !== "new") return place.name ?? place.home.account.name;
+  const bank = place.institution || "a bank";
+  return printed === null ? bank : `${bank} ${printed.identifier}`;
 }
 
 /*
@@ -870,7 +835,7 @@ async function checkBeforeWriting(
   ) {
     return refused(
       "opening_balance_refused",
-      openingRefusal("opening-balances-not-equity"),
+      "Your books have an account named Opening Balances that isn't Equity. Rename it on the Accounts page.",
     );
   }
 
@@ -910,9 +875,14 @@ async function importAdded(
       date: opening.date,
       amount: opening.amount,
     });
-    // Recorded meanwhile by another request: the statements go in on it.
+    // `checkBeforeWriting` ruled out the rest, so only a request racing
+    // this one gets here. One that recorded the opening meanwhile is fine:
+    // the statements go in on it.
     if (recorded.kind !== "recorded" && recorded.kind !== "already-recorded") {
-      return refused("opening_balance_refused", openingRefusal(recorded.kind));
+      return refused(
+        "opening_balance_refused",
+        "Your books changed while the account was being added, so its opening balance wasn't recorded. Drop its statements again.",
+      );
     }
   }
 
@@ -1050,7 +1020,7 @@ function openingToRecord(
 function presetHome(
   presets: readonly ImportInstitution[],
   accountId: number,
-): { institution: ImportInstitution; account: ImportAccount } | null {
+): PresetHome | null {
   for (const institution of presets) {
     const account = institution.accounts.find(
       (one) => one.account_id === accountId,
@@ -1058,26 +1028,6 @@ function presetHome(
     if (account !== undefined) return { institution, account };
   }
   return null;
-}
-
-/** The words for an opening entry the import couldn't post. */
-function openingRefusal(
-  kind:
-    | "account-not-found"
-    | "not-asset-or-liability"
-    | "date-not-before-first-activity"
-    | "opening-balances-not-equity",
-): string {
-  switch (kind) {
-    case "account-not-found":
-      return "The account was deleted from your books.";
-    case "not-asset-or-liability":
-      return "The account isn't an asset or a liability, so it takes no opening balance.";
-    case "date-not-before-first-activity":
-      return "The account has transactions before this statement starts.";
-    case "opening-balances-not-equity":
-      return "Your books have an account named Opening Balances that isn't Equity. Rename it on the Accounts page.";
-  }
 }
 
 // An amount as the screens show one, in a refusal's words.

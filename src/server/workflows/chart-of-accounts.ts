@@ -40,14 +40,15 @@ export function hasChart(ledger: Pick<Ledger, "sqlite" | "auth">): boolean {
 
 /** The starter chart for books with no accounts, or the books' own chart. */
 export function loadChartOfAccounts(ledger: Ledger): ChartOfAccounts {
-  if (!hasChart(ledger)) {
+  const accounts = loadAccountChart(ledger.db, ledger.auth);
+  // `hasChart`'s rule, on the accounts in hand.
+  if (accounts.length === 0) {
     return {
       state: "new",
       starter: { accounts: [...STARTER_CHART] },
       unticked: [...STARTER_UNTICKED],
     };
   }
-  const accounts = loadAccountChart(ledger.db, ledger.auth);
   const names = new Map(accounts.map((account) => [account.id, account.name]));
   return {
     state: "existing",
@@ -82,10 +83,9 @@ export function createChart(
   if (!valid.ok) {
     return { ok: false, code: "invalid_chart", problems: valid.problems };
   }
-  // better-sqlite3 runs the transaction on the one connection, so
-  // `hasChart` reads what it writes against.
   return ledger.db.transaction((tx: any): ChartCreation => {
-    if (hasChart(ledger)) {
+    // `hasChart`'s rule, read inside the transaction it writes in.
+    if (loadAccountChart(tx, ledger.auth).length > 0) {
       return {
         ok: false,
         code: "books_have_accounts",

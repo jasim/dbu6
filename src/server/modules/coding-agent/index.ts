@@ -4,6 +4,7 @@
 // Import from here rather than from the files.
 export { categorizationLlm, llmEngineSetting } from "./categorization-llm.js";
 export { chartLlm } from "./chart-llm.js";
+export { llmStatus } from "./llm-status.js";
 export {
   CodingAgentError,
   NoCodingAgentError,

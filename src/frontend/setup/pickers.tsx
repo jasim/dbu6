@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Combobox, comboboxClassNames } from "@sapporta/ui/combobox";
 import { cn } from "@sapporta/ui/cn";
-import type { ChartChoice } from "../../shared/index";
-import { knownInstitution } from "./statement-account-form";
+import { knownInstitution, type ChartChoice } from "../../shared/index";
 
 /*
  * The banks-and-cards form's two searchable pickers, on Base UI's Combobox
