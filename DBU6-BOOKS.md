@@ -221,14 +221,22 @@ category ("Categorise these" above), and restart a server started with
     accounts a starter chart, and `POST` with `{"accounts":[…]}` creates one,
     each account naming its parent by name. It refuses books that have any
     account.
-  - `sapporta api get /api/setup/statement-formats` says which accounts
-    still need a sample statement. The screen sends one to
+  - `sapporta api get /api/setup/first-statements` gives each bank or card's
+    first statement: `needs_statement`, `read` (a staged statement a saved
+    parser reads, with its period, row count, opening balance and the preset
+    `changes` importing makes), `unreadable` (one no parser reads, at
+    `saved_path`) or `imported`. The screen stages one with
     `POST /api/setup/sample-statement` (multipart `file` and `account_id`),
-    which writes nothing: a recognized sample comes back with the preset
-    `changes` that tie the account to its parser, for
-    `/api/import-presets/changes`. One no parser reads stays in
-    `tmp/statement-uploads/setup-sample-<account id>/` until a parser reads
-    it.
+    which writes nothing to the books and replaces any earlier one in
+    `tmp/statement-uploads/setup-sample-<account id>/`.
+  - `POST /api/setup/first-statement` with `{"account_id":<id>}` reads the
+    staged statement again, applies its preset changes, records the opening
+    balance (the statement's; `"opening_amount":<signed>` when it prints no
+    balances, else `opening_balance_needed`) unless the account has one,
+    and imports it as `/api/import-draft/statements/auto` does, replying the
+    same way. A number that differs from the account's is replaced only with
+    `"use_statement_number":true` (else `numbers_differ`). The staged file is
+    deleted once imported and kept when the import fails.
 - **Opening balance.**
   The Opening balances screen (`/opening-balances`, linked from Settings)
   records it; send the user there. Its endpoint does the same:

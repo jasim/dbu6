@@ -4,6 +4,10 @@ import { errorBodySchema } from "@sapporta/shared/contracts";
 import { accountKindSchema } from "./account-kind.js";
 import { dateSpanSchema } from "./date-span.js";
 import {
+  autoImportErrorSchema,
+  autoImportResultSchema,
+} from "./import-drafts.js";
+import {
   importPresetChangeSchema,
   importPresetRefusalCodeSchema,
 } from "./import-presets.js";
@@ -12,7 +16,7 @@ const c = initContract();
 
 /*
  * The account setup wizard at /setup: the chart of accounts, the banks and
- * cards statements come from, and each one's statement format. The wizard
+ * cards statements come from, and each one's first statement. The wizard
  * keeps no state of its own; where it stands is read from the books.
  */
 
@@ -276,65 +280,53 @@ export type StatementAccountRefusal = z.infer<
   typeof statementAccountRefusalSchema
 >;
 
-// Step 3: each bank or card's statement format, set up from one sample
-// statement. The sample only sets up the format; nothing in it is imported.
-export const statementFormatStatusSchema = z.enum([
-  // Its institution lists a parser and it has an identifier.
-  "ready",
-  // Anything else, with no sample waiting.
-  "needs_sample",
-  // A sample no saved parser read is staged for a coding agent.
-  "waiting_for_parser",
-]);
-export type StatementFormatStatus = z.infer<typeof statementFormatStatusSchema>;
+// Step 3: a first statement for each bank or card. dbu6 reads it with the
+// saved parsers, which sets up the format its statements come in, takes the
+// account's opening balance from it, and imports it. The uploaded statement
+// is staged until it is imported.
 
-export const statementFormatRowSchema = z.object({
-  account_id: z.number().int(),
-  name: z.string(),
-  kind: accountKindSchema,
+// The balance the account opened at, the day before the statement's first
+// row: the statement's own opening, else its first printed balance less the
+// rows up to it. Ledger sign: positive when held, negative when owed.
+export const statementOpeningSchema = z.object({
+  date: z.string(),
+  // Null when the statement prints no balances, and the user gives it.
+  amount: z.number().nullable(),
+});
+export type StatementOpening = z.infer<typeof statementOpeningSchema>;
+
+export const recognizedFindingSchema = z.object({
+  outcome: z.literal("recognized"),
+  parser: z.string(),
+  // The number the statement prints about itself, canonical; null when
+  // it prints none.
+  printed_identifier: z.string().nullable(),
+  // The institution's name as the statement prints it, for reading only.
+  printed_institution: z.string().nullable(),
+  // The statement's first and last dates.
+  period: dateSpanSchema.nullable(),
+  transactions: z.number().int(),
+  // Null for a statement with no rows.
+  opening: statementOpeningSchema.nullable(),
+  // The account has an opening entry already, so importing records none.
+  has_opening_entry: z.boolean(),
+  // The institution that lists the parser now, if any.
+  parser_institution: z.string().nullable(),
+  // The account's institution after the changes.
   institution: z.string(),
-  // The parsers the institution lists.
-  parsers: z.array(z.string()),
-  account_identifiers: z.array(z.string()),
-  status: statementFormatStatusSchema,
-  // The staged sample's path in the project, for a coding agent; null with
-  // none.
-  staged_sample: z.string().nullable(),
+  // Whether the account moves to the institution listing the parser: a
+  // parser belongs to one institution.
+  moves: z.boolean(),
+  identifier_state: z.enum(["none_printed", "set", "same", "different"]),
+  // The preset changes importing makes, with the statement's number where
+  // the account has another. The server derives them again when it imports.
+  changes: z.array(importPresetChangeSchema),
 });
-export type StatementFormatRow = z.infer<typeof statementFormatRowSchema>;
+export type RecognizedFinding = z.infer<typeof recognizedFindingSchema>;
 
-export const statementFormatsSchema = z.object({
-  accounts: z.array(statementFormatRowSchema),
-});
-export type StatementFormats = z.infer<typeof statementFormatsSchema>;
-
-// What a sample statement showed. Recognizing it writes nothing: the
-// changes are what "Use this" posts to POST /import-presets/changes.
-export const sampleFindingSchema = z.discriminatedUnion("outcome", [
-  z.object({
-    outcome: z.literal("recognized"),
-    parser: z.string(),
-    // The number the statement prints about itself, canonical; null when
-    // it prints none.
-    printed_identifier: z.string().nullable(),
-    // The institution's name as the statement prints it, for reading only.
-    printed_institution: z.string().nullable(),
-    // The sample's first and last dates; the first sets the opening
-    // balance's default date.
-    period: dateSpanSchema.nullable(),
-    // The institution that lists the parser now, if any.
-    parser_institution: z.string().nullable(),
-    // The account's institution after the changes.
-    institution: z.string(),
-    // Whether the account moves to the institution listing the parser: a
-    // parser belongs to one institution.
-    moves: z.boolean(),
-    identifier_state: z.enum(["none_printed", "set", "same", "different"]),
-    // With the statement's number where the account has another.
-    changes: z.array(importPresetChangeSchema),
-    // Keeping the account's own number, on a mismatch; null otherwise.
-    keep_mine: z.array(importPresetChangeSchema).nullable(),
-  }),
+// A statement no saved parser reads, or more than one does. It stays
+// staged at `saved_path` (in the project) for a coding agent.
+const unreadableFindingSchema = z.discriminatedUnion("outcome", [
   z.object({
     outcome: z.literal("unrecognized"),
     saved_path: z.string(),
@@ -347,6 +339,13 @@ export const sampleFindingSchema = z.discriminatedUnion("outcome", [
     parsers: z.array(z.string()),
   }),
 ]);
+export type UnreadableFinding = z.infer<typeof unreadableFindingSchema>;
+
+// What a statement showed. Reading one writes nothing to the books.
+export const sampleFindingSchema = z.union([
+  recognizedFindingSchema,
+  unreadableFindingSchema,
+]);
 export type SampleFinding = z.infer<typeof sampleFindingSchema>;
 
 export const sampleRefusalSchema = z.object({
@@ -356,10 +355,96 @@ export const sampleRefusalSchema = z.object({
     "missing_multipart_field",
     // No preset lists the account.
     "unknown_account",
-    // Check again, with no staged sample for the account.
+    // Check again, with no staged statement for the account.
     "no_staged_sample",
   ]),
 });
+
+// What a bank or card holds so far: posted entries (its opening entry left
+// out) and drafts from its own statements, of which `uncategorized` have no
+// category yet.
+export const statementActivitySchema = z.object({
+  entries: z.number().int(),
+  drafts: z.number().int(),
+  uncategorized: z.number().int(),
+});
+export type StatementActivity = z.infer<typeof statementActivitySchema>;
+
+const firstStatementBaseSchema = z.object({
+  account_id: z.number().int(),
+  name: z.string(),
+  kind: accountKindSchema,
+  institution: z.string(),
+  account_identifiers: z.array(z.string()),
+  activity: statementActivitySchema,
+});
+
+// One bank or card, in exactly one state, read from the books and the
+// staged statement: nothing yet; a staged statement a saved parser reads;
+// one none reads, or several do; or transactions in the books.
+export const firstStatementRowSchema = z.discriminatedUnion("status", [
+  firstStatementBaseSchema.extend({ status: z.literal("needs_statement") }),
+  firstStatementBaseSchema.extend({
+    status: z.literal("read"),
+    finding: recognizedFindingSchema,
+  }),
+  firstStatementBaseSchema.extend({
+    status: z.literal("unreadable"),
+    finding: unreadableFindingSchema,
+  }),
+  firstStatementBaseSchema.extend({ status: z.literal("imported") }),
+]);
+export type FirstStatementRow = z.infer<typeof firstStatementRowSchema>;
+export type FirstStatementStatus = FirstStatementRow["status"];
+
+// Who categorizes an import, or why nobody can: the check categorization
+// itself makes.
+export const categorizerStatusSchema = z.discriminatedUnion("ready", [
+  z.object({ ready: z.literal(true), name: z.string() }),
+  z.object({ ready: z.literal(false), name: z.string(), reason: z.string() }),
+]);
+export type CategorizerStatus = z.infer<typeof categorizerStatusSchema>;
+
+export const firstStatementsSchema = z.object({
+  categorizer: categorizerStatusSchema,
+  // In the order the banks and cards step lists them.
+  accounts: z.array(firstStatementRowSchema),
+});
+export type FirstStatements = z.infer<typeof firstStatementsSchema>;
+
+export const firstStatementRequestSchema = z.object({
+  account_id: z.number().int().positive(),
+  // What the account held the day before the statement's first row, ledger
+  // sign; used only when the statement prints no balances.
+  opening_amount: z.number().finite().optional(),
+  // The user accepted the statement's number over the one they typed.
+  use_statement_number: z.boolean().optional(),
+});
+export type FirstStatementRequest = z.infer<typeof firstStatementRequestSchema>;
+
+export const firstStatementRefusalSchema = z.object({
+  error: z.string(),
+  code: z.enum([
+    // No staged statement for the account: upload one.
+    "no_staged_statement",
+    // The account has transactions; its statements go through Import.
+    "already_imported",
+    // No saved parser reads the staged statement, or more than one does.
+    "statement_unreadable",
+    // The statement's number isn't the one typed, and it wasn't accepted.
+    "numbers_differ",
+    // The statement has no rows.
+    "statement_has_no_transactions",
+    // The statement prints no balances, and no `opening_amount` was given.
+    "opening_balance_needed",
+    // The opening entry couldn't be posted.
+    "opening_balance_refused",
+    // The presets' own rules (`importPresetRefusalSchema`), and
+    // `unknown_account` when no preset lists the account.
+    ...importPresetRefusalCodeSchema.options,
+  ]),
+});
+export type FirstStatementRefusal = z.infer<typeof firstStatementRefusalSchema>;
 
 // Where the wizard stands, counted in the books.
 export const setupStatusSchema = z.object({
@@ -452,13 +537,13 @@ export const setupContract = c.router({
       422: statementAccountRefusalSchema,
     },
   }),
-  statementFormats: c.query({
+  firstStatements: c.query({
     method: "GET",
-    path: "/setup/statement-formats",
+    path: "/setup/first-statements",
     summary:
-      "Each bank or card's statement format: ready, needing a sample statement, or waiting for a parser for a staged sample. The staged sample of an account that is ready is deleted.",
+      "Each bank or card's first statement: none yet, a staged one a saved parser reads (with what it shows), a staged one none reads, or imported; and who categorizes. Staged statements of accounts that are imported or no longer set up are deleted.",
     responses: {
-      200: statementFormatsSchema,
+      200: firstStatementsSchema,
       403: errorBodySchema,
     },
   }),
@@ -466,7 +551,7 @@ export const setupContract = c.router({
     method: "POST",
     path: "/setup/sample-statement",
     summary:
-      "Recognize one sample statement (`file`) for a preset account (`account_id`) with the saved parsers, writing nothing to the books; an unrecognized or ambiguous one is staged under tmp/statement-uploads/ for a coding agent",
+      "Stage one statement (`file`) as a preset account's (`account_id`) first statement under tmp/statement-uploads/, replacing any earlier one, and read it with the saved parsers, writing nothing to the books",
     contentType: "multipart/form-data",
     // The statement is the `file` part.
     body: z.object({ account_id: z.coerce.number().int().positive() }),
@@ -477,11 +562,26 @@ export const setupContract = c.router({
       404: sampleRefusalSchema,
     },
   }),
+  importFirstStatement: c.mutation({
+    method: "POST",
+    path: "/setup/first-statement",
+    summary:
+      "Import an account's staged first statement: read it again, apply the preset changes it implies, record the opening balance (the statement's, else `opening_amount`) unless the account has one, then import it as /import-draft/statements/auto does, categorization included. Replies as that route does; the staged file is deleted once imported",
+    body: firstStatementRequestSchema,
+    responses: {
+      200: autoImportResultSchema,
+      400: autoImportErrorSchema,
+      403: errorBodySchema,
+      404: firstStatementRefusalSchema,
+      409: firstStatementRefusalSchema,
+      422: z.union([firstStatementRefusalSchema, autoImportErrorSchema]),
+    },
+  }),
   recheckSampleStatement: c.mutation({
     method: "POST",
     path: "/setup/sample-statement/recheck",
     summary:
-      "Recognize an account's staged sample statement again, after a parser was written for it",
+      "Read an account's staged first statement again, after a parser was written for it",
     body: z.object({ account_id: z.number().int().positive() }),
     responses: {
       200: sampleFindingSchema,
@@ -492,7 +592,7 @@ export const setupContract = c.router({
   removeSampleStatement: c.mutation({
     method: "DELETE",
     path: "/setup/sample-statement/:accountId",
-    summary: "Delete an account's staged sample statement",
+    summary: "Delete an account's staged first statement",
     pathParams: z.object({ accountId: z.coerce.number().int().positive() }),
     body: z.object({}).optional(),
     responses: {

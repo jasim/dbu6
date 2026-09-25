@@ -459,9 +459,10 @@ function sampleIdentifierStep(account: SampleAccount): string {
 }
 
 /**
- * The setup wizard's request for a parser, for a sample statement no saved
+ * The setup wizard's request for a parser, for a first statement no saved
  * parser recognized. It names the account, so the agent needn't ask whose
- * statement it is, and ties the parser to that account's institution.
+ * statement it is, and ties the parser to that account's institution. The
+ * statement is imported once the parser reads it.
  */
 export function sampleParserPrompt(
   account: SampleAccount,
@@ -473,12 +474,12 @@ export function sampleParserPrompt(
       : sample.tried.length === 0
         ? " There is no saved parser at all for this file extension yet."
         : ` The parsers it tried and that rejected the file were: ${list(sample.tried)}.`;
-  return `I am setting up my books app (dbu6, run from this project) and gave it a sample
+  return `I am setting up my books app (dbu6, run from this project) and gave it the first
 statement for ${sampleAccountLine(account)}. No saved parser recognised the
 file.${tried} Please build a deterministic parser for this statement format.
 
 The file is in this project at ${sample.saved_path}.
-It is only a sample: nothing in it is imported into my books.
+Don't import it yourself: the setup wizard imports it once the parser reads it.
 
 ${parserWritingSteps()}
 6. Tie the parser to my account in the import presets, as below: add it to
@@ -490,22 +491,22 @@ ${parserWritingSteps()}
 
 ${PRESET_CHANGES_NOTE}
 
-When you are done, tell me. I will press Check again in the setup wizard.`;
+When you are done, tell me. I will press Check again, and then import it.`;
 }
 
 /**
- * The setup wizard's request when a sample matched more than one saved
- * parser: the import screen's, for the wizard's staged copy.
+ * The setup wizard's request when a first statement matched more than one
+ * saved parser: the import screen's, for the wizard's staged copy.
  */
 export function sampleAmbiguousPrompt(
   account: SampleAccount,
   sample: { saved_path: string; parsers: readonly string[] },
 ): string {
-  return `I am setting up my books app (dbu6, run from this project) and gave it a sample
+  return `I am setting up my books app (dbu6, run from this project) and gave it the first
 statement for ${sampleAccountLine(account)}. It matched more than one saved
 parser: ${list(sample.parsers)}. Auto-detection requires exactly one match.
 
 ${fingerprintTightening(sample.saved_path)}
 
-Tell me when it is done. I will press Check again in the setup wizard.`;
+Tell me when it is done. I will press Check again, and then import it.`;
 }

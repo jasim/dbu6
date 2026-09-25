@@ -29,6 +29,9 @@ describe("the setup wizard's prompts", () => {
     expect(prompt).toContain("update_account with account_id 8");
     expect(prompt).toContain(guideCommand("parser-guide"));
     expect(prompt).toContain("There is no saved parser at all");
+    // The statement is the account's first, imported once it is read.
+    expect(prompt).not.toContain("nothing in it is imported");
+    expect(prompt).toContain("I will press Check again, and then import it.");
   });
 
   it("compare the number given with the one the parser emits", () => {

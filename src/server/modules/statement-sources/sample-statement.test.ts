@@ -46,7 +46,6 @@ describe("proposeSampleChanges", () => {
           account_identifiers: ["050505000012"],
         },
       ],
-      keepMine: null,
     });
   });
 
@@ -62,10 +61,10 @@ describe("proposeSampleChanges", () => {
 
     expect(
       proposeSampleChanges(presets, 8, "sample-bank-xls", "050505000012"),
-    ).toMatchObject({ identifierState: "same", changes: [], keepMine: null });
+    ).toMatchObject({ identifierState: "same", changes: [] });
   });
 
-  it("offers the statement's number or the user's on a mismatch", () => {
+  it("takes the statement's number on a mismatch", () => {
     const presets = [
       institution(
         1,
@@ -86,7 +85,6 @@ describe("proposeSampleChanges", () => {
           account_identifiers: ["050505000012", "050505000077"],
         },
       ],
-      keepMine: [],
     });
   });
 
@@ -105,7 +103,6 @@ describe("proposeSampleChanges", () => {
         { kind: "remove_account", account_id: 8 },
         { kind: "add_account", institution: "Sample Cards", ...account(8) },
       ],
-      keepMine: null,
     });
   });
 

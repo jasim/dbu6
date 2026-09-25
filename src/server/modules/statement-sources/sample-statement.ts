@@ -4,19 +4,18 @@ import type {
 } from "../../../shared/index.js";
 
 /*
- * A sample statement the setup wizard recognized with parser P, printing
+ * A first statement the setup wizard recognized with parser P, printing
  * the number I, for one preset account: the preset changes that would tie
- * the account to P. Nothing is written here; the screen shows the finding
- * and posts the changes to the presets' writer when the user accepts.
+ * the account to P. Nothing is written here; importing the statement makes
+ * them, through the presets' writer.
  *
  * - P listed by no institution: the account's institution lists it.
  * - P listed by the account's institution: nothing to add.
  * - P listed by another institution: a parser belongs to one institution,
  *   so the account moves there.
  * - I and the account's numbers: none on the account takes I; I already
- *   there changes nothing; another number is a mismatch, and the user
- *   chooses between the statement's (it replaces the typed one) and theirs,
- *   which leaves the account unresolved for imports.
+ *   there changes nothing; another number is a mismatch, and the
+ *   statement's replaces the typed one once the user accepts it.
  */
 
 export type SampleIdentifierState =
@@ -32,8 +31,6 @@ export interface SampleProposal {
   identifierState: SampleIdentifierState;
   /** The changes with the statement's number. */
   changes: ImportPresetChange[];
-  /** The changes keeping the account's own number, on a mismatch. */
-  keepMine: ImportPresetChange[] | null;
 }
 
 /** Pure: what ties `accountId` to `parser`; null when no preset lists it. */
@@ -104,6 +101,5 @@ export function proposeSampleChanges(
     moves,
     identifierState,
     changes: changesWith(statements),
-    keepMine: identifierState === "different" ? changesWith(own) : null,
   };
 }

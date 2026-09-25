@@ -479,12 +479,15 @@ built, tested and understood without anything above it. Lowest first:
 | 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
 | 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources, chart-of-accounts | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into a ledger account id, the same-account rule included; the Google Pay Takeout index and enrichment; the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan; the starter chart of accounts and the rules a proposed chart keeps | Database access, coding-agent names, route concepts |
 | 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent; import-presets | Accounts as the stores and screens look them up, and the Opening Balances account; posted journals, writing them from a plan, the last reconciled checkpoint, and each account's opening entry and first posted date (`opening-entries.ts`); matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter (its checkpoint-day rule and why: `reconciliation/checkpoint-day.md`); draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status, and where an account's drafts begin (`first-drafts.ts`). The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on. The import_presets rows, read and written under the request's auth | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
-| 5 | `workflows/` | statement-import, posting, reclassification, opening-balances, import-presets, chart-of-accounts, sample-statements | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
+| 5 | `workflows/` | statement-import, posting, reclassification, opening-balances, import-presets, chart-of-accounts; first-statement above opening-balances, import-presets and statement-import | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
 | 6 | `app/`, `runtime.ts`, `mount.ts`, `open.ts`, `config.ts`, `project-reports.ts`, `route-collisions.ts`, `report-kit.ts`, `index.ts`, `seed/` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting; the project's reports and `dbu6.config.ts`; the promised exports; sample data | Queries or rules another module needs |
 
 - Only tier 4 orders its modules (accounts < journals < reconciliation <
   drafts). Tier 3 modules never import each other, and neither do workflows: a
-  step two of them need moves down into a module.
+  step two of them need moves down into a module. The one exception is
+  `workflows/first-statement.ts`, the setup wizard's import of a first
+  statement, which sequences opening-balances, import-presets and
+  statement-import and is imported by none of them.
 - A module that declares entry files is imported only through them.
 - A route authorizes, calls one workflow (or a module, for a plain read), and
   translates the result and the errors to HTTP.
@@ -524,9 +527,9 @@ entry: listing them, and posting one against Opening Balances),
 applied, checked against the whole table, and written in one transaction),
 `workflows/chart-of-accounts.ts` (the setup wizard's first step: the
 starter chart for books with no accounts, and creating the ticked accounts)
-and `workflows/sample-statements.ts` (its third: recognizing a sample
-statement and proposing the preset changes that tie the account to the
-parser, writing nothing). The wizard's second step, a bank or card's ledger
+and `workflows/first-statement.ts` (its third: reading a staged first
+statement, and importing it after the preset changes that tie the account
+to the parser and its opening balance). The wizard's second step, a bank or card's ledger
 account and preset entry written together, is in `workflows/import-presets.ts`.
 
 `src/shared/` is imported by relative path (`../shared/index.js` from the
