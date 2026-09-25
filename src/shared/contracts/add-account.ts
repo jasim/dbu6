@@ -2,12 +2,13 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { accountKindSchema } from "./account-kind.js";
+import { llmStatusSchema } from "./coding-agent.js";
 import { dateSpanSchema } from "./date-span.js";
 import {
   statementImportErrorSchema,
   type StatementImportError,
 } from "./import-errors.js";
-import { importPresetRefusalCodeSchema } from "./import-presets.js";
+import { statementAccountRefusalSchema } from "./setup.js";
 
 const c = initContract();
 
@@ -34,14 +35,6 @@ export const statementOpeningSchema = z.object({
   amount: z.number().nullable(),
 });
 export type StatementOpening = z.infer<typeof statementOpeningSchema>;
-
-// Who categorizes an import, or why nobody can: the check categorization
-// itself makes.
-export const categorizerStatusSchema = z.discriminatedUnion("ready", [
-  z.object({ ready: z.literal(true), name: z.string() }),
-  z.object({ ready: z.literal(false), name: z.string(), reason: z.string() }),
-]);
-export type CategorizerStatus = z.infer<typeof categorizerStatusSchema>;
 
 // One dropped file, as the read found it. `saved_path` is where its staged
 // copy is kept (inside the project) for a coding agent's prompt; the read
@@ -154,7 +147,7 @@ export const addAccountReadingSchema = z.object({
   // By each one's first date, earliest first; those with no rows last.
   accounts: z.array(addAccountCandidateSchema),
   // Who categorizes the import `add` runs.
-  categorizer: categorizerStatusSchema,
+  categorizer: llmStatusSchema,
 });
 export type AddAccountReading = z.infer<typeof addAccountReadingSchema>;
 
@@ -220,17 +213,10 @@ export const addAccountRefusalSchema = z.object({
     // The import's own checks refused the files; `import_error` is the
     // refusal as /import reports it.
     "import_refused",
-    // The ledger already has an account of that name.
-    "ledger_name_taken",
-    // The parent is not an account of the kind's type.
-    "parent_not_suitable",
-    // The account to use is not an Asset or Liability of that kind, or a
-    // bank or card already uses it.
-    "account_not_suitable",
-    // The account to use has accounts under it: a group takes no statements.
-    "account_has_children",
-    // The presets' own rules.
-    ...importPresetRefusalCodeSchema.options,
+    // Creating the bank or card (`statementAccountRefusalSchema`): a name
+    // the ledger has, a parent or chart account that doesn't suit, and the
+    // presets' own rules.
+    ...statementAccountRefusalSchema.shape.code.options,
   ]),
   import_error: statementImportErrorSchema.optional(),
   // With an `import_error` /import gives a coding-agent prompt for

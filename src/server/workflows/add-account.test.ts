@@ -52,7 +52,6 @@ import {
   groupDrop,
   readStatements,
   statementOpening,
-  tidyBankName,
   type DroppedStatement,
 } from "./add-account.js";
 import { recordOpeningBalance } from "./opening-balances.js";
@@ -690,9 +689,10 @@ describe("addAccount", () => {
     const ledger = books();
 
     const done = await add(ledger, [dropped("NOPII.csv", otherCard())], {
-      // What a statement prints wins over what the form says.
+      // What a statement prints wins over what the form says, and a bank
+      // named is the preset one when only case or spaces differ.
       kind: "bank",
-      institution: "Sample Cards",
+      institution: " sample  CARDS",
       name: "Sample Other Card",
     });
 
@@ -749,6 +749,25 @@ describe("addAccount", () => {
     });
     expect(opening(ledger, 2)).toEqual({ date: "2026-08-02", amount: 10000 });
     expect(ledgerAccount(ledger, "NOPII Ignored")).toBeUndefined();
+  });
+
+  it("refuses a bank whose account the books deleted, as the read does", async () => {
+    const ledger = books();
+    ledger.sqlite.exec("DELETE FROM accounts WHERE id = 2");
+    const files = () => [dropped("NOPII.xls", savings("08"))];
+
+    expect((await read(ledger, files())).accounts[0]).toMatchObject({
+      status: "empty",
+      refusal: { name: "AccountNotFoundError" },
+    });
+    expect(await add(ledger, files())).toMatchObject({
+      ok: false,
+      code: "import_refused",
+      importError: { name: "AccountNotFoundError" },
+    });
+    expect(presetOf(ledger, 2)?.institution.parsers).toEqual([
+      "sample-bank-xls",
+    ]);
   });
 
   it("asks for the opening of statements that print no balance, and writes nothing", async () => {
@@ -1202,24 +1221,5 @@ describe("statementOpening", () => {
       date: "2026-08-02",
       amount: null,
     });
-  });
-});
-
-describe("tidyBankName", () => {
-  it("drops the company suffix and title-cases long all-caps words", () => {
-    expect(tidyBankName("HDFC BANK Ltd.")).toBe("HDFC Bank");
-    expect(tidyBankName("STANDARD CHARTERED BANK")).toBe(
-      "Standard Chartered Bank",
-    );
-    expect(tidyBankName("SAMPLE BANK LIMITED")).toBe("Sample Bank");
-    expect(tidyBankName("  ABC SAMPLE CARDS LTD, ")).toBe("ABC Sample Cards");
-  });
-
-  it("keeps short acronyms and mixed case, and lowers joining words", () => {
-    expect(tidyBankName("THE SAMPLE BANK LTD")).toBe("The Sample Bank");
-    expect(tidyBankName("STATE BANK OF SAMPLE")).toBe("State Bank of Sample");
-    expect(tidyBankName("Sample Bank (NOPII) Ltd")).toBe("Sample Bank (Nopii)");
-    expect(tidyBankName("ABC Sample Bank.")).toBe("ABC Sample Bank");
-    expect(tidyBankName("")).toBe("");
   });
 });

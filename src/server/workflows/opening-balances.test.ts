@@ -234,7 +234,7 @@ describe("recordOpeningBalance", () => {
       lookupLastReconciled(ledger.sqlite, ledger.auth, "Sample Savings"),
     ).toEqual({ date: "2026-02-02", balance: 1000 });
     // Nothing but the opening entry is posted, so the drafts' suggestion
-    // stays for the setup step's edit, and the entry isn't locked.
+    // stays for the Opening balances page's edit, and the entry isn't locked.
     expect(account(ledger, 2)).toMatchObject({
       suggestedAmount: 1000,
       opening: {
@@ -449,7 +449,7 @@ function recorded(
   return outcome.journalId;
 }
 
-describe("the setup step's sections", () => {
+describe("the Opening balances page's sections", () => {
   it("puts preset banks and cards with their statements, leaves in own or owe, and hides empty groups", () => {
     // Sample Savings is Sample Bank's; Sample Wallet is a leaf under Sample
     // Cash, a group; Sample Loans is a group with an opening entry.

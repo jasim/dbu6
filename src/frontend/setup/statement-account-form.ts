@@ -88,24 +88,6 @@ export function suggestedName(
   return name;
 }
 
-/**
- * The bank the books know that `typed` names, ignoring case and extra
- * spaces, else the typed name as it is: "sample  bank" is "Sample Bank",
- * never a second bank.
- */
-export function knownInstitution(
-  institutions: readonly string[],
-  typed: string,
-): string {
-  const text = typed.trim().replace(/\s+/g, " ");
-  const key = text.toLowerCase();
-  return (
-    institutions.find(
-      (name) => name.trim().replace(/\s+/g, " ").toLowerCase() === key,
-    ) ?? text
-  );
-}
-
 /** The draft with another bank; an unedited name follows it. */
 export function withInstitution(
   draft: StatementAccountDraft,

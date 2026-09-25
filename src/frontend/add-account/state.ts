@@ -3,7 +3,7 @@ import type {
   AddAccountCandidate,
   AddAccountFile,
   AddAccountReading,
-  CategorizerStatus,
+  LlmStatus,
   StatementImportError,
 } from "../../shared/index";
 
@@ -225,7 +225,7 @@ export type AddCard =
       account: AddAccountCandidate;
       kind: AccountKind;
       opening: Opening;
-      categorizer: CategorizerStatus;
+      categorizer: LlmStatus;
     };
 
 export type AddCardId = AddCard["card"];
@@ -275,7 +275,7 @@ function accountCard(
   held: Held,
   files: readonly AddAccountFile[],
   account: AddAccountCandidate,
-  categorizer: CategorizerStatus,
+  categorizer: LlmStatus,
 ): AddCard {
   if (account.status === "in_books") return { card: "in-books", account };
   const { period, opening } = account;

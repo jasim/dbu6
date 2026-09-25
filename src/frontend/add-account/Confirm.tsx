@@ -5,7 +5,7 @@ import type {
   AccountKind,
   AddAccountCandidate,
   AddAccountFields,
-  CategorizerStatus,
+  LlmStatus,
   StatementAccounts,
 } from "../../shared/index";
 import { Disclosure } from "../components/disclosure";
@@ -42,7 +42,7 @@ export function Confirm({
   account: AddAccountCandidate;
   kind: AccountKind;
   opening: Opening;
-  categorizer: CategorizerStatus;
+  categorizer: LlmStatus;
   data: StatementAccounts;
   /** The server's refusal of the last add, in its words. */
   refusal: string | null;
@@ -129,7 +129,7 @@ function Facts({
   account: AddAccountCandidate;
   kind: AccountKind;
   opening: Opening;
-  categorizer: CategorizerStatus;
+  categorizer: LlmStatus;
 }) {
   return (
     <div className="space-y-1 rounded-control bg-sap-nested px-3.5 py-3 text-row text-foreground">

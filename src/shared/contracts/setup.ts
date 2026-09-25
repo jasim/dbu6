@@ -2,6 +2,7 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { accountKindSchema } from "./account-kind.js";
+import { llmStatusSchema } from "./coding-agent.js";
 import { importPresetRefusalCodeSchema } from "./import-presets.js";
 
 const c = initContract();
@@ -118,14 +119,6 @@ export const chartRefusalSchema = z.object({
   problems: z.array(z.string()),
 });
 export type ChartRefusal = z.infer<typeof chartRefusalSchema>;
-
-// Who would draw a chart from the user's description: the coding agent dbu6
-// uses, on the engine categorization runs on, or why nobody can.
-export const chartSuggesterSchema = z.discriminatedUnion("ready", [
-  z.object({ ready: z.literal(true), name: z.string() }),
-  z.object({ ready: z.literal(false), name: z.string(), reason: z.string() }),
-]);
-export type ChartSuggester = z.infer<typeof chartSuggesterSchema>;
 
 export const chartSuggestionRequestSchema = z.object({
   // How money moves for the user, in their words.
@@ -297,7 +290,7 @@ export const setupContract = c.router({
     summary:
       "Which coding agent would propose a chart of accounts from a description, or why none can",
     responses: {
-      200: chartSuggesterSchema,
+      200: llmStatusSchema,
       403: errorBodySchema,
     },
   }),

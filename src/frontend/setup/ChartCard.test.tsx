@@ -15,7 +15,7 @@ import {
 import type {
   ChartAccount,
   ChartOfAccounts,
-  ChartSuggester,
+  LlmStatus,
   ChartSuggestion,
 } from "../../shared/index";
 import { registerTypeScale } from "../type-scale";
@@ -101,7 +101,7 @@ const NEW_CHART: ChartOfAccounts = {
   unticked: ["Children"],
 };
 
-const READY: ChartSuggester = { ready: true, name: "Sample Agent" };
+const READY: LlmStatus = { ready: true, name: "Sample Agent" };
 
 function Where() {
   const { pathname, search } = useLocation();
@@ -271,7 +271,7 @@ describe("card 1 on new books", () => {
         ready: false,
         name: "Sample Agent",
         reason: "No coding agent is set up.",
-      } satisfies ChartSuggester,
+      } satisfies LlmStatus,
     };
     await render();
 

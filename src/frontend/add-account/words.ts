@@ -1,7 +1,7 @@
 import type {
   AccountKind,
   AddAccountCandidate,
-  CategorizerStatus,
+  LlmStatus,
   StatementAccounts,
 } from "../../shared/index";
 import {
@@ -178,7 +178,7 @@ export function bankLine(
 }
 
 /** Card 4's categorizer fact: who, or why nobody. */
-export function categorizerLine(categorizer: CategorizerStatus): string {
+export function categorizerLine(categorizer: LlmStatus): string {
   return categorizer.ready
     ? `Categorized by ${categorizer.name}`
     : `Not categorized: ${categorizer.reason}`;

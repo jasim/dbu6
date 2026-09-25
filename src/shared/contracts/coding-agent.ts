@@ -30,6 +30,14 @@ export const ANY_CODING_AGENT = codingAgentSchema.options
 
 export const NO_CODING_AGENT_MESSAGE = `No coding agent found. Install ${ANY_CODING_AGENT} on the machine running dbu6.`;
 
+// Who answers an LLM call dbu6 makes (categorizing an import, drawing a
+// chart of accounts), or why nobody can: the check the call itself makes.
+export const llmStatusSchema = z.discriminatedUnion("ready", [
+  z.object({ ready: z.literal(true), name: z.string() }),
+  z.object({ ready: z.literal(false), name: z.string(), reason: z.string() }),
+]);
+export type LlmStatus = z.infer<typeof llmStatusSchema>;
+
 const c = initContract();
 
 /** One of the models dbu6 runs an agent on, by the agent's own name for it. */
