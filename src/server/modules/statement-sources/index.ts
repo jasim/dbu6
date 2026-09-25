@@ -1,5 +1,6 @@
 // The statement-sources module: the saved parsers that recognize an uploaded
-// statement, the import presets, and the plan for an automatic import. Import
+// statement, the import presets, the plan for an automatic import, and what
+// ties an account to the parser that read its sample statement. Import
 // from here rather than from the files.
 export {
   parserDirectory,
@@ -28,6 +29,11 @@ export {
   type PresetAdditions,
   type PresetInstitution,
 } from "./import-preset-changes.js";
+export {
+  proposeSampleChanges,
+  type SampleIdentifierState,
+  type SampleProposal,
+} from "./sample-statement.js";
 export {
   planAutoImport,
   type AutoImportGroup,

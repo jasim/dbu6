@@ -1,8 +1,14 @@
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { uploadedFile, withStagedUploads } from "./upload-tmp.js";
+import {
+  removeStagedSample,
+  stagedSamples,
+  stageSample,
+  uploadedFile,
+  withStagedUploads,
+} from "./upload-tmp.js";
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -95,5 +101,32 @@ describe("uploadedFile", () => {
       uploadedFile({ gpay: new File([], "empty.html") }, "gpay"),
     ).toBeNull();
     expect(uploadedFile({ gpay: "not-a-file" }, "gpay")).toBeNull();
+  });
+});
+
+describe("the setup wizard's sample statements", () => {
+  it("keeps one sample per account, found again by its directory", async () => {
+    await stageSample(8, new File(["first"], "NOPII-old.pdf"));
+    const staged = await stageSample(8, new File(["second"], "NOPII.pdf"));
+    // What a parser writes beside the statement is not the sample.
+    await writeFile(join(dirname(staged.path), "NOPII.abacus.json"), "{}");
+    await stageSample(9, new File(["card"], "NOPII.csv"));
+
+    expect(staged.projectPath).toBe(
+      join("tmp", "statement-uploads", "setup-sample-8", "NOPII.pdf"),
+    );
+    expect(await readFile(staged.path, "utf8")).toBe("second");
+    const samples = await stagedSamples();
+    expect([...samples.keys()].sort()).toEqual([8, 9]);
+    expect(samples.get(8)?.projectPath).toBe(staged.projectPath);
+
+    expect(await removeStagedSample(8)).toBe(true);
+    expect(await removeStagedSample(8)).toBe(false);
+    expect(await exists(dirname(staged.path))).toBe(false);
+    expect([...(await stagedSamples()).keys()]).toEqual([9]);
+  });
+
+  it("finds none before anything was staged", async () => {
+    expect((await stagedSamples()).size).toBe(0);
   });
 });

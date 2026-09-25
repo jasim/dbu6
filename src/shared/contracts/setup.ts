@@ -2,7 +2,11 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { accountKindSchema } from "./account-kind.js";
-import { importPresetRefusalCodeSchema } from "./import-presets.js";
+import { dateSpanSchema } from "./date-span.js";
+import {
+  importPresetChangeSchema,
+  importPresetRefusalCodeSchema,
+} from "./import-presets.js";
 
 const c = initContract();
 
@@ -272,6 +276,91 @@ export type StatementAccountRefusal = z.infer<
   typeof statementAccountRefusalSchema
 >;
 
+// Step 3: each bank or card's statement format, set up from one sample
+// statement. The sample only sets up the format; nothing in it is imported.
+export const statementFormatStatusSchema = z.enum([
+  // Its institution lists a parser and it has an identifier.
+  "ready",
+  // Anything else, with no sample waiting.
+  "needs_sample",
+  // A sample no saved parser read is staged for a coding agent.
+  "waiting_for_parser",
+]);
+export type StatementFormatStatus = z.infer<typeof statementFormatStatusSchema>;
+
+export const statementFormatRowSchema = z.object({
+  account_id: z.number().int(),
+  name: z.string(),
+  kind: accountKindSchema,
+  institution: z.string(),
+  // The parsers the institution lists.
+  parsers: z.array(z.string()),
+  account_identifiers: z.array(z.string()),
+  status: statementFormatStatusSchema,
+  // The staged sample's path in the project, for a coding agent; null with
+  // none.
+  staged_sample: z.string().nullable(),
+});
+export type StatementFormatRow = z.infer<typeof statementFormatRowSchema>;
+
+export const statementFormatsSchema = z.object({
+  accounts: z.array(statementFormatRowSchema),
+});
+export type StatementFormats = z.infer<typeof statementFormatsSchema>;
+
+// What a sample statement showed. Recognizing it writes nothing: the
+// changes are what "Use this" posts to POST /import-presets/changes.
+export const sampleFindingSchema = z.discriminatedUnion("outcome", [
+  z.object({
+    outcome: z.literal("recognized"),
+    parser: z.string(),
+    // The number the statement prints about itself, canonical; null when
+    // it prints none.
+    printed_identifier: z.string().nullable(),
+    // The institution's name as the statement prints it, for reading only.
+    printed_institution: z.string().nullable(),
+    // The sample's first and last dates; the first sets the opening
+    // balance's default date.
+    period: dateSpanSchema.nullable(),
+    // The institution that lists the parser now, if any.
+    parser_institution: z.string().nullable(),
+    // The account's institution after the changes.
+    institution: z.string(),
+    // Whether the account moves to the institution listing the parser: a
+    // parser belongs to one institution.
+    moves: z.boolean(),
+    identifier_state: z.enum(["none_printed", "set", "same", "different"]),
+    // With the statement's number where the account has another.
+    changes: z.array(importPresetChangeSchema),
+    // Keeping the account's own number, on a mismatch; null otherwise.
+    keep_mine: z.array(importPresetChangeSchema).nullable(),
+  }),
+  z.object({
+    outcome: z.literal("unrecognized"),
+    saved_path: z.string(),
+    // The saved parsers for the file's extension that rejected it.
+    tried: z.array(z.string()),
+  }),
+  z.object({
+    outcome: z.literal("ambiguous"),
+    saved_path: z.string(),
+    parsers: z.array(z.string()),
+  }),
+]);
+export type SampleFinding = z.infer<typeof sampleFindingSchema>;
+
+export const sampleRefusalSchema = z.object({
+  error: z.string(),
+  code: z.enum([
+    // No `file` in the upload.
+    "missing_multipart_field",
+    // No preset lists the account.
+    "unknown_account",
+    // Check again, with no staged sample for the account.
+    "no_staged_sample",
+  ]),
+});
+
 // Where the wizard stands, counted in the books.
 export const setupStatusSchema = z.object({
   // Accounts in the books; step 1 is done with any.
@@ -361,6 +450,54 @@ export const setupContract = c.router({
       200: statementAccountsSchema,
       403: errorBodySchema,
       422: statementAccountRefusalSchema,
+    },
+  }),
+  statementFormats: c.query({
+    method: "GET",
+    path: "/setup/statement-formats",
+    summary:
+      "Each bank or card's statement format: ready, needing a sample statement, or waiting for a parser for a staged sample. The staged sample of an account that is ready is deleted.",
+    responses: {
+      200: statementFormatsSchema,
+      403: errorBodySchema,
+    },
+  }),
+  uploadSampleStatement: c.mutation({
+    method: "POST",
+    path: "/setup/sample-statement",
+    summary:
+      "Recognize one sample statement (`file`) for a preset account (`account_id`) with the saved parsers, writing nothing to the books; an unrecognized or ambiguous one is staged under tmp/statement-uploads/ for a coding agent",
+    contentType: "multipart/form-data",
+    // The statement is the `file` part.
+    body: z.object({ account_id: z.coerce.number().int().positive() }),
+    responses: {
+      200: sampleFindingSchema,
+      400: sampleRefusalSchema,
+      403: errorBodySchema,
+      404: sampleRefusalSchema,
+    },
+  }),
+  recheckSampleStatement: c.mutation({
+    method: "POST",
+    path: "/setup/sample-statement/recheck",
+    summary:
+      "Recognize an account's staged sample statement again, after a parser was written for it",
+    body: z.object({ account_id: z.number().int().positive() }),
+    responses: {
+      200: sampleFindingSchema,
+      403: errorBodySchema,
+      404: sampleRefusalSchema,
+    },
+  }),
+  removeSampleStatement: c.mutation({
+    method: "DELETE",
+    path: "/setup/sample-statement/:accountId",
+    summary: "Delete an account's staged sample statement",
+    pathParams: z.object({ accountId: z.coerce.number().int().positive() }),
+    body: z.object({}).optional(),
+    responses: {
+      200: z.object({ removed: z.boolean() }),
+      403: errorBodySchema,
     },
   }),
   createChartOfAccounts: c.mutation({

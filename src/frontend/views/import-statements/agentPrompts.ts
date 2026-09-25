@@ -85,21 +85,10 @@ function list(items: readonly string[]): string {
   return items.join(", ");
 }
 
-export function unrecognizedPrompt(file: PlanFile<"unrecognized">): string {
-  const tried =
-    file.candidate_parser_paths.length === 0
-      ? "There is no saved parser at all for this file extension yet."
-      : `The parsers it tried and that rejected the file were: ${list(file.candidate_parser_paths)}.`;
-  return `I tried to import a bank statement into my books app (dbu6, run from this project) through
-the automatic importer at /import. It said no saved parser
-recognised the file, so nothing was imported. Please build a deterministic
-parser for this statement format so the import works.
-
-The file is in this project at ${stagedAt(file)}.
-Ask me which bank and which of my accounts it belongs to if the file doesn't
-make that obvious. ${tried}
-
-Run \`${PARSERS_GUIDE}\` and \`${PARSER_GUIDE}\`, and follow the two guides
+// How a parser is written, the same wherever the app asks for one: the
+// guides, then steps 1 to 5. The caller numbers on from 6.
+function parserWritingSteps(): string {
+  return `Run \`${PARSERS_GUIDE}\` and \`${PARSER_GUIDE}\`, and follow the two guides
 they print exactly. ${PROJECT_FILES_RULE} In particular:
 
 1. Check whether an existing parser, in custom-built-parsers/ or among the
@@ -114,7 +103,24 @@ they print exactly. ${PROJECT_FILES_RULE} In particular:
    \`account\`, and the institution name exactly as printed as \`institution\`.
 4. Validate the opening balance, the closing balance, every running balance the
    statement prints, and any totals it prints.
-5. ${PII_RULE}
+5. ${PII_RULE}`;
+}
+
+export function unrecognizedPrompt(file: PlanFile<"unrecognized">): string {
+  const tried =
+    file.candidate_parser_paths.length === 0
+      ? "There is no saved parser at all for this file extension yet."
+      : `The parsers it tried and that rejected the file were: ${list(file.candidate_parser_paths)}.`;
+  return `I tried to import a bank statement into my books app (dbu6, run from this project) through
+the automatic importer at /import. It said no saved parser
+recognised the file, so nothing was imported. Please build a deterministic
+parser for this statement format so the import works.
+
+The file is in this project at ${stagedAt(file)}.
+Ask me which bank and which of my accounts it belongs to if the file doesn't
+make that obvious. ${tried}
+
+${parserWritingSteps()}
 6. Tie the parser to my account in the import presets, as below. If an
    institution there already covers this bank, add the parser to it by its
    directory name (add_parser); otherwise add the institution with the parser
@@ -138,7 +144,14 @@ reported that ${file.file_name} matched more than one saved parser:
 ${list(file.matching_parser_paths)}. Auto-detection requires exactly one match,
 so nothing was imported.
 
-Tighten the fingerprints of those parsers (run \`${PARSERS_GUIDE}\` for the
+${fingerprintTightening(stagedAt(file))}
+
+Tell me when it is done and I will retry the import.`;
+}
+
+// Two parsers claim one file: how to part them, for the file at `path`.
+function fingerprintTightening(path: string): string {
+  return `Tighten the fingerprints of those parsers (run \`${PARSERS_GUIDE}\` for the
 conventions, and read each parser's fingerprint.md) so that each rejects the other's layout at
 the first structural check, add a parser_test.py case in each that asserts the
 other's fixture is rejected, and keep every existing fixture passing. Do not
@@ -146,10 +159,8 @@ loosen any validation to get there. ${PII_RULE}
 
 ${PROJECT_FILES_RULE}
 
-The file is in this project at ${stagedAt(file)}.
-Run each parser against it and confirm exactly one accepts it.
-
-Tell me when it is done and I will retry the import.`;
+The file is in this project at ${path}.
+Run each parser against it and confirm exactly one accepts it.`;
 }
 
 // The account a statement goes to isn't set up: no institution lists its
@@ -414,4 +425,87 @@ the ledger. ${PII_RULE}
 Once fixed, you may re-run the import yourself or tell me and I will retry.
 
 ${rerunBlock(groupPaths(refusal))}`;
+}
+
+// --- The setup wizard's sample statements --------------------------------
+
+/** The account a sample statement was given for, as the wizard knows it. */
+export interface SampleAccount {
+  account_id: number;
+  name: string;
+  kind: "bank" | "card";
+  institution: string;
+  account_identifiers: readonly string[];
+}
+
+function sampleAccountLine(account: SampleAccount): string {
+  const number =
+    account.account_identifiers.length === 0
+      ? "I haven't given its number yet"
+      : `its number, as I typed it, is ${account.account_identifiers[0]}`;
+  return `my ${account.kind === "card" ? "card" : "bank account"} "${account.name}"
+(account_id ${account.account_id} in the import presets, in the institution
+"${account.institution}"); ${number}`;
+}
+
+// The identifier step: set it when the account has none, else compare.
+function sampleIdentifierStep(account: SampleAccount): string {
+  return account.account_identifiers.length === 0
+    ? `Set the account's number to the identifier the parser emits
+   (update_account with account_id ${account.account_id} and account_identifiers
+   ["<the identifier>"]).`
+    : `Check that the identifier the parser emits is ${account.account_identifiers[0]}.
+   If it isn't, don't change the account; tell me what the statement prints.`;
+}
+
+/**
+ * The setup wizard's request for a parser, for a sample statement no saved
+ * parser recognized. It names the account, so the agent needn't ask whose
+ * statement it is, and ties the parser to that account's institution.
+ */
+export function sampleParserPrompt(
+  account: SampleAccount,
+  sample: { saved_path: string; tried: readonly string[] | null },
+): string {
+  const tried =
+    sample.tried === null
+      ? ""
+      : sample.tried.length === 0
+        ? " There is no saved parser at all for this file extension yet."
+        : ` The parsers it tried and that rejected the file were: ${list(sample.tried)}.`;
+  return `I am setting up my books app (dbu6, run from this project) and gave it a sample
+statement for ${sampleAccountLine(account)}. No saved parser recognised the
+file.${tried} Please build a deterministic parser for this statement format.
+
+The file is in this project at ${sample.saved_path}.
+It is only a sample: nothing in it is imported into my books.
+
+${parserWritingSteps()}
+6. Tie the parser to my account in the import presets, as below: add it to
+   the institution "${account.institution}" by its directory name (add_parser).
+   ${sampleIdentifierStep(account)}
+7. Run the parser on that file and on the fixture, run the tests, and report
+   the opening balance, closing balance, date range, and row count you found so
+   I can check them against the statement.
+
+${PRESET_CHANGES_NOTE}
+
+When you are done, tell me. I will press Check again in the setup wizard.`;
+}
+
+/**
+ * The setup wizard's request when a sample matched more than one saved
+ * parser: the import screen's, for the wizard's staged copy.
+ */
+export function sampleAmbiguousPrompt(
+  account: SampleAccount,
+  sample: { saved_path: string; parsers: readonly string[] },
+): string {
+  return `I am setting up my books app (dbu6, run from this project) and gave it a sample
+statement for ${sampleAccountLine(account)}. It matched more than one saved
+parser: ${list(sample.parsers)}. Auto-detection requires exactly one match.
+
+${fingerprintTightening(sample.saved_path)}
+
+Tell me when it is done. I will press Check again in the setup wizard.`;
 }
