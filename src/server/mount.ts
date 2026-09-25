@@ -19,6 +19,7 @@ import {
   type TsRestApi,
 } from "@sapporta/server";
 import agentHandoffApi from "./app/agent-handoff.js";
+import categorizationLessonsApi from "./app/categorization-lessons.js";
 import classifyDraftTransactionsApi from "./app/classify-draft-transactions.js";
 import codingAgentApi from "./app/coding-agent.js";
 import homeApi from "./app/home.js";
@@ -104,6 +105,7 @@ export function loadDbu6App(
   mountApi(api, renderJournalsHledgerApi);
   mountApi(api, postDraftsToJournalApi);
   mountApi(api, setDraftsCategoryApi);
+  mountApi(api, categorizationLessonsApi);
   mountApi(api, homeApi);
   mountApi(api, reviewApi);
   mountApi(api, openingBalancesApi);

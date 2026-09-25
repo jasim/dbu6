@@ -33,6 +33,9 @@ export function buildAbility(ctx: AppAuthFacts): AppAbility {
     // Presets change only through POST /import-presets/changes, which checks
     // the whole table (schema/import-presets.ts).
     cannot(["create", "update", "delete"], "import_presets");
+    // Lessons are written only through /categorization-lessons, which sets
+    // the drafts' category with them (schema/categorization-lessons.ts).
+    cannot(["create", "update", "delete"], "categorization_lessons");
   }
 
   return build();

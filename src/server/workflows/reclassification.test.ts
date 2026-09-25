@@ -13,9 +13,13 @@ import {
 import { accountsTable } from "../schema/accounts.js";
 import { draftTransactionsTable } from "../schema/draft-journals.js";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
+import { loadCategorizationLessons } from "../modules/drafts/index.js";
 import {
   classifyDraftTransactions,
+  forgetCategorizationLesson,
+  forgetCategorizationLessons,
   setDraftsCategory,
+  teachCategorization,
 } from "./reclassification.js";
 
 const auth = testLedgerAuth();
@@ -160,6 +164,107 @@ describe("setDraftsCategory", () => {
   });
 });
 
+describe("teachCategorization", () => {
+  const categories = (sqlite: Database.Database) =>
+    sqlite
+      .prepare("SELECT id, account_id FROM draft_transactions ORDER BY id")
+      .all();
+
+  it("gives the drafts the category and records the lesson", () => {
+    const { db, sqlite } = setupDatabase();
+    const ledger = { db, sqlite, auth };
+    addDraft(db, 3, "UPI debit again", 1);
+
+    const outcome = teachCategorization(ledger, {
+      draftIds: [1, 3],
+      accountId: 2,
+      note: "  A coffee shop.  ",
+    });
+
+    const lesson = {
+      id: 1,
+      base_account_id: 1,
+      account: { id: 2, name: "Coffee" },
+      narrations: ["UPI debit", "UPI debit again"],
+      note: "A coffee shop.",
+    };
+    expect(outcome).toEqual({ kind: "taught", lesson });
+    expect(categories(sqlite)).toEqual([
+      { id: 1, account_id: 2 },
+      { id: 3, account_id: 2 },
+    ]);
+    expect(loadCategorizationLessons(db, auth, 1)).toEqual([lesson]);
+    expect(loadCategorizationLessons(db, auth, 4)).toEqual([]);
+  });
+
+  it("does neither for drafts of more than one statement account", () => {
+    const { db, sqlite } = setupDatabase();
+    const ledger = { db, sqlite, auth };
+    addDraft(db, 3, "NOPII CARD DEBIT", 4);
+
+    expect(
+      teachCategorization(ledger, { draftIds: [1, 3], accountId: 2, note: "" }),
+    ).toEqual({ kind: "not-one-account" });
+    expect(categories(sqlite)).toEqual([
+      { id: 1, account_id: null },
+      { id: 3, account_id: null },
+    ]);
+    expect(loadCategorizationLessons(db, auth, 1)).toEqual([]);
+  });
+
+  it("records no lesson when the category is refused", () => {
+    const { db, sqlite } = setupDatabase();
+    const ledger = { db, sqlite, auth };
+
+    expect(
+      teachCategorization(ledger, { draftIds: [1], accountId: 1, note: "" }),
+    ).toEqual({ kind: "own-account" });
+    expect(loadCategorizationLessons(db, auth, 1)).toEqual([]);
+  });
+
+  it("forgets a lesson, or an account's lessons, keeping the categories", () => {
+    const { db, sqlite } = setupDatabase();
+    const ledger = { db, sqlite, auth };
+    addDraft(db, 3, "UPI debit again", 1);
+    teachCategorization(ledger, { draftIds: [1], accountId: 2, note: "" });
+    teachCategorization(ledger, { draftIds: [3], accountId: 2, note: "" });
+
+    expect(forgetCategorizationLesson(ledger, 1)).toBe(1);
+    expect(forgetCategorizationLesson(ledger, 1)).toBe(0);
+    expect(
+      loadCategorizationLessons(db, auth, 1).map((lesson) => lesson.id),
+    ).toEqual([2]);
+    expect(forgetCategorizationLessons(ledger, 1)).toBe(1);
+    expect(loadCategorizationLessons(db, auth, 1)).toEqual([]);
+    expect(categories(sqlite)).toEqual([
+      { id: 1, account_id: 2 },
+      { id: 3, account_id: 2 },
+    ]);
+  });
+});
+
+function addDraft(
+  db: ReturnType<typeof drizzle>,
+  id: number,
+  narration: string,
+  baseAccountId: number,
+) {
+  db.insert(draftTransactionsTable)
+    .values({
+      id,
+      workspace_id: "workspace",
+      scoped_to_user_id: "user",
+      date: parsePlainDate("2026-04-25"),
+      narration,
+      withdrawal: 1000,
+      deposit: 0,
+      account_id: null,
+      base_account_id: baseAccountId,
+      balance_assertion_base_account: null,
+    })
+    .run();
+}
+
 function makeTempDir(prefix: string): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   tempDirs.push(dir);
@@ -195,12 +300,23 @@ function setupDatabase() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE categorization_lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id TEXT NOT NULL,
+      scoped_to_user_id TEXT NOT NULL,
+      base_account_id INTEGER NOT NULL,
+      account_id INTEGER NOT NULL,
+      narrations TEXT NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
   `);
   const db = drizzle(sqlite);
   db.insert(accountsTable)
     .values([
       scopedAccount(1, "Federal Bank", "Asset"),
       scopedAccount(2, "Coffee", "Expense"),
+      scopedAccount(4, "Sample Card", "Liability"),
     ])
     .run();
   db.insert(draftTransactionsTable)

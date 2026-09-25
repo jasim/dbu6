@@ -154,6 +154,15 @@ Neither is retroactive: re-run the categoriser over the drafts with no
 category ("Categorise these" above), and restart a server started with
 `dbu6 start`.
 
+**Lessons from Review.** The Improve categorization tab keeps what the user
+taught there as lessons, each with its drafts' narrations, the account they
+go to and a note:
+`sapporta api get /api/categorization-lessons --query '{"base_account_id":<id>}'`.
+Their drafts already have that category. Once a lesson is a rule or guidance,
+delete it, which takes it off the user's list:
+`sapporta api delete /api/categorization-lessons/<lesson id>`. Leave a lesson
+you couldn't encode.
+
 ### Fixing the books
 
 - **"All my X payments are in the wrong category."**
@@ -532,6 +541,7 @@ The owner allows reading SQLite directly for diagnosis:
 | `journals` | Transactions in the books | `date`, `description` (the narration when imported; `Expenses` or `Deposits` on older imports) |
 | `journal_entries` | A journal's lines | `journal_id`, `account_id`, `debit`, `credit`, `account_balance_assertion`, `comment`, `source_transaction_key` |
 | `import_presets` | The import presets, one institution per row; read only, change them through `/api/import-presets/changes` | `name`, `parsers` and `accounts` (JSON; see [Import presets](#import-presets)) |
+| `categorization_lessons` | What the user taught the categoriser in Review, waiting to become a rule or guidance; read only, change them through `/api/categorization-lessons` | `base_account_id`, `account_id` (where the drafts go), `narrations` (JSON), `note` |
 
 - Amounts are rupees, stored as REAL. In the tables, a balance is
   debit − credit, so money held is positive, and money owed and income are

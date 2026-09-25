@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import {
   SchemaTableGridView,
@@ -12,16 +12,14 @@ import {
 import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
 import { rowKeyOfRowId } from "@sapporta/grid";
 import { eqCondition, mintFilterId } from "@sapporta/shared/filter";
-import { apiErrorMessage, draftTransactionsApi } from "../api";
+import { apiErrorMessage, categorizationLessonsApi } from "../api";
 import { AgentPrompt } from "../components/agent-prompt";
 import { Button } from "../components/ui/button";
 import { plural } from "../format";
+import { categorizationLessonsQuery } from "../queries";
 import { IMPORT_INSTRUCTIONS_ROUTE } from "../views/import-instructions/ImportInstructions";
-import {
-  lessonsPrompt,
-  useCategorizationLessons,
-  type CategorizationLesson,
-} from "./categorization-lessons";
+import type { CategorizationLesson } from "../../shared/index";
+import { lessonsPrompt } from "./categorization-lessons";
 import { useReviewAccount } from "./ReviewAccount";
 import { IMPROVE_CATEGORIZATION_TAB, reviewHref } from "./routes";
 
@@ -48,9 +46,9 @@ interface SelectedDraft {
  * Improve categorization: the account's drafts with no category, by
  * narration. The user selects some, says which account they go to and what
  * would help next time, and each such lesson sets the drafts' category and
- * joins a list. The list goes to the user's coding agent, which decides how
- * each lesson becomes a rule or guidance; nothing in user-config/ changes
- * until then.
+ * joins a list kept in the books. The list goes to the user's coding agent,
+ * which decides how each lesson becomes a rule or guidance, and deletes each
+ * lesson it has encoded; nothing in user-config/ changes until then.
  */
 export function ImproveCategorizationTab() {
   const { detail, refresh } = useReviewAccount();
@@ -61,7 +59,11 @@ export function ImproveCategorizationTab() {
   const tables = useSchemaStore((state) => state.tables);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const lessons = useCategorizationLessons(accountId);
+  const queryClient = useQueryClient();
+  const lessonsQuery = categorizationLessonsQuery(accountId);
+  const lessons = useQuery(lessonsQuery);
+  const refreshLessons = () =>
+    void queryClient.invalidateQueries({ queryKey: lessonsQuery.queryKey });
 
   const source = useMemo<SchemaTableGridViewSource | null>(
     () =>
@@ -132,7 +134,22 @@ export function ImproveCategorizationTab() {
     session.current?.runtime.root.clearRowSelection();
     void session.current?.reloadRows();
     refresh();
+    refreshLessons();
   };
+
+  // A lesson that goes while the user is away was taught by their coding
+  // agent, which then categorised more of the drafts, so the grid is read
+  // again.
+  const lessonIds = lessons.data?.map((lesson) => lesson.id);
+  const shownIds = useRef<readonly number[] | undefined>(undefined);
+  useEffect(() => {
+    const before = shownIds.current;
+    shownIds.current = lessonIds;
+    if (before && lessonIds && before.some((id) => !lessonIds.includes(id))) {
+      void session.current?.reloadRows();
+      refresh();
+    }
+  }, [lessonIds?.join(","), refresh]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -168,19 +185,21 @@ export function ImproveCategorizationTab() {
             See all rules and guidance
           </Link>
         </div>
-        <SelectionPanel
-          selected={selected}
-          onAdded={(lesson) => {
-            lessons.add(lesson);
-            added();
-          }}
-        />
-        <LessonList
-          lessons={lessons.lessons}
-          remove={lessons.remove}
-          clear={lessons.clear}
-          prompt={lessonsPrompt(detail, lessons.lessons)}
-        />
+        <SelectionPanel selected={selected} onAdded={added} />
+        {lessons.isError ? (
+          <p className="text-meta text-destructive [overflow-wrap:anywhere]">
+            {apiErrorMessage(lessons.error)}
+          </p>
+        ) : (
+          lessons.data && (
+            <LessonList
+              accountId={accountId}
+              lessons={lessons.data}
+              onChanged={refreshLessons}
+              prompt={lessonsPrompt(detail, lessons.data)}
+            />
+          )
+        )}
       </aside>
     </div>
   );
@@ -200,16 +219,20 @@ function SelectionPanel({
   onAdded,
 }: {
   selected: readonly SelectedDraft[];
-  onAdded: (lesson: CategorizationLesson) => void;
+  onAdded: () => void;
 }) {
   const accountLookup = useTableLookup<number>("accounts");
   const [accountId, setAccountId] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [missingAccount, setMissingAccount] = useState(false);
-  const setCategory = useMutation({
+  const teach = useMutation({
     mutationFn: (chosen: number) =>
-      draftTransactionsApi.setDraftsCategory({
-        body: { ids: selected.map((draft) => draft.id), account_id: chosen },
+      categorizationLessonsApi.teachCategorization({
+        body: {
+          draft_ids: selected.map((draft) => draft.id),
+          account_id: chosen,
+          note: note.trim(),
+        },
       }),
   });
 
@@ -227,16 +250,9 @@ function SelectionPanel({
       setMissingAccount(true);
       return;
     }
-    const name =
-      accountLookup.valueLookup.entryForValue(accountId)?.label ??
-      `account ${accountId}`;
-    setCategory.mutate(accountId, {
+    teach.mutate(accountId, {
       onSuccess: () => {
-        onAdded({
-          narrations: selected.map((draft) => draft.narration),
-          account: { id: accountId, name },
-          note: note.trim(),
-        });
+        onAdded();
         // The next selection starts with an empty form.
         setAccountId(null);
         setNote("");
@@ -282,7 +298,7 @@ function SelectionPanel({
             setMissingAccount(false);
           }}
           placeholder="Choose an account…"
-          disabled={setCategory.isPending}
+          disabled={teach.isPending}
           ariaInvalid={missingAccount}
           ariaDescribedBy={missingAccount ? "lesson-account-error" : undefined}
           className="w-full"
@@ -306,9 +322,9 @@ function SelectionPanel({
           className="block w-full rounded-control border border-sap-border bg-card px-3 py-2 text-meta text-foreground placeholder:text-ink-meta"
         />
       </label>
-      {setCategory.isError && (
+      {teach.isError && (
         <p className="text-meta text-destructive [overflow-wrap:anywhere]">
-          {apiErrorMessage(setCategory.error)}
+          {apiErrorMessage(teach.error)}
         </p>
       )}
       <div className="flex justify-end">
@@ -316,7 +332,7 @@ function SelectionPanel({
           type="button"
           size="sm"
           variant="outline"
-          disabled={setCategory.isPending}
+          disabled={teach.isPending}
           onClick={add}
         >
           Add to list
@@ -327,16 +343,33 @@ function SelectionPanel({
 }
 
 function LessonList({
+  accountId,
   lessons,
-  remove,
-  clear,
+  onChanged,
   prompt,
 }: {
+  accountId: number;
   lessons: readonly CategorizationLesson[];
-  remove: (index: number) => void;
-  clear: () => void;
+  onChanged: () => void;
   prompt: string;
 }) {
+  const remove = useMutation({
+    mutationFn: (id: number) =>
+      categorizationLessonsApi.deleteCategorizationLesson({
+        params: { id },
+        body: {},
+      }),
+    onSettled: onChanged,
+  });
+  const clear = useMutation({
+    mutationFn: () =>
+      categorizationLessonsApi.clearCategorizationLessons({
+        query: { base_account_id: accountId },
+        body: {},
+      }),
+    onSettled: onChanged,
+  });
+
   if (lessons.length === 0) {
     return (
       <p className="text-meta text-ink-meta">
@@ -352,8 +385,8 @@ function LessonList({
         <span className="tnum font-mono text-ink-meta">{lessons.length}</span>
       </h3>
       <ol className="divide-y divide-sap-border rounded-card border border-sap-border bg-card">
-        {lessons.map((lesson, index) => (
-          <li key={index} className="flex gap-2 px-3 py-2">
+        {lessons.map((lesson) => (
+          <li key={lesson.id} className="flex gap-2 px-3 py-2">
             <div className="min-w-0 flex-1">
               <p className="flex min-w-0 gap-1.5 text-meta">
                 <span
@@ -368,9 +401,7 @@ function LessonList({
                   </span>
                 )}
               </p>
-              <p className="text-meta text-ink-soft">
-                → {lesson.account.name}
-              </p>
+              <p className="text-meta text-ink-soft">→ {lesson.account.name}</p>
               {lesson.note !== "" && (
                 <p className="text-meta text-ink-meta [overflow-wrap:anywhere]">
                   {lesson.note}
@@ -379,7 +410,8 @@ function LessonList({
             </div>
             <button
               type="button"
-              onClick={() => remove(index)}
+              onClick={() => remove.mutate(lesson.id)}
+              disabled={remove.isPending || clear.isPending}
               title="Remove from the list. The drafts keep their category."
               aria-label={`Remove the lesson for ${lesson.narrations[0]}`}
               className="self-start rounded-control p-1 text-ink-meta hover:bg-sap-row-hover hover:text-foreground"
@@ -389,13 +421,26 @@ function LessonList({
           </li>
         ))}
       </ol>
+      {(remove.isError || clear.isError) && (
+        <p className="text-meta text-destructive [overflow-wrap:anywhere]">
+          {apiErrorMessage(remove.error ?? clear.error)}
+        </p>
+      )}
       <AgentPrompt
         title={`Teach the categoriser ${plural(lessons.length, "lesson")}`}
         prompt={prompt}
         afterwards={
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>Once your agent has made the changes, clear the list.</span>
-            <Button type="button" size="sm" variant="outline" onClick={clear}>
+            <span>
+              Your agent takes each lesson off the list once it is taught.
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={clear.isPending}
+              onClick={() => clear.mutate()}
+            >
               Clear list
             </Button>
           </div>

@@ -116,6 +116,11 @@ export {
   type GPayDraftClassification,
 } from "./draft-transactions.js";
 export {
+  categorizationLessonSchema,
+  categorizationLessonsContract,
+  type CategorizationLesson,
+} from "./categorization-lessons.js";
+export {
   agentModelSchema,
   agentModelsSchema,
   codingAgentContract,

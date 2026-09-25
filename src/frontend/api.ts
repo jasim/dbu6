@@ -16,6 +16,7 @@ import type { AppRouter } from "@sapporta/rest-core";
 import { getApiBase } from "@sapporta/frontend/platform";
 import {
   agentHandoffContract,
+  categorizationLessonsContract,
   codingAgentContract,
   draftTransactionsContract,
   homeContract,
@@ -44,6 +45,11 @@ export const importPresetsApi = createApiClient(importPresetsContract, {
 export const draftTransactionsApi = createApiClient(draftTransactionsContract, {
   baseUrl: getApiBase,
 });
+
+export const categorizationLessonsApi = createApiClient(
+  categorizationLessonsContract,
+  { baseUrl: getApiBase },
+);
 
 export const journalsApi = createApiClient(journalsContract, {
   baseUrl: getApiBase,

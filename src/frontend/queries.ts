@@ -9,6 +9,7 @@ import type { DateSpan } from "../shared/index";
 import { ApiError } from "@sapporta/shared/client";
 import {
   agentHandoffApi,
+  categorizationLessonsApi,
   codingAgentApi,
   homeApi,
   importPresetsApi,
@@ -68,6 +69,23 @@ export const openingBalancesQuery = queryOptions({
   queryFn: () => openingBalancesApi.list({ query: {} }),
   ...FRESH_QUERY,
 });
+
+/**
+ * A statement account's lessons for the categoriser. The user's coding agent
+ * deletes each once it is taught, outside the app, so they are read again
+ * when the user comes back to the window.
+ */
+export function categorizationLessonsQuery(accountId: number) {
+  return queryOptions({
+    queryKey: ["categorization-lessons", accountId],
+    queryFn: () =>
+      categorizationLessonsApi
+        .listCategorizationLessons({ query: { base_account_id: accountId } })
+        .then((body) => body.lessons),
+    ...FRESH_QUERY,
+    refetchOnWindowFocus: true,
+  });
+}
 
 /** Every institution's accounts and the instruction files each lists. */
 export const importPresetsQuery = queryOptions({
