@@ -15,6 +15,7 @@ import {
   categorizeViaLLM,
   nothingSentReport,
   type CategorizationLlm,
+  type StatementTransaction,
 } from "./llm-categorization.js";
 import { PROMPT_TEMPLATE } from "./prompt-template.js";
 
@@ -42,7 +43,8 @@ export interface Categorizer {
 export interface CategorizationRow {
   transaction: Abacus;
   // The ledger account whose statement holds the row, for the same-account
-  // rule; null when the ledger has no such account.
+  // rule and for the LLM to know whose statement it reads; null when the
+  // ledger has no such account.
   baseAccountId: number | null;
 }
 
@@ -79,9 +81,17 @@ export async function categorize(
   rows: readonly CategorizationRow[],
   accountsByName: AccountsByName,
 ): Promise<Categorization> {
+  const accountNameById = new Map<number, string>();
+  for (const [name, { id }] of accountsByName) accountNameById.set(id, name);
   const { answers, report } = await answerAccounts(
     categorizer,
-    rows.map((row) => row.transaction),
+    rows.map(({ transaction, baseAccountId }) => ({
+      transaction,
+      statementAccount:
+        baseAccountId === null
+          ? null
+          : (accountNameById.get(baseAccountId) ?? null),
+    })),
     accountsByName,
   );
   const sameAccountSkips: SameAccountSkip[] = [];
@@ -186,9 +196,12 @@ interface Answer {
  */
 async function answerAccounts(
   categorizer: Categorizer,
-  transactions: Abacus[],
+  statementTransactions: StatementTransaction[],
   accountsByName: AccountsByName,
 ): Promise<{ answers: Answer[]; report: CategorizationReport }> {
+  const transactions = statementTransactions.map(
+    ({ transaction }) => transaction,
+  );
   const { llm } = categorizer;
   // Nothing to categorize: no config to use, and no LLM to ask. The imports
   // that have nothing new rely on this, rather than each deciding what an
@@ -208,7 +221,7 @@ async function answerAccounts(
   let report = nothingSentReport(llm);
   if (unmappedIndices.length > 0) {
     ({ mappings: llmMappings, report } = await categorizeViaLLM(
-      transactions,
+      statementTransactions,
       unmappedIndices,
       {
         promptTemplate: PROMPT_TEMPLATE,

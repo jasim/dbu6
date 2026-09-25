@@ -56,6 +56,13 @@ export interface CategorizationLlm {
     | { ready: false; reason: string };
 }
 
+// A transaction the rules left, with the ledger account whose statement holds
+// it; null when the ledger has no such account.
+export interface StatementTransaction {
+  transaction: Abacus;
+  statementAccount: string | null;
+}
+
 export interface LLMCategorizationConfig {
   promptTemplate: string;
   // The account names the LLM may answer with, one per line.
@@ -87,12 +94,14 @@ export function buildPrompt(config: LLMCategorizationConfig): string {
 /**
  * Prepare deduplicated input rows for nua.list().
  *
- * Each unmapped transaction gets prefixed with "Expense: " or "Deposit: ".
- * Narrations are sent verbatim so the LLM can use every part of the transaction.
+ * Each unmapped transaction gets prefixed with "Expense: " or "Deposit: ", and
+ * before that its statement account in brackets, so the LLM knows whose
+ * statement the row is on. Narrations are sent verbatim so the LLM can use
+ * every part of the transaction.
  * Duplicate texts produce one row; the reverse map tracks all original narrations.
  */
 export function buildLLMInput(
-  transactions: Abacus[],
+  transactions: readonly StatementTransaction[],
   unmappedIndices: number[],
 ): {
   rows: ListRow[];
@@ -103,9 +112,10 @@ export function buildLLMInput(
   const seenTexts = new Map<string, string>(); // text -> rowId
 
   for (const idx of unmappedIndices) {
-    const t = transactions[idx];
+    const { transaction: t, statementAccount } = transactions[idx];
     const prefix = isWithdrawal(t) ? "Expense" : "Deposit";
-    const text = `${prefix}: ${t.narration}`;
+    const statement = statementAccount === null ? "" : `[${statementAccount}] `;
+    const text = `${statement}${prefix}: ${t.narration}`;
 
     const existingId = seenTexts.get(text);
     if (existingId) {
@@ -126,7 +136,7 @@ export function buildLLMInput(
  * The I/O shell calls this, then calls Nua, then calls parseLLMResponse.
  */
 export function buildLLMRequest(
-  transactions: Abacus[],
+  transactions: readonly StatementTransaction[],
   unmappedIndices: number[],
   config: LLMCategorizationConfig,
 ): LLMRequest {
@@ -248,7 +258,7 @@ async function callList(
  * `partial`.
  */
 export async function categorizeViaLLM(
-  transactions: Abacus[],
+  transactions: readonly StatementTransaction[],
   unmappedIndices: number[],
   config: LLMCategorizationConfig,
 ): Promise<LLMCategorization> {
