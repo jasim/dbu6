@@ -133,6 +133,13 @@ export const statementAccountsQuery = queryOptions({
   ...FRESH_QUERY,
 });
 
+/** Each bank or card's statement format, and any sample waiting for a parser. */
+export const statementFormatsQuery = queryOptions({
+  queryKey: [...SETUP_KEY, "statement-formats"],
+  queryFn: () => setupApi.statementFormats(),
+  ...FRESH_QUERY,
+});
+
 /**
  * Refreshes the wizard, and Home, whose first card follows from the
  * accounts the wizard sets up.

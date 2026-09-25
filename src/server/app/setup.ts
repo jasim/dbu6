@@ -19,6 +19,18 @@ import {
   changeStatementAccount,
   loadStatementAccounts,
 } from "../workflows/import-presets.js";
+import {
+  loadStatementFormats,
+  recognizeSample,
+  type SampleOutcome,
+} from "../workflows/sample-statements.js";
+import {
+  removeStagedSample,
+  stagedSamples,
+  stageSample,
+  uploadedFile,
+  type StagedSample,
+} from "./upload-tmp.js";
 import { requireOwner, requireWorkflowLedger } from "./workflow-auth.js";
 
 /*
@@ -106,7 +118,121 @@ api.register(
   },
 );
 
+// A sample is kept only while it waits for a parser: an account that is
+// ready, or that no preset lists any more, loses it here.
+api.register(
+  "statementFormats",
+  setupContract.statementFormats,
+  async ({ c }) => {
+    const ledger = requireWorkflowLedger(c);
+    const staged = await stagedSamples();
+    const rows = loadStatementFormats(
+      ledger,
+      new Map([...staged].map(([id, sample]) => [id, sample.projectPath])),
+    );
+    const waiting = new Set(
+      rows
+        .filter((row) => row.status === "waiting_for_parser")
+        .map((row) => row.account_id),
+    );
+    for (const accountId of staged.keys()) {
+      if (!waiting.has(accountId)) await removeStagedSample(accountId);
+    }
+    return {
+      status: 200,
+      body: {
+        accounts: rows.map((row) =>
+          waiting.has(row.account_id) ? row : { ...row, staged_sample: null },
+        ),
+      },
+    };
+  },
+);
+
+// The upload is staged in the project either way; a sample the parsers
+// recognized isn't kept.
+api.register(
+  "uploadSampleStatement",
+  setupContract.uploadSampleStatement,
+  async ({ c, request, files }) => {
+    const ledger = requireWorkflowLedger(c);
+    const file = uploadedFile(files, "file");
+    if (file === null) {
+      return {
+        status: 400,
+        body: {
+          error: "Upload the sample statement as `file`.",
+          code: "missing_multipart_field" as const,
+        },
+      };
+    }
+    const { account_id } = request.body;
+    const staged = await stageSample(account_id, file);
+    const outcome = await recognizeSample(ledger, account_id, staged.path);
+    if (!outcome.ok || outcome.finding.outcome === "recognized") {
+      await removeStagedSample(account_id);
+    }
+    return sampleResponse(outcome, staged);
+  },
+);
+
+api.register(
+  "recheckSampleStatement",
+  setupContract.recheckSampleStatement,
+  async ({ c, request }) => {
+    const ledger = requireWorkflowLedger(c);
+    const { account_id } = request.body;
+    const staged = (await stagedSamples()).get(account_id);
+    if (staged === undefined) {
+      return {
+        status: 404,
+        body: {
+          error:
+            "There is no sample statement waiting for this account; upload one.",
+          code: "no_staged_sample" as const,
+        },
+      };
+    }
+    return sampleResponse(
+      await recognizeSample(ledger, account_id, staged.path),
+      staged,
+    );
+  },
+);
+
+api.register(
+  "removeSampleStatement",
+  setupContract.removeSampleStatement,
+  async ({ c, request }) => {
+    requireOwner(c);
+    return {
+      status: 200,
+      body: { removed: await removeStagedSample(request.params.accountId) },
+    };
+  },
+);
+
 export default api;
+
+function sampleResponse(outcome: SampleOutcome, staged: StagedSample) {
+  if (!outcome.ok) {
+    return {
+      status: 404 as const,
+      body: {
+        error: "No bank or card has that account id.",
+        code: outcome.code,
+      },
+    };
+  }
+  const { finding } = outcome;
+  return {
+    status: 200 as const,
+    body:
+      finding.outcome === "recognized"
+        ? finding
+        : { ...finding, saved_path: staged.projectPath },
+  };
+}
 
 export function loadSetupStatus(ledger: Ledger): SetupStatus {
   const institutions = loadImportPresets(ledger.db, ledger.auth);

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { writeFile, unlink, mkdir, rm } from "node:fs/promises";
+import { writeFile, unlink, mkdir, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { projectRoot, uploadStagingDir } from "../paths.js";
@@ -91,4 +91,70 @@ export async function withStagedUploads<T>(
   } finally {
     if (!keep) await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/*
+ * The setup wizard's sample statements: at most one per preset account, in
+ * `tmp/statement-uploads/setup-sample-<account id>/`, kept while a coding
+ * agent writes a parser for it. The directory's name is how a sample is
+ * found again, so the wizard keeps no record of its own.
+ */
+
+const SAMPLE_DIR_RE = /^setup-sample-(\d+)$/;
+
+/** A staged sample: where it is, and that path relative to the project. */
+export interface StagedSample {
+  path: string;
+  projectPath: string;
+}
+
+function sampleDir(accountId: number): string {
+  return join(uploadStagingDir(), `setup-sample-${accountId}`);
+}
+
+/** Stages `file` as the account's sample, replacing any earlier one. */
+export async function stageSample(
+  accountId: number,
+  file: File,
+): Promise<StagedSample> {
+  const dir = sampleDir(accountId);
+  await rm(dir, { recursive: true, force: true });
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const path = join(dir, basename(file.name) || "upload");
+  await writeFile(path, Buffer.from(await file.arrayBuffer()), { mode: 0o600 });
+  return { path, projectPath: relative(projectRoot(), path) };
+}
+
+/** Each account's staged sample, by account id. */
+export async function stagedSamples(): Promise<Map<number, StagedSample>> {
+  let entries: string[];
+  try {
+    entries = await readdir(uploadStagingDir());
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Map();
+    throw error;
+  }
+  const samples = new Map<number, StagedSample>();
+  for (const entry of entries) {
+    const accountId = Number(SAMPLE_DIR_RE.exec(entry)?.[1]);
+    if (!Number.isInteger(accountId) || accountId <= 0) continue;
+    // The parsers write their JSON beside the statement; that isn't it.
+    const [name] = (await readdir(sampleDir(accountId))).filter(
+      (file) => !file.endsWith(".abacus.json"),
+    );
+    if (name === undefined) continue;
+    const path = join(sampleDir(accountId), name);
+    samples.set(accountId, {
+      path,
+      projectPath: relative(projectRoot(), path),
+    });
+  }
+  return samples;
+}
+
+/** Deletes the account's staged sample; whether there was one. */
+export async function removeStagedSample(accountId: number): Promise<boolean> {
+  const had = (await stagedSamples()).has(accountId);
+  await rm(sampleDir(accountId), { recursive: true, force: true });
+  return had;
 }

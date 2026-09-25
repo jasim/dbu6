@@ -21,8 +21,12 @@ function Popup({
 }) {
   return (
     <Combobox.Portal>
+      {/* Above the form's dialog, which sits over the popover layer. */}
       <Combobox.Positioner
-        className={comboboxClassNames.positioner}
+        className={cn(
+          comboboxClassNames.positioner,
+          "z-[calc(var(--sap-z-modal-content)+1)]",
+        )}
         sideOffset={4}
       >
         <Combobox.Popup className={comboboxClassNames.popup}>
