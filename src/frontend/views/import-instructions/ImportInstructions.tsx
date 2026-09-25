@@ -1,12 +1,9 @@
 import { useId, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
-import type {
-  AccountInstructions,
-  ImportPresetsView,
-} from "../../../shared/index";
+import type { AccountInstructions } from "../../../shared/index";
 import { apiErrorMessage } from "../../api";
 import { CopyButton } from "../../components/agent-prompt";
 import { EmptyState } from "../../components/empty-state";
@@ -14,35 +11,48 @@ import { LoadError } from "../../components/load-error";
 import { Screen, ScreenTitle } from "../../components/screen";
 import { StatusChip } from "../../components/status-chip";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+} from "../../components/ui/select";
+import { plural } from "../../format";
+import {
   accountInstructionsQuery,
   importPresetsQuery,
   transactionMappingsQuery,
 } from "../../queries";
 import {
   presetAccounts,
+  presetNames,
   type PresetAccount,
 } from "../categorization/CategorizationInstructions";
 import { fileUsers, otherUsers } from "./file-users";
-import { ruleCount } from "./mapping-rules";
 import { TransactionMappingsPanel } from "./TransactionMappingsPanel";
-
-export const IMPORT_INSTRUCTIONS_ROUTE = "/import-instructions";
 
 // The search that shows transaction_mappings.mjs rather than an account.
 const MAPPINGS_SEARCH = `?${new URLSearchParams({ show: "mappings" })}`;
+// The phone picker's value for the rules.
+const RULES = "rules";
+const PAGE_TITLE = "Automatic transaction categorization rules";
+
+function accountSearch(accountId: number): string {
+  return `?${new URLSearchParams({ account: String(accountId) })}`;
+}
 
 /*
- * Categorization instructions: for each account an import preset lists, the
- * instruction files it names, in order, and the text the coding agent gets
- * from them. An account has its own list and nothing is inherited, so what
- * is shown for an account is everything it uses. A file shared by several
- * accounts says which. Above the accounts, the transaction mappings every
- * account's entries go through first. Read-only: the files are edited in
+ * Automatic transaction categorization rules: what the categoriser uses when
+ * a statement is imported. The common rules, in transaction_mappings.mjs, go
+ * first for every account; then, for each
+ * account an import preset lists, its guidance, the instruction files it
+ * names, in order, each as the text the coding agent gets. A file shared by
+ * several accounts says which. Read-only: the files are edited in
  * user-config/, and which files an account lists is changed through the
  * presets' API.
  */
 export function ImportInstructions() {
-  usePageTitle("Categorization instructions");
+  usePageTitle(PAGE_TITLE);
   const presets = useQuery(importPresetsQuery);
   const [params] = useSearchParams();
 
@@ -50,6 +60,7 @@ export function ImportInstructions() {
     () => (presets.data ? presetAccounts(presets.data) : []),
     [presets.data],
   );
+  const names = useMemo(() => presetNames(accounts), [accounts]);
   const users = useMemo(() => fileUsers(accounts), [accounts]);
   const showMappings = params.get("show") === "mappings";
   const wanted = Number(params.get("account"));
@@ -57,51 +68,39 @@ export function ImportInstructions() {
     accounts.find((one) => one.account.account_id === wanted) ??
     accounts[0] ??
     null;
+  const chosenId = showMappings ? null : (chosen?.account.account_id ?? null);
 
   return (
     <Screen
       width="wide"
       header={
-        <ScreenTitle title="Categorization instructions">
+        <ScreenTitle title={PAGE_TITLE}>
           <p>
-            What the coding agent reads when it categorizes an account's
-            imported entries. Each account lists its own instruction files in
-            user-config/, and they are joined in that order. A file can be
-            listed by more than one account.
-          </p>
-          <p>
-            Your mapping rules in{" "}
-            <Link
-              to={MAPPINGS_SEARCH}
-              replace
-              className="font-mono text-meta text-foreground underline-offset-4 hover:underline"
-            >
-              transaction_mappings.mjs
-            </Link>{" "}
-            apply to every account and go first; the coding agent only sees the
-            entries they don't match.
+            When you import a bank or card statement, these decide which account
+            each transaction goes to: the common rules first, then the account's
+            own guidance.
           </p>
         </ScreenTitle>
       }
     >
       <div className="mt-6">
         {presets.isPending && (
-          <p className="text-body text-ink-meta">Loading the presets…</p>
+          <p className="text-body text-ink-meta">Loading…</p>
         )}
         {presets.isError && (
           <LoadError
-            title="Couldn't load the import presets"
+            title="Couldn't load the accounts"
             message={apiErrorMessage(presets.error)}
             retry={() => void presets.refetch()}
           />
         )}
         {presets.data && (
           <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
+            <PagePicker accounts={accounts} names={names} chosenId={chosenId} />
             <AccountList
-              institutions={presets.data.institutions}
-              chosenId={
-                showMappings ? null : (chosen?.account.account_id ?? null)
-              }
+              accounts={accounts}
+              names={names}
+              chosenId={chosenId}
               mappingsChosen={showMappings}
             />
             {showMappings ? (
@@ -111,12 +110,13 @@ export function ImportInstructions() {
                 // Another account's panel starts from the top.
                 key={chosen.account.account_id}
                 chosen={chosen}
+                names={names}
                 users={users}
               />
             ) : (
               <EmptyState
-                title="No accounts to show"
-                body="Instructions belong to the accounts in your import presets. Once an institution lists an account, its instruction files show here."
+                title="No accounts yet"
+                body="Guidance belongs to your banks and cards. Add one and its guidance shows here."
               />
             )}
           </div>
@@ -126,65 +126,107 @@ export function ImportInstructions() {
   );
 }
 
+/**
+ * On a phone, the list is one select above the panel, so the panel isn't a
+ * screen of links away.
+ */
+function PagePicker({
+  accounts,
+  names,
+  chosenId,
+}: {
+  accounts: readonly PresetAccount[];
+  names: ReadonlyMap<number, string>;
+  chosenId: number | null;
+}) {
+  const navigate = useNavigate();
+  const items: Record<string, string> = {
+    [RULES]: "Common rules",
+    ...Object.fromEntries(
+      accounts.map(({ account }) => [
+        String(account.account_id),
+        names.get(account.account_id) ?? account.name,
+      ]),
+    ),
+  };
+  return (
+    <div className="md:hidden">
+      <Select<string>
+        items={items}
+        value={chosenId === null ? RULES : String(chosenId)}
+        onValueChange={(value) =>
+          navigate(
+            value === null || value === RULES
+              ? MAPPINGS_SEARCH
+              : accountSearch(Number(value)),
+            { replace: true },
+          )
+        }
+      >
+        <SelectLabel className="sr-only">Show</SelectLabel>
+        <SelectTrigger placeholder="Common rules" />
+        <SelectContent>
+          <SelectItem value={RULES}>Common rules</SelectItem>
+          {accounts.map(({ account }) => (
+            <SelectItem
+              key={account.account_id}
+              value={String(account.account_id)}
+            >
+              {names.get(account.account_id)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 function AccountList({
-  institutions,
+  accounts,
+  names,
   chosenId,
   mappingsChosen,
 }: {
-  institutions: ImportPresetsView["institutions"];
+  accounts: readonly PresetAccount[];
+  names: ReadonlyMap<number, string>;
   chosenId: number | null;
   mappingsChosen: boolean;
 }) {
   const mappings = useQuery(transactionMappingsQuery);
   return (
-    <nav aria-label="Accounts" className="space-y-4">
-      <div className="space-y-1">
-        <div className="px-2 text-label font-semibold uppercase tracking-wide text-ink-meta">
-          Every account
-        </div>
-        <ListLink
-          to={MAPPINGS_SEARCH}
-          current={mappingsChosen}
-          label="Transaction mappings"
-          meta={
-            mappings.data?.state === "read"
-              ? `${ruleCount(mappings.data)} rules, applied first`
-              : mappings.data?.state === "unreadable"
-                ? "Can't be read"
-                : "Applied first"
-          }
-        />
-      </div>
-      {institutions
-        .filter((institution) => institution.accounts.length > 0)
-        .map((institution) => (
-          <div key={institution.id} className="space-y-1">
-            <div className="px-2 text-label font-semibold uppercase tracking-wide text-ink-meta">
-              {institution.name}
-            </div>
-            <ul className="space-y-0.5">
-              {institution.accounts.map((account) => {
-                const count = account.custom_mappings_filenames.length;
-                return (
-                  <li key={account.account_id}>
-                    <ListLink
-                      to={`?${new URLSearchParams({ account: String(account.account_id) })}`}
-                      current={account.account_id === chosenId}
-                      label={account.name}
-                      meta={
-                        count === 0
-                          ? "No files"
-                          : count === 1
-                            ? "1 file"
-                            : `${count} files`
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
+    <nav aria-label="Categorization rules" className="space-y-4 max-md:hidden">
+      <ListLink
+        to={MAPPINGS_SEARCH}
+        current={mappingsChosen}
+        label="Common rules"
+        meta={
+          mappings.data?.state === "unreadable"
+            ? "Can't be read"
+            : "Applies to every account"
+        }
+      />
+      {accounts.length > 0 && (
+        <div className="space-y-1">
+          <div className="px-2 text-label font-semibold uppercase tracking-wide text-ink-meta">
+            Guidance
           </div>
-        ))}
+          <ul className="space-y-0.5">
+            {accounts.map(({ account }) => {
+              const count = account.custom_mappings_filenames.length;
+              return (
+                <li key={account.account_id}>
+                  <ListLink
+                    to={accountSearch(account.account_id)}
+                    current={account.account_id === chosenId}
+                    label={names.get(account.account_id) ?? account.name}
+                    meta={count === 0 ? "None" : plural(count, "file")}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </nav>
   );
 }
@@ -218,153 +260,126 @@ function ListLink({
   );
 }
 
+/**
+ * One account's guidance: its files in the order a run joins them, each
+ * with its text, and the accounts that share it.
+ */
 function AccountPanel({
   chosen,
+  names,
   users,
 }: {
   chosen: PresetAccount;
+  names: ReadonlyMap<number, string>;
   users: ReadonlyMap<string, readonly PresetAccount[]>;
 }) {
   const { account, institution } = chosen;
   const headingId = useId();
   const instructions = useQuery(accountInstructionsQuery(account.account_id));
-  const filenames = account.custom_mappings_filenames;
-  const missing = new Set(
-    instructions.data?.files
-      .filter((file) => file.content === null)
-      .map((file) => file.filename),
-  );
+  const kind = account.is_credit_card ? "Credit card" : "Bank account";
 
   return (
-    <section aria-labelledby={headingId} className="min-w-0 space-y-6">
-      <div>
-        <h2 id={headingId} className="text-heading text-foreground">
-          {account.name}
-        </h2>
-        <p className="mt-0.5 text-meta text-ink-meta">
-          {institution} · {account.is_credit_card ? "Credit card" : "Account"}
-        </p>
-        {account.ledger_account_name === null && (
-          <p className="mt-2 text-meta text-attention-ink">
-            This account is no longer in your ledger, so nothing imports into
-            it.
+    <section aria-labelledby={headingId} className="min-w-0 space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 id={headingId} className="text-heading text-foreground">
+            {names.get(account.account_id) ?? account.name}
+          </h2>
+          <p className="mt-0.5 text-meta text-ink-meta">
+            {institution === account.name ? kind : `${institution} · ${kind}`}
           </p>
+        </div>
+        {instructions.data && instructions.data.text !== "" && (
+          <CopyButton text={instructions.data.text} label="Copy all" />
         )}
       </div>
 
-      {filenames.length === 0 ? (
+      {account.ledger_account_name === null && (
+        <p className="text-meta text-attention-ink">
+          Not in your books any more, so nothing imports into it.
+        </p>
+      )}
+
+      {account.custom_mappings_filenames.length === 0 ? (
         <p className="rounded-control border border-dashed px-3 py-2 text-body text-ink-meta">
-          {account.name} names no instruction files, so the coding agent
-          categorizes its entries from your account names alone.
+          No guidance. The categorizer goes by your account names.
         </p>
       ) : (
         <>
-          <div className="space-y-2">
-            <h3 className="text-row font-semibold text-foreground">
-              Files, in the order they are joined
-            </h3>
-            <ol className="divide-y rounded-control border bg-card">
-              {filenames.map((filename, index) => {
-                const others = otherUsers(users, filename, account.account_id);
-                return (
-                  <li
-                    key={filename}
-                    className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-2"
-                  >
-                    <span className="tnum w-4 text-meta text-ink-meta">
-                      {index + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        document
-                          .getElementById(fileAnchor(filename))
-                          ?.scrollIntoView({ behavior: "smooth" })
-                      }
-                      className="font-mono text-meta text-foreground underline-offset-4 hover:underline"
-                    >
-                      {filename}
-                    </button>
-                    {missing.has(filename) && (
-                      <StatusChip tone="attention">
-                        Missing, left out
-                      </StatusChip>
-                    )}
-                    <span className="basis-full pl-7 text-meta text-ink-meta sm:basis-auto sm:pl-0">
-                      {others.length === 0
-                        ? "Only this account"
-                        : `Also used by ${others.join(", ")}`}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-row font-semibold text-foreground">
-                What the coding agent reads
-              </h3>
-              {instructions.data && instructions.data.text !== "" && (
-                <CopyButton text={instructions.data.text} label="Copy text" />
-              )}
-            </div>
-            {instructions.isPending && (
-              <p className="text-meta text-ink-meta">Reading the files…</p>
-            )}
-            {instructions.isError && (
-              <LoadError
-                title="Couldn't read the instruction files"
-                message={apiErrorMessage(instructions.error)}
-                retry={() => void instructions.refetch()}
-              />
-            )}
-            {instructions.data && <FullText instructions={instructions.data} />}
-          </div>
+          {instructions.isPending && (
+            <p className="text-meta text-ink-meta">Reading the files…</p>
+          )}
+          {instructions.isError && (
+            <LoadError
+              title="Couldn't read the files"
+              message={apiErrorMessage(instructions.error)}
+              retry={() => void instructions.refetch()}
+            />
+          )}
+          {instructions.data && (
+            <Files
+              instructions={instructions.data}
+              others={(filename) =>
+                otherUsers(users, filename, account.account_id)
+              }
+            />
+          )}
         </>
       )}
 
       <p className="text-meta text-ink-meta">
-        To change what a file says, edit it in user-config/; every account that
-        lists it changes with it. To change which files {account.name} uses, or
-        their order, ask your coding agent to update its import preset.
+        Edit these in user-config/, or ask your coding agent to.
       </p>
     </section>
   );
 }
 
 /**
- * The account's files as one text, the way a run joins them, each file
- * marked where it starts. A missing file is marked where it would go.
+ * The account's files, one card each in the order a run joins them: the
+ * file's name, who else uses it, and its text. A missing file says so where
+ * its text would be.
  */
-function FullText({ instructions }: { instructions: AccountInstructions }) {
+function Files({
+  instructions,
+  others,
+}: {
+  instructions: AccountInstructions;
+  others: (filename: string) => string[];
+}) {
   return (
-    <div className="overflow-hidden rounded-control border bg-card">
-      {instructions.files.map((file) => (
-        <div
-          key={file.filename}
-          id={fileAnchor(file.filename)}
-          className="scroll-mt-4 border-b last:border-b-0"
-        >
-          <div className="border-b bg-muted px-3 py-1 font-mono text-label text-ink-meta">
-            {file.filename}
-          </div>
-          {file.content === null ? (
-            <p className="px-3 py-2 text-meta text-attention-ink">
-              There is no user-config/{file.filename}, so this part is left out.
-            </p>
-          ) : (
-            <pre className="whitespace-pre-wrap px-3 py-3 font-mono text-meta leading-relaxed text-foreground [overflow-wrap:anywhere]">
-              {file.content}
-            </pre>
-          )}
-        </div>
-      ))}
-    </div>
+    <ol className="space-y-3">
+      {instructions.files.map((file) => {
+        const shared = others(file.filename);
+        return (
+          <li
+            key={file.filename}
+            className="overflow-hidden rounded-control border bg-card"
+          >
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b bg-muted px-3 py-1.5">
+              <span className="font-mono text-label text-ink-soft [overflow-wrap:anywhere]">
+                {file.filename}
+              </span>
+              {file.content === null && (
+                <StatusChip tone="attention">Missing</StatusChip>
+              )}
+              {shared.length > 0 && (
+                <span className="ml-auto text-label text-ink-meta">
+                  Also used by {shared.join(", ")}
+                </span>
+              )}
+            </div>
+            {file.content === null ? (
+              <p className="px-3 py-2 text-meta text-attention-ink">
+                Not in user-config/, so the categorizer skips it.
+              </p>
+            ) : (
+              <pre className="whitespace-pre-wrap px-3 py-3 font-mono text-meta leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                {file.content}
+              </pre>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
-}
-
-function fileAnchor(filename: string): string {
-  return `file-${filename}`;
 }

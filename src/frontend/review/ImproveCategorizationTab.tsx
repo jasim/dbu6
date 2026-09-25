@@ -17,7 +17,7 @@ import { AgentPrompt } from "../components/agent-prompt";
 import { Button } from "../components/ui/button";
 import { plural } from "../format";
 import { categorizationLessonsQuery } from "../queries";
-import { IMPORT_INSTRUCTIONS_ROUTE } from "../views/import-instructions/ImportInstructions";
+import { CATEGORIZATION_RULES_ROUTE } from "../views/import-instructions/routes";
 import type { CategorizationLesson } from "../../shared/index";
 import { lessonsPrompt } from "./categorization-lessons";
 import { useReviewAccount } from "./ReviewAccount";
@@ -179,10 +179,10 @@ export function ImproveCategorizationTab() {
             Teach the categoriser
           </h2>
           <Link
-            to={`${IMPORT_INSTRUCTIONS_ROUTE}?${new URLSearchParams({ account: String(accountId) })}`}
+            to={`${CATEGORIZATION_RULES_ROUTE}?${new URLSearchParams({ account: String(accountId) })}`}
             className="shrink-0 text-meta text-primary hover:underline"
           >
-            See all rules and guidance
+            See all categorization rules
           </Link>
         </div>
         <SelectionPanel selected={selected} onAdded={added} />

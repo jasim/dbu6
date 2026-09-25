@@ -20,6 +20,7 @@ import { TablePage } from "@sapporta/frontend";
 import { Advanced } from "./Advanced";
 import { Home as HomePage } from "./home/Home";
 import { ImportInstructions } from "./views/import-instructions/ImportInstructions";
+import { CATEGORIZATION_RULES_ROUTE } from "./views/import-instructions/routes";
 import { retiredRoutes } from "./redirects";
 import { ReportsIndex } from "./reports/ReportsIndex";
 import { reportDefinitions, type ReportDefinition } from "./reports/registry";
@@ -156,7 +157,10 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
         path={BALANCES_SETTINGS_ROUTE.slice(1)}
         element={<OpeningBalances />}
       />
-      <Route path="import-instructions" element={<ImportInstructions />} />
+      <Route
+        path={CATEGORIZATION_RULES_ROUTE.slice(1)}
+        element={<ImportInstructions />}
+      />
       <Route path="tools" element={<Advanced />} />
 
       {/* The tool screens, linked from All tools. */}

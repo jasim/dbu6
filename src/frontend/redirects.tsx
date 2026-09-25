@@ -2,6 +2,7 @@ import { Navigate, Route, useLocation } from "react-router-dom";
 import { ADD_ROUTE } from "./add-account/state";
 import { REVIEW_ROUTE } from "./review/routes";
 import { SETUP_ROUTE } from "./setup/routes";
+import { CATEGORIZATION_RULES_ROUTE } from "./views/import-instructions/routes";
 import {
   BALANCES_SETTINGS_ROUTE,
   BANKS_SETTINGS_ROUTE,
@@ -25,6 +26,7 @@ export const retiredPaths: Readonly<Record<string, string>> = {
   "/setup/statements": ADD_ROUTE,
   "/setup/balances": BALANCES_SETTINGS_ROUTE,
   "/setup/review": REVIEW_ROUTE,
+  "/import-instructions": CATEGORIZATION_RULES_ROUTE,
 };
 
 function Redirect({ to }: { to: string }) {

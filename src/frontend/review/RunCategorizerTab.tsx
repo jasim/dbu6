@@ -28,7 +28,7 @@ import {
   categorizationCounts,
   describeCategorizationProblem,
 } from "../views/categorization/describeCategorization";
-import { IMPORT_INSTRUCTIONS_ROUTE } from "../views/import-instructions/ImportInstructions";
+import { CATEGORIZATION_RULES_ROUTE } from "../views/import-instructions/routes";
 import { ReportTab } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 import {
@@ -276,7 +276,7 @@ export function RunCategorizerTab() {
 
             <dl className="divide-y divide-line-inner border-y border-line-inner">
               <Setting
-                label="Instructions"
+                label="Guidance"
                 value={
                   changingPreset && presets !== null ? (
                     <InstructionsChoice
@@ -298,7 +298,7 @@ export function RunCategorizerTab() {
                     <>
                       {chosenPreset !== null && (
                         <Link
-                          to={`${IMPORT_INSTRUCTIONS_ROUTE}?${new URLSearchParams({ account: String(chosenPreset.account.account_id) })}`}
+                          to={`${CATEGORIZATION_RULES_ROUTE}?${new URLSearchParams({ account: String(chosenPreset.account.account_id) })}`}
                           className={buttonVariants({
                             variant: "ghost",
                             size: "sm",

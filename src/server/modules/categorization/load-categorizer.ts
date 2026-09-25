@@ -65,7 +65,7 @@ function readRequiredConfigFile(configDir: string, filename: string): string {
  * is a JavaScript module, exports `mappings` in the schema's shape, and its
  * rules compile. Every failure is a `CategorizationConfigError` naming the
  * file. It is read afresh on every call. `dbu6 check` calls this to say
- * whether the file still parses, and Categorization instructions to show it.
+ * whether the file still parses, and the categorization rules page to show it.
  */
 export async function readTransactionMappings(
   configDir: string = userConfigDir(),

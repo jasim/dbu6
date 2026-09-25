@@ -471,8 +471,8 @@ endpoint. There is no file to edit.
 carries `ledger_account_name`, which is null when its ledger account was
 deleted. `sapporta api get /api/import-presets/accounts/<account_id>/instructions`
 returns one account's files, each with its content (null when missing), and
-`text`, what the AI gets from them. Settings → Categorization instructions
-shows the same to the user.
+`text`, what the AI gets from them. Settings → Automatic transaction
+categorization rules (`/categorization-rules`) shows the same to the user.
 
 **Finding an account's id:**
 `sapporta rows list accounts --where '{"name":{"eq":"…"}}'`.

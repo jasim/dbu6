@@ -12,10 +12,10 @@ import {
 } from "./mapping-rules";
 
 /*
- * The rules in transaction_mappings.mjs, which every account's entries go
- * through before the coding agent sees the ones they don't match: the exact
- * narrations first, then the includes rules in the order they are checked.
- * Read-only; the file is edited in user-config/.
+ * The common rules, in transaction_mappings.mjs, which every account's entries go
+ * through before any guidance: the whole narrations first, then the
+ * "contains" rules in the order they are checked. Read-only; the file is
+ * edited in user-config/.
  */
 export function TransactionMappingsPanel() {
   const headingId = useId();
@@ -25,11 +25,10 @@ export function TransactionMappingsPanel() {
     <section aria-labelledby={headingId} className="min-w-0 space-y-6">
       <div>
         <h2 id={headingId} className="text-heading text-foreground">
-          Transaction mappings
+          Common rules
         </h2>
         <p className="mt-0.5 text-meta text-ink-meta">
-          user-config/transaction_mappings.mjs · Every account, before the
-          coding agent
+          Applies to every account, before its own guidance
         </p>
       </div>
 
@@ -38,7 +37,7 @@ export function TransactionMappingsPanel() {
       )}
       {mappings.isError && (
         <LoadError
-          title="Couldn't read the transaction mappings"
+          title="Couldn't read the rules"
           message={apiErrorMessage(mappings.error)}
           retry={() => void mappings.refetch()}
         />
@@ -46,8 +45,8 @@ export function TransactionMappingsPanel() {
       {mappings.data?.state === "unreadable" && (
         <div className="space-y-1 rounded-control border border-dashed px-3 py-2">
           <p className="text-body text-attention-ink">
-            No import can use this file until it is fixed, so no entry is
-            categorized.
+            The rules file doesn't load, so nothing is categorized until it's
+            fixed.
           </p>
           <p className="font-mono text-meta text-ink-meta [overflow-wrap:anywhere]">
             {mappings.data.error}
@@ -57,10 +56,7 @@ export function TransactionMappingsPanel() {
       {mappings.data?.state === "read" && <Rules mappings={mappings.data} />}
 
       <p className="text-meta text-ink-meta">
-        Narrations are compared ignoring case and spacing. An exact narration
-        that is a UPI address also matches a narration that contains it. To
-        change a rule, edit the file in user-config/, or ask your coding agent
-        to.
+        Edit user-config/transaction_mappings.mjs, or ask your coding agent to.
       </p>
     </section>
   );
@@ -78,9 +74,9 @@ function Rules({ mappings }: { mappings: ReadMappings }) {
         <div className="space-y-1 rounded-control border border-dashed px-3 py-2">
           <p className="text-body text-attention-ink">
             {missing.length === 1
-              ? "One account these rules name is not in your ledger"
-              : `${missing.length} accounts these rules name are not in your ledger`}
-            , so the entries they match stay uncategorized.
+              ? "1 account these rules name isn't in your books"
+              : `${missing.length} accounts these rules name aren't in your books`}
+            , so what they match stays uncategorized.
           </p>
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-meta">
             {missing.map(({ account, rules }) => (
@@ -114,8 +110,8 @@ function Rules({ mappings }: { mappings: ReadMappings }) {
       </div>
 
       <RuleTable
-        title="Exact narrations"
-        description="A whole narration and its account. These are checked first."
+        title="Whole narration"
+        description="Checked first. Case and spacing don't matter; a UPI address also matches inside a longer narration."
         count={shown.exact.length}
         total={mappings.exact.length}
         head={["Narration", "Account"]}
@@ -131,8 +127,8 @@ function Rules({ mappings }: { mappings: ReadMappings }) {
       </RuleTable>
 
       <RuleTable
-        title="Narrations containing"
-        description="Checked in this order when no exact narration matches; the first to match wins."
+        title="Narration contains"
+        description="Checked in this order; the first match wins."
         count={shown.includes.length}
         total={mappings.includes.length}
         head={["#", "Contains any of", "Money", "Account"]}
@@ -234,7 +230,7 @@ function AccountCell({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="font-mono text-meta text-foreground">{account}</span>
         {!inLedger && (
-          <StatusChip tone="attention">Not in your ledger</StatusChip>
+          <StatusChip tone="attention">Not in your books</StatusChip>
         )}
       </div>
     </td>
