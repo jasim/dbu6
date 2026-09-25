@@ -32,12 +32,15 @@ export function AgentPrompt({
   title,
   prompt,
   afterwards,
+  children,
 }: {
   /** What this prompt gets done, in one short line. */
   title: string;
   prompt: string;
   /** What the user does once the agent has the prompt. */
   afterwards?: ReactNode;
+  /** What the prompt hands over, where the user can see it, under the title. */
+  children?: ReactNode;
 }) {
   return (
     <section className="rounded-card border border-assist-border bg-assist-bg px-4 py-[18px]">
@@ -48,6 +51,7 @@ export function AgentPrompt({
       <h3 className="mt-1.5 text-subheading text-foreground [overflow-wrap:anywhere]">
         {title}
       </h3>
+      {children !== undefined && <div className="mt-3">{children}</div>}
       <div className="mt-3">
         <AgentActions prompt={prompt} afterwards={afterwards} />
       </div>

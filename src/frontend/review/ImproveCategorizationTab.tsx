@@ -24,10 +24,13 @@ import { useReviewAccount } from "./ReviewAccount";
 import { IMPROVE_CATEGORIZATION_TAB, reviewHref } from "./routes";
 
 const DRAFT_TRANSACTIONS_TABLE = "draft_transactions";
-// The fixed filters hold both columns to one value.
+// The fixed filters hold both account columns to one value, and the id and
+// running balance say nothing about where a draft goes.
 const HIDDEN_COLUMNS = [
+  "id",
   "base_account_id",
   "account_id",
+  "balance_assertion_base_account",
   "created_at",
   "updated_at",
 ];
@@ -65,18 +68,19 @@ export function ImproveCategorizationTab() {
   const refreshLessons = () =>
     void queryClient.invalidateQueries({ queryKey: lessonsQuery.queryKey });
 
-  const source = useMemo<SchemaTableGridViewSource | null>(
-    () =>
-      tableSchema
-        ? {
-            table: tableSchema,
-            tablesByName: Object.fromEntries(
-              tables.map((table) => [table.name, table]),
-            ),
-          }
-        : null,
-    [tableSchema, tables],
-  );
+  // The grid is for selecting drafts; editing and deleting them is the Drafts
+  // tab's, so here the table reads as immutable and offers neither.
+  const source = useMemo<SchemaTableGridViewSource | null>(() => {
+    if (!tableSchema) return null;
+    const table = { ...tableSchema, immutable: true };
+    return {
+      table,
+      tablesByName: {
+        ...Object.fromEntries(tables.map((each) => [each.name, each])),
+        [table.name]: table,
+      },
+    };
+  }, [tableSchema, tables]);
   const route = useMemo(
     () => ({
       path: reviewHref(accountId, IMPROVE_CATEGORIZATION_TAB),
@@ -171,27 +175,21 @@ export function ImproveCategorizationTab() {
         )}
       </div>
       <aside
-        aria-label="Teach the categoriser"
-        className="shrink-0 space-y-5 overflow-y-auto border-sap-border px-4 py-4 max-md:border-t md:w-[360px] md:border-l"
+        aria-label="Categorize and teach"
+        className="shrink-0 space-y-4 overflow-y-auto border-sap-border px-4 py-4 max-md:border-t md:w-[360px] md:border-l"
       >
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-row font-semibold text-foreground">
-            Teach the categoriser
-          </h2>
-          <Link
-            to={`${CATEGORIZATION_RULES_ROUTE}?${new URLSearchParams({ account: String(accountId) })}`}
-            className="shrink-0 text-meta text-primary hover:underline"
-          >
-            See all categorization rules
-          </Link>
-        </div>
-        <SelectionPanel selected={selected} onAdded={added} />
+        <SelectionPanel
+          selected={selected}
+          uncategorised={detail.account.uncategorised}
+          onAdded={added}
+        />
         {lessons.isError ? (
           <p className="text-meta text-destructive [overflow-wrap:anywhere]">
             {apiErrorMessage(lessons.error)}
           </p>
         ) : (
-          lessons.data && (
+          lessons.data &&
+          lessons.data.length > 0 && (
             <LessonList
               accountId={accountId}
               lessons={lessons.data}
@@ -200,6 +198,12 @@ export function ImproveCategorizationTab() {
             />
           )
         )}
+        <Link
+          to={`${CATEGORIZATION_RULES_ROUTE}?${new URLSearchParams({ account: String(accountId) })}`}
+          className="inline-block text-meta text-ink-meta hover:text-foreground hover:underline"
+        >
+          See categorization rules
+        </Link>
       </aside>
     </div>
   );
@@ -214,11 +218,19 @@ function selectedDraft(row: unknown): SelectedDraft[] {
     : [];
 }
 
+/**
+ * Where the selected drafts go: the account, and a note for next time.
+ * Saving gives them their category at once and puts them on the list the
+ * categorizer is taught from.
+ */
 function SelectionPanel({
   selected,
+  uncategorised,
   onAdded,
 }: {
   selected: readonly SelectedDraft[];
+  /** The account's drafts that still have no category. */
+  uncategorised: number;
   onAdded: () => void;
 }) {
   const accountLookup = useTableLookup<number>("accounts");
@@ -238,10 +250,22 @@ function SelectionPanel({
 
   if (selected.length === 0) {
     return (
-      <p className="rounded-control border border-dashed border-sap-border px-3 py-3 text-meta text-ink-meta">
-        Select drafts in the grid to say where they go. Shift-click selects a
-        run of them.
-      </p>
+      <section className="rounded-control border border-dashed border-sap-border px-3 py-3">
+        {uncategorised === 0 ? (
+          <p className="text-meta text-foreground">
+            Every draft has a category.
+          </p>
+        ) : (
+          <>
+            <p className="text-meta text-foreground">
+              Select drafts that go to the same account.
+            </p>
+            <p className="mt-0.5 text-meta text-ink-meta">
+              Shift-click selects a run of them.
+            </p>
+          </>
+        )}
+      </section>
     );
   }
 
@@ -262,16 +286,22 @@ function SelectionPanel({
 
   const rest = selected.length - SHOWN_SELECTED;
   return (
-    <section className="space-y-3 rounded-card border border-sap-border bg-card px-3 py-3">
+    <section
+      aria-labelledby="lesson-selection"
+      className="space-y-3 rounded-card border border-sap-border bg-card px-3 py-3"
+    >
       <div>
-        <p className="text-meta text-ink-meta">
+        <h2
+          id="lesson-selection"
+          className="text-meta font-medium text-foreground"
+        >
           {plural(selected.length, "draft")} selected
-        </p>
+        </h2>
         <ul className="mt-1 space-y-0.5">
           {selected.slice(0, SHOWN_SELECTED).map((draft) => (
             <li
               key={draft.id}
-              className="truncate font-mono text-meta text-foreground"
+              className="truncate font-mono text-meta text-ink-soft"
               title={draft.narration}
             >
               {draft.narration}
@@ -287,7 +317,7 @@ function SelectionPanel({
           htmlFor="lesson-account"
           className="block text-meta font-medium text-foreground"
         >
-          Should go to
+          Goes to
         </label>
         <LookupPicker
           id="lesson-account"
@@ -305,20 +335,20 @@ function SelectionPanel({
         />
         {missingAccount && (
           <p id="lesson-account-error" className="text-meta text-destructive">
-            Choose the account these drafts go to.
+            Choose an account.
           </p>
         )}
       </div>
       <label className="block space-y-1">
         <span className="block text-meta font-medium text-foreground">
-          Anything that helps next time{" "}
+          Note for next time{" "}
           <span className="font-normal text-ink-meta">(optional)</span>
         </span>
         <textarea
           value={note}
           onChange={(event) => setNote(event.target.value)}
           rows={2}
-          placeholder="A food delivery app; its payments are always Food."
+          placeholder="A food delivery app"
           className="block w-full rounded-control border border-sap-border bg-card px-3 py-2 text-meta text-foreground placeholder:text-ink-meta"
         />
       </label>
@@ -327,21 +357,22 @@ function SelectionPanel({
           {apiErrorMessage(teach.error)}
         </p>
       )}
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={teach.isPending}
-          onClick={add}
-        >
-          Add to list
-        </Button>
-      </div>
+      <Button
+        type="button"
+        size="sm"
+        disabled={teach.isPending}
+        onClick={add}
+      >
+        Categorize {plural(selected.length, "draft")}
+      </Button>
     </section>
   );
 }
 
+/**
+ * What the categorizer is to learn, in the panel that hands it to the user's
+ * coding agent. The agent takes each off once it is learnt.
+ */
 function LessonList({
   accountId,
   lessons,
@@ -370,21 +401,26 @@ function LessonList({
     onSettled: onChanged,
   });
 
-  if (lessons.length === 0) {
-    return (
-      <p className="text-meta text-ink-meta">
-        Drafts you add get their category now, and wait here for your coding
-        agent to turn them into rules and guidance for the next import.
-      </p>
-    );
-  }
   return (
-    <section className="space-y-3">
-      <h3 className="text-meta font-medium text-foreground">
-        To teach{" "}
-        <span className="tnum font-mono text-ink-meta">{lessons.length}</span>
-      </h3>
-      <ol className="divide-y divide-sap-border rounded-card border border-sap-border bg-card">
+    <AgentPrompt
+      title="Teach the categorizer"
+      prompt={prompt}
+      afterwards={
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>Your agent takes each one off once it's learnt.</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={clear.isPending}
+            onClick={() => clear.mutate()}
+          >
+            Clear all
+          </Button>
+        </div>
+      }
+    >
+      <ol className="divide-y divide-sap-border rounded-card border border-assist-border bg-card">
         {lessons.map((lesson) => (
           <li key={lesson.id} className="flex gap-2 px-3 py-2">
             <div className="min-w-0 flex-1">
@@ -412,8 +448,8 @@ function LessonList({
               type="button"
               onClick={() => remove.mutate(lesson.id)}
               disabled={remove.isPending || clear.isPending}
-              title="Remove from the list. The drafts keep their category."
-              aria-label={`Remove the lesson for ${lesson.narrations[0]}`}
+              title="Don't teach this. Its drafts keep their category."
+              aria-label={`Don't teach ${lesson.narrations[0]}`}
               className="self-start rounded-control p-1 text-ink-meta hover:bg-sap-row-hover hover:text-foreground disabled:opacity-50"
             >
               <X aria-hidden="true" className="size-3.5" />
@@ -422,30 +458,10 @@ function LessonList({
         ))}
       </ol>
       {(remove.isError || clear.isError) && (
-        <p className="text-meta text-destructive [overflow-wrap:anywhere]">
+        <p className="mt-2 text-meta text-destructive [overflow-wrap:anywhere]">
           {apiErrorMessage(remove.error ?? clear.error)}
         </p>
       )}
-      <AgentPrompt
-        title={`Teach the categoriser ${plural(lessons.length, "lesson")}`}
-        prompt={prompt}
-        afterwards={
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>
-              Your agent takes each lesson off the list once it is taught.
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={clear.isPending}
-              onClick={() => clear.mutate()}
-            >
-              Clear list
-            </Button>
-          </div>
-        }
-      />
-    </section>
+    </AgentPrompt>
   );
 }
