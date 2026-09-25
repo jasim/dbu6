@@ -10,6 +10,7 @@ import {
 import { apiErrorMessage } from "../api";
 import { Button } from "../components/ui/button";
 import { refreshAddedAccount, statementAccountsQuery } from "../queries";
+import { reviewHandOffHref } from "../review/routes";
 import type { ProblemAction } from "../views/import-statements/describeProblems";
 import {
   IMPORT_ROUTE,
@@ -38,7 +39,6 @@ import {
   addHref,
   addOtherHref,
   carriedFrom,
-  handOffHref,
   readAddUrl,
   type From,
   type Reading,
@@ -164,7 +164,7 @@ export function AddAccount() {
       // Card 5 comes from the URL, so a reload shows it again.
       navigate(addHref({ ...url, added: account_id }), { replace: true });
     } else {
-      navigate(handOffHref(account_id));
+      navigate(reviewHandOffHref(account_id));
     }
   }
 

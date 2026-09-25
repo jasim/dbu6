@@ -17,7 +17,7 @@ import { LoadError } from "../../components/load-error";
 import { Screen } from "../../components/screen";
 import { Button } from "../../components/ui/button";
 import { IMPORT_INSTRUCTIONS_ROUTE } from "../import-instructions/ImportInstructions";
-import { SETUP_ROUTE, SETUP_STEP_ROUTES } from "../../setup/steps";
+import { SETUP_STEP_ROUTES } from "../../setup/steps";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { codingAgentSettingsQuery, refreshCodingAgent } from "../../queries";
 import {
@@ -120,9 +120,9 @@ export function Settings() {
         <h2 className="text-heading text-foreground">Accounts</h2>
         <div className="max-w-[480px] space-y-2">
           <LinkCard
-            label="Set up your books"
-            description="Chart of accounts, banks and cards, first statements, other balances"
-            to={SETUP_ROUTE}
+            label="Banks & cards"
+            description="The banks and cards your statements come from"
+            to={SETUP_STEP_ROUTES.banks}
             icon={ListChecks}
           />
           <LinkCard

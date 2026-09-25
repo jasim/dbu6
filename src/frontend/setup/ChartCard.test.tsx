@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, createElement, type ReactNode } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,23 +17,16 @@ import type {
   ChartOfAccounts,
   ChartSuggester,
   ChartSuggestion,
+  SetupStatus,
 } from "../../shared/index";
 import { registerTypeScale } from "../type-scale";
-import { ChartStep } from "./ChartStep";
+import { ChartCard } from "./ChartCard";
 
 /*
- * Step 1 (PLAN.md): a new system picks the standard chart or describes its
- * money, ticks through two-level cards and creates the ticked accounts; an
- * existing system sees its counts and moves on.
+ * Card 1 of the first run (PLAN.md): new books pick the standard chart or
+ * describe their money, tick through two-level cards and create the ticked
+ * accounts, then go on to card 2. Books with a chart are sent on.
  */
-
-// The frame is another screen's; the step renders inside a plain one.
-vi.mock("./SetupWizard", () => ({
-  SetupFrame: ({ children }: { children: ReactNode }) =>
-    createElement("main", null, children),
-  StepHeading: ({ title, children }: { title: string; children: ReactNode }) =>
-    createElement("header", null, createElement("h2", null, title), children),
-}));
 
 let host: HTMLDivElement;
 let root: Root;
@@ -111,11 +104,21 @@ const NEW_CHART: ChartOfAccounts = {
 
 const READY: ChartSuggester = { ready: true, name: "Sample Agent" };
 
+const status = (accounts: number, imported: number): SetupStatus => ({
+  accounts,
+  statement_accounts: imported,
+  imported_accounts: imported,
+  drafts: 0,
+  to_review: [],
+  other_balances: 0,
+});
+
 function Where() {
-  return createElement("code", null, useLocation().pathname);
+  const { pathname, search } = useLocation();
+  return createElement("code", null, pathname + search);
 }
 
-async function render() {
+async function render(at = "/setup") {
   await act(async () => {
     root.render(
       createElement(
@@ -123,15 +126,20 @@ async function render() {
         { client: new QueryClient() },
         createElement(
           MemoryRouter,
-          { initialEntries: ["/setup/accounts"] },
+          { initialEntries: [at] },
           createElement(Where),
           createElement(
             Routes,
             null,
             createElement(Route, {
-              path: "/setup/*",
-              element: createElement(ChartStep),
+              path: "/setup",
+              element: createElement(ChartCard),
             }),
+            createElement(Route, {
+              path: "/setup/accounts",
+              element: createElement(ChartCard),
+            }),
+            createElement(Route, { path: "*", element: null }),
           ),
         ),
       ),
@@ -186,17 +194,21 @@ async function type(field: HTMLTextAreaElement, value: string) {
   });
 }
 
-describe("a new system's chart", () => {
-  it("shows two levels per type, folds deeper ones, and creates what is ticked", async () => {
-    answers = {
-      "GET /setup/chart-of-accounts": NEW_CHART,
-      "GET /setup/chart-of-accounts/suggest": READY,
-      "POST /setup/chart-of-accounts": { ok: true },
-    };
+// What new books answer: no accounts, the starter chart, and the agent.
+const NEW_BOOKS = {
+  "GET /setup": status(0, 0),
+  "GET /setup/chart-of-accounts": NEW_CHART,
+  "GET /setup/chart-of-accounts/suggest": READY,
+};
+
+describe("card 1 on new books", () => {
+  it("shows two levels per type, folds deeper ones, creates what is ticked, and goes on to card 2", async () => {
+    answers = { ...NEW_BOOKS, "POST /setup/chart-of-accounts": { ok: true } };
     await render();
 
-    expect(host.querySelector("h2")?.textContent).toBe(
-      "Choose your chart of accounts",
+    expect(text()).toContain("Setting up your books");
+    expect(host.querySelector("h1")?.textContent).toBe(
+      "Pick your chart of accounts",
     );
     const headings = Array.from(host.querySelectorAll("h3")).map(
       (heading) => heading.textContent,
@@ -209,7 +221,7 @@ describe("a new system's chart", () => {
       "Expenses · money going out",
     ]);
     // Children starts unticked; the funds fold under Investments.
-    expect(text()).toContain("11 of 12 ticked");
+    expect(button("Create 11 accounts")).toBeTruthy();
     // An unticked name keeps its size beside the meta ink.
     const children = Array.from(host.querySelectorAll("label span")).find(
       (one) => one.textContent === "Children",
@@ -223,7 +235,6 @@ describe("a new system's chart", () => {
     expect(text()).not.toContain("Each bank account goes here.");
 
     await click(box("Investments"));
-    expect(text()).toContain("8 of 12 ticked");
     await click(button("Create 8 accounts"));
 
     const created = posted.find(
@@ -239,13 +250,22 @@ describe("a new system's chart", () => {
       "Expenses",
       "Food",
     ]);
-    expect(where()).toBe("/setup/banks");
+    expect(where()).toBe("/add?run=setup");
+  });
+
+  it("is card 1 at the old wizard's path too", async () => {
+    answers = NEW_BOOKS;
+    await render("/setup/accounts");
+
+    expect(where()).toBe("/setup/accounts");
+    expect(host.querySelector("h1")?.textContent).toBe(
+      "Pick your chart of accounts",
+    );
   });
 
   it("drops a refusal once the chart or its ticks change", async () => {
     answers = {
-      "GET /setup/chart-of-accounts": NEW_CHART,
-      "GET /setup/chart-of-accounts/suggest": READY,
+      ...NEW_BOOKS,
       "POST /setup/chart-of-accounts": {
         error: "The chart can't be created: NOPII problem.",
         code: "invalid_chart",
@@ -259,6 +279,7 @@ describe("a new system's chart", () => {
     expect(host.querySelector('[role="alert"]')?.textContent).toBe(
       "NOPII problem.",
     );
+    expect(where()).toBe("/setup");
     await click(box("Food"));
     expect(host.querySelector('[role="alert"]')).toBeNull();
 
@@ -270,7 +291,7 @@ describe("a new system's chart", () => {
 
   it("says why describing is off when no agent is ready", async () => {
     answers = {
-      "GET /setup/chart-of-accounts": NEW_CHART,
+      ...NEW_BOOKS,
       "GET /setup/chart-of-accounts/suggest": {
         ready: false,
         name: "Sample Agent",
@@ -301,8 +322,7 @@ describe("a new system's chart", () => {
       notes: ["Opening Balances was added."],
     };
     answers = {
-      "GET /setup/chart-of-accounts": NEW_CHART,
-      "GET /setup/chart-of-accounts/suggest": READY,
+      ...NEW_BOOKS,
       "POST /setup/chart-of-accounts/suggest": suggestion,
     };
     await render();
@@ -319,43 +339,50 @@ describe("a new system's chart", () => {
     expect(asked.current).toHaveLength(11);
     expect(text()).toContain("Freelance");
     expect(text()).toContain("1 adjustment");
-    expect(text()).toContain("7 of 7 ticked");
+    expect(button("Create 7 accounts")).toBeTruthy();
 
-    await click(button("Back to the standard chart"));
+    await click(button("Standard"));
     expect(text()).not.toContain("Freelance");
-    expect(text()).toContain("11 of 12 ticked");
+    expect(button("Create 11 accounts")).toBeTruthy();
+  });
+
+  it("says when the books can't be read, and tries again", async () => {
+    answers = { "GET /setup": { error: "NOPII failure.", code: "forbidden" } };
+    statuses = { "GET /setup": 403 };
+    await render();
+
+    expect(host.querySelector("h1")?.textContent).toBe(
+      "Couldn't load your accounts",
+    );
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      "NOPII failure.",
+    );
+    answers = NEW_BOOKS;
+    statuses = {};
+    await click(button("Try again"));
+    expect(host.querySelector("h1")?.textContent).toBe(
+      "Pick your chart of accounts",
+    );
   });
 });
 
-describe("an existing system's chart", () => {
-  it("counts the accounts per type and moves on to banks", async () => {
-    answers = {
-      "GET /setup/chart-of-accounts": {
-        state: "existing",
-        chart: { accounts: STARTER },
-      } satisfies ChartOfAccounts,
-    };
+describe("/setup on books with a chart", () => {
+  it("goes on to card 2 until a bank or card has transactions", async () => {
+    answers = { "GET /setup": status(12, 0) };
     await render();
+    expect(where()).toBe("/add?run=setup");
 
-    expect(host.querySelector("h2")?.textContent).toBe(
-      "Your chart of accounts",
-    );
-    expect(text()).toContain("Your books already have 12 accounts.");
-    const counts = Array.from(host.querySelectorAll("dl > div")).map(
-      (fact) => fact.textContent,
-    );
-    expect(counts).toEqual([
-      "Assets5",
-      "Liabilities1",
-      "Equity2",
-      "Income1",
-      "Expenses3",
-    ]);
-    expect(host.querySelector('a[href="/accounts"]')?.textContent).toBe(
-      "Accounts page",
-    );
-    expect(host.querySelector('a[href="/setup/banks"]')?.textContent).toBe(
-      "Next: Banks & cards",
-    );
+    act(() => root.unmount());
+    root = createRoot(host);
+    await render("/setup/accounts");
+    expect(where()).toBe("/add?run=setup");
+  });
+
+  it("goes Home once one has", async () => {
+    answers = { "GET /setup": status(12, 1) };
+    await render();
+    expect(where()).toBe("/");
+    // The chart is never asked for.
+    expect(posted).toEqual([]);
   });
 });

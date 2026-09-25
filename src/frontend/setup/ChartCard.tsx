@@ -1,62 +1,103 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LEDGER_ACCOUNT_TYPES, type ChartAccount } from "../../shared/index";
+import { usePageTitle } from "@sapporta/frontend/shell";
+import type { ChartAccount } from "../../shared/index";
 import { apiErrorMessage, setupApi } from "../api";
 import { Disclosure } from "../components/disclosure";
-import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 import {
   chartOfAccountsQuery,
   chartSuggesterQuery,
   refreshSetup,
+  setupStatusQuery,
 } from "../queries";
 import { plural } from "../format";
+import { FocusCard, type FocusFrame } from "../add-account/FocusCard";
+import { addHref } from "../add-account/state";
+import { contextLine } from "../add-account/words";
 import {
-  countsByType,
   initialTicks,
   lockedAccounts,
   tickedAccounts,
   toggleTick,
   type Ticks,
 } from "./chart-checklist";
-import { ACCOUNT_TYPE_TERMS } from "./account-type-terms";
 import { ChartTree } from "./ChartTree";
 import { DescribeMoney } from "./DescribeMoney";
-import { SetupFrame, StepHeading } from "./SetupWizard";
-import { SETUP_STEP_ROUTES } from "./steps";
+import { setupRedirect } from "./first-run";
 
 /*
- * Step 1, the chart of accounts. Books with no accounts at all choose one:
- * the standard chart, or one the coding agent proposes from the user's
- * description, ticked through before anything is created. Books with any
- * account show their chart as it is; the Accounts page changes it.
+ * Card 1 of the first run (PLAN.md "The cards"), at `/setup`: books with no
+ * accounts pick their chart, the standard one or one the coding agent
+ * proposes from the user's description, ticked through before anything is
+ * created. Books with a chart are sent on (`setupRedirect`); the Accounts
+ * page changes a chart.
  */
-export function ChartStep() {
-  const chart = useQuery(chartOfAccountsQuery);
+
+// The first run's context line, before any bank or card is in.
+const FRAME: FocusFrame = {
+  context: contextLine({ setup: true, from: null, added: null }, 0),
+};
+
+export function ChartCard() {
+  usePageTitle("Set up your books");
+  const status = useQuery(setupStatusQuery);
+  if (status.isError) {
+    return (
+      <LoadFailed
+        message={apiErrorMessage(status.error)}
+        retry={() => void status.refetch()}
+      />
+    );
+  }
+  if (!status.data) return <FocusCard {...FRAME} title="Loading…" />;
+  const to = setupRedirect(status.data);
+  if (to !== null) return <Navigate to={to} replace />;
+  return <NewChart />;
+}
+
+function LoadFailed({
+  message,
+  retry,
+}: {
+  message: string;
+  retry: () => void;
+}) {
   return (
-    <SetupFrame step="accounts">
-      {chart.isPending && (
-        <p className="text-body text-ink-meta">Loading your accounts…</p>
-      )}
-      {chart.isError && (
-        <LoadError
-          title="Couldn't load your accounts"
-          message={apiErrorMessage(chart.error)}
-          retry={() => void chart.refetch()}
-        />
-      )}
-      {chart.data?.state === "new" && (
-        <NewChart
-          starter={chart.data.starter.accounts}
-          unticked={chart.data.unticked}
-        />
-      )}
-      {chart.data?.state === "existing" && (
-        <ExistingChart accounts={chart.data.chart.accounts} />
-      )}
-    </SetupFrame>
+    <FocusCard
+      {...FRAME}
+      title="Couldn't load your accounts"
+      lead={
+        <span role="alert" className="text-destructive">
+          {message}
+        </span>
+      }
+      actions={<Button onClick={retry}>Try again</Button>}
+    />
+  );
+}
+
+function NewChart() {
+  const chart = useQuery(chartOfAccountsQuery);
+  if (chart.isError) {
+    return (
+      <LoadFailed
+        message={apiErrorMessage(chart.error)}
+        retry={() => void chart.refetch()}
+      />
+    );
+  }
+  if (!chart.data) return <FocusCard {...FRAME} title="Loading…" />;
+  // A chart made since the status was read (another tab, an agent): Home
+  // resumes from the books.
+  if (chart.data.state === "existing") return <Navigate to="/" replace />;
+  return (
+    <Checklist
+      starter={chart.data.starter.accounts}
+      unticked={chart.data.unticked}
+    />
   );
 }
 
@@ -73,7 +114,7 @@ interface Described extends Proposal {
 
 type Source = "standard" | "describe";
 
-function NewChart({
+function Checklist({
   starter,
   unticked,
 }: {
@@ -116,21 +157,28 @@ function NewChart({
       await setupApi.createChartOfAccounts({
         body: { accounts: tickedAccounts(accounts, ticks) },
       });
-      await refreshSetup(client);
-      navigate(SETUP_STEP_ROUTES.banks);
     } catch (error) {
       setProblem(refusalProblems(error));
-    } finally {
       setCreating(false);
+      return;
     }
+    // On to card 2. `/setup` has nothing more to show these books, so Back
+    // passes it.
+    navigate(addHref({ setup: true }), { replace: true });
+    void refreshSetup(client);
   }
 
   return (
-    <>
-      <StepHeading title="Choose your chart of accounts">
-        Every transaction is sorted into one of these. Rename or add more later.
-      </StepHeading>
-
+    <FocusCard
+      {...FRAME}
+      title="Pick your chart of accounts"
+      lead="Every transaction is sorted into one of these. Rename or add more later."
+      actions={
+        <Button onClick={() => void create()} disabled={creating}>
+          {creating ? "Creating…" : `Create ${plural(ticks.size, "account")}`}
+        </Button>
+      }
+    >
       <div className="mb-5">
         <ToggleGroup<Source>
           aria-label="Chart"
@@ -141,9 +189,7 @@ function NewChart({
             if (picked !== undefined) choose(picked);
           }}
         >
-          <ToggleGroupItem<Source> value="standard">
-            Standard chart
-          </ToggleGroupItem>
+          <ToggleGroupItem<Source> value="standard">Standard</ToggleGroupItem>
           <ToggleGroupItem<Source> value="describe" disabled={agent === null}>
             ✦ Describe your money
           </ToggleGroupItem>
@@ -179,7 +225,6 @@ function NewChart({
               notes: suggestion.notes,
             });
           }}
-          onBack={() => choose("standard")}
         />
       )}
       {shown === described && described.notes.length > 0 && (
@@ -206,67 +251,14 @@ function NewChart({
       {problem && (
         <div
           role="alert"
-          className="mb-4 rounded-card border border-destructive/40 px-4 py-3 text-body text-destructive"
+          className="rounded-card border border-destructive/40 px-4 py-3 text-body text-destructive"
         >
           {problem.map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>
       )}
-      <div className="flex min-h-sap-ctl flex-wrap items-center justify-between gap-3">
-        <p className="text-meta text-ink-meta">
-          <span className="tnum font-mono">{ticks.size}</span> of{" "}
-          <span className="tnum font-mono">{accounts.length}</span> ticked
-        </p>
-        <Button onClick={() => void create()} disabled={creating}>
-          {creating ? "Creating…" : `Create ${plural(ticks.size, "account")}`}
-        </Button>
-      </div>
-    </>
-  );
-}
-
-function ExistingChart({ accounts }: { accounts: ChartAccount[] }) {
-  const counts = countsByType(accounts);
-  return (
-    <>
-      <StepHeading title="Your chart of accounts">
-        Your books already have {plural(accounts.length, "account")}. Change
-        them on the{" "}
-        <Link
-          to="/accounts"
-          className="text-primary underline-offset-4 hover:underline"
-        >
-          Accounts page
-        </Link>
-        .
-      </StepHeading>
-      <dl className="mb-5 flex flex-wrap items-baseline gap-x-5 gap-y-2">
-        {LEDGER_ACCOUNT_TYPES.map((type) => (
-          <div key={type} className="flex items-baseline gap-1.5">
-            <dt className="text-label uppercase text-ink-meta">
-              {ACCOUNT_TYPE_TERMS[type].term}
-            </dt>
-            <dd className="tnum font-mono text-row font-medium text-foreground">
-              {counts[type]}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <Disclosure
-        summary="Show all accounts"
-        aside={
-          <Button
-            render={<Link to={SETUP_STEP_ROUTES.banks} />}
-            nativeButton={false}
-          >
-            Next: Banks & cards
-          </Button>
-        }
-      >
-        <ChartTree accounts={accounts} />
-      </Disclosure>
-    </>
+    </FocusCard>
   );
 }
 

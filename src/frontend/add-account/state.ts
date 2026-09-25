@@ -6,7 +6,6 @@ import type {
   CategorizerStatus,
   StatementImportError,
 } from "../../shared/index";
-import { reviewHref } from "../review/routes";
 
 /*
  * Which card /add shows (PLAN.md "The cards"), as a pure function of the URL,
@@ -98,11 +97,6 @@ export function addHref(url: Partial<AddUrl>): string {
 /** Where "That's all" goes on the first run: cash, a deposit, a loan? */
 export function addOtherHref(url: AddUrl): string {
   return `${ADD_OTHER_ROUTE}${query({ setup: url.setup, from: url.from })}`;
-}
-
-/** Card 7 on a later add: the account's drafts, with the hand-off note. */
-export function handOffHref(accountId: number): string {
-  return `${reviewHref(accountId, "drafts")}?imported=1`;
 }
 
 /**

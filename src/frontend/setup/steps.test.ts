@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SetupStatus } from "../../shared/index";
-import { balancesHref, firstOpenStep, railSteps, stepDone } from "./steps";
+import { balancesHref, railSteps, stepDone } from "./steps";
 
 const status = (
   accounts: number,
@@ -18,17 +18,7 @@ const status = (
 });
 
 describe("the setup wizard's steps", () => {
-  it("opens on the first step the books haven't done, else Review", () => {
-    expect(firstOpenStep(status(0, 0, 0, 0))).toBe("accounts");
-    expect(firstOpenStep(status(40, 0, 0, 0))).toBe("banks");
-    expect(firstOpenStep(status(40, 2, 1, 42))).toBe("statements");
-    expect(firstOpenStep(status(40, 2, 2, 42))).toBe("review");
-    expect(firstOpenStep(status(40, 2, 2, 0))).toBe("review");
-  });
-
-  it("passes the optional other balances, and never waits for them", () => {
-    // Statements in, nothing recorded: /setup opens on Review, not on it.
-    expect(firstOpenStep(status(40, 2, 2, 42))).toBe("review");
+  it("never waits for the optional other balances", () => {
     expect(stepDone("balances", status(40, 2, 2, 0))).toBe(false);
     expect(stepDone("review", status(40, 2, 2, 0))).toBe(true);
     expect(stepDone("balances", status(40, 2, 2, 0, 3))).toBe(true);

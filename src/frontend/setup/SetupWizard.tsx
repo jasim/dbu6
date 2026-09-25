@@ -1,46 +1,18 @@
 import type { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import { apiErrorMessage } from "../api";
-import { LoadError } from "../components/load-error";
 import { Screen, ScreenTitle } from "../components/screen";
 import { setupStatusQuery } from "../queries";
 import { SetupRail } from "./SetupRail";
-import {
-  firstOpenStep,
-  railSteps,
-  SETUP_STEP_ROUTES,
-  type SetupStepId,
-} from "./steps";
+import { railSteps, type SetupStepId } from "./steps";
 
 /*
- * The setup wizard (/setup): the chart of accounts, the banks and cards
- * statements come from, a first statement for each, the other balances
- * (optional), then Review. Every step
- * reads where it stands from the books, so leaving and coming back shows
- * where things are.
+ * What is left of the setup wizard until PLAN.md's step 8 removes it: the
+ * banks and cards statements come from, a first statement for each, the
+ * other balances (optional), then Review. The chart, `/setup` itself, is
+ * card 1 of the first run now (ChartCard). Every step reads where it stands
+ * from the books, so leaving and coming back shows where things are.
  */
-
-/** `/setup`: the first step the books haven't done, else Review. */
-export function SetupIndex() {
-  const status = useQuery(setupStatusQuery);
-  if (status.isError) {
-    return (
-      <SetupFrame step="accounts">
-        <LoadError
-          title="Couldn't load where your setup stands"
-          message={apiErrorMessage(status.error)}
-          retry={() => void status.refetch()}
-        />
-      </SetupFrame>
-    );
-  }
-  if (!status.data) return <SetupFrame step="accounts">{null}</SetupFrame>;
-  return (
-    <Navigate to={SETUP_STEP_ROUTES[firstOpenStep(status.data)]} replace />
-  );
-}
 
 /** A step's screen: the wizard's title and rail beside its own content. */
 export function SetupFrame({
