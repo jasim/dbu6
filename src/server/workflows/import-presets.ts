@@ -29,8 +29,15 @@ import {
   readTransactionMappings,
   TRANSACTION_MAPPINGS_FILENAME,
 } from "../modules/categorization/index.js";
-import { countDraftsByAccount } from "../modules/drafts/index.js";
-import { countEntriesByAccount } from "../modules/journals/index.js";
+import {
+  countDraftsByAccount,
+  loadStatementActivity,
+} from "../modules/drafts/index.js";
+import {
+  countEntriesByAccount,
+  deleteOpeningEntry,
+  loadOpeningEntries,
+} from "../modules/journals/index.js";
 import {
   loadImportPresets,
   saveImportPresets,
@@ -396,13 +403,12 @@ function refuse(code: StatementAccountProblem["code"], message: string): never {
 
 /** Every preset account as Banks & cards lists it, and what a new one needs. */
 export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
-  const { db, sqlite, auth } = ledger;
+  const { db, auth } = ledger;
   const institutions = loadImportPresets(db, auth);
   const chart = loadAccountChart(db, auth);
   const byId = new Map(chart.map((account) => [account.id, account]));
   const paths = loadHledgerAccountNames(db, auth);
-  const entries = countEntriesByAccount(sqlite, auth);
-  const drafts = countDraftsByAccount(sqlite, auth);
+  const activity = loadStatementActivity(ledger);
 
   const accounts = institutions.flatMap((institution) =>
     institution.accounts.map((account): StatementAccountRow => {
@@ -417,8 +423,7 @@ export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
         account_identifiers: account.account_identifiers,
         parent: parent ? { id: parent.id, name: parent.name } : null,
         in_ledger: inLedger !== undefined,
-        entries: entries.get(account.account_id) ?? 0,
-        drafts: drafts.get(account.account_id) ?? 0,
+        ...activity(account.account_id),
       };
     }),
   );
@@ -617,10 +622,32 @@ function writeStatementAccount(
 
   if (change.action === "remove") {
     if (change.delete_account && account !== undefined) {
+      // A refusal here rolls the whole removal back: the bank or card stays
+      // set up, and the user can remove it keeping its account instead.
       if (chart.some((one) => one.parent_id === account.id)) {
         refuse(
           "account_has_children",
-          `${account.name} has accounts under it, so it stays in your books; only its statements are no longer set up.`,
+          `${account.name} has accounts under it, so it can't be deleted from your chart. Remove it and keep it in your chart.`,
+        );
+      }
+      // A half-added bank or card (an add whose import failed) has its
+      // opening entry and nothing of its own: that entry goes with the
+      // account, when its journal opens this account alone against Opening
+      // Balances. Anything else on it (other statements' transactions, a
+      // journal opening other accounts too) keeps the account.
+      const opening = loadOpeningEntries(ledger.sqlite, auth, {
+        accountId: account.id,
+      }).get(account.id);
+      if (opening?.standalone && opening.onOpeningBalances) {
+        deleteOpeningEntry(tx, auth, opening);
+      }
+      if (
+        countEntriesByAccount(ledger.sqlite, auth).has(account.id) ||
+        countDraftsByAccount(ledger.sqlite, auth).has(account.id)
+      ) {
+        refuse(
+          "account_has_transactions",
+          `${account.name} has other entries in your books, so it can't be deleted from your chart. Remove it and keep it in your chart.`,
         );
       }
       deleteAccount(tx, auth, account.id);
@@ -641,14 +668,24 @@ function writeStatementAccount(
   checkNameFree(chart, change.name, account.id);
   checkParent(byId.get(change.parent_id), change.kind, account, chart);
   const accountType = LEDGER_ACCOUNT_TYPE[change.kind];
-  if (
-    accountType !== account.account_type &&
-    chart.some((one) => one.parent_id === account.id)
-  ) {
-    refuse(
-      "account_has_children",
-      `${account.name} has accounts under it, so it can't change from a bank account to a card or back.`,
-    );
+  if (accountType !== account.account_type) {
+    if (chart.some((one) => one.parent_id === account.id)) {
+      refuse(
+        "account_has_children",
+        `${account.name} has accounts under it, so it can't change from a bank account to a card or back.`,
+      );
+    }
+    // Its type decides the sign of every amount on it, so any entry (its
+    // opening included) or draft keeps it as it is.
+    if (
+      countEntriesByAccount(ledger.sqlite, auth).has(account.id) ||
+      countDraftsByAccount(ledger.sqlite, auth).has(account.id)
+    ) {
+      refuse(
+        "account_has_transactions",
+        `${account.name} has entries in your books, so it can't change from a bank account to a card or back. Remove it and add it again as a ${change.kind === "card" ? "card" : "bank account"}.`,
+      );
+    }
   }
   updateAccount(tx, auth, account.id, {
     name: change.name,
@@ -750,22 +787,18 @@ function checkParent(
 }
 
 function checkNoTransactions(ledger: Ledger, account: ImportAccount): void {
-  const entries =
-    countEntriesByAccount(ledger.sqlite, ledger.auth).get(account.account_id) ??
-    0;
-  const drafts =
-    countDraftsByAccount(ledger.sqlite, ledger.auth).get(account.account_id) ??
-    0;
-  // The setup screen shows this; an agent learns from DBU6-BOOKS.md that the
-  // preset is then changed through the presets API. Drafts alone go once
-  // they are deleted in Review.
-  if (entries > 0) {
+  // /add's and Home's rule (`hasTransactions`): its own entries but the
+  // opening entry, and drafts from its own statements. An agent learns from
+  // DBU6-BOOKS.md that the preset is then changed through the presets API.
+  // Drafts alone go once they are deleted in Review.
+  const activity = loadStatementActivity(ledger)(account.account_id);
+  if (activity.entries > 0) {
     refuse(
       "account_has_transactions",
       `${account.name} has transactions, so it can't change here.`,
     );
   }
-  if (drafts > 0) {
+  if (activity.drafts > 0) {
     refuse(
       "account_has_transactions",
       `${account.name} has transactions to review. Delete them in Review to change it here.`,

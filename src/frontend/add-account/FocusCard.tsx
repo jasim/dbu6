@@ -1,6 +1,8 @@
 import { useId, type ReactNode } from "react";
 import { cn } from "@sapporta/ui/cn";
 import { Link, Outlet } from "react-router-dom";
+import { apiErrorMessage } from "../api";
+import { Button } from "../components/ui/button";
 
 /*
  * Focus mode (PLAN.md "The rule every screen follows"): the page holds one
@@ -122,5 +124,60 @@ export function Choice({
       />
       {children}
     </label>
+  );
+}
+
+/**
+ * A card waiting on the books: "Loading…", or, when the read failed, what
+ * went wrong and Try again.
+ */
+export function FocusLoading({
+  context,
+  error,
+  retry,
+}: FocusFrame & {
+  /** The failed read's error; null while it is still loading. */
+  error: unknown;
+  retry: () => void;
+}) {
+  if (error === null) return <FocusCard context={context} title="Loading…" />;
+  return (
+    <FocusCard
+      context={context}
+      title="Couldn't load your accounts"
+      lead={
+        <span role="alert" className="text-destructive">
+          {apiErrorMessage(error)}
+        </span>
+      }
+      actions={<Button onClick={retry}>Try again</Button>}
+    />
+  );
+}
+
+/** A card's field: its label, a hint under it if any, then the control. */
+export function Field({
+  id,
+  label,
+  hint,
+  children,
+}: {
+  /** The control the label names. */
+  id: string;
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label
+        htmlFor={id}
+        className="block text-row font-semibold text-foreground"
+      >
+        {label}
+      </label>
+      {hint && <p className="text-meta text-ink-meta">{hint}</p>}
+      {children}
+    </div>
   );
 }

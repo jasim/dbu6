@@ -345,12 +345,23 @@ describe("BanksAndCards", () => {
     expect(text()).toContain("Edit Sample Bank Savings");
   });
 
+  it("says the opening balance goes only with the account", async () => {
+    await renderPage([savings]);
+    await choose(savings.name, "Remove");
+
+    // Deleting it from the chart is ticked to start with.
+    expect(text()).toContain(
+      "dbu6 stops importing its statements, and deletes the account and its opening balance.",
+    );
+  });
+
   it("removes a row whose account was deleted from the books", async () => {
     const gone = { ...savings, name: "Sample Gone", in_ledger: false };
     await renderPage([gone]);
     await choose("Sample Gone", "Remove");
 
     expect(text()).toContain("Remove Sample Gone?");
+    expect(text()).toContain("dbu6 stops importing its statements.");
     // Its account is already gone from the chart.
     expect(text()).not.toContain("Also delete it from your chart of accounts");
     await act(async () => button("Remove").click());

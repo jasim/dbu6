@@ -24,10 +24,12 @@ import {
 } from "../modules/accounts/index.js";
 import type { LoadCategorizer } from "../modules/categorization/index.js";
 import { categorizationLlm, llmStatus } from "../modules/coding-agent/index.js";
-import { loadDraftStatus } from "../modules/drafts/index.js";
+import {
+  hasTransactions,
+  loadStatementActivity,
+} from "../modules/drafts/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import {
-  countOwnEntriesByAccount,
   loadOpeningEntries,
   lookupLastReconciled,
 } from "../modules/journals/index.js";
@@ -188,8 +190,8 @@ function newAccountKey(
 }
 
 /*
- * A bank or card set up with its number and no parser (by an agent, through
- * /api/setup/statement-accounts, or by the old Banks & cards step): the
+ * A bank or card set up with its number and no parser (by an agent through
+ * /api/setup/statement-accounts, or before /add existed): the
  * statement whose parser no institution lists is its, when it prints that
  * number and no other account has it. Adding it then lists the parser.
  */
@@ -1035,41 +1037,3 @@ const money = new Intl.NumberFormat("en-IN", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-
-/**
- * What a bank or card holds so far: posted entries (its opening entry left
- * out) and drafts from its own statements.
- */
-export interface StatementActivity {
-  entries: number;
-  drafts: number;
-}
-
-/**
- * Whether a bank or card's first statement is in: it has entries or drafts.
- * It is then `in_books`, and Home counts it imported.
- */
-export function hasTransactions(activity: StatementActivity): boolean {
-  return activity.entries > 0 || activity.drafts > 0;
-}
-
-/**
- * Each account's own entries (`countOwnEntriesByAccount`), its opening entry
- * left out, and the drafts from its own statements. The one rule for whether
- * a bank or card is imported: /add's reading and Home's "nothing imported
- * yet" both read it.
- */
-export function loadStatementActivity(
-  ledger: Pick<Ledger, "sqlite" | "auth">,
-): (accountId: number) => StatementActivity {
-  const { sqlite, auth } = ledger;
-  // Its own: a card payment another account's import posted to it is not
-  // this account's statement.
-  const entries = countOwnEntriesByAccount(sqlite, auth);
-  const openings = loadOpeningEntries(sqlite, auth);
-  const drafts = loadDraftStatus(sqlite, auth);
-  return (accountId) => ({
-    entries: (entries.get(accountId) ?? 0) - (openings.has(accountId) ? 1 : 0),
-    drafts: drafts.get(accountId)?.drafts ?? 0,
-  });
-}

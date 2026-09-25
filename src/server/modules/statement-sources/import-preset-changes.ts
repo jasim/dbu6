@@ -192,9 +192,9 @@ function describeCount(count: number, noun: string): string {
  *    one account, each account has an identifier.
  * 6. An account lists a mapping file once.
  *
- * Rules 4 and 5 can refuse a change on the setup screen, so their messages
- * say bank and number, not institution and identifier; the code stays
- * precise for an agent.
+ * Rules 4 and 5 can refuse a change that /add or Settings › Banks & cards
+ * shows as it is, so their messages say bank and number, not institution
+ * and identifier; the code stays precise for an agent.
  */
 export function validateImportPresets(
   institutions: readonly PresetInstitution[],

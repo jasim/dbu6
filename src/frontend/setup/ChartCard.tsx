@@ -13,7 +13,11 @@ import {
   refreshSetup,
 } from "../queries";
 import { plural } from "../format";
-import { FocusCard, type FocusFrame } from "../add-account/FocusCard";
+import {
+  FocusCard,
+  FocusLoading,
+  type FocusFrame,
+} from "../add-account/FocusCard";
 import { addHref } from "../add-account/state";
 import { contextLine } from "../add-account/words";
 import {
@@ -45,41 +49,20 @@ const FRAME: FocusFrame = {
 export function ChartCard() {
   usePageTitle("Set up your books");
   const chart = useQuery(chartOfAccountsQuery);
-  if (chart.isError) {
+  if (!chart.data) {
     return (
-      <LoadFailed
-        message={apiErrorMessage(chart.error)}
+      <FocusLoading
+        {...FRAME}
+        error={chart.isError ? chart.error : null}
         retry={() => void chart.refetch()}
       />
     );
   }
-  if (!chart.data) return <FocusCard {...FRAME} title="Loading…" />;
   if (chart.data.state === "existing") return <Navigate to="/" replace />;
   return (
     <Checklist
       starter={chart.data.starter.accounts}
       unticked={chart.data.unticked}
-    />
-  );
-}
-
-function LoadFailed({
-  message,
-  retry,
-}: {
-  message: string;
-  retry: () => void;
-}) {
-  return (
-    <FocusCard
-      {...FRAME}
-      title="Couldn't load your accounts"
-      lead={
-        <span role="alert" className="text-destructive">
-          {message}
-        </span>
-      }
-      actions={<Button onClick={retry}>Try again</Button>}
     />
   );
 }

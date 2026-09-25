@@ -235,6 +235,12 @@ describe("POST /add-account/read", () => {
     const saved = body.files[0].saved_path!;
     expect(saved).toMatch(/^tmp\/statement-uploads\/.+\/0-NOPII-unknown\.pdf$/);
     expect(existsSync(join(root, saved))).toBe(true);
+    // The file it read is kept nowhere: no prompt points at it.
+    expect(body.files[1]).toMatchObject({ status: "read", saved_path: null });
+    const [batch] = staged();
+    expect(readdirSync(join(root, "tmp", "statement-uploads", batch))).toEqual([
+      "0-NOPII-unknown.pdf",
+    ]);
   });
 
   it("keeps the drop staged for a refusal /import gives a prompt for", async () => {
@@ -249,6 +255,20 @@ describe("POST /add-account/read", () => {
     });
     expect(body.files[0].saved_path).toMatch(/0-other-bad\.pdf$/);
     expect(existsSync(join(root, body.files[0].saved_path))).toBe(true);
+  });
+
+  it("keeps nothing for a refusal when the files are several accounts'", async () => {
+    const response = await readDrop(["other-bad.pdf", "savings-aug.xls"]);
+
+    const body = (await response.json()) as {
+      files: { saved_path: unknown }[];
+      accounts: { refusal: unknown }[];
+    };
+    expect(body.accounts.map((one) => one.refusal)).toContainEqual(
+      expect.objectContaining({ error: "balance_mismatch" }),
+    );
+    expect(body.files.map((file) => file.saved_path)).toEqual([null, null]);
+    expect(staged()).toEqual([]);
   });
 
   it("refuses a drop with no files", async () => {
@@ -316,8 +336,6 @@ describe("POST /add-account/add", () => {
       code: "import_refused",
       import_error: { error: "statement_boundary_mismatch", difference: 2000 },
     });
-    // A gap is the flow's own card: nothing stays staged for it.
-    expect(body).not.toHaveProperty("files");
     expect(staged()).toEqual([]);
     expect(
       conn.sqlite
@@ -326,21 +344,19 @@ describe("POST /add-account/add", () => {
     ).toEqual({ n: 0 });
   });
 
-  it("keeps the files, and says where, for a refusal /import gives a prompt for", async () => {
+  it("keeps nothing for a refusal /import gives a prompt for: the read has it", async () => {
     const response = await addDrop(["other-bad.pdf"], {
       name: "Sample Current",
     });
 
     expect(response.status).toBe(422);
-    const body = (await response.json()) as {
-      files: { file_name: string; saved_path: string }[];
-    };
+    const body = await response.json();
     expect(body).toMatchObject({
       code: "import_refused",
       import_error: { error: "balance_mismatch" },
-      files: [{ file_name: "other-bad.pdf" }],
     });
-    expect(existsSync(join(root, body.files[0].saved_path))).toBe(true);
+    expect(body).not.toHaveProperty("files");
+    expect(staged()).toEqual([]);
   });
 
   it("keeps nothing for a file it can't read: the read has it", async () => {

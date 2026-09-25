@@ -228,10 +228,11 @@ you couldn't encode.
     sign; its `amount` is `null` when they print no balance, and then
     `needs_opening`), an `opening_refusal`, and `refusal`, the refusal
     `/import` would give, in `/import`'s words. `categorizer` says who
-    categorizes the import. The files are kept under
-    `tmp/statement-uploads/` (each file's `saved_path`) only when a coding
-    agent needs them: a file no parser reads or several do, or a refusal
-    `/import` gives a prompt for.
+    categorizes the import. Files are kept under `tmp/statement-uploads/`
+    (each one's `saved_path`) only when a coding agent needs them: the files
+    no parser reads or several do, or all of one account's files (not in
+    the books) when its refusal is one `/import` gives a prompt for. The add
+    keeps nothing.
   - `POST /api/add-account/add` takes one account's files again, with form
     fields: `name` (a new account, under `parent_id`) or `account_id` (an
     Asset or Liability from the chart that no bank or card uses);
@@ -280,13 +281,16 @@ you couldn't encode.
     the statement prints it (`050505XXXXXX0505`). An institution with two
     accounts needs one on each.
   - `{"action":"update",…}` and `{"action":"remove","account_id":<id>,"delete_account":true}`
-    change or remove one, but only while no entry or draft is on it
-    (`account_has_transactions`); on screen, that is Settings › Banks &
-    cards (`/settings/banks`). With only drafts, deleting them frees it;
-    after an entry, use the Accounts page and
-    [Import presets](#import-presets).
+    change or remove one, but only while it has no transactions of its own
+    (`account_has_transactions`), the rule `/add` and Home use: its opening
+    entry and what other accounts' statements put on it don't count. On
+    screen, that is Settings › Banks & cards (`/settings/banks`). Removing
+    one deletes its opening entry when that journal opens it alone, and
+    `delete_account` is refused while other statements' transactions are
+    on it. With only drafts, deleting them frees it; after an entry, use
+    the Accounts page and [Import presets](#import-presets).
   - `sapporta api get /api/setup/statement-accounts` lists them, each with
-    its count of entries and drafts.
+    its count of its own `entries` and `drafts`.
 - **Setting up the books.** The first run is a run of cards, one question
   each, and keeps nothing but the URL: `/setup` picks the chart of accounts,
   `/add?run=setup` adds the banks and cards one at a time, `/add/other`

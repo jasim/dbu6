@@ -37,10 +37,8 @@ export const statementOpeningSchema = z.object({
 export type StatementOpening = z.infer<typeof statementOpeningSchema>;
 
 // One dropped file, as the read found it. `saved_path` is where its staged
-// copy is kept (inside the project) for a coding agent's prompt; the read
-// keeps the drop only when the card it leads to hands the user one: a file
-// no parser reads or several do, or a refusal /import gives a prompt for
-// (`refusalPromptsAgent`).
+// copy is kept (inside the project) for a coding agent's prompt: the read
+// keeps exactly the files `promptedFiles` names.
 export const addAccountFileSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("read"),
@@ -142,7 +140,8 @@ export const addAccountCandidateSchema = z.object({
 export type AddAccountCandidate = z.infer<typeof addAccountCandidateSchema>;
 
 export const addAccountReadingSchema = z.object({
-  // In the order they were dropped.
+  // In the order they were dropped: a file's position is its place in the
+  // drop, which is how the cards name files (two can share a name).
   files: z.array(addAccountFileSchema),
   // By each one's first date, earliest first; those with no rows last.
   accounts: z.array(addAccountCandidateSchema),
@@ -219,20 +218,14 @@ export const addAccountRefusalSchema = z.object({
     ...statementAccountRefusalSchema.shape.code.options,
   ]),
   import_error: statementImportErrorSchema.optional(),
-  // With an `import_error` /import gives a coding-agent prompt for
-  // (`refusalPromptsAgent`): where each file's staged copy is kept.
-  files: z
-    .array(z.object({ file_name: z.string(), saved_path: z.string() }))
-    .optional(),
 });
 export type AddAccountRefusal = z.infer<typeof addAccountRefusalSchema>;
 
 /**
  * Whether /import hands the user a coding-agent prompt for this refusal
- * (views/import-statements/describeProblems.ts), and so whether the files
- * stay staged for it. A gap has the flow's own card (add the missing
- * statement, or start after it), and a part with no balances or a missing
- * opening are the user's to fix, so those keep nothing.
+ * (views/import-statements/describeProblems.ts). A gap has the flow's own
+ * card (add the missing statement, or start after it), and a part with no
+ * balances or a missing opening are the user's to fix, so those get none.
  */
 export function refusalPromptsAgent(error: StatementImportError): boolean {
   switch (error.error) {
@@ -244,6 +237,51 @@ export function refusalPromptsAgent(error: StatementImportError): boolean {
     default:
       return true;
   }
+}
+
+/**
+ * Statements with no rows, or no opening to start from: the "No
+ * transactions" card, which comes before any refusal's.
+ */
+export function readsNoTransactions(account: AddAccountCandidate): boolean {
+  return (
+    account.period === null ||
+    account.opening === null ||
+    account.transactions === 0
+  );
+}
+
+/**
+ * The drop positions (in `files`) the coding-agent prompt of the card a
+ * reading leads to points at, or null when that card shows none. The one
+ * rule for both sides: the read keeps exactly these files staged and fills
+ * their `saved_path`, and the cards show a prompt exactly when it isn't
+ * null.
+ *
+ * - Some file no parser reads, or several do: the Teach card, on those.
+ * - Else one account, not in the books, with rows, whose refusal /import
+ *   gives a prompt for (`refusalPromptsAgent`): the refusal's card, on all
+ *   its files. Several accounts, or one in the books, get no prompt.
+ */
+export function promptedFiles(
+  reading: Pick<AddAccountReading, "files" | "accounts">,
+): number[] | null {
+  const positions = (keep: (file: AddAccountFile) => boolean) =>
+    reading.files.flatMap((file, index) => (keep(file) ? [index] : []));
+  const unreadable = positions((file) => file.status !== "read");
+  if (unreadable.length > 0) return unreadable;
+  const [account, ...others] = reading.accounts;
+  if (
+    account === undefined ||
+    others.length > 0 ||
+    account.status === "in_books" ||
+    readsNoTransactions(account) ||
+    account.refusal === null ||
+    !refusalPromptsAgent(account.refusal)
+  ) {
+    return null;
+  }
+  return positions((file) => file.status === "read");
 }
 
 export const addAccountContract = c.router({

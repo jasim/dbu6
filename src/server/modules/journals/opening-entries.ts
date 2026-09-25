@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import { and, eq, ne } from "drizzle-orm";
 import { parsePlainDate, Temporal } from "@sapporta/shared/temporal";
+import { OPENING_BALANCES_ACCOUNT } from "../accounts/index.js";
 import { allRows, type LedgerAuth } from "../ledger-sql/index.js";
 import {
   journalEntries,
@@ -34,6 +35,13 @@ export type OpeningEntry = {
   description: string;
   /** Its journal holds the account's line and one Equity line, no more. */
   standalone: boolean;
+  /**
+   * Its Equity line is on Opening Balances, as every opening dbu6 records
+   * is. One on another Equity account may be a statement row categorized
+   * there, so what counts a bank or card's own transactions, or deletes an
+   * opening with it, takes only these.
+   */
+  onOpeningBalances: boolean;
 };
 
 /*
@@ -77,7 +85,12 @@ export function loadOpeningEntries(
 ): Map<number, OpeningEntry> {
   // An opening journal has the account's line and at least one Equity line,
   // so two lines are exactly those two.
-  const rows = allRows<Omit<OpeningEntry, "standalone"> & { lines: number }>(
+  const rows = allRows<
+    Omit<OpeningEntry, "standalone" | "onOpeningBalances"> & {
+      lines: number;
+      on_opening_balances: number;
+    }
+  >(
     sqlite,
     auth,
     `${OPENING_JOURNALS}
@@ -95,17 +108,32 @@ export function loadOpeningEntries(
         SELECT COUNT(*)
         FROM scoped_journal_entries je
         WHERE je.journal_id = o.journal_id
-      ) AS lines
+      ) AS lines,
+      EXISTS (
+        SELECT 1
+        FROM scoped_journal_entries je
+        JOIN scoped_accounts equity ON equity.id = je.account_id
+        WHERE je.journal_id = o.journal_id
+          AND equity.account_type = 'Equity'
+          AND equity.name = @openingBalances
+      ) AS on_opening_balances
     FROM opening_journals o
     JOIN scoped_journals j ON j.id = o.journal_id
     WHERE @accountId IS NULL OR o.account_id = @accountId
     ORDER BY j.date, j.id`,
-    { accountId: filter.accountId ?? null },
+    {
+      accountId: filter.accountId ?? null,
+      openingBalances: OPENING_BALANCES_ACCOUNT,
+    },
   );
   return new Map(
-    rows.map(({ lines, ...row }) => [
+    rows.map(({ lines, on_opening_balances, ...row }) => [
       row.account_id,
-      { ...row, standalone: lines === 2 },
+      {
+        ...row,
+        standalone: lines === 2,
+        onOpeningBalances: on_opening_balances === 1,
+      },
     ]),
   );
 }
