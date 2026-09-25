@@ -154,7 +154,7 @@ describe("an account's card in the import results", () => {
     expect(link("Categorize")?.getAttribute("href")).toBe(
       "/review/5/drafts?filter%5Baccount_id%5D%5Bis%5D=null",
     );
-    expect(text()).toContain("Closing balance, 31 Aug₹25,000.00");
+    expect(text()).toContain("Closing balance, 31 Aug25,000.00");
     expect(text()).toContain("By category (2)");
     expect(text()).not.toContain("All entries categorized");
     expect(text()).not.toMatch(/your rules|Claude Code/);

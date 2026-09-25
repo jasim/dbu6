@@ -58,18 +58,18 @@ describe("figures", () => {
 
     expect(result).toEqual({
       income: {
-        figure: "+₹1,00,000.00",
+        figure: "+1,00,000.00",
         direction: "in",
         line: "From 2 accounts",
       },
       spending: {
-        figure: `${MINUS}₹79,000.00`,
+        figure: `${MINUS}79,000.00`,
         direction: "out",
         line: "Across 3 accounts",
       },
       remaining: {
         tone: "kept",
-        figure: "₹21,000.00",
+        figure: "21,000.00",
         line: "21% of income",
       },
     });
@@ -81,15 +81,15 @@ describe("figures", () => {
         .remaining,
     ).toEqual({
       tone: "overspent",
-      figure: `${MINUS}₹12,500.00`,
-      line: "₹12,500.00 more spent than came in",
+      figure: `${MINUS}12,500.00`,
+      line: "12,500.00 more spent than came in",
     });
   });
 
   it("leave the share out when there is no income", () => {
     expect(figures(report([], [])).remaining).toEqual({
       tone: "kept",
-      figure: "₹0.00",
+      figure: "0.00",
       line: null,
     });
     expect(figures(report([], [account("rent", 100)])).remaining.tone).toBe(
@@ -103,7 +103,7 @@ describe("figures", () => {
 
   it("sign a section running the other way the other way", () => {
     expect(figures(report([], [account("shopping", -500)])).spending).toEqual({
-      figure: "+₹500.00",
+      figure: "+500.00",
       direction: "in",
       line: "Across 1 account",
     });
@@ -127,8 +127,8 @@ describe("directions and shares", () => {
     expect(amountDirection("spending", 100)).toBe("out");
     expect(amountDirection("spending", -100)).toBe("in");
     expect(amountDirection("income", -100)).toBe("out");
-    expect(signedAmount("spending", 84500)).toBe(`${MINUS}₹84,500.00`);
-    expect(signedAmount("spending", -500)).toBe("+₹500.00");
+    expect(signedAmount("spending", 84500)).toBe(`${MINUS}84,500.00`);
+    expect(signedAmount("spending", -500)).toBe("+500.00");
   });
 
   it("share of the section, with none for amounts running the other way", () => {

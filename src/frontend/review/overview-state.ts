@@ -166,7 +166,7 @@ function postingPhrase(detail: ReviewAccountDetail): Phrase {
   ];
 }
 
-// " The last balance assertion for HDFC Savings is now ₹3,30,000.00 on
+// " The last balance assertion for HDFC Savings is now 3,30,000.00 on
 // 13 Sep.", from the last balance the drafts carry; nothing when they carry
 // none.
 function lastAssertion(detail: ReviewAccountDetail, verb: string): Phrase {

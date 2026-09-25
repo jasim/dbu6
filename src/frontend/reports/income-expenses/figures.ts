@@ -27,11 +27,9 @@ export function amountDirection(section: Section, value: number): Direction {
   return value < 0 ? (inward ? "out" : "in") : inward ? "in" : "out";
 }
 
-/** An amount with its sign and the rupee sign: "+₹1,20,000.00". */
+/** An amount with its sign: "+1,20,000.00". */
 export function signedAmount(section: Section, value: number): string {
-  return formatAmount(value, amountDirection(section, value), {
-    symbol: true,
-  });
+  return formatAmount(value, amountDirection(section, value));
 }
 
 export type Remaining =
@@ -71,7 +69,7 @@ export function figures(report: IncomeExpenses): Figures {
         ? {
             // Overspending isn't an error: ink on a neutral panel, never red.
             tone: "overspent",
-            figure: formatAmount(remaining, "out", { symbol: true }),
+            figure: formatAmount(remaining, "out"),
             line: `${formatMoney(-remaining)} more spent than came in`,
           }
         : {

@@ -75,7 +75,7 @@ describe("month bars", () => {
     );
 
     expect(march?.description).toBe(
-      `March 2026 · Income +₹1,20,000.00 · Spending ${MINUS}₹84,500.00`,
+      `March 2026 · Income +1,20,000.00 · Spending ${MINUS}84,500.00`,
     );
   });
 
@@ -123,7 +123,7 @@ describe("financial year bars", () => {
       dates("2026-04-01", today),
     ]);
     expect(bars[1]?.description).toBe(
-      `FY 2025–26 · Income +₹1,200.00 · Spending ${MINUS}₹1,200.00`,
+      `FY 2025–26 · Income +1,200.00 · Spending ${MINUS}1,200.00`,
     );
   });
 });

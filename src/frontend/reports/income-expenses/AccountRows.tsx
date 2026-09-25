@@ -328,7 +328,6 @@ function RowBody({
       <Amount
         value={amount}
         direction={amountDirection(section, amount)}
-        showSymbol
         showLabel={false}
         className="shrink-0"
       />
