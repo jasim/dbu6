@@ -296,7 +296,7 @@ describe("Run categorizer", () => {
       ["Google Pay", "Not addedNames payees, from My Activities.html"],
     ]);
     expect(link("View")?.getAttribute("href")).toBe(
-      "/categorization-rules?account=5",
+      "/categorization-rules?show=ai&account=5",
     );
     expect(link("See them in Drafts")?.getAttribute("href")).toBe(
       "/review/5/drafts?filter%5Baccount_id%5D%5Bis%5D=null",

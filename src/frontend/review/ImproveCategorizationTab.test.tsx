@@ -192,14 +192,15 @@ describe("Improve categorization", () => {
       "NOPII CAFE→ Dining",
     ]);
     expect(
-      requests.find((r) => r.url.pathname.endsWith("/categorization-lessons"))
+      requests
+        .find((r) => r.url.pathname.endsWith("/categorization-lessons"))
         ?.url.searchParams.get("base_account_id"),
     ).toBe("5");
     expect(
       host
         .querySelector('aside a[href^="/categorization-rules"]')
         ?.getAttribute("href"),
-    ).toBe("/categorization-rules?account=5");
+    ).toBe("/categorization-rules?show=ai&account=5");
   });
 
   it("leaves one out, and shows no panel once nothing is left to teach", async () => {
