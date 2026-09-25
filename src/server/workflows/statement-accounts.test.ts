@@ -14,6 +14,7 @@ import {
   changeStatementAccount,
   loadStatementAccounts,
 } from "./import-presets.js";
+import { recordOpeningBalance } from "./opening-balances.js";
 
 /*
  * The setup wizard's banks and cards: each one a ledger account and a preset
@@ -279,10 +280,31 @@ describe("changing a bank or card", () => {
         problem: {
           code: "account_has_transactions",
           message:
-            "Sample Savings has transactions, so change it on the Accounts page.",
+            "Sample Savings has transactions to review. Delete them in Review to change it here.",
         },
       });
     }
+    // Once one is in the books, only the Accounts page and the presets
+    // change it.
+    ledger.sqlite.exec(`DELETE FROM draft_transactions;`);
+    recordOpeningBalance(ledger, {
+      accountId: 8,
+      date: "2026-01-31",
+      amount: 1000,
+    });
+    expect(
+      await changeStatementAccount(ledger, {
+        action: "remove",
+        account_id: 8,
+        delete_account: false,
+      }),
+    ).toMatchObject({
+      ok: false,
+      problem: {
+        code: "account_has_transactions",
+        message: "Sample Savings has transactions, so it can't change here.",
+      },
+    });
     expect(
       await changeStatementAccount(ledger, {
         action: "remove",

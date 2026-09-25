@@ -40,7 +40,19 @@ import { SETUP_STEP_ROUTES } from "./steps";
  * edited or removed only while nothing is posted or drafted on its account.
  */
 
-const LOCKED = "Has transactions. Change it on the Accounts page.";
+/**
+ * Why a row can't change: entries in the books, or only transactions still
+ * to review, which go once deleted in Review. Null while it can.
+ */
+function lockedBecause(
+  row: Pick<StatementAccountRow, "entries" | "drafts">,
+): string | null {
+  if (row.entries > 0) return "Has transactions, so it can't change here.";
+  if (row.drafts > 0) {
+    return "Has transactions to review. Delete them in Review to change it.";
+  }
+  return null;
+}
 
 export function BanksStep() {
   const client = useQueryClient();
@@ -205,7 +217,7 @@ function AccountRow({
   onEdit: () => void;
   onRemove: () => void;
 }) {
-  const locked = row.entries + row.drafts > 0;
+  const locked = lockedBecause(row);
   const number = row.account_identifiers[0];
   const kind = row.kind === "card" ? "Credit card" : "Bank account";
   return (
@@ -236,16 +248,16 @@ function AccountRow({
         )}
       </td>
       <td className="py-1.5 pl-3 pr-4 text-right">
-        {locked ? (
+        {locked !== null ? (
           <Tooltip>
             <TooltipTrigger
               delay={0}
-              aria-label={LOCKED}
+              aria-label={locked}
               className="inline-flex h-sap-ctl w-[var(--height-sap-ctl)] items-center justify-center rounded-control text-ink-meta outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 [&_svg]:size-4"
             >
               <Lock />
             </TooltipTrigger>
-            <TooltipContent side="left">{LOCKED}</TooltipContent>
+            <TooltipContent side="left">{locked}</TooltipContent>
           </Tooltip>
         ) : (
           <RowMenu

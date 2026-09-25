@@ -686,11 +686,18 @@ function checkNoTransactions(ledger: Ledger, account: ImportAccount): void {
     countDraftsByAccount(ledger.sqlite, ledger.auth).get(account.account_id) ??
     0;
   // The setup screen shows this; an agent learns from DBU6-BOOKS.md that the
-  // preset is then changed through the presets API.
-  if (entries + drafts > 0) {
+  // preset is then changed through the presets API. Drafts alone go once
+  // they are deleted in Review.
+  if (entries > 0) {
     refuse(
       "account_has_transactions",
-      `${account.name} has transactions, so change it on the Accounts page.`,
+      `${account.name} has transactions, so it can't change here.`,
+    );
+  }
+  if (drafts > 0) {
+    refuse(
+      "account_has_transactions",
+      `${account.name} has transactions to review. Delete them in Review to change it here.`,
     );
   }
 }
