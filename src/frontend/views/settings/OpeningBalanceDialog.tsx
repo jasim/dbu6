@@ -27,7 +27,7 @@ import {
   readBalance,
   signReadback,
   type BalanceFields,
-} from "../../setup/opening-balances";
+} from "../../opening-balances";
 
 /*
  * Changing one account's opening balance while nothing else in the books

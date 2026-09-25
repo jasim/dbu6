@@ -1,4 +1,4 @@
-import type { LedgerAccountType } from "../../shared/index";
+import type { LedgerAccountType } from "../shared/index";
 
 /** Each account type's accounting term, and what it holds in plain words. */
 export const ACCOUNT_TYPE_TERMS: Record<

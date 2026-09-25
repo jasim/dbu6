@@ -1,9 +1,6 @@
 import { ApiError } from "@sapporta/shared/client";
 import { describe, expect, it } from "vitest";
-import type {
-  OpeningBalanceAccount,
-  OpeningBalances,
-} from "../../shared/index";
+import type { OpeningBalanceAccount, OpeningBalances } from "../shared/index";
 import {
   amountHint,
   balanceSections,

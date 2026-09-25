@@ -11,7 +11,10 @@ import type {
 import { Disclosure } from "../components/disclosure";
 import { Button } from "../components/ui/button";
 import { formatBalance, formatDate } from "../format";
-import { AccountCombobox, InstitutionCombobox } from "../setup/pickers";
+import {
+  AccountCombobox,
+  InstitutionCombobox,
+} from "../components/account-pickers";
 import {
   confirmDraft,
   confirmLayout,
@@ -21,7 +24,7 @@ import {
   withName,
   type ConfirmDraft,
 } from "./confirm-form";
-import { Field, FocusCard, type FocusFrame } from "./FocusCard";
+import { Field, FocusCard, type FocusFrame } from "../components/focus-card";
 import type { Opening } from "./state";
 import { bankLine, categorizerLine, periodLine } from "./words";
 

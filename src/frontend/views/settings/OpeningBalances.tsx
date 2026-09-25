@@ -34,7 +34,7 @@ import {
   recordedSections,
   sectionOf,
   type BalanceSection,
-} from "../../setup/opening-balances";
+} from "../../opening-balances";
 import {
   balanceProblem,
   OpeningBalanceDialog,

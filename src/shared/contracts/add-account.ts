@@ -59,8 +59,8 @@ export const addAccountFileSchema = z.discriminatedUnion("status", [
     saved_path: z.string(),
     candidate_parser_paths: z.array(z.string()),
   }),
-  // Several parsers read it: the Teach card, with /import's prompt for
-  // telling them apart.
+  // Several parsers read it: the Teach card, with a prompt for telling them
+  // apart.
   z.object({
     status: z.literal("ambiguous"),
     file_name: z.string(),

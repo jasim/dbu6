@@ -4,7 +4,7 @@ import { Checkbox } from "@sapporta/ui";
 import { cn } from "@sapporta/ui/cn";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";
 import type { ChartAccount, ChartRow } from "../../shared/index";
-import { ACCOUNT_TYPE_TERMS } from "./account-type-terms";
+import { ACCOUNT_TYPE_TERMS } from "../account-type-terms";
 import { chartCards, type ChartCardRow, type Ticks } from "./chart-checklist";
 
 export interface ChartChecklist {

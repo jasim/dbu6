@@ -26,7 +26,7 @@ import {
 } from "./conditions";
 import { Confirm } from "./Confirm";
 import { Drop, ReadFailed, Reading as ReadingCard } from "./Drop";
-import { FocusLoading, type FocusFrame } from "./FocusCard";
+import { FocusLoading, type FocusFrame } from "../components/focus-card";
 import { HowFarBack } from "./HowFarBack";
 import { refusalProblems } from "./refusal";
 import {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type {
   StatementAccountRow,
   StatementAccounts,
-} from "../../shared/index";
+} from "../../../shared/index";
 import {
   draftOf,
   formLayout,

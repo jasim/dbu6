@@ -5,8 +5,8 @@ import {
   type OpeningBalances,
   type OpeningLock,
   type OpeningSection,
-} from "../../shared/index";
-import { formatBalance, formatDate, formatMoney } from "../format";
+} from "../shared/index";
+import { formatBalance, formatDate, formatMoney } from "./format";
 import { ACCOUNT_TYPE_TERMS } from "./account-type-terms";
 
 /*

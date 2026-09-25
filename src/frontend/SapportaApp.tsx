@@ -3,7 +3,7 @@ import { Route, Routes, useNavigate } from "react-router-dom";
 import { BootLoader, setNavigate } from "@sapporta/frontend/app";
 import { Toaster } from "@sapporta/frontend/shell";
 import { AppShell } from "./shell/AppShell";
-import { FocusLayout } from "./add-account/FocusCard";
+import { FocusLayout } from "./components/focus-card";
 import { AuthGate } from "@sapporta/frontend/auth/runtime";
 import {
   appHomeRoute,

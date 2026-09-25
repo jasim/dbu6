@@ -4,7 +4,7 @@ import {
   type StatementAccountChange,
   type StatementAccountRow,
   type StatementAccounts,
-} from "../../shared/index";
+} from "../../../shared/index";
 
 /*
  * Settings' edit of one bank or card that has no transactions yet, as
