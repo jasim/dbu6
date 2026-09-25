@@ -240,7 +240,7 @@ describe("changing and removing an opening balance", () => {
       body: {
         code: "account_has_entries",
         error:
-          "Sample Savings has transactions after its opening balance. Change it in its journal entry.",
+          "Sample Savings has other transactions. Change its opening balance in its journal entry.",
         journal_id: journalId,
       },
     };

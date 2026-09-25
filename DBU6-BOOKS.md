@@ -295,7 +295,8 @@ you couldn't encode.
     positive number; a leading minus means overdrawn or in credit. The
     endpoint's amount is signed like the assertion: positive when held,
     negative when owed. The date must be before the account's first draft
-    or entry. `first_activity_date` is that first draft or entry, leaving
+    or entry, counting drafts categorized to it from another account's
+    statement. `first_activity_date` is that first draft or entry, leaving
     the opening entry out; `default_date` is the day before it, else the
     day the books start (their earliest opening entry).
   - It posts one journal: the account's line, a debit for money held or a

@@ -222,7 +222,7 @@ function locked(outcome: {
   return outcome.lock === "has_entries"
     ? {
         code: "account_has_entries",
-        error: `${accountName} has transactions after its opening balance. Change it in its journal entry.`,
+        error: `${accountName} has other transactions. Change its opening balance in its journal entry.`,
         journal_id: journalId,
       }
     : {
