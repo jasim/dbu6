@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, createElement, type ReactElement } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,11 +13,6 @@ import {
   vi,
 } from "vitest";
 import type { ReviewAccountDetail } from "../../shared/index";
-import type {
-  SchemaTableRowsByLevel,
-  TableGridActionsProps,
-} from "@sapporta/frontend";
-import { DraftsActions } from "./DraftsTab";
 import { ReviewAccount, useReviewAccount } from "./ReviewAccount";
 
 /*
@@ -97,10 +92,7 @@ function Where() {
   return createElement("code", null, useLocation().pathname);
 }
 
-async function renderAt(
-  url: string,
-  draftsTab: ReactElement = createElement(Tab, { name: "drafts" }),
-) {
+async function renderAt(url: string) {
   await act(async () => {
     root.render(
       createElement(
@@ -129,7 +121,7 @@ async function renderAt(
               }),
               createElement(Route, {
                 path: "drafts",
-                element: draftsTab,
+                element: createElement(Tab, { name: "drafts" }),
               }),
               createElement(Route, { path: "*", element: null }),
             ),
@@ -179,24 +171,20 @@ describe("the review account frame", () => {
     );
   });
 
-  it("runs the categoriser again on this account's drafts, from the Drafts toolbar", async () => {
+  it("offers Improve categorization and Run categorizer after Drafts", async () => {
     responses = [{ status: 200, body: detail() }];
-    // The grid hands its toolbar actions a live session; these ones read
-    // only the surface they are on.
-    const toolbar = {
-      surface: "toolbar",
-    } as TableGridActionsProps<SchemaTableRowsByLevel>;
-    await renderAt(
-      "/review/5/drafts",
-      createElement(DraftsActions, toolbar),
-    );
+    await renderAt("/review/5");
 
-    const again = Array.from(host.querySelectorAll("a")).find(
-      (a) => a.textContent === "Run the categoriser again",
-    );
-    expect(again?.getAttribute("href")).toBe(
-      "/views/reclassify-drafts?account=5",
-    );
+    const tabs = Array.from(host.querySelectorAll("nav a")).map((a) => [
+      a.textContent,
+      a.getAttribute("href"),
+    ]);
+    expect(tabs.slice(0, 4)).toEqual([
+      ["Overview", "/review/5"],
+      ["Drafts23", "/review/5/drafts"],
+      ["Improve categorization", "/review/5/improve-categorization"],
+      ["Run categorizer", "/review/5/run-categorizer"],
+    ]);
   });
 
   it("sends a path that isn't a tab to Overview, for an account with no drafts too", async () => {

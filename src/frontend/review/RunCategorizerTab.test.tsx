@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
-import { act, createElement, type ReactNode } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import {
+  MemoryRouter,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 import {
   afterEach,
   beforeAll,
@@ -14,29 +20,26 @@ import {
 import type {
   DraftClassification,
   ImportPresetsView,
+  ReviewAccountDetail,
 } from "../../shared/index";
-import { ReclassifyDrafts, reclassifyDraftsHref } from "./ReclassifyDrafts";
+import type { ReviewAccountContext } from "./ReviewAccount";
+import {
+  ReclassifyDraftsRedirect,
+  RunCategorizerTab,
+} from "./RunCategorizerTab";
 
 /*
- * Classify drafts opened from an account's Drafts tab: the account stays
- * chosen, with the instructions it imports with, each file shown on a tab
- * and another preset account's a choice away, a run counts
- * what it categorized, by category, and links to the ones that still need
- * one, and a second run sends only those.
+ * Run categorizer, a tab of the account's review: it sends the account's
+ * drafts with no category, with the instructions the account imports with,
+ * each file shown on a tab and another preset account's a choice away. A
+ * dialog counts what the run categorized, what is left, and by category, and
+ * OK goes back to the account's Overview. The old page's URL opens the tab.
  */
-
-vi.mock("@sapporta/frontend/shell", () => ({
-  AppPage: ({ children }: { children: ReactNode }) => children,
-}));
-vi.mock("@sapporta/frontend/lookup", () => ({
-  useTableLookup: () => ({}),
-  LookupPicker: ({ value }: { value: number | null }) =>
-    createElement("output", { "data-picked": String(value) }),
-}));
 
 let host: HTMLDivElement;
 let root: Root;
 let requests: Array<{ method: string; url: URL; body: string | null }>;
+let refreshed: number;
 
 const ACCOUNTS = [
   { id: 5, name: "Sample Savings" },
@@ -128,6 +131,8 @@ const CLASSIFIED: DraftClassification = {
 
 // What the classify route answers; a test sets it to a failed run.
 let classifyAnswer: DraftClassification;
+// The drafts with no category; a test sets it to none.
+let draftsAnswer: typeof DRAFTS;
 
 function respond(method: string, url: URL): unknown {
   if (url.pathname.endsWith("/tables/accounts")) return { data: ACCOUNTS };
@@ -144,7 +149,7 @@ function respond(method: string, url: URL): unknown {
     };
   }
   if (url.pathname.endsWith("/tables/draft_transactions")) {
-    return { data: DRAFTS };
+    return { data: draftsAnswer };
   }
   if (
     method === "POST" &&
@@ -166,7 +171,9 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   requests = [];
+  refreshed = 0;
   classifyAnswer = CLASSIFIED;
+  draftsAnswer = DRAFTS;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -194,25 +201,82 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const DETAIL = {
+  account: {
+    account_id: 5,
+    path: "Sample Savings",
+    name: "Sample Savings",
+    kind: "bank",
+    drafts: 4,
+    uncategorised: 4,
+    duplicates: 0,
+    balance_checks: 0,
+    failing_checks: 0,
+    draft_span: { first_date: "2026-09-01", last_date: "2026-09-01" },
+  },
+  checkpoint: null,
+  has_opening_entry: true,
+  closing: null,
+  failing: [],
+  duplicates: [],
+  other_accounts: [],
+} satisfies ReviewAccountDetail;
+
+// The review frame, reduced to the context it hands its tabs.
+function Frame() {
+  return createElement(Outlet, {
+    context: {
+      detail: DETAIL,
+      refresh: () => refreshed++,
+      posted: null,
+      setPosted: () => {},
+    } satisfies ReviewAccountContext,
+  });
+}
+
+function Where() {
+  const { pathname, search } = useLocation();
+  return createElement("code", null, pathname + search);
+}
+
 async function renderAt(url: string) {
   await act(async () => {
     root.render(
       createElement(
         MemoryRouter,
         { initialEntries: [url] },
+        createElement(Where),
         createElement(
           Routes,
           null,
           createElement(Route, {
             path: "/views/reclassify-drafts",
-            element: createElement(ReclassifyDrafts),
+            element: createElement(ReclassifyDraftsRedirect),
           }),
+          createElement(Route, {
+            path: "/review",
+            element: createElement("p", null, "picker"),
+          }),
+          createElement(
+            Route,
+            { path: "/review/:accountId", element: createElement(Frame) },
+            createElement(Route, {
+              index: true,
+              element: createElement("p", null, "overview"),
+            }),
+            createElement(Route, {
+              path: "run-categorizer",
+              element: createElement(RunCategorizerTab),
+            }),
+          ),
         ),
       ),
     );
   });
   await settle();
 }
+
+const TAB = "/review/5/run-categorizer";
 
 async function settle() {
   for (let i = 0; i < 5; i++) {
@@ -223,19 +287,19 @@ async function settle() {
 }
 
 const text = () => host.textContent ?? "";
+const where = () => host.querySelector("code")?.textContent;
+const dialog = () => document.querySelector('[role="dialog"]');
 
-describe("Classify drafts opened on an account", () => {
-  it("keeps the account chosen, with the instructions it imports with, found by its id", async () => {
-    await renderAt(reclassifyDraftsHref(5));
+describe("Run categorizer", () => {
+  it("sends the account's drafts with no category, with the instructions it imports with", async () => {
+    await renderAt(TAB);
 
-    expect(
-      host.querySelector("[data-picked]")?.getAttribute("data-picked"),
-    ).toBe("5");
     expect(
       requests
         .find((r) => r.url.pathname.endsWith("/tables/draft_transactions"))
         ?.url.searchParams.get("filter[base_account_id][eq]"),
     ).toBe("5");
+    expect(text()).toContain("4 drafts without a category");
     expect(text()).toContain("Sample Bank · Sample Savings");
     expect(text()).toContain("The instructions Sample Savings imports with.");
     expect(
@@ -244,16 +308,12 @@ describe("Classify drafts opened on an account", () => {
     expect(host.querySelector("pre")?.textContent).toBe(
       "Sample cafes map to 'Dining'.",
     );
-    expect(text()).toContain("Classify 4 drafts");
+    expect(classifyButton()?.textContent).toBe("Categorize 4 drafts");
   });
 
-  it("counts what it categorized, by category, and links to the ones that still need one", async () => {
-    await renderAt(reclassifyDraftsHref(5));
-
-    const button = [...host.querySelectorAll("button")].find((b) =>
-      b.textContent?.includes("Classify 4 drafts"),
-    );
-    await act(async () => button!.click());
+  it("sums up the run in a dialog, and OK goes back to the account's Overview", async () => {
+    await renderAt(TAB);
+    await act(async () => classifyButton()!.click());
     await settle();
 
     const classify = requests.find((r) => r.method === "POST");
@@ -261,51 +321,57 @@ describe("Classify drafts opened on an account", () => {
       ids: [1, 2, 3, 4],
       custom_mappings_filenames: ["custom_mappings_sample.prompt"],
     });
-    expect(text()).toContain("Categorized3");
-    expect(text()).toContain("Need a category1");
-    expect(
-      host.querySelector('[aria-label="What the run did"]')?.textContent,
-    ).not.toMatch(/rules|Claude Code/);
-    const remain = [...host.querySelectorAll("a")].find(
-      (a) => a.textContent === "Categorize",
+    expect(refreshed).toBe(1);
+    expect(dialog()?.querySelector("h2")?.textContent).toBe(
+      "Categorized 3 of 4 drafts",
     );
-    expect(remain?.getAttribute("href")).toBe(
-      "/review/5/drafts?filter%5Baccount_id%5D%5Bis%5D=null",
-    );
-    const breakdown = [...host.querySelectorAll("dl div")].map((row) =>
+    expect(dialog()?.textContent).not.toMatch(/rules|Claude Code/);
+    const facts = [...(dialog()?.querySelectorAll("dl div") ?? [])].map((row) =>
       [...row.children].map((cell) => cell.textContent),
     );
-    expect(breakdown).toEqual([
+    expect(facts).toEqual([
+      ["Categorized", "3"],
+      ["Left to categorize", "1"],
       ["Groceries", "2"],
       ["Dining", "1"],
     ]);
+
+    const ok = [...(dialog()?.querySelectorAll("button") ?? [])].find(
+      (b) => b.textContent === "OK",
+    );
+    await act(async () => ok!.click());
+    await settle();
+
+    expect(where()).toBe("/review/5");
+    expect(text()).toContain("overview");
   });
 
-  it("runs again on the drafts still left, keeping the categorized ones in the table", async () => {
-    await renderAt(reclassifyDraftsHref(5));
-    await act(async () => classifyButton()!.click());
-    await settle();
+  it("says so when every draft already has a category", async () => {
+    draftsAnswer = [];
+    await renderAt(TAB);
 
-    expect(classifyButton()?.textContent).toBe("Classify 1 draft");
-    expect(text()).toContain("NOPII SHOP ONE");
-    await act(async () => classifyButton()!.click());
-    await settle();
+    expect(text()).toContain("Every draft has a category");
+    expect(classifyButton()).toBeUndefined();
+  });
 
-    const runs = requests.filter((r) => r.method === "POST");
-    expect(runs.map((run) => JSON.parse(run.body!).ids)).toEqual([
-      [1, 2, 3, 4],
-      [4],
-    ]);
+  it("is where the old Classify drafts page now goes", async () => {
+    await renderAt("/views/reclassify-drafts?account=5");
+    expect(where()).toBe(TAB);
+  });
+
+  it("sends the old page without an account to the Review picker", async () => {
+    await renderAt("/views/reclassify-drafts");
+    expect(where()).toBe("/review");
   });
 });
 
 function classifyButton() {
   return [...host.querySelectorAll("button")].find((b) =>
-    b.textContent?.startsWith("Classify"),
+    b.textContent?.startsWith("Categorize"),
   );
 }
 
-describe("Classify drafts when the coding agent can't be used", () => {
+describe("Run categorizer when the coding agent can't be used", () => {
   const UNAVAILABLE: DraftClassification = {
     ...CLASSIFIED,
     categorization: {
@@ -319,11 +385,13 @@ describe("Classify drafts when the coding agent can't be used", () => {
 
   it("says so in a dialog that links to Settings", async () => {
     classifyAnswer = UNAVAILABLE;
-    await renderAt(reclassifyDraftsHref(5));
+    await renderAt(TAB);
     await act(async () => classifyButton()!.click());
     await settle();
 
-    const dialog = document.querySelector('[role="dialog"]');
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    expect(dialogs).toHaveLength(1);
+    const dialog = dialogs[0];
     expect(dialog?.textContent).toContain("Claude Code isn't working");
     expect(dialog?.textContent).toContain(
       "Claude Code didn't answer on Claude Sonnet. See Settings.",
@@ -334,7 +402,7 @@ describe("Classify drafts when the coding agent can't be used", () => {
     expect(settings?.getAttribute("href")).toBe("/settings");
   });
 
-  it("opens no dialog when only some calls failed", async () => {
+  it("sums up the run with what went wrong when only some calls failed", async () => {
     classifyAnswer = {
       ...UNAVAILABLE,
       categorization: {
@@ -343,11 +411,16 @@ describe("Classify drafts when the coding agent can't be used", () => {
         failure: "partial",
       },
     };
-    await renderAt(reclassifyDraftsHref(5));
+    await renderAt(TAB);
     await act(async () => classifyButton()!.click());
     await settle();
 
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(text()).toContain("Claude Code couldn't categorize some of them");
+    expect(dialog()?.textContent).not.toContain("isn't working");
+    expect(dialog()?.textContent).toContain(
+      "Claude Code couldn't categorize some of them",
+    );
+    expect(dialog()?.textContent).toContain(
+      "Once that's fixed, run the categorizer again.",
+    );
   });
 });

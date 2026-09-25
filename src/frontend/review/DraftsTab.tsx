@@ -1,10 +1,5 @@
 import { useMemo } from "react";
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   SchemaTableGridView,
   useSchemaStore,
@@ -14,7 +9,6 @@ import {
 } from "@sapporta/frontend";
 import { eqCondition } from "@sapporta/shared/filter";
 import { Button } from "../components/ui/button";
-import { reclassifyDraftsHref } from "../views/ReclassifyDrafts";
 import {
   draftTransactionQuickFilters,
   findActiveDraftTransactionQuickFilter,
@@ -38,7 +32,7 @@ const DRAFTS_TAB_HIDDEN_COLUMNS = [
  * locked to this account. The lock is a fixed filter, so it is neither a
  * chip nor removable; the user's own filters, search and page stay in the
  * tab's URL. The frame names the account and counts its drafts, so the grid
- * keeps only its toolbar: filters, the quick filters, the categoriser, search.
+ * keeps only its toolbar: filters, the quick filters, search.
  */
 export function DraftsTab() {
   const { detail } = useReviewAccount();
@@ -84,7 +78,7 @@ export function DraftsTab() {
             route={route}
             registerAs={DRAFT_TRANSACTIONS_TABLE}
             header="toolbar"
-            actions={DraftsActions}
+            actions={QuickFilterButtons}
             hiddenColumns={DRAFTS_TAB_HIDDEN_COLUMNS}
             rootRows={rootRows}
             viewRelatedRows
@@ -99,28 +93,7 @@ export function DraftsTab() {
   );
 }
 
-/** The quick filters, then the categoriser, on the grid's toolbar. */
-export function DraftsActions(props: TableGridActionsProps<SchemaTableRowsByLevel>) {
-  const { detail } = useReviewAccount();
-  const inSheet = props.surface === "action-sheet";
-  return (
-    <>
-      <QuickFilterButtons {...props} />
-      <Button
-        render={
-          <Link to={reclassifyDraftsHref(detail.account.account_id)} />
-        }
-        nativeButton={false}
-        variant="outline"
-        size="sm"
-        className={inSheet ? "w-full justify-start" : undefined}
-      >
-        Run the categoriser again
-      </Button>
-    </>
-  );
-}
-
+/** The quick filters, on the grid's toolbar. */
 function QuickFilterButtons(
   props: TableGridActionsProps<SchemaTableRowsByLevel>,
 ) {

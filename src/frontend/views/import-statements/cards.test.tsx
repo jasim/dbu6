@@ -206,7 +206,7 @@ describe("an account's card in the import results", () => {
     expect(text()).toContain("Claude Code couldn't categorize them.");
     expect(text()).toContain("Not logged in");
     expect(link("run the categoriser again")?.getAttribute("href")).toBe(
-      "/views/reclassify-drafts?account=5",
+      "/review/5/run-categorizer",
     );
   });
 

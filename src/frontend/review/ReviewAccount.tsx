@@ -28,12 +28,14 @@ import {
   useRefetchOnNavigate,
 } from "../queries";
 import {
+  CATEGORIZATION_TABS,
   checkTab,
   IMPROVE_CATEGORIZATION_TAB,
   parseAccountId,
   REVIEW_ROUTE,
   reviewHref,
   reviewPage,
+  RUN_CATEGORIZER_TAB,
   type ReviewTab,
 } from "./routes";
 
@@ -229,6 +231,7 @@ function FrameHeader({
 const TAB_LABELS: Record<ReviewTab, string> = {
   drafts: "Drafts",
   [IMPROVE_CATEGORIZATION_TAB]: "Improve categorization",
+  [RUN_CATEGORIZER_TAB]: "Run categorizer",
   duplicates: "Duplicates",
   "balance-checks": "Balance checks",
 };
@@ -247,7 +250,7 @@ function Tabs({ detail }: { detail: ReviewAccountDetail }) {
   const tabs: TabLink[] = [
     { label: "Overview", to: reviewHref(account.account_id), end: true },
     // One tab per check, in the checks' order, and Improve categorization
-    // after Drafts. Drafts counts every draft; a check's own tab counts the
+    // and Run categorizer after Drafts. Drafts counts every draft; a check's own tab counts the
     // problems it flags.
     ...postingChecks(account).flatMap((check): TabLink[] => {
       const tab = checkTab(check.kind);
@@ -260,10 +263,10 @@ function Tabs({ detail }: { detail: ReviewAccountDetail }) {
       if (check.kind !== "categories") return [link];
       return [
         link,
-        {
-          label: TAB_LABELS[IMPROVE_CATEGORIZATION_TAB],
-          to: reviewHref(account.account_id, IMPROVE_CATEGORIZATION_TAB),
-        },
+        ...CATEGORIZATION_TABS.map((categorizationTab) => ({
+          label: TAB_LABELS[categorizationTab],
+          to: reviewHref(account.account_id, categorizationTab),
+        })),
       ];
     }),
   ];

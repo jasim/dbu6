@@ -18,7 +18,7 @@ import {
   Figure,
   Figures,
 } from "../categorization/CategorizationFigures";
-import { reclassifyDraftsHref } from "../ReclassifyDrafts";
+import { reviewHref, RUN_CATEGORIZER_TAB } from "../../review/routes";
 import { describeGroup, type ClosingBalance, type Stat } from "./describeGroup";
 import type { Problem, ProblemAction } from "./describeProblems";
 
@@ -122,7 +122,7 @@ function AccountResult({
               <CategorizationNote problem={summary.problem}>
                 Once that's fixed,{" "}
                 <Link
-                  to={reclassifyDraftsHref(accountId)}
+                  to={reviewHref(accountId, RUN_CATEGORIZER_TAB)}
                   className="font-semibold text-attention-ink underline underline-offset-4"
                 >
                   run the categoriser again
