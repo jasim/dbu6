@@ -274,7 +274,12 @@ describe("the first statements step", () => {
     answers["GET /setup/first-statements"] = () =>
       ok(step(card(imported ? "imported" : "read")));
     answers["GET /setup"] = () =>
-      ok({ accounts: 5, preset_accounts: 1, ready_accounts: 1 });
+      ok({
+        accounts: 5,
+        statement_accounts: 1,
+        imported_accounts: 1,
+        drafts: 42,
+      });
     answers["POST /setup/first-statement"] = () => {
       imported = true;
       return ok({ files: [], groups: [] });
@@ -317,7 +322,12 @@ describe("the first statements step", () => {
         ),
       );
     answers["GET /setup"] = () =>
-      ok({ accounts: 5, preset_accounts: 1, ready_accounts: 1 });
+      ok({
+        accounts: 5,
+        statement_accounts: 1,
+        imported_accounts: 1,
+        drafts: 42,
+      });
     answers["POST /setup/first-statement"] = () =>
       ok({ files: [], groups: [] });
     await render();
@@ -342,7 +352,12 @@ describe("the first statements step", () => {
     answers["GET /setup/first-statements"] = () =>
       ok(step(row(2, "Sample Savings", { status: "read", finding: FINDING })));
     answers["GET /setup"] = () =>
-      ok({ accounts: 5, preset_accounts: 1, ready_accounts: 1 });
+      ok({
+        accounts: 5,
+        statement_accounts: 1,
+        imported_accounts: 1,
+        drafts: 42,
+      });
     answers["POST /setup/first-statement"] = () => ({
       status: 422,
       body: {
@@ -375,7 +390,12 @@ describe("the first statements step", () => {
     answers["GET /setup/first-statements"] = () =>
       ok(step(row(2, "Sample Savings", { status: "read", finding: FINDING })));
     answers["GET /setup"] = () =>
-      ok({ accounts: 5, preset_accounts: 1, ready_accounts: 1 });
+      ok({
+        accounts: 5,
+        statement_accounts: 1,
+        imported_accounts: 1,
+        drafts: 42,
+      });
     answers["POST /setup/first-statement"] = () => ({
       status: 409,
       body: {

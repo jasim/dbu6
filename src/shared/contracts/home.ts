@@ -13,7 +13,8 @@ const importableAccountFields = {
   name: z.string(),
   kind: accountKindSchema,
   // Whether its institution lists a parser. Without one its statements
-  // can't be imported yet: it needs a statement format (/setup/statements).
+  // can't be imported yet: it needs a first statement (/setup/statements),
+  // which sets the format up.
   has_parser: z.boolean(),
 };
 

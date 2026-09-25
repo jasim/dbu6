@@ -32,7 +32,7 @@ import {
   StatementAccountDialog,
   type StatementAccountEditing,
 } from "./StatementAccountDialog";
-import { SETUP_ROUTE, SETUP_STEP_ROUTES } from "./steps";
+import { SETUP_STEP_ROUTES } from "./steps";
 
 /*
  * Step 2, the banks and cards statements come from: one row each, in one
@@ -106,7 +106,7 @@ export function BanksStep() {
           )}
           <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
             <Button
-              render={<Link to={`${SETUP_ROUTE}/review`} />}
+              render={<Link to={SETUP_STEP_ROUTES.review} />}
               nativeButton={false}
               variant="ghost"
             >

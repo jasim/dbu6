@@ -127,7 +127,7 @@ function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
               variant="outline"
               size="sm"
             >
-              Set up your accounts
+              Set up your books
             </Button>
           }
         />
@@ -220,7 +220,8 @@ function ImportedUntil({ account }: { account: HomeAccount }) {
  * Problems in its drafts come first, since Review shows them; then books that
  * miss a statement balance, as an entry changed after its statement was
  * added; then drafts waiting; then an institution with no parser, whose
- * statements can't be imported until the wizard sets their format up.
+ * statements can't be imported until the wizard's first statement sets
+ * their format up.
  */
 function accountStatus(account: HomeAccount): {
   tone: StatusTone;
@@ -251,7 +252,7 @@ function accountStatus(account: HomeAccount): {
   if (!account.has_parser) {
     return {
       tone: "attention",
-      label: "Needs a statement format",
+      label: "Needs a first statement",
       to: SETUP_STEP_ROUTES.statements,
     };
   }

@@ -44,6 +44,7 @@ import { RenderDraftHledger } from "./views/RenderDraftHledger";
 import { Settings as SettingsPage } from "./views/settings/Settings";
 import { BanksStep } from "./setup/BanksStep";
 import { ChartStep } from "./setup/ChartStep";
+import { ReviewStep } from "./setup/ReviewStep";
 import { SetupIndex } from "./setup/SetupWizard";
 import { StatementsStep } from "./setup/StatementsStep";
 
@@ -133,6 +134,7 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
       <Route path="setup/accounts" element={<ChartStep />} />
       <Route path="setup/banks" element={<BanksStep />} />
       <Route path="setup/statements" element={<StatementsStep />} />
+      <Route path="setup/review" element={<ReviewStep />} />
       <Route path="import-instructions" element={<ImportInstructions />} />
       <Route path="tools" element={<Advanced />} />
 

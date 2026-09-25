@@ -121,8 +121,8 @@ export function Settings() {
         <h2 className="text-heading text-foreground">Accounts</h2>
         <div className="max-w-[480px] space-y-2">
           <LinkCard
-            label="Set up accounts and statement formats"
-            description="Your chart of accounts, banks and cards, and what their statements look like"
+            label="Set up your books"
+            description="Chart of accounts, banks and cards, first statements"
             to={SETUP_ROUTE}
             icon={ListChecks}
           />

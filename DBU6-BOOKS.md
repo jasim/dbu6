@@ -42,8 +42,8 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
   - Reports: `/reports/<report>`, for example
     `/reports/account-ledger?account_id=<id>`
   - Accounts: `/accounts`
-  - Setting up accounts: `/setup`, with the steps `/setup/accounts`,
-    `/setup/banks` and `/setup/statements`
+  - Setting up the books: `/setup`, with the steps `/setup/accounts`,
+    `/setup/banks`, `/setup/statements` and `/setup/review`
   - Classify drafts: `/views/reclassify-drafts?account=<id>`
 
 ## Before changing anything
@@ -215,8 +215,13 @@ category ("Categorise these" above), and restart a server started with
 
   Then record its opening balance.
 - **Setting up the books** (`/setup`). `sapporta api get /api/setup` counts
-  the accounts, the preset accounts and the ones whose statement format is
-  set up (their institution lists a parser and they have a number).
+  what the wizard's four steps read: `accounts` in the books,
+  `statement_accounts` (the preset accounts), `imported_accounts` (those
+  with entries or drafts, the `imported` rows below) and `drafts` on them.
+  The chart is done with any account, banks and cards with any preset
+  account, first statements when every preset account is imported, and
+  review when that holds and no drafts remain; `/setup` opens the first
+  step not done, else `/setup/review`.
   - `sapporta api get /api/setup/chart-of-accounts` gives books with no
     accounts a starter chart, and `POST` with `{"accounts":[…]}` creates one,
     each account naming its parent by name. It refuses books that have any
@@ -237,6 +242,10 @@ category ("Categorise these" above), and restart a server started with
     same way. A number that differs from the account's is replaced only with
     `"use_statement_number":true` (else `numbers_differ`). The staged file is
     deleted once imported and kept when the import fails.
+  - The last step, `/setup/review`, lists the first-statements rows that
+    have drafts (`activity.drafts`, and `activity.uncategorized` without a
+    category) and sends each to `/review/<account id>`; they are posted
+    there as any drafts are.
 - **Opening balance.**
   The Opening balances screen (`/opening-balances`, linked from Settings)
   records it; send the user there. Its endpoint does the same:

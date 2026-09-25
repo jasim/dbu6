@@ -207,3 +207,52 @@ describe("a first statement", () => {
     ).toBe(200);
   });
 });
+
+describe("where setup stands", () => {
+  async function setupStatus() {
+    return (await app.request("/setup")).json();
+  }
+
+  it("counts a bank or card as imported once its statement is in", async () => {
+    expect(await setupStatus()).toEqual({
+      accounts: 3,
+      statement_accounts: 1,
+      imported_accounts: 0,
+      drafts: 0,
+    });
+
+    recognizeStatementFile.mockResolvedValue(statement(14000));
+    await upload();
+    expect((await setupStatus()).imported_accounts).toBe(0);
+
+    await importIt();
+    // The opening balance added its equity account.
+    expect(await setupStatus()).toEqual({
+      accounts: 4,
+      statement_accounts: 1,
+      imported_accounts: 1,
+      drafts: 2,
+    });
+    expect(await statuses()).toEqual(["imported"]);
+  });
+
+  it("doesn't count the opening entry as the statement", async () => {
+    recognizeStatementFile.mockResolvedValue(statement(14000));
+    await upload();
+    // A failed import leaves the opening balance behind, and nothing else.
+    recognizeStatementFile.mockResolvedValue(statement(20000));
+    expect((await importIt()).status).toBe(422);
+    expect(
+      conn.sqlite
+        .prepare(
+          "SELECT COUNT(*) AS n FROM journal_entries WHERE account_id = 2",
+        )
+        .get(),
+    ).toEqual({ n: 1 });
+
+    expect(await setupStatus()).toMatchObject({
+      imported_accounts: 0,
+      drafts: 0,
+    });
+  });
+});

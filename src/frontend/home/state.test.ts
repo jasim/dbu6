@@ -64,10 +64,13 @@ describe("homeState", () => {
   it("asks for an account when no preset lists one", () => {
     const view = homeState(summary([]));
     expect(view.state).toBe("no-accounts");
-    expect(view.greeting).toBe("Let's set up your accounts");
+    expect(view.greeting).toBe("Let's set up your books");
     expect(view.card.count).toBeUndefined();
+    expect(view.card.body).toBe(
+      "Four steps: a chart of accounts, your banks and cards, a statement each, then review.",
+    );
     expect(view.card.action).toEqual({
-      label: "Set up your accounts",
+      label: "Set up your books",
       to: "/setup",
     });
   });
@@ -86,10 +89,11 @@ describe("homeState", () => {
       ]),
     );
     expect(view.state).toBe("nothing-imported");
-    expect(view.card.body).toContain(
-      "Drop in a statement for Sample Savings and Sample Card.",
-    );
-    expect(view.card.action.to).toBe("/import");
+    expect(view.card.body).toContain("For Sample Savings and Sample Card.");
+    expect(view.card.action).toEqual({
+      label: "Import your first statements",
+      to: "/setup/statements",
+    });
   });
 
   it("says drafts are waiting, whatever they still need", () => {

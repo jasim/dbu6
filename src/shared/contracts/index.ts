@@ -198,7 +198,6 @@ export {
   statementAccountsSchema,
   sampleFindingSchema,
   sampleRefusalSchema,
-  statementFormatReady,
   categorizerStatusSchema,
   firstStatementRefusalSchema,
   firstStatementRequestSchema,

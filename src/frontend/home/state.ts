@@ -5,7 +5,7 @@ import type {
 } from "../../shared/index";
 import { reviewHref, REVIEW_ROUTE } from "../review/routes";
 import { joinNames } from "../format";
-import { SETUP_ROUTE } from "../setup/steps";
+import { SETUP_ROUTE, SETUP_STEP_ROUTES } from "../setup/steps";
 
 /*
  * What Home says, as a pure function of the summary (PLAN.md §11 P1). In
@@ -45,11 +45,11 @@ export function homeState(summary: HomeSummary): HomeView {
   if (accounts.length === 0) {
     return {
       state: "no-accounts",
-      greeting: "Let's set up your accounts",
+      greeting: "Let's set up your books",
       card: {
-        title: "Set up your accounts",
-        body: "Pick the accounts your books sort money into, add the banks and cards you get statements from, and show dbu6 a sample statement for each.",
-        action: { label: "Set up your accounts", to: SETUP_ROUTE },
+        title: "Set up your books",
+        body: "Four steps: a chart of accounts, your banks and cards, a statement each, then review.",
+        action: { label: "Set up your books", to: SETUP_ROUTE },
       },
     };
   }
@@ -70,9 +70,14 @@ export function homeState(summary: HomeSummary): HomeView {
       state: "nothing-imported",
       greeting: "Nothing imported yet",
       card: {
-        title: "Import your first statement",
-        body: `Drop in a statement for ${where}. You can review them before posting to the books.`,
-        action: { label: "Import statements", to: "/import" },
+        title: "Import a statement for each account",
+        body: where
+          ? `For ${where}. You review each one before it reaches your books.`
+          : undefined,
+        action: {
+          label: "Import your first statements",
+          to: SETUP_STEP_ROUTES.statements,
+        },
       },
     };
   }
