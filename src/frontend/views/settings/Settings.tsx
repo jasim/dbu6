@@ -16,7 +16,7 @@ import { LinkCard } from "../../components/link-card";
 import { LoadError } from "../../components/load-error";
 import { Screen } from "../../components/screen";
 import { Button } from "../../components/ui/button";
-import { IMPORT_INSTRUCTIONS_ROUTE } from "../import-instructions/ImportInstructions";
+import { CATEGORIZATION_RULES_ROUTE } from "../import-instructions/routes";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { codingAgentSettingsQuery, refreshCodingAgent } from "../../queries";
 import {
@@ -132,9 +132,9 @@ export function Settings() {
             icon={Scale}
           />
           <LinkCard
-            label="Categorization instructions"
-            description="What the coding agent reads for each account, file by file"
-            to={IMPORT_INSTRUCTIONS_ROUTE}
+            label="Automatic transaction categorization rules"
+            description="Which account each imported transaction goes to"
+            to={CATEGORIZATION_RULES_ROUTE}
             icon={FileText}
           />
         </div>

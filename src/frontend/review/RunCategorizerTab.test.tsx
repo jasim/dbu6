@@ -292,11 +292,11 @@ describe("Run categorizer", () => {
     ).toBe("5");
     expect(heading()).toBe("4 drafts need a category");
     expect(settings()).toEqual([
-      ["Instructions", "Sample Savings · 1 file"],
+      ["Guidance", "Sample Savings · 1 file"],
       ["Google Pay", "Not addedNames payees, from My Activities.html"],
     ]);
     expect(link("View")?.getAttribute("href")).toBe(
-      "/import-instructions?account=5",
+      "/categorization-rules?account=5",
     );
     expect(link("See them in Drafts")?.getAttribute("href")).toBe(
       "/review/5/drafts?filter%5Baccount_id%5D%5Bis%5D=null",

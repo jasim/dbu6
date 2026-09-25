@@ -14,8 +14,8 @@ import {
  * Which account's instructions the categoriser gets on Run categorizer. An
  * import preset lists an institution's accounts, each with its own
  * instruction files; a run uses the drafts' own account's unless the user
- * picks another's, or none. The files themselves are read on Categorization
- * instructions, not here.
+ * picks another's, or none. The files themselves are read on Automatic
+ * transaction categorization rules, not here.
  */
 
 // The Select's value for a run without instructions.
@@ -99,7 +99,7 @@ export function InstructionsChoice({
         onChoose(value === null || value === NO_PRESET ? null : Number(value))
       }
     >
-      <SelectLabel className="sr-only">Instructions</SelectLabel>
+      <SelectLabel className="sr-only">Guidance</SelectLabel>
       <SelectTrigger placeholder="None" className="w-64 max-w-full" />
       <SelectContent>
         {presets.map((p) => (
