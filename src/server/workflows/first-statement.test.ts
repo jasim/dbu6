@@ -4,7 +4,11 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LoadCategorizer } from "../modules/categorization/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
-import { loadOpeningEntries } from "../modules/journals/index.js";
+import { CategorizationConfigError } from "../modules/categorization/index.js";
+import {
+  insertJournalPlan,
+  loadOpeningEntries,
+} from "../modules/journals/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 import { parseAccount } from "../modules/values/index.js";
@@ -48,6 +52,11 @@ const loadCategorizer: LoadCategorizer = async (settings) => ({
   customMappings: { ok: true, value: "" },
   llm: settings.llm,
 });
+
+// The import's tail refuses: the user's categorization config is broken.
+const failingCategorizer: LoadCategorizer = async () => {
+  throw new CategorizationConfigError("NOPII mappings file is broken.");
+};
 
 /*
  * Sample Savings (2) and Sample Card (4), each alone in its institution.
@@ -154,6 +163,23 @@ function cardStatement(identifier: string) {
   };
 }
 
+// The statement moved to another month of 2026 ("07" for July).
+function shifted<T extends { statement: { transactions: { date: string }[] } }>(
+  read: T,
+  month: string,
+): T {
+  return {
+    ...read,
+    statement: {
+      ...read.statement,
+      transactions: read.statement.transactions.map((row) => ({
+        ...row,
+        date: row.date.replace("2026-08-", `2026-${month}-`),
+      })),
+    },
+  };
+}
+
 const SAVINGS_FILE = { name: "NOPII.xls", path: "/sample/NOPII.xls" };
 
 function importSavings(
@@ -211,7 +237,7 @@ describe("recognizeSample", () => {
         period: { first_date: "2026-08-03", last_date: "2026-08-10" },
         transactions: 2,
         opening: { date: "2026-08-02", amount: 10000 },
-        has_opening_entry: false,
+        existing_opening: null,
         parser_institution: null,
         institution: "Sample Bank",
         moves: false,
@@ -280,6 +306,13 @@ describe("statementOpening", () => {
       amount: 10000,
     });
     expect(statementOpening(statement({ balances: [null, 14000] }))).toEqual({
+      date: "2026-08-02",
+      amount: 10000,
+    });
+  });
+
+  it("is the printed closing less every row, when that is all it prints", () => {
+    expect(statementOpening(statement({ closing: 14000 }))).toEqual({
       date: "2026-08-02",
       amount: 10000,
     });
@@ -356,7 +389,7 @@ describe("importFirstStatement", () => {
 
     expect(await recognizeSample(ledger, 2, SAVINGS_FILE.path)).toMatchObject({
       ok: true,
-      finding: { has_opening_entry: true },
+      finding: { existing_opening: { date: "2026-07-31", amount: 10000 } },
     });
     const done = await importSavings(ledger, { openingAmount: 999 });
 
@@ -409,7 +442,7 @@ describe("importFirstStatement", () => {
     );
   });
 
-  it("keeps the format and the opening when the import itself fails", async () => {
+  it("writes nothing when the statement fails its own checks", async () => {
     const ledger = books();
     // The rows reach 14,000, but the statement says it closed at 20,000.
     recognizeStatementFile.mockResolvedValue(
@@ -418,15 +451,40 @@ describe("importFirstStatement", () => {
 
     const done = await importSavings(ledger);
 
+    expect(done.ok && done.outcome).toMatchObject({
+      kind: "failed",
+      failedBaseAccount: "Sample Savings",
+      error: { name: "BalanceMismatchError" },
+    });
+    expect(presetAccount(ledger, 2).institution.parsers).toEqual([]);
+    expect(loadOpeningEntries(ledger.sqlite, ledger.auth).size).toBe(0);
+    expect(drafts(ledger, 2)).toEqual([]);
+  });
+
+  it("keeps the format and the opening when the import's tail fails", async () => {
+    const ledger = books();
+    recognizeStatementFile.mockResolvedValue(
+      savingsStatement({ opening: 10000, closing: 14000 }),
+    );
+
+    const done = await importFirstStatement(ledger, failingCategorizer, {
+      accountId: 2,
+      statement: SAVINGS_FILE,
+      openingAmount: null,
+      useStatementNumber: false,
+    });
+
     expect(done.ok && done.outcome.kind).toBe("failed");
     expect(presetAccount(ledger, 2).institution.parsers).toEqual([
       "sample-bank-xls",
     ]);
-    expect(loadOpeningEntries(ledger.sqlite, ledger.auth).has(2)).toBe(true);
+    expect(loadOpeningEntries(ledger.sqlite, ledger.auth).get(2)).toMatchObject(
+      { date: "2026-08-02", amount: 10000 },
+    );
     expect(drafts(ledger, 2)).toEqual([]);
 
-    // The step still offers the staged statement, and "Try again" records
-    // no second opening.
+    // The step still offers the staged statement, with the opening it
+    // recorded, and "Try again" records no second one.
     const step = await loadFirstStatements(
       ledger,
       new Map([[2, { path: SAVINGS_FILE.path, projectPath: "tmp/NOPII.xls" }]]),
@@ -434,8 +492,77 @@ describe("importFirstStatement", () => {
     expect(step.accounts[0]).toMatchObject({
       status: "read",
       activity: { entries: 0, drafts: 0 },
-      finding: { has_opening_entry: true },
+      finding: { existing_opening: { date: "2026-08-02", amount: 10000 } },
     });
+    const again = await importSavings(ledger);
+    expect(again.ok && again.outcome.kind).toBe("imported");
+    expect(drafts(ledger, 2)).toHaveLength(2);
+  });
+
+  it("refuses an earlier statement after a failed import, and takes a later one", async () => {
+    const ledger = books();
+    // August's import fails after its opening (2 August) is recorded.
+    recognizeStatementFile.mockResolvedValue(
+      savingsStatement({ opening: 10000, closing: 14000 }),
+    );
+    await importFirstStatement(ledger, failingCategorizer, {
+      accountId: 2,
+      statement: SAVINGS_FILE,
+      openingAmount: null,
+      useStatementNumber: false,
+    });
+
+    // July's rows would all fall behind that opening.
+    recognizeStatementFile.mockResolvedValue(
+      shifted(savingsStatement({ opening: 9000, closing: 13000 }), "07"),
+    );
+    expect(await importSavings(ledger)).toEqual({
+      ok: false,
+      refusal: {
+        code: "opening_after_statement_start",
+        error: expect.stringContaining("2026-07-03"),
+      },
+    });
+    expect(drafts(ledger, 2)).toEqual([]);
+
+    // September's starts after it: a gap, which the balance checks show.
+    recognizeStatementFile.mockResolvedValue(
+      shifted(savingsStatement({ opening: 15000, closing: 19000 }), "09"),
+    );
+    const done = await importSavings(ledger);
+    expect(done.ok && done.outcome.kind).toBe("imported");
+    expect(drafts(ledger, 2)).toHaveLength(2);
+  });
+
+  it("refuses a statement starting on its opening's day, or from another balance the day after", async () => {
+    const onFirstRow = books();
+    recordOpeningBalance(onFirstRow, {
+      accountId: 2,
+      date: "2026-08-03",
+      amount: 10000,
+    });
+    recognizeStatementFile.mockResolvedValue(
+      savingsStatement({ opening: 10000 }),
+    );
+    expect(await importSavings(onFirstRow)).toMatchObject({
+      ok: false,
+      refusal: { code: "opening_after_statement_start" },
+    });
+
+    const disagrees = books();
+    recordOpeningBalance(disagrees, {
+      accountId: 2,
+      date: "2026-08-02",
+      amount: 9000,
+    });
+    expect(await importSavings(disagrees)).toMatchObject({
+      ok: false,
+      refusal: {
+        code: "opening_disagrees",
+        error: expect.stringContaining("9,000.00"),
+      },
+    });
+    expect(drafts(disagrees, 2)).toEqual([]);
   });
 
   it("refuses a statement no parser reads, and an account with transactions", async () => {
@@ -510,5 +637,122 @@ describe("loadFirstStatements", () => {
         status: "needs_statement",
       },
     ]);
+  });
+});
+
+describe("a card's first statement", () => {
+  const CARD_FILE = { name: "NOPII.csv", path: "/sample/NOPII.csv" };
+  const importCard = (ledger: Ledger, openingAmount: number | null = null) =>
+    importFirstStatement(ledger, loadCategorizer, {
+      accountId: 4,
+      statement: CARD_FILE,
+      openingAmount,
+      useStatementNumber: false,
+    });
+  // Owed 3,000 after the 1,000 spent, as each row prints it, and no
+  // opening or closing.
+  const withRowBalances = () => {
+    const read = cardStatement("050505XXXXXX0505");
+    return {
+      ...read,
+      statement: {
+        ...read.statement,
+        transactions: read.statement.transactions.map((row) => ({
+          ...row,
+          balance: -3000,
+        })),
+        opening: null,
+        closing: null,
+      },
+    };
+  };
+
+  it("opens at the first printed balance less the rows up to it", async () => {
+    const ledger = books();
+    recognizeStatementFile.mockResolvedValue(withRowBalances());
+
+    const done = await importCard(ledger);
+
+    expect(done.ok && done.outcome.kind).toBe("imported");
+    expect(loadOpeningEntries(ledger.sqlite, ledger.auth).get(4)).toMatchObject(
+      { date: "2026-08-04", amount: -2000 },
+    );
+    expect(drafts(ledger, 4)).toEqual([
+      { date: "2026-08-05", withdrawal: 1000, deposit: 0 },
+    ]);
+  });
+
+  it("writes nothing when it prints no closing, which a card's import needs", async () => {
+    const ledger = books();
+    const read = withRowBalances();
+    recognizeStatementFile.mockResolvedValue({
+      ...read,
+      statement: {
+        ...read.statement,
+        transactions: read.statement.transactions.map((row) => ({
+          ...row,
+          balance: null,
+        })),
+      },
+    });
+
+    const done = await importCard(ledger, -2000);
+
+    expect(done.ok && done.outcome).toMatchObject({
+      kind: "failed",
+      error: { name: "ClosingBalanceUnavailable" },
+    });
+    expect(loadOpeningEntries(ledger.sqlite, ledger.auth).size).toBe(0);
+    expect(drafts(ledger, 4)).toEqual([]);
+  });
+
+  it("isn't imported by a payment another account's import posted to it", async () => {
+    const ledger = books();
+    // The savings statement's card payment, posted with the card as its
+    // category: the import keys the category's line.
+    const line = { assertion: null, sourceReference: null };
+    insertJournalPlan(
+      ledger.db,
+      [
+        {
+          date: "2026-07-20",
+          description: "NOPII CARD PAYMENT",
+          entries: [
+            {
+              ...line,
+              account: 4,
+              amount: 1000,
+              comment: "NOPII CARD PAYMENT",
+              sourceTransactionKey: "sample-key-050505",
+            },
+            {
+              ...line,
+              account: 2,
+              amount: -1000,
+              comment: null,
+              sourceTransactionKey: null,
+            },
+          ],
+        },
+      ],
+      ledger.auth,
+    );
+
+    const step = await loadFirstStatements(ledger, new Map());
+    expect(step.accounts.map((row) => [row.status, row.activity])).toEqual([
+      ["imported", { entries: 1, drafts: 0, uncategorized: 0 }],
+      ["needs_statement", { entries: 0, drafts: 0, uncategorized: 0 }],
+    ]);
+
+    // Its statement starts after the payment, where no opening can go.
+    recognizeStatementFile.mockResolvedValue(cardStatement("050505XXXXXX0505"));
+    expect(await importCard(ledger)).toEqual({
+      ok: false,
+      refusal: {
+        code: "activity_before_statement",
+        error: expect.stringContaining("2026-07-20"),
+      },
+    });
+    expect(loadOpeningEntries(ledger.sqlite, ledger.auth).has(4)).toBe(false);
   });
 });

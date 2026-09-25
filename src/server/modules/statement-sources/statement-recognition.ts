@@ -1,5 +1,14 @@
 import { spawn } from "node:child_process";
-import { access, readFile, readdir, unlink } from "node:fs/promises";
+import {
+  access,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  unlink,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -7,7 +16,12 @@ import {
   type AbacusStatement,
   AbacusJsonParseError,
 } from "../statement/index.js";
-import { packageParsersDir, parserRoots, projectRoot } from "../../paths.js";
+import {
+  packageParsersDir,
+  parserRoots,
+  projectRoot,
+  uploadStagingDir,
+} from "../../paths.js";
 
 // Recognizing an uploaded statement with the saved parsers: the directories
 // of the project's custom-built-parsers/ and of the one bundled with dbu6. A
@@ -113,15 +127,19 @@ export async function recognizeStatementFile(
   inputPath: string,
 ): Promise<StatementRecognition> {
   const matches: { parserName: string; statement: AbacusStatement }[] = [];
-  for (const parserName of parserNames) {
-    try {
-      matches.push({
-        parserName,
-        statement: await runParser(parserName, inputPath),
-      });
-    } catch (err) {
-      if (!(err instanceof ParserRejectedFile)) throw err;
-    }
+  if (parserNames.length > 0) {
+    await withPrivateCopy(inputPath, async (copy) => {
+      for (const parserName of parserNames) {
+        try {
+          matches.push({
+            parserName,
+            statement: await runParser(parserName, copy),
+          });
+        } catch (err) {
+          if (!(err instanceof ParserRejectedFile)) throw err;
+        }
+      }
+    });
   }
 
   if (matches.length === 0) {
@@ -138,6 +156,29 @@ export async function recognizeStatementFile(
     `[statement-recognition] ${match.parserName} recognized ${path.basename(inputPath)}`,
   );
   return { outcome: "recognized", ...match };
+}
+
+/*
+ * A parser writes its statement beside its input, as `<name>.abacus.json`.
+ * Two readings of one file at once (the step's page loading while its upload
+ * is read, say) would then write and delete each other's output, so each
+ * reading runs over its own copy of the file, under the same name, in a
+ * directory of its own inside the project's upload staging area. The copy and
+ * what the parsers wrote go when the reading ends.
+ */
+async function withPrivateCopy<T>(
+  inputPath: string,
+  read: (copy: string) => Promise<T>,
+): Promise<T> {
+  await mkdir(uploadStagingDir(), { recursive: true, mode: 0o700 });
+  const dir = await mkdtemp(path.join(uploadStagingDir(), ".reading-"));
+  try {
+    const copy = path.join(dir, path.basename(inputPath));
+    await copyFile(inputPath, copy);
+    return await read(copy);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function runParser(

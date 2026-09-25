@@ -91,7 +91,13 @@ export async function importStatementBatch(
   );
   const gpay =
     batch.gpayHtmlPath === null ? null : parseGPayHtml(batch.gpayHtmlPath);
-  return importGroups(plan.files, plan.groups, gpay, ledger, loadCategorizer);
+  return importPlannedGroups(
+    plan.files,
+    plan.groups,
+    gpay,
+    ledger,
+    loadCategorizer,
+  );
 }
 
 // Detection is per file so that one unreadable upload annotates its own row
@@ -116,8 +122,9 @@ async function recognizeStatements(
 // Each group is one account's ordinary statement import, into the ledger
 // account its id names when the batch starts; an id the ledger no longer has
 // refuses that group. Groups run in sequence and stop at the first that
-// refuses.
-async function importGroups(
+// refuses. A caller that has already read and placed its statements (the
+// setup wizard's first statement) starts here.
+export async function importPlannedGroups(
   files: PlannedFile[],
   groups: readonly AutoImportGroup[],
   gpay: GPayIndex | null,

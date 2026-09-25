@@ -37,6 +37,23 @@ export async function withTempUpload<T>(
   }
 }
 
+const ABACUS_SUFFIX = ".abacus.json";
+
+/**
+ * The name an upload is staged under: the name the bank gave it, which is
+ * worth keeping, made safe to write. Only its last path segment is kept; a
+ * name that is empty or all dots becomes "upload" (".." would name the
+ * folder itself); and one ending ".abacus.json", the name a parser writes its
+ * output under, becomes "…-abacus.json", so it is never taken for that.
+ */
+export function uploadName(name: string): string {
+  const last = basename(name.replaceAll("\\", "/")).replace(/[\0-\x1f]/g, "");
+  if (/^\.*$/.test(last)) return "upload";
+  return last.toLowerCase().endsWith(ABACUS_SUFFIX)
+    ? `${last.slice(0, -ABACUS_SUFFIX.length)}-abacus.json`
+    : last;
+}
+
 /** A batch of uploads written inside the project, and what became of them. */
 export interface StagedUploads {
   /** Where each upload was written, in the order the files came. */
@@ -74,7 +91,7 @@ export async function withStagedUploads<T>(
       files.map(async (file, index) => {
         // The index keeps two uploads of one name apart; the name itself is
         // kept because it is what the bank called the statement.
-        const staged = join(dir, `${index}-${basename(file.name) || "upload"}`);
+        const staged = join(dir, `${index}-${uploadName(file.name)}`);
         await writeFile(staged, Buffer.from(await file.arrayBuffer()), {
           mode: 0o600,
         });
@@ -120,7 +137,7 @@ export async function stageSample(
   const dir = sampleDir(accountId);
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true, mode: 0o700 });
-  const path = join(dir, basename(file.name) || "upload");
+  const path = join(dir, uploadName(file.name));
   await writeFile(path, Buffer.from(await file.arrayBuffer()), { mode: 0o600 });
   return { path, projectPath: relative(projectRoot(), path) };
 }
@@ -138,10 +155,17 @@ export async function stagedSamples(): Promise<Map<number, StagedSample>> {
   for (const entry of entries) {
     const accountId = Number(SAMPLE_DIR_RE.exec(entry)?.[1]);
     if (!Number.isInteger(accountId) || accountId <= 0) continue;
-    // The parsers write their JSON beside the statement; that isn't it.
-    const [name] = (await readdir(sampleDir(accountId))).filter(
-      (file) => !file.endsWith(".abacus.json"),
-    );
+    let files: string[];
+    try {
+      files = await readdir(sampleDir(accountId));
+    } catch (error) {
+      // Removed since the listing: an import or another upload took it.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    // A parser run by hand writes its JSON beside the statement; that isn't
+    // it. An upload is never named so (`uploadName`).
+    const [name] = files.filter((file) => !file.endsWith(ABACUS_SUFFIX));
     if (name === undefined) continue;
     const path = join(sampleDir(accountId), name);
     samples.set(accountId, {

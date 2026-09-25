@@ -22,7 +22,7 @@ const FINDING: RecognizedFinding = {
   period: { first_date: "2026-08-01", last_date: "2026-08-31" },
   transactions: 42,
   opening: { date: "2026-07-31", amount: 12000 },
-  has_opening_entry: false,
+  existing_opening: null,
   parser_institution: null,
   institution: "Sample Bank",
   moves: false,
@@ -123,10 +123,39 @@ describe("balanceFact", () => {
     });
   });
 
-  it("records none over an opening entry already in the books", () => {
-    expect(
-      balanceFact("bank", { ...FINDING, has_opening_entry: true }),
-    ).toEqual({ state: "in_books" });
+  it("reads nothing owed on a card as 0, and money on it as in credit", () => {
+    const card = (amount: number) =>
+      balanceFact("card", {
+        ...FINDING,
+        opening: { date: "2026-07-31", amount },
+      });
+    expect(card(0)).toEqual({
+      state: "from_statement",
+      label: "Amount owed on 31 Jul 2026",
+      value: "0.00",
+    });
+    expect(card(500)).toEqual({
+      state: "from_statement",
+      label: "Balance on 31 Jul 2026",
+      value: "500.00 in credit",
+    });
+  });
+
+  it("shows the opening entry already in the books, and records none", () => {
+    const inBooks = {
+      ...FINDING,
+      existing_opening: { date: "2026-06-30", amount: -2000 },
+    };
+    expect(balanceFact("bank", inBooks)).toEqual({
+      state: "in_books",
+      label: "Balance on 30 Jun 2026",
+      value: "-2,000.00",
+    });
+    expect(balanceFact("card", inBooks)).toEqual({
+      state: "in_books",
+      label: "Amount owed on 30 Jun 2026",
+      value: "2,000.00",
+    });
   });
 });
 
@@ -168,7 +197,10 @@ describe("importWaiting", () => {
     expect(
       importWaiting(
         "bank",
-        { ...none, has_opening_entry: true },
+        {
+          ...none,
+          existing_opening: { date: "2026-07-31", amount: 12000 },
+        },
         NOTHING_TYPED,
       ),
     ).toBeUndefined();

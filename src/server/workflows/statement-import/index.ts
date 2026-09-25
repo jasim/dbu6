@@ -2,11 +2,14 @@
 // freeform transactions a coding agent assembled.
 export {
   AccountNotFoundError,
+  checkStatement,
   runStatementImport,
+  type CheckedStatement,
   type ImportOptions,
   type StatementImportResult,
 } from "./statement-import.js";
 export {
+  importPlannedGroups,
   importStatementBatch,
   type BatchImportOutcome,
   type ImportedGroup,

@@ -1,11 +1,19 @@
 import type {
   AccountKind,
+  AutoImportResult,
   FirstStatementRow,
   RecognizedFinding,
   SampleFinding,
   StatementActivity,
 } from "../../shared/index";
-import { agree, formatDate, formatMoney, maskIdentifier } from "../format";
+import {
+  agree,
+  formatBalance,
+  formatDate,
+  formatMoney,
+  maskIdentifier,
+} from "../format";
+import { describeGroup } from "../views/import-statements/describeGroup";
 
 /*
  * The first statements step's rows as words: what a read statement's
@@ -74,7 +82,7 @@ export function numberFact(
 
 export type BalanceFact =
   // The account has an opening entry; importing records none.
-  | { state: "in_books" }
+  | { state: "in_books"; label: string; value: string }
   // No rows, so no date to open on.
   | { state: "none" }
   | { state: "from_statement"; label: string; value: string }
@@ -82,23 +90,25 @@ export type BalanceFact =
   | { state: "ask"; label: string; caption: string };
 
 /**
- * The opening balance row. A card's is read as the amount owed, positive,
- * as its statement prints it.
+ * The opening balance row: the one in the books when the account has an
+ * opening entry, else the statement's. A card's is read as the amount owed,
+ * positive, as its statement prints it.
  */
 export function balanceFact(
   kind: AccountKind,
   finding: RecognizedFinding,
 ): BalanceFact {
-  if (finding.has_opening_entry) return { state: "in_books" };
+  const existing = finding.existing_opening;
+  if (existing !== null) {
+    return { state: "in_books", ...openingFigure(kind, existing) };
+  }
   const { opening } = finding;
   if (opening === null) return { state: "none" };
-  const date = formatDate(opening.date);
-  const label =
-    kind === "card" ? `Amount owed on ${date}` : `Balance on ${date}`;
   if (opening.amount === null) {
+    const date = formatDate(opening.date);
     return {
       state: "ask",
-      label,
+      label: kind === "card" ? `Amount owed on ${date}` : `Balance on ${date}`,
       caption:
         kind === "card"
           ? `Not on the statement. What you owed on ${date}.`
@@ -107,9 +117,24 @@ export function balanceFact(
   }
   return {
     state: "from_statement",
-    label,
-    value: formatMoney(kind === "card" ? -opening.amount : opening.amount),
+    ...openingFigure(kind, { date: opening.date, amount: opening.amount }),
   };
+}
+
+/*
+ * An opening balance as a label and a figure. A card's ledger balance is
+ * negative when owed, so it reads as the amount owed ("0.00" when nothing
+ * is), and as a balance "in credit" when the card holds money.
+ */
+function openingFigure(
+  kind: AccountKind,
+  { date, amount }: { date: string; amount: number },
+): { label: string; value: string } {
+  const day = formatDate(date);
+  if (kind === "card" && amount <= 0) {
+    return { label: `Amount owed on ${day}`, value: formatMoney(-amount + 0) };
+  }
+  return { label: `Balance on ${day}`, value: formatBalance(amount, kind) };
 }
 
 /**
@@ -153,6 +178,20 @@ export function importedSummary(activity: StatementActivity): string {
   const toReview = `${activity.drafts} to review`;
   if (activity.uncategorized === 0) return toReview;
   return `${toReview} · ${activity.uncategorized} ${agree(activity.uncategorized, "needs", "need")} a category`;
+}
+
+/**
+ * What to say when an import went in but added nothing to review, which
+ * leaves the account with no transactions: every row was in the books
+ * already. /import's words for it; null when the import added any.
+ */
+export function nothingNew(result: AutoImportResult): string | null {
+  const said = result.groups.map((group) => describeGroup(group));
+  if (said.length === 0) return null;
+  const texts = said.map((one) =>
+    one.kind === "nothing-new" ? one.text : null,
+  );
+  return texts.every((one) => one !== null) ? texts.join(" ") : null;
 }
 
 /** The banks and cards with no transactions yet. */
