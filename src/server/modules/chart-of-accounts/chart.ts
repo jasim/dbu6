@@ -65,7 +65,7 @@ export function validateChartProposal(
 
   for (const type of LEDGER_ACCOUNT_TYPES) {
     if (!accounts.some((a) => a.parent === null && a.account_type === type)) {
-      problems.push(`There is no top ${type} account.`);
+      problems.push(`There is no top ${TYPE_WORDS[type]} account.`);
     }
   }
   const opening = byName.get(OPENING_BALANCES_NAME);
@@ -75,7 +75,7 @@ export function validateChartProposal(
     );
   } else if (opening.account_type !== "Equity") {
     problems.push(
-      `${OPENING_BALANCES_NAME} is ${article(opening.account_type)} account; it must be an Equity account.`,
+      `${OPENING_BALANCES_NAME} is ${article(opening.account_type)} account; it must be an equity account.`,
     );
   }
 
@@ -154,7 +154,7 @@ export function normalizeChartProposal(
     );
   } else if (opening.account_type !== "Equity") {
     notes.push(
-      `${OPENING_BALANCES_NAME} was proposed as ${article(opening.account_type)} account; it is an Equity account now, since opening entries need one.`,
+      `${OPENING_BALANCES_NAME} was proposed as ${article(opening.account_type)} account; it is an equity account now, since starting balances are posted against it.`,
     );
     opening.account_type = "Equity";
     opening.parent = null;
@@ -172,7 +172,9 @@ export function normalizeChartProposal(
     if (topOf(type)) continue;
     const name = unused(TOP_NAMES.get(type) ?? type);
     accounts.push({ name, account_type: type, parent: null, note: null });
-    notes.push(`There was no top ${type} account, so ${name} was added.`);
+    notes.push(
+      `There was no top ${TYPE_WORDS[type]} account, so ${name} was added.`,
+    );
   }
   const topName = (type: LedgerAccountType) => topOf(type)!.name;
   if (placeOpening) opening.parent = topName("Equity");
@@ -212,7 +214,7 @@ export function normalizeChartProposal(
     }
     const top = topName(looped.account_type);
     notes.push(
-      `${looped.name} was in a loop of accounts under each other; it is under ${top} now.`,
+      `${looped.name} was under one of its own sub-accounts; it is under ${top} now.`,
     );
     looped.parent = top;
   }
@@ -220,7 +222,17 @@ export function normalizeChartProposal(
   return { accounts, notes };
 }
 
-// "an Asset", "a Revenue".
+// Each type in plain words: Revenue is "income" on screen.
+const TYPE_WORDS: Record<LedgerAccountType, string> = {
+  Asset: "asset",
+  Liability: "liability",
+  Equity: "equity",
+  Revenue: "income",
+  Expense: "expense",
+};
+
+// "an asset", "a liability".
 function article(type: LedgerAccountType): string {
-  return `${/^[AEIOU]/.test(type) ? "an" : "a"} ${type}`;
+  const word = TYPE_WORDS[type];
+  return `${/^[aeiou]/.test(word) ? "an" : "a"} ${word}`;
 }

@@ -1,4 +1,11 @@
-import { OPENING_BALANCES_NAME, type ChartAccount } from "../../shared/index";
+import {
+  chartInTreeOrder,
+  LEDGER_ACCOUNT_TYPES,
+  OPENING_BALANCES_NAME,
+  type ChartAccount,
+  type ChartRow,
+  type LedgerAccountType,
+} from "../../shared/index";
 
 /*
  * The chart of accounts as a checklist. Unticking an account unticks
@@ -64,6 +71,52 @@ export function tickedAccounts(
   ticks: Ticks,
 ): ChartAccount[] {
   return accounts.filter((a) => ticks.has(a.name));
+}
+
+/*
+ * The chart as step 1 shows it: one card per account type, the top two
+ * levels on view and anything deeper folded under its second-level parent.
+ */
+
+/** Accounts deeper than this fold under their ancestor at this depth. */
+const SHOWN_DEPTH = 1;
+
+/** An account on view, and what folds under it, in tree order. */
+export interface ChartCardRow {
+  row: ChartRow;
+  folded: ChartRow[];
+}
+
+export interface ChartCard {
+  type: LedgerAccountType;
+  rows: ChartCardRow[];
+}
+
+/** One card per account type that has accounts, in the types' order. */
+export function chartCards(accounts: readonly ChartAccount[]): ChartCard[] {
+  const cards: ChartCard[] = [];
+  for (const row of chartInTreeOrder(accounts)) {
+    let card = cards.at(-1);
+    if (card?.type !== row.account.account_type) {
+      card = { type: row.account.account_type, rows: [] };
+      cards.push(card);
+    }
+    const parent = card.rows.at(-1);
+    if (row.depth > SHOWN_DEPTH && parent) parent.folded.push(row);
+    else card.rows.push({ row, folded: [] });
+  }
+  return cards;
+}
+
+/** How many accounts of each type the chart has. */
+export function countsByType(
+  accounts: readonly ChartAccount[],
+): Record<LedgerAccountType, number> {
+  const counts = Object.fromEntries(
+    LEDGER_ACCOUNT_TYPES.map((type) => [type, 0]),
+  ) as Record<LedgerAccountType, number>;
+  for (const account of accounts) counts[account.account_type] += 1;
+  return counts;
 }
 
 // `name` and every account under it.
