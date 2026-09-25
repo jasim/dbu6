@@ -356,6 +356,9 @@ function withLedgerNames<T extends PresetInstitution>(
  * preset changes it implies through the writer above, in one transaction, so
  * a refused preset change takes the account back out too. A row is changed
  * only while nothing is posted or drafted on its account.
+ *
+ * The setup screen shows these refusals as they are, so they say bank, card
+ * and number, never preset, institution, identifier or account id.
  */
 
 // The instructions a new bank or card gets, when user-config/ has them.
@@ -545,10 +548,7 @@ function writeStatementAccount(
 
   const entry = listed.get(change.account_id);
   if (entry === undefined) {
-    refuse(
-      "unknown_account",
-      `No bank or card has the account id ${change.account_id}.`,
-    );
+    refuse("unknown_account", "That bank or card isn't set up any more.");
   }
   checkNoTransactions(ledger, entry.account);
   const account = byId.get(change.account_id);
@@ -685,17 +685,12 @@ function checkNoTransactions(ledger: Ledger, account: ImportAccount): void {
   const drafts =
     countDraftsByAccount(ledger.sqlite, ledger.auth).get(account.account_id) ??
     0;
+  // The setup screen shows this; an agent learns from DBU6-BOOKS.md that the
+  // preset is then changed through the presets API.
   if (entries + drafts > 0) {
     refuse(
       "account_has_transactions",
-      `${account.name} has ${[
-        entries > 0 ? `${entries} ${entries === 1 ? "entry" : "entries"}` : "",
-        drafts > 0 ? `${drafts} ${drafts === 1 ? "draft" : "drafts"}` : "",
-      ]
-        .filter(Boolean)
-        .join(
-          " and ",
-        )}, so it is changed on the Accounts page and its preset through the presets API, not here.`,
+      `${account.name} has transactions, so change it on the Accounts page.`,
     );
   }
 }

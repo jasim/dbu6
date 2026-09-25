@@ -191,6 +191,10 @@ function describeCount(count: number, noun: string): string {
  * 5. Within an institution, no identifier is on two accounts; with more than
  *    one account, each account has an identifier.
  * 6. An account lists a mapping file once.
+ *
+ * Rules 4 and 5 can refuse a change on the setup screen, so their messages
+ * say bank and number, not institution and identifier; the code stays
+ * precise for an agent.
  */
 export function validateImportPresets(
   institutions: readonly PresetInstitution[],
@@ -259,7 +263,7 @@ export function validateImportPresets(
       } else if (accountNames.has(account.name)) {
         problem(
           "account_name_taken",
-          `Two accounts are named "${account.name}".`,
+          `Two accounts are named ${account.name}.`,
         );
       }
       accountNames.add(account.name);
@@ -270,7 +274,7 @@ export function validateImportPresets(
         if (other !== undefined) {
           problem(
             "identifier_on_two_accounts",
-            `The identifier ${identifier} is on both "${other}" and "${account.name}" in "${institution.name}".`,
+            `${other} and ${account.name} at ${institution.name} have the same number, ${identifier}.`,
           );
         } else {
           identifierAccount.set(identifier, account.name);
@@ -282,7 +286,7 @@ export function validateImportPresets(
       ) {
         problem(
           "account_identifier_required",
-          `"${institution.name}" has ${describeCount(institution.accounts.length, "account")}, so each needs the identifier its statements print, and "${account.name}" has none.`,
+          `${institution.name} has ${institution.accounts.length === 2 ? "two accounts" : describeCount(institution.accounts.length, "account")}, so each needs its number, and ${account.name} has none.`,
         );
       }
 

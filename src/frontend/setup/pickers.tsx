@@ -7,7 +7,7 @@ import type { ChartChoice } from "../../shared/index";
 /*
  * The banks-and-cards form's two searchable pickers, on Base UI's Combobox
  * with Sapporta's style tokens. Their items come from the step's own read
- * (the accounts of one type, the preset institutions), not from a table
+ * (the accounts of one type, the banks it knows), not from a table
  * lookup, which can't narrow the accounts to a type.
  */
 
@@ -124,28 +124,31 @@ export function AccountCombobox({
   );
 }
 
-// A preset institution, or the name being typed when no institution has it.
+// A bank the books know, or the name being typed when none has it.
 interface InstitutionItem {
   name: string;
   isNew: boolean;
 }
 
 /**
- * An institution by name: one the presets hold, or a new name typed in,
- * which the server adds with no parsers. Choosing a known one keeps its
- * spelling.
+ * A bank or card issuer by name: one the books know (an institution in the
+ * import presets), or a new name typed in, which the server adds. Choosing
+ * a known one keeps its spelling.
  */
 export function InstitutionCombobox({
   id,
   institutions,
   value,
   onChange,
+  empty,
   invalid,
 }: {
   id: string;
   institutions: readonly string[];
   value: string;
   onChange: (name: string) => void;
+  /** What the list says before anything is typed and none is known. */
+  empty: string;
   invalid?: boolean;
 }) {
   const [query, setQuery] = useState(value);
@@ -172,25 +175,15 @@ export function InstitutionCombobox({
       itemToStringLabel={(item) => item.name}
       isItemEqualToValue={(a, b) => a.name === b.name}
     >
-      <Field
-        id={id}
-        placeholder="Your bank, or the company that issues your card"
-        invalid={invalid}
-      />
-      <Popup empty="Type the bank's name.">
+      <Field id={id} placeholder="Search or type a name" invalid={invalid} />
+      <Popup empty={empty}>
         {(item: InstitutionItem) => (
           <Combobox.Item
             key={`${item.isNew}:${item.name}`}
             value={item}
             className={comboboxClassNames.item}
           >
-            {item.isNew ? (
-              <span>
-                Add <span className="font-semibold">{item.name}</span>
-              </span>
-            ) : (
-              item.name
-            )}
+            {item.isNew ? <span>Add “{item.name}”</span> : item.name}
             <Combobox.ItemIndicator
               className={comboboxClassNames.itemIndicator}
             >

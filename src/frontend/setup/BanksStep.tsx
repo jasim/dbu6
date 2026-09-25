@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Menu } from "@base-ui/react/menu";
+import { Lock, MoreHorizontal } from "lucide-react";
 import { Checkbox } from "@sapporta/ui";
+import { cn } from "@sapporta/ui/cn";
+import { comboboxClassNames } from "@sapporta/ui/combobox";
 import {
   Dialog,
   DialogContent,
@@ -10,32 +14,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@sapporta/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";
 import type {
+  AccountKind,
   StatementAccountChange,
   StatementAccountRow,
-  StatementAccounts,
 } from "../../shared/index";
 import { apiErrorMessage, setupApi } from "../api";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { StatusChip } from "../components/status-chip";
 import { Button } from "../components/ui/button";
-import { plural } from "../format";
+import { maskIdentifier } from "../format";
 import { refreshSetup, statementAccountsQuery } from "../queries";
-import { OPENING_BALANCES_ROUTE } from "../views/opening-balances/OpeningBalances";
 import { SetupFrame, StepHeading } from "./SetupWizard";
 import {
   StatementAccountDialog,
   type StatementAccountEditing,
 } from "./StatementAccountDialog";
-import { SETUP_STEP_ROUTES } from "./steps";
+import { SETUP_ROUTE, SETUP_STEP_ROUTES } from "./steps";
 
 /*
- * Step 2, the banks and cards statements come from: one row each, grouped by
- * institution. Rows can be added at any time, in new books or old ones; a
- * row changes or goes only while nothing is posted or drafted on its
- * account.
+ * Step 2, the banks and cards statements come from: one row each, in one
+ * table. Rows can be added at any time, in new books or old ones; a row is
+ * edited or removed only while nothing is posted or drafted on its account.
  */
+
+const LOCKED = "Has transactions. Change it on the Accounts page.";
+
 export function BanksStep() {
   const client = useQueryClient();
   const query = useQuery(statementAccountsQuery);
@@ -47,13 +53,14 @@ export function BanksStep() {
     client.setQueryData(statementAccountsQuery.queryKey, accounts);
     await refreshSetup(client);
   };
+  const add = (kind: AccountKind) => setEditing({ mode: "add", kind });
 
   const data = query.data;
   return (
     <SetupFrame step="banks">
-      <StepHeading title="Your banks and cards">
-        Each bank account and card you get statements from, as an account in
-        your books. A row can be changed until its first transaction.
+      <StepHeading title="Add your banks and cards">
+        Every account you get a statement for. Its transactions come in from
+        there.
       </StepHeading>
       {query.isPending && (
         <p className="text-body text-ink-meta">Loading your banks and cards…</p>
@@ -67,44 +74,53 @@ export function BanksStep() {
       )}
       {data && (
         <>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          {data.accounts.length === 0 ? (
+            <EmptyState
+              title="Add the accounts you get statements for"
+              body="Savings, current and credit card accounts."
+              action={
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button onClick={() => add("bank")}>+ Bank account</Button>
+                  <Button variant="outline" onClick={() => add("card")}>
+                    + Credit card
+                  </Button>
+                </div>
+              }
+            />
+          ) : (
+            <>
+              <AccountsTable
+                rows={data.accounts}
+                onEdit={(row) => setEditing({ mode: "edit", row })}
+                onRemove={setRemoving}
+              />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => add("bank")}>
+                  + Bank account
+                </Button>
+                <Button variant="outline" onClick={() => add("card")}>
+                  + Credit card
+                </Button>
+              </div>
+            </>
+          )}
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
             <Button
-              variant={data.accounts.length === 0 ? "default" : "outline"}
-              onClick={() => setEditing({ mode: "add" })}
+              render={<Link to={`${SETUP_ROUTE}/review`} />}
+              nativeButton={false}
+              variant="ghost"
             >
-              Add a bank or card
+              Skip for now
             </Button>
             {data.accounts.length > 0 && (
               <Button
                 render={<Link to={SETUP_STEP_ROUTES.statements} />}
                 nativeButton={false}
               >
-                Next: statement formats
+                Next: First statements
               </Button>
             )}
           </div>
-          {data.accounts.length === 0 ? (
-            <EmptyState
-              title="Add the banks and cards you get statements from"
-              body="Each becomes an account in your books, and the next step shows dbu6 one of its statements."
-              action={
-                <Button
-                  render={<Link to={OPENING_BALANCES_ROUTE} />}
-                  nativeButton={false}
-                  variant="ghost"
-                  size="sm"
-                >
-                  Skip for now
-                </Button>
-              }
-            />
-          ) : (
-            <InstitutionList
-              data={data}
-              onEdit={(row) => setEditing({ mode: "edit", row })}
-              onRemove={setRemoving}
-            />
-          )}
           <StatementAccountDialog
             editing={editing}
             data={data}
@@ -128,49 +144,54 @@ export function BanksStep() {
   );
 }
 
-function InstitutionList({
-  data,
+function AccountsTable({
+  rows,
   onEdit,
   onRemove,
 }: {
-  data: StatementAccounts;
+  rows: readonly StatementAccountRow[];
   onEdit: (row: StatementAccountRow) => void;
   onRemove: (row: StatementAccountRow) => void;
 }) {
-  const institutions = data.institutions.filter((institution) =>
-    data.accounts.some((row) => row.institution === institution.name),
-  );
   return (
-    <div className="space-y-4">
-      {institutions.map((institution) => (
-        <section
-          key={institution.name}
-          className="rounded-card border border-sap-border bg-card shadow-card"
-        >
-          <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pb-2 pt-4">
-            <h3 className="text-subheading text-foreground">
-              {institution.name}
-            </h3>
-            <span className="text-meta text-ink-meta">
-              {institution.parsers.length > 0
-                ? "Its statements can be read"
-                : "No statement format yet"}
-            </span>
-          </div>
-          <ul>
-            {data.accounts
-              .filter((row) => row.institution === institution.name)
-              .map((row) => (
-                <AccountRow
-                  key={row.account_id}
-                  row={row}
-                  onEdit={() => onEdit(row)}
-                  onRemove={() => onRemove(row)}
-                />
-              ))}
-          </ul>
-        </section>
-      ))}
+    <div className="overflow-x-auto rounded-card border border-sap-border bg-card shadow-card">
+      <table className="w-full text-row">
+        <thead className="text-left text-meta text-ink-meta">
+          <tr>
+            <th scope="col" className="py-2.5 pl-5 pr-3 font-medium">
+              Account
+            </th>
+            <th
+              scope="col"
+              className="hidden px-3 py-2.5 font-medium sm:table-cell"
+            >
+              Type
+            </th>
+            <th
+              scope="col"
+              className="hidden px-3 py-2.5 font-medium sm:table-cell"
+            >
+              Bank
+            </th>
+            <th scope="col" className="px-3 py-2.5 font-medium">
+              Number
+            </th>
+            <th scope="col" className="py-2.5 pl-3 pr-4">
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <AccountRow
+              key={row.account_id}
+              row={row}
+              onEdit={() => onEdit(row)}
+              onRemove={() => onRemove(row)}
+            />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -185,61 +206,98 @@ function AccountRow({
   onRemove: () => void;
 }) {
   const locked = row.entries + row.drafts > 0;
-  const activity = [
-    row.entries > 0 ? plural(row.entries, "entry", "entries") : null,
-    row.drafts > 0 ? plural(row.drafts, "draft") : null,
-  ].filter((part): part is string => part !== null);
+  const number = row.account_identifiers[0];
+  const kind = row.kind === "card" ? "Credit card" : "Bank account";
   return (
-    <li className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line-inner px-4 py-3">
-      <div className="min-w-0 flex-1 basis-[220px]">
+    <tr className="border-t border-line-inner">
+      <td className="py-2.5 pl-5 pr-3 align-middle">
         <div className="font-semibold text-foreground">{row.name}</div>
-        <div className="mt-0.5 text-meta text-ink-meta">
-          {row.kind === "card" ? "Card" : "Bank account"}
-          {row.parent ? ` under ${row.parent.name}` : ""}
-          {" · "}
-          {row.account_identifiers.length > 0 ? (
-            <span className="tnum font-mono">
-              {row.account_identifiers.join(", ")}
-            </span>
-          ) : (
-            "no number yet"
-          )}
+        {/* On a phone, the columns it drops. */}
+        <div className="text-meta text-ink-meta sm:hidden">
+          {kind} · {row.institution}
         </div>
-      </div>
-      <div className="text-meta">
-        {!row.in_ledger ? (
-          <StatusChip tone="problem">Deleted from your books</StatusChip>
-        ) : locked ? (
-          <StatusChip tone="waiting">{activity.join(", ")}</StatusChip>
-        ) : (
-          <StatusChip tone="waiting">No transactions yet</StatusChip>
+        {!row.in_ledger && (
+          <StatusChip tone="problem" className="mt-0.5">
+            Deleted from your books
+          </StatusChip>
         )}
-      </div>
-      <div className="flex gap-1">
+      </td>
+      <td className="hidden whitespace-nowrap px-3 py-2.5 text-ink-soft sm:table-cell">
+        {kind}
+      </td>
+      <td className="hidden px-3 py-2.5 text-ink-soft sm:table-cell">
+        {row.institution}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2.5">
+        {number === undefined ? (
+          <span className="text-ink-meta">— from statement</span>
+        ) : (
+          <span className="tnum font-mono">{maskIdentifier(number)}</span>
+        )}
+      </td>
+      <td className="py-1.5 pl-3 pr-4 text-right">
         {locked ? (
-          <span className="text-meta text-ink-meta">
-            Change it on the{" "}
-            <Link
-              to="/accounts"
-              className="text-primary underline-offset-4 hover:underline"
+          <Tooltip>
+            <TooltipTrigger
+              delay={0}
+              aria-label={LOCKED}
+              className="inline-flex h-sap-ctl w-[var(--height-sap-ctl)] items-center justify-center rounded-control text-ink-meta outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 [&_svg]:size-4"
             >
-              Accounts page
-            </Link>
-          </span>
+              <Lock />
+            </TooltipTrigger>
+            <TooltipContent side="left">{LOCKED}</TooltipContent>
+          </Tooltip>
         ) : (
-          <>
-            {row.in_ledger && (
-              <Button variant="ghost" size="sm" onClick={onEdit}>
-                Change
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={onRemove}>
-              Remove
-            </Button>
-          </>
+          <RowMenu
+            name={row.name}
+            onEdit={row.in_ledger ? onEdit : null}
+            onRemove={onRemove}
+          />
         )}
-      </div>
-    </li>
+      </td>
+    </tr>
+  );
+}
+
+/** A row's "⋯" menu: Edit (while its account is in the books) and Remove. */
+function RowMenu({
+  name,
+  onEdit,
+  onRemove,
+}: {
+  name: string;
+  onEdit: (() => void) | null;
+  onRemove: () => void;
+}) {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        aria-label={`Actions for ${name}`}
+        className="inline-flex h-sap-ctl w-[var(--height-sap-ctl)] items-center justify-center rounded-control text-ink-soft outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 data-popup-open:bg-muted [&_svg]:size-4"
+      >
+        <MoreHorizontal />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner
+          className={comboboxClassNames.positioner}
+          align="end"
+          sideOffset={4}
+        >
+          <Menu.Popup
+            className={cn(comboboxClassNames.popup, "w-auto min-w-32 p-1")}
+          >
+            {onEdit && (
+              <Menu.Item className={comboboxClassNames.item} onClick={onEdit}>
+                Edit
+              </Menu.Item>
+            )}
+            <Menu.Item className={comboboxClassNames.item} onClick={onRemove}>
+              Remove
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 
@@ -256,13 +314,19 @@ function RemoveDialog({
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const close = () => {
+    setProblem(null);
+    setDeleteAccount(true);
+    onClose();
+  };
+
   async function confirm() {
     if (row === null) return;
     setSaving(true);
     setProblem(null);
     try {
       await remove(row, deleteAccount && row.in_ledger);
-      onClose();
+      close();
     } catch (error) {
       setProblem(apiErrorMessage(error));
     } finally {
@@ -271,22 +335,14 @@ function RemoveDialog({
   }
 
   return (
-    <Dialog
-      open={row !== null}
-      onOpenChange={(open) => {
-        if (open) return;
-        setProblem(null);
-        setDeleteAccount(true);
-        onClose();
-      }}
-    >
+    <Dialog open={row !== null} onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-w-md">
         {row && (
           <>
             <DialogHeader>
               <DialogTitle>Remove {row.name}?</DialogTitle>
               <DialogDescription>
-                Its statements will no longer be set up for importing.
+                dbu6 stops importing its statements.
               </DialogDescription>
             </DialogHeader>
             {row.in_ledger && (
@@ -296,8 +352,7 @@ function RemoveDialog({
                   checked={deleteAccount}
                   onCheckedChange={(checked) => setDeleteAccount(checked)}
                 />
-                Also delete the account {row.name} from your books. It has no
-                transactions.
+                Also delete it from your chart of accounts
               </label>
             )}
             {problem && (
@@ -306,7 +361,7 @@ function RemoveDialog({
               </p>
             )}
             <DialogFooter className="mt-6">
-              <Button variant="outline" onClick={onClose}>
+              <Button variant="outline" onClick={close}>
                 Cancel
               </Button>
               <Button
