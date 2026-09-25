@@ -11,6 +11,7 @@ import {
   agentHandoffApi,
   codingAgentApi,
   homeApi,
+  importPresetsApi,
   openingBalancesApi,
   reviewApi,
   setupApi,
@@ -65,6 +66,36 @@ export function reviewAccountQuery(accountId: number) {
 export const openingBalancesQuery = queryOptions({
   queryKey: ["opening-balances"],
   queryFn: () => openingBalancesApi.list({ query: {} }),
+  ...FRESH_QUERY,
+});
+
+/** Every institution's accounts and the instruction files each lists. */
+export const importPresetsQuery = queryOptions({
+  queryKey: ["import-presets"],
+  queryFn: () => importPresetsApi.listImportPresets({}),
+  ...FRESH_QUERY,
+});
+
+/**
+ * A preset account's instruction files and the text the coding agent gets
+ * from them. The files are edited outside dbu6, so it is read on every mount.
+ */
+export function accountInstructionsQuery(accountId: number) {
+  return queryOptions({
+    queryKey: ["import-presets", "instructions", accountId],
+    queryFn: () =>
+      importPresetsApi.readAccountInstructions({ params: { accountId } }),
+    ...FRESH_QUERY,
+  });
+}
+
+/**
+ * The rules in transaction_mappings.mjs, each account checked against the
+ * ledger. The file is edited outside dbu6, so it is read on every mount.
+ */
+export const transactionMappingsQuery = queryOptions({
+  queryKey: ["import-presets", "transaction-mappings"],
+  queryFn: () => importPresetsApi.readTransactionMappings({}),
   ...FRESH_QUERY,
 });
 

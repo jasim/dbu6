@@ -25,9 +25,11 @@ export type {
 export {
   CategorizationConfigError,
   loadCategorizer,
+  readAccountInstructions,
   readCustomMappingsFile,
   readTransactionMappings,
   TRANSACTION_MAPPINGS_FILENAME,
+  type AccountInstructions,
   type CategorizerSettings,
   type LoadCategorizer,
 } from "./load-categorizer.js";

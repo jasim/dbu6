@@ -7,12 +7,16 @@ import {
   type ImportPresetsFileRefusal as ImportPresetsFileRefusalBody,
   type ImportPresetsView,
 } from "../../shared/index.js";
-import { readCustomMappingsFile } from "../modules/categorization/index.js";
+import {
+  readAccountInstructions,
+  readCustomMappingsFile,
+} from "../modules/categorization/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import {
   changeImportPresets,
   convertImportPresetsFileInto,
   loadImportPresetsView,
+  loadTransactionMappingsView,
 } from "../workflows/import-presets.js";
 import { requireOwner, requireWorkflowLedger } from "./workflow-auth.js";
 
@@ -62,6 +66,39 @@ api.register(
       },
     };
   },
+);
+
+api.register(
+  "readAccountInstructions",
+  importPresetsContract.readAccountInstructions,
+  async ({ c, request }) => {
+    const { accountId } = request.params;
+    const account = loadImportPresetsView(requireWorkflowLedger(c))
+      .institutions.flatMap((institution) => institution.accounts)
+      .find((one) => one.account_id === accountId);
+    if (!account) {
+      return {
+        status: 404,
+        body: { error: `No import preset lists account ${accountId}.` },
+      };
+    }
+    return {
+      status: 200,
+      body: {
+        account_id: accountId,
+        ...readAccountInstructions(account.custom_mappings_filenames),
+      },
+    };
+  },
+);
+
+api.register(
+  "readTransactionMappings",
+  importPresetsContract.readTransactionMappings,
+  async ({ c }) => ({
+    status: 200,
+    body: await loadTransactionMappingsView(requireWorkflowLedger(c)),
+  }),
 );
 
 export default api;

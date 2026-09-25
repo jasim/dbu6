@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CheckCircle2,
+  FileText,
   ListChecks,
   RefreshCw,
   Scale,
@@ -15,6 +16,7 @@ import { LinkCard } from "../../components/link-card";
 import { LoadError } from "../../components/load-error";
 import { Screen } from "../../components/screen";
 import { Button } from "../../components/ui/button";
+import { IMPORT_INSTRUCTIONS_ROUTE } from "../import-instructions/ImportInstructions";
 import { OPENING_BALANCES_ROUTE } from "../opening-balances/OpeningBalances";
 import { SETUP_ROUTE } from "../../setup/steps";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
@@ -31,8 +33,8 @@ const CHECKING_POLL_MS = 2000;
 /*
  * The coding agent dbu6 uses for everything AI, installed on the server's
  * machine, and the models it runs on. Until the user picks one, dbu6 uses the
- * first installed. Below it, the way to setting up accounts and to their
- * opening balances.
+ * first installed. Below it, the way to setting up accounts, to their opening
+ * balances and to their categorization instructions.
  */
 export function Settings() {
   usePageTitle("Settings");
@@ -129,6 +131,12 @@ export function Settings() {
             description="What each bank, card and loan account started at"
             to={OPENING_BALANCES_ROUTE}
             icon={Scale}
+          />
+          <LinkCard
+            label="Categorization instructions"
+            description="What the coding agent reads for each account, file by file"
+            to={IMPORT_INSTRUCTIONS_ROUTE}
+            icon={FileText}
           />
         </div>
       </section>

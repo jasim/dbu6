@@ -202,6 +202,55 @@ export const customMappingsFileSchema = z.object({
 });
 export type CustomMappingsFile = z.infer<typeof customMappingsFileSchema>;
 
+// A preset account's instructions for the LLM: each file it lists, in
+// order, and the text a categorization run joins them into.
+export const accountInstructionsSchema = z.object({
+  account_id: z.number().int().positive(),
+  files: z.array(customMappingsFileSchema),
+  // The files there are, in order, separated by a blank line.
+  text: z.string(),
+});
+export type AccountInstructions = z.infer<typeof accountInstructionsSchema>;
+
+// A mapping rule's account, and whether the ledger has an account of that
+// exact name. A rule whose account is not there leaves its entries
+// uncategorized.
+const mappingTargetFields = {
+  account: z.string(),
+  in_ledger: z.boolean(),
+};
+
+// user-config/transaction_mappings.mjs as a run reads it: the rules applied
+// to every account's entries before the LLM sees the ones they don't match.
+export const transactionMappingsViewSchema = z.discriminatedUnion("state", [
+  z.object({
+    state: z.literal("read"),
+    filename: z.string(),
+    // A whole narration and its account; checked before any includes rule.
+    exact: z.array(z.object({ narration: z.string(), ...mappingTargetFields })),
+    // In the order they are checked; the first to match wins. A rule matches
+    // a narration containing any of its values, moving money in `direction`
+    // when it has one.
+    includes: z.array(
+      z.object({
+        ...mappingTargetFields,
+        direction: z.enum(["withdrawal", "deposit"]).nullable(),
+        values: z.array(z.string()),
+      }),
+    ),
+  }),
+  // Missing, or not a module exporting `mappings` of the right shape: runs
+  // categorize no entry until it is fixed.
+  z.object({
+    state: z.literal("unreadable"),
+    filename: z.string(),
+    error: z.string(),
+  }),
+]);
+export type TransactionMappingsView = z.infer<
+  typeof transactionMappingsViewSchema
+>;
+
 export const importPresetsContract = c.router({
   listImportPresets: c.query({
     method: "GET",
@@ -255,6 +304,28 @@ export const importPresetsContract = c.router({
     responses: {
       200: customMappingsFileSchema,
       400: z.object({ error: z.string() }),
+      403: z.object({ error: z.string() }),
+    },
+  }),
+  readAccountInstructions: c.query({
+    method: "GET",
+    path: "/import-presets/accounts/:accountId/instructions",
+    summary:
+      "A preset account's instruction files, read now, and the text the LLM gets from them",
+    pathParams: z.object({ accountId: z.coerce.number().int().positive() }),
+    responses: {
+      200: accountInstructionsSchema,
+      403: z.object({ error: z.string() }),
+      404: z.object({ error: z.string() }),
+    },
+  }),
+  readTransactionMappings: c.query({
+    method: "GET",
+    path: "/import-presets/transaction-mappings",
+    summary:
+      "user-config/transaction_mappings.mjs, read now: its exact and includes rules, each account checked against the ledger",
+    responses: {
+      200: transactionMappingsViewSchema,
       403: z.object({ error: z.string() }),
     },
   }),

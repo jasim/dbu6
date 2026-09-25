@@ -12,6 +12,7 @@ import {
   type StatementAccountRefusal,
   type StatementAccountRow,
   type StatementAccounts,
+  type TransactionMappingsView,
 } from "../../shared/index.js";
 import {
   deleteAccount,
@@ -22,7 +23,12 @@ import {
   updateAccount,
   type ChartedAccount,
 } from "../modules/accounts/index.js";
-import { readCustomMappingsFile } from "../modules/categorization/index.js";
+import {
+  CategorizationConfigError,
+  readCustomMappingsFile,
+  readTransactionMappings,
+  TRANSACTION_MAPPINGS_FILENAME,
+} from "../modules/categorization/index.js";
 import { countDraftsByAccount } from "../modules/drafts/index.js";
 import { countEntriesByAccount } from "../modules/journals/index.js";
 import {
@@ -69,6 +75,43 @@ export function loadImportPresetsView(ledger: Ledger): ImportPresetsView {
       loadImportPresets(ledger.db, ledger.auth),
       ledgerAccountNames(ledger),
     ),
+  };
+}
+
+/**
+ * The user's transaction_mappings.mjs, read now, each rule's account checked
+ * against the ledger's names; or why no run can use it.
+ */
+export async function loadTransactionMappingsView(
+  ledger: Ledger,
+): Promise<TransactionMappingsView> {
+  const filename = TRANSACTION_MAPPINGS_FILENAME;
+  let rules;
+  try {
+    rules = await readTransactionMappings();
+  } catch (error) {
+    if (error instanceof CategorizationConfigError) {
+      return { state: "unreadable", filename, error: error.message };
+    }
+    throw error;
+  }
+  const names = new Set(
+    loadLedgerAccounts(ledger.sqlite, ledger.auth).map((one) => one.name),
+  );
+  return {
+    state: "read",
+    filename,
+    exact: Object.entries(rules.exact).map(([narration, account]) => ({
+      narration,
+      account,
+      in_ledger: names.has(account),
+    })),
+    includes: rules.includes.map((rule) => ({
+      account: rule.account,
+      in_ledger: names.has(rule.account),
+      direction: rule.direction ?? null,
+      values: rule.values,
+    })),
   };
 }
 
