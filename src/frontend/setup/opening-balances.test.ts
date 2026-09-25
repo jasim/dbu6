@@ -17,12 +17,13 @@ import {
   openingFigure,
   parentLine,
   readBalance,
+  recordedSections,
   signReadback,
   typedAmount,
-} from "./other-balances";
+} from "./opening-balances";
 
 /*
- * The Other balances step's rules without its screen: which table an
+ * Opening balances' rules without a screen: which table an
  * account is in, how its balance reads, and what the dialog opens with and
  * sends, the amount always typed the user's way up.
  */
@@ -126,6 +127,20 @@ describe("balanceSections", () => {
     expect(sections[0].accounts.map((a) => a.name)).toEqual([
       "Investments",
       "EPF",
+    ]);
+  });
+
+  it("keeps the recorded balances for the page, and the one a link names", () => {
+    const recorded = { ...epf, opening: opening(640000) };
+    const names = (focus: string | null) =>
+      recordedSections(books(cash, recorded, loan, card), focus).map((one) => [
+        one.section,
+        one.accounts.map((a) => a.name),
+      ]);
+    expect(names(null)).toEqual([["own", ["EPF"]]]);
+    expect(names("Sample Card")).toEqual([
+      ["own", ["EPF"]],
+      ["statement", ["Sample Card"]],
     ]);
   });
 

@@ -21,8 +21,10 @@ import { readReviewRun, reviewHref, withReviewRun } from "./routes";
 /**
  * `/review` (PLAN.md §11 P3): pick the account whose drafts to check. With
  * one account holding drafts there is nothing to pick, so it goes straight
- * to that account, with what /add handed over. An account picked here keeps
- * the first run (`?run=setup`); the hand-off note stays here.
+ * to that account, with what /add handed over: to its Drafts tab after an
+ * import, as a later add lands. An account picked here keeps the first run
+ * (`?run=setup`); the hand-off note stays here, in place of the picker's
+ * own line.
  */
 export function ReviewAccounts() {
   usePageTitle("Review");
@@ -34,9 +36,11 @@ export function ReviewAccounts() {
 
   // The first run's end: nothing is left to pick.
   const setUp = run.setup && accounts?.length === 0;
+  const handingOff = run.imported && accounts !== null && accounts.length > 0;
   const only = accounts?.length === 1 ? accounts[0] : undefined;
   if (only) {
-    return <Navigate to={`${reviewHref(only.account_id)}${search}`} replace />;
+    const to = reviewHref(only.account_id, run.imported ? "drafts" : undefined);
+    return <Navigate to={`${to}${search}`} replace />;
   }
 
   return (
@@ -44,7 +48,7 @@ export function ReviewAccounts() {
       width="narrow"
       header={
         <ScreenTitle title="Review">
-          {!setUp && (
+          {!setUp && !handingOff && (
             <p>
               Pick an account to review its drafts and add them to your books.
               Each account is reviewed and added on its own.
@@ -53,9 +57,7 @@ export function ReviewAccounts() {
         </ScreenTitle>
       }
     >
-      {run.imported && accounts !== null && accounts.length > 0 && (
-        <HandOffNote className="mt-5" />
-      )}
+      {handingOff && <HandOffNote className="mt-5" />}
       <div className="mt-5">
         {error ? (
           <LoadError

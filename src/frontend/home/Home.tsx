@@ -19,14 +19,9 @@ import {
   RECONCILIATION_DIFFERENCES_HREF,
 } from "../reports/links";
 import { reviewHref } from "../review/routes";
-import { ADD_ROUTE } from "../add-account/state";
+import { BANKS_SETTINGS_ROUTE } from "../views/settings/routes";
 import { formatDate, plural } from "../format";
-import {
-  ADD_MENU,
-  BANKS_SETTINGS_ROUTE,
-  homeState,
-  type HomeCard,
-} from "./state";
+import { ADD_MENU, homeState, statementsHref, type HomeCard } from "./state";
 
 /**
  * Home (PLAN.md §11 P1): where the books stand and one thing to do. One
@@ -92,7 +87,10 @@ export function Home() {
             {summary && <AddMenu />}
           </div>
           {summary ? (
-            <AccountTable accounts={summary.accounts} />
+            <AccountTable
+              accounts={summary.accounts}
+              statementsTo={statementsHref(summary)}
+            />
           ) : error ? null : (
             <ul aria-hidden="true" className="px-4 pb-5">
               {[0, 1, 2].map((i) => (
@@ -163,7 +161,14 @@ function AddMenu() {
   );
 }
 
-function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
+function AccountTable({
+  accounts,
+  statementsTo,
+}: {
+  accounts: readonly HomeAccount[];
+  /** Where an account with no statements yet gets them. */
+  statementsTo: string;
+}) {
   return (
     <div className="overflow-x-auto pb-2">
       <table className="w-full text-row">
@@ -182,7 +187,11 @@ function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
         </thead>
         <tbody>
           {accounts.map((account) => (
-            <AccountRow key={account.account_id} account={account} />
+            <AccountRow
+              key={account.account_id}
+              account={account}
+              statementsTo={statementsTo}
+            />
           ))}
         </tbody>
       </table>
@@ -190,11 +199,17 @@ function AccountTable({ accounts }: { accounts: readonly HomeAccount[] }) {
   );
 }
 
-function AccountRow({ account }: { account: HomeAccount }) {
+function AccountRow({
+  account,
+  statementsTo,
+}: {
+  account: HomeAccount;
+  statementsTo: string;
+}) {
   const ledger = account.in_ledger
     ? accountLedgerHref(account.account_id)
     : null;
-  const status = accountStatus(account);
+  const status = accountStatus(account, statementsTo);
   return (
     <tr className="border-t border-line-inner">
       <td className="py-2.5 pl-6 pr-3 align-top">
@@ -258,7 +273,10 @@ function ImportedUntil({ account }: { account: HomeAccount }) {
  * statements can't be imported until dropping them at /add teaches dbu6
  * their format.
  */
-function accountStatus(account: HomeAccount): {
+function accountStatus(
+  account: HomeAccount,
+  statementsTo: string,
+): {
   tone: StatusTone;
   label: string;
   to?: string;
@@ -288,7 +306,7 @@ function accountStatus(account: HomeAccount): {
     return {
       tone: "attention",
       label: "Needs a first statement",
-      to: ADD_ROUTE,
+      to: statementsTo,
     };
   }
   return null;

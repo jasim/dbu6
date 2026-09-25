@@ -10,7 +10,6 @@ import { packageDir } from "../paths.js";
 import {
   changeOpeningBalance,
   loadOpeningBalances,
-  recordedOtherBalances,
   recordOpeningBalance,
   removeOpeningBalance,
 } from "./opening-balances.js";
@@ -486,22 +485,6 @@ describe("the setup step's sections", () => {
       ["Sample Loans", "owe"],
       ["Sample Car Loan", "owe"],
     ]);
-    expect(recordedOtherBalances(ledger)).toBe(2);
-  });
-
-  it("counts no bank or card among the other balances", () => {
-    const ledger = books(`
-      INSERT INTO import_presets
-        (workspace_id, scoped_to_user_id, name, parsers, accounts, updated_at)
-      VALUES ('workspace', 'user', 'Sample Bank', '[]',
-        '[{"account_id":2,"name":"Sample Savings","is_credit_card":false,"account_identifiers":[],"custom_mappings_filenames":[]}]',
-        '2026-09-01T00:00:00Z');
-    `);
-    recorded(ledger, 2, "2026-02-02", 1000);
-    expect(recordedOtherBalances(ledger)).toBe(0);
-
-    recorded(ledger, 4, "2026-01-31", -2500);
-    expect(recordedOtherBalances(ledger)).toBe(1);
   });
 });
 

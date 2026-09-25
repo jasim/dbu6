@@ -12,30 +12,29 @@ import {
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";
+import { usePageTitle } from "@sapporta/frontend/shell";
 import type {
-  AccountKind,
   StatementAccountChange,
   StatementAccountRow,
-} from "../../shared/index";
-import { apiErrorMessage, setupApi } from "../api";
-import { EmptyState } from "../components/empty-state";
-import { LoadError } from "../components/load-error";
-import { StatusChip } from "../components/status-chip";
-import { Button } from "../components/ui/button";
-import { maskIdentifier } from "../format";
-import { refreshSetup, statementAccountsQuery } from "../queries";
+} from "../../../shared/index";
+import { ADD_ROUTE } from "../../add-account/state";
+import { apiErrorMessage, setupApi } from "../../api";
+import { EmptyState } from "../../components/empty-state";
+import { LoadError } from "../../components/load-error";
+import { Screen, ScreenTitle } from "../../components/screen";
+import { StatusChip } from "../../components/status-chip";
+import { Button } from "../../components/ui/button";
+import { maskIdentifier } from "../../format";
+import { refreshSetup, statementAccountsQuery } from "../../queries";
 import { RowMenu } from "./RowMenu";
-import { SetupFrame, StepHeading } from "./SetupWizard";
-import {
-  StatementAccountDialog,
-  type StatementAccountEditing,
-} from "./StatementAccountDialog";
-import { SETUP_STEP_ROUTES } from "./steps";
+import { StatementAccountDialog } from "./StatementAccountDialog";
 
 /*
- * Step 2, the banks and cards statements come from: one row each, in one
- * table. Rows can be added at any time, in new books or old ones; a row is
- * edited or removed only while nothing is posted or drafted on its account.
+ * Settings' Banks & cards: the banks and cards statements come from, one
+ * row each, in one table. A row is edited or removed only while nothing is
+ * posted or drafted on its account. One whose account was deleted from the
+ * books can still be removed, which stops dbu6 importing its statements.
+ * A new bank or card comes in from its statements, at /add.
  */
 
 /**
@@ -52,10 +51,11 @@ function lockedBecause(
   return null;
 }
 
-export function BanksStep() {
+export function BanksAndCards() {
+  usePageTitle("Banks & cards");
   const client = useQueryClient();
   const query = useQuery(statementAccountsQuery);
-  const [editing, setEditing] = useState<StatementAccountEditing | null>(null);
+  const [editing, setEditing] = useState<StatementAccountRow | null>(null);
   const [removing, setRemoving] = useState<StatementAccountRow | null>(null);
 
   const save = async (change: StatementAccountChange) => {
@@ -63,94 +63,88 @@ export function BanksStep() {
     client.setQueryData(statementAccountsQuery.queryKey, accounts);
     await refreshSetup(client);
   };
-  const add = (kind: AccountKind) => setEditing({ mode: "add", kind });
+  const addLink = (
+    <Link
+      to={ADD_ROUTE}
+      className="text-primary underline-offset-4 hover:underline"
+    >
+      Add a bank or card
+    </Link>
+  );
 
   const data = query.data;
   return (
-    <SetupFrame step="banks">
-      <StepHeading title="Add your banks and cards">
-        Every account you get a statement for. Its transactions come in from
-        there.
-      </StepHeading>
-      {query.isPending && (
-        <p className="text-body text-ink-meta">Loading your banks and cards…</p>
-      )}
-      {query.isError && (
-        <LoadError
-          title="Couldn't load your banks and cards"
-          message={apiErrorMessage(query.error)}
-          retry={() => void query.refetch()}
-        />
-      )}
-      {data && (
-        <>
-          {data.accounts.length === 0 ? (
-            <EmptyState
-              title="Add the accounts you get statements for"
-              body="Savings, current and credit card accounts."
-              action={
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Button onClick={() => add("bank")}>+ Bank account</Button>
-                  <Button variant="outline" onClick={() => add("card")}>
-                    + Credit card
+    <Screen
+      width="narrow"
+      header={
+        <ScreenTitle title="Banks & cards">
+          <p>The accounts your statements come from.</p>
+        </ScreenTitle>
+      }
+    >
+      <div className="mt-6">
+        {query.isPending && (
+          <p className="text-body text-ink-meta">
+            Loading your banks and cards…
+          </p>
+        )}
+        {query.isError && (
+          <LoadError
+            title="Couldn't load your banks and cards"
+            message={apiErrorMessage(query.error)}
+            retry={() => void query.refetch()}
+          />
+        )}
+        {data && (
+          <>
+            {data.accounts.length === 0 ? (
+              <EmptyState
+                title="No banks or cards yet"
+                body="Each comes in from its statements."
+                action={
+                  <Button
+                    render={<Link to={ADD_ROUTE} />}
+                    nativeButton={false}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Add a bank or card
                   </Button>
-                </div>
-              }
-            />
-          ) : (
-            <>
-              <AccountsTable
-                rows={data.accounts}
-                onEdit={(row) => setEditing({ mode: "edit", row })}
-                onRemove={setRemoving}
+                }
               />
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => add("bank")}>
-                  + Bank account
-                </Button>
-                <Button variant="outline" onClick={() => add("card")}>
-                  + Credit card
-                </Button>
-              </div>
-            </>
-          )}
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-            <Button
-              render={<Link to={SETUP_STEP_ROUTES.review} />}
-              nativeButton={false}
-              variant="ghost"
-            >
-              Skip for now
-            </Button>
-            {data.accounts.length > 0 && (
-              <Button
-                render={<Link to={SETUP_STEP_ROUTES.statements} />}
-                nativeButton={false}
-              >
-                Next: First statements
-              </Button>
+            ) : (
+              <>
+                <AccountsTable
+                  rows={data.accounts}
+                  onEdit={setEditing}
+                  onRemove={setRemoving}
+                />
+                <p className="mt-4 text-body text-ink-soft">
+                  {addLink} from its statements.
+                </p>
+              </>
             )}
-          </div>
-          <StatementAccountDialog
-            editing={editing}
-            data={data}
-            save={save}
-            onClose={() => setEditing(null)}
-          />
-          <RemoveDialog
-            row={removing}
-            remove={(row, deleteAccount) =>
-              save({
-                action: "remove",
-                account_id: row.account_id,
-                delete_account: deleteAccount,
-              })
-            }
-            onClose={() => setRemoving(null)}
-          />
-        </>
-      )}
-    </SetupFrame>
+            <StatementAccountDialog
+              row={editing}
+              data={data}
+              save={save}
+              onClose={() => setEditing(null)}
+            />
+            <RemoveDialog
+              row={removing}
+              remove={(row, deleteAccount) =>
+                save({
+                  action: "remove",
+                  account_id: row.account_id,
+                  delete_account: deleteAccount,
+                })
+              }
+              onClose={() => setRemoving(null)}
+            />
+          </>
+        )}
+      </div>
+    </Screen>
   );
 }
 

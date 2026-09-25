@@ -146,15 +146,11 @@ export function refreshCodingAgent(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: CODING_AGENT_KEY });
 }
 
-/** Every query the setup wizard reads; each counts or lists what is in the books. */
+/**
+ * Every query of what setting up the books reads: the chart, the banks and
+ * cards, the opening balances. Each counts or lists what is in the books.
+ */
 const SETUP_KEY = ["setup"] as const;
-
-/** Where the setup wizard stands: its steps' state, counted in the books. */
-export const setupStatusQuery = queryOptions({
-  queryKey: [...SETUP_KEY, "status"],
-  queryFn: () => setupApi.setupStatus(),
-  ...FRESH_QUERY,
-});
 
 /** The starter chart for books with no accounts, or the books' own chart. */
 export const chartOfAccountsQuery = queryOptions({
@@ -171,29 +167,21 @@ export const statementAccountsQuery = queryOptions({
 });
 
 /**
- * Each bank or card's first statement: none yet, read, unreadable, or
- * imported; and who categorizes. Reading it runs the parsers over every
- * staged statement.
- */
-export const firstStatementsQuery = queryOptions({
-  queryKey: [...SETUP_KEY, "first-statements"],
-  queryFn: () => setupApi.firstStatements(),
-  ...FRESH_QUERY,
-});
-
-/**
- * Every asset and liability account and its opening entry, for the Other
- * balances step.
+ * Every asset and liability account and its opening entry, for C1 and the
+ * Opening balances page. Read again when the window regains focus: C1
+ * opens the Accounts page in another tab, and an account added there
+ * belongs in its list on return.
  */
 export const openingBalancesQuery = queryOptions({
   queryKey: [...SETUP_KEY, "opening-balances"],
   queryFn: () => openingBalancesApi.list({ query: {} }),
   ...FRESH_QUERY,
+  refetchOnWindowFocus: true,
 });
 
 /**
- * Refreshes the wizard, and Home, whose first card follows from the
- * accounts the wizard sets up.
+ * Refreshes the setup reads, and Home, whose first card follows from the
+ * accounts they set up.
  */
 export function refreshSetup(client: QueryClient): Promise<void> {
   return Promise.all([

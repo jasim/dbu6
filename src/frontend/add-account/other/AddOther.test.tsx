@@ -272,7 +272,7 @@ async function pick(name: string) {
 
 describe("card 6, first run", () => {
   it("asks for cash, a deposit or a loan, and hands off to Review", async () => {
-    await render("/add/other?run=setup&from=2025-01");
+    await render("/add/other?run=setup");
     expect(title()).toBe("Cash, a deposit, a loan?");
     expect(text()).toContain("Setting up your books · 1 account added");
     expect(button("That's all").getAttribute("href")).toBe(
@@ -283,7 +283,7 @@ describe("card 6, first run", () => {
     );
   });
 
-  it("names the account C1 just recorded", async () => {
+  it("names what the books have recorded", async () => {
     balances.accounts[0].opening = {
       journal_id: 50509,
       date: "2025-12-31",
@@ -291,7 +291,7 @@ describe("card 6, first run", () => {
       description: "Opening balance",
       locked: null,
     };
-    await render("/add/other?run=setup&recorded=2");
+    await render("/add/other?run=setup");
     expect(title()).toBe("Cash, a deposit, a loan?");
     expect(text()).toContain("✓ Cash recorded");
   });
@@ -304,6 +304,8 @@ describe("C1", () => {
     expect(button("Record balance").hasAttribute("disabled")).toBe(true);
     expect(button("Back").getAttribute("href")).toBe("/add/other?run=setup");
     expect(button("Accounts page").getAttribute("href")).toBe("/accounts");
+    // A new tab, so the run isn't lost.
+    expect(button("Accounts page").getAttribute("target")).toBe("_blank");
     // No amount until the account is picked.
     expect(field("Balance")).toBeNull();
 
@@ -337,7 +339,7 @@ describe("C1", () => {
         body: { account_id: 2, date: "2025-12-31", amount: 2500 },
       },
     ]);
-    expect(where()).toBe("/add/other?run=setup&recorded=2");
+    expect(where()).toBe("/add/other?run=setup");
     expect(title()).toBe("Cash, a deposit, a loan?");
     expect(text()).toContain("✓ Cash recorded");
   });
@@ -401,6 +403,8 @@ describe("C1", () => {
     await render("/add/other?run=setup&record=1");
     expect(title()).toBe("Your chart has no cash, deposit or loan accounts");
     expect(button("Accounts page").getAttribute("href")).toBe("/accounts");
+    // A new tab, so the run isn't lost.
+    expect(button("Accounts page").getAttribute("target")).toBe("_blank");
     expect(button("That's all").getAttribute("href")).toBe(
       "/review?imported=1&run=setup",
     );

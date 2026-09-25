@@ -5,7 +5,7 @@ import type {
   HomeLedgerAccount,
   HomeSummary,
 } from "../../shared/index";
-import { ADD_MENU, homeState } from "./state";
+import { ADD_MENU, homeState, statementsHref } from "./state";
 
 function account(
   overrides: Partial<HomeLedgerAccount> = {},
@@ -170,6 +170,11 @@ describe("homeState", () => {
       label: "Import statements",
       to: "/import",
     });
+  });
+
+  it("sends a bank or card's first statements to the first run until one is imported", () => {
+    expect(statementsHref({ any_imported: false })).toBe("/add?run=setup");
+    expect(statementsHref({ any_imported: true })).toBe("/add");
   });
 
   it("adds a bank or card through /add, and anything else through C1", () => {

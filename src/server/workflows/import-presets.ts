@@ -39,6 +39,7 @@ import type { Ledger } from "../modules/ledger-sql/index.js";
 import {
   applyImportPresetChanges,
   changesAdding,
+  changesListingParsers,
   convertImportPresetsFile,
   deleteImportPresetsFile,
   parserDirectory,
@@ -353,18 +354,19 @@ function withLedgerNames<T extends PresetInstitution>(
   }));
 }
 
-// --- The setup wizard's banks and cards ---------------------------------
+// --- Banks and cards ----------------------------------------------------
 
 /*
  * Each bank account or card the user gets statements for is a ledger account
- * and an entry in its institution's preset, made together: no wizard account
+ * and an entry in its institution's preset, made together: no bank or card
  * exists without a preset. One change writes the `accounts` row and runs the
  * preset changes it implies through the writer above, in one transaction, so
  * a refused preset change takes the account back out too. A row is changed
  * only while nothing is posted or drafted on its account.
  *
- * The setup screen shows these refusals as they are, so they say bank, card
- * and number, never preset, institution, identifier or account id.
+ * /add and Settings › Banks & cards show these refusals as they are, so
+ * they say bank, card and number, never preset, institution, identifier or
+ * account id.
  */
 
 // The instructions a new bank or card gets, when user-config/ has them.
@@ -392,7 +394,7 @@ function refuse(code: StatementAccountProblem["code"], message: string): never {
   throw new StatementAccountRefused({ code, message });
 }
 
-/** Every preset account as the wizard lists it, and what a new one needs. */
+/** Every preset account as Banks & cards lists it, and what a new one needs. */
 export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
   const { db, sqlite, auth } = ledger;
   const institutions = loadImportPresets(db, auth);
@@ -551,10 +553,6 @@ function writeStatementAccount(
       ),
     ),
   );
-  const institutionChanges = (name: string): ImportPresetChange[] =>
-    before.some((institution) => institution.name === name)
-      ? []
-      : [{ kind: "add_institution", name, parsers: [] }];
 
   if (change.action === "create") {
     const identifier = typedIdentifier(change.kind, change.identifier);
@@ -593,31 +591,10 @@ function writeStatementAccount(
       }
       account = existing;
     }
-    // A parser belongs to one institution: one that lists it already keeps it.
-    const unlisted = [...new Set(parsers)].filter(
-      (parser) =>
-        !before.some((institution) => institution.parsers.includes(parser)),
-    );
-    const known = before.some(
-      (institution) => institution.name === change.institution,
-    );
-    const parserChanges: ImportPresetChange[] = known
-      ? unlisted.map((parser) => ({
-          kind: "add_parser",
-          institution: change.institution,
-          parser,
-        }))
-      : [
-          {
-            kind: "add_institution",
-            name: change.institution,
-            parsers: unlisted,
-          },
-        ];
     return {
       accountId: account.id,
       changes: [
-        ...parserChanges,
+        ...changesListingParsers(before, change.institution, parsers),
         {
           kind: "add_account",
           institution: change.institution,
@@ -699,7 +676,7 @@ function writeStatementAccount(
     accountId: account.id,
     changes: [
       { kind: "remove_account", account_id: account.id },
-      ...institutionChanges(change.institution),
+      ...changesListingParsers(before, change.institution, []),
       {
         kind: "add_account",
         institution: change.institution,

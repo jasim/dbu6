@@ -9,7 +9,7 @@ import {
 import { agentGetClient, gatewayGetClient } from "./nuabase.js";
 
 /*
- * Where the setup wizard's chart of accounts is drawn: on the engine
+ * Where setup's chart of accounts is drawn: on the engine
  * categorization runs on (categorization-llm.ts), but on the agent's most
  * capable model that answered, the one prompts open on. Drawing a chart is
  * a single call, where categorization's many small ones take the cheapest.

@@ -12,7 +12,7 @@ const c = initContract();
  * assertion: positive when held, negative when owed.
  */
 
-// Why an opening entry can't be changed or removed in the setup step, where
+// Why an opening entry can't be changed or removed in place, where
 // the user changes its journal entry instead.
 export const openingLockSchema = z.enum([
   // A posted entry on the account besides its opening entry.
@@ -34,7 +34,7 @@ export const openingEntrySchema = z.object({
 });
 export type OpeningEntry = z.infer<typeof openingEntrySchema>;
 
-// Where the setup step lists an account: an asset or a liability no
+// Where the Opening balances page lists an account: an asset or a liability no
 // statement comes from, or a bank or card an import preset lists.
 export const openingSectionSchema = z.enum(["own", "owe", "statement"]);
 export type OpeningSection = z.infer<typeof openingSectionSchema>;

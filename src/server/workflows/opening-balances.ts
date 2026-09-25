@@ -32,11 +32,11 @@ import type { Ledger } from "../modules/ledger-sql/index.js";
  * account has one opening entry (`loadOpeningEntries`); recording never adds
  * a second.
  *
- * The setup step changes or removes an opening entry while it is the only
- * posted entry on its account and opens that account alone. Once anything
- * else is posted on the account, or when its journal opens other accounts
- * too, the entry is locked and the user changes the journal by hand. Drafts
- * are not posted, so they never lock it.
+ * Settings › Opening balances changes or removes an opening entry while it
+ * is the only posted entry on its account and opens that account alone.
+ * Once anything else is posted on the account, or when its journal opens
+ * other accounts too, the entry is locked and the user changes the journal
+ * by hand. Drafts are not posted, so they never lock it.
  *
  * Amounts are signed like a balance assertion: positive when held, negative
  * when owed.
@@ -47,9 +47,9 @@ export type OpeningAccountType = "Asset" | "Liability";
 /** What an opening journal is called when the user says nothing more. */
 export const OPENING_DESCRIPTION = "Opening balance";
 
-/** An account's opening entry, and why the setup step can't change it. */
+/** An account's opening entry, and why it can't be changed in place. */
 export type OpeningBalance = OpeningEntry & {
-  /** Null while the setup step can change or remove it. */
+  /** Null while it can be changed or removed. */
   locked: OpeningLock | null;
 };
 
@@ -59,9 +59,9 @@ export interface OpeningBalanceAccount {
   path: string;
   accountType: OpeningAccountType;
   /**
-   * Where the setup step lists it: a bank or card an import preset lists,
-   * else what the user owns or owes. Null for an account with accounts under
-   * it and no opening entry, which the step leaves out.
+   * Where the Opening balances page lists it: a bank or card an import
+   * preset lists, else what the user owns or owes (C1's). Null for an
+   * account with accounts under it and no opening entry, which is left out.
    */
   section: OpeningSection | null;
   /**
@@ -190,18 +190,6 @@ function lockOf(
   if (entriesBeside > 0) return "has_entries";
   if (!opening.standalone) return "shared_entry";
   return null;
-}
-
-/**
- * How many accounts the setup step's Other balances lists, not the banks and
- * cards, have an opening entry.
- */
-export function recordedOtherBalances(ledger: Ledger): number {
-  return loadOpeningBalances(ledger).accounts.filter(
-    (account) =>
-      (account.section === "own" || account.section === "owe") &&
-      account.opening !== null,
-  ).length;
 }
 
 export interface OpeningBalanceRequest {
@@ -380,7 +368,7 @@ export function removeOpeningBalance(
 }
 
 /*
- * The account's opening entry, when the setup step may change it: the
+ * The account's opening entry, when it may be changed in place: the
  * account is in the books, is an asset or a liability, has an opening entry,
  * and nothing locks it. Read inside the caller's transaction.
  */

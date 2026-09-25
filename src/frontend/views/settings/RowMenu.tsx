@@ -4,7 +4,7 @@ import { cn } from "@sapporta/ui/cn";
 import { comboboxClassNames } from "@sapporta/ui/combobox";
 
 /**
- * A setup table row's "⋯" menu: Edit, when the row can be edited, and
+ * A Settings table row's "⋯" menu: Edit, when the row can be edited, and
  * Remove.
  */
 export function RowMenu({

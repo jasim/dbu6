@@ -10,15 +10,14 @@ import { formatBalance, formatDate, formatMoney } from "../format";
 import { ACCOUNT_TYPE_TERMS } from "./account-type-terms";
 
 /*
- * The Other balances step's accounts as words: which table each is in, its
- * opening balance as the user reads it, why a locked one can't change, and
- * what the dialog opens with and comes to. The step and its dialog render
- * these and decide nothing themselves.
+ * Opening balances as words: which table each account is in, its balance as
+ * the user reads it, why a locked one can't change, and what a balance's
+ * form opens with and comes to. Settings' Opening balances page, its dialog
+ * and C1 (/add/other) render these and decide nothing themselves.
  *
  * The user types what an account held, or what they owed on it, both
  * positive; the ledger keeps what is owed below zero. `ledgerAmount` and
- * `typedAmount` are that one rule, which the first statements step's typed
- * balance follows too.
+ * `typedAmount` are that one rule, which /add's typed opening follows too.
  */
 
 /** The side of the books an opening balance is on. */
@@ -44,7 +43,7 @@ export function typedAmount(type: BalanceType, ledger: number): string {
   return (typed === 0 ? 0 : typed).toFixed(2);
 }
 
-/** One of the step's tables. */
+/** One of the Opening balances page's tables. */
 export interface BalanceSection {
   section: OpeningSection;
   /** "Assets · what you own", split so the caption can go in lower case. */
@@ -80,7 +79,7 @@ export function focuses(
 
 /**
  * The section an account is listed in: the server's, or, for a group
- * account the step leaves out, its type's when a link names it.
+ * account the page leaves out, its type's when a link names it.
  */
 export function sectionOf(
   account: OpeningBalanceAccount,
@@ -104,6 +103,25 @@ export function balanceSections(
     ...SECTION_WORDS[section],
     accounts: byPath.filter((account) => sectionOf(account, focus) === section),
   })).filter((one) => one.accounts.length > 0);
+}
+
+/**
+ * The Opening balances page's tables: the balances recorded, and the
+ * account a link names when it has none, so the link's "Record the opening
+ * balance" can be done there. Recording any other is C1's.
+ */
+export function recordedSections(
+  data: OpeningBalances,
+  focus: string | null,
+): BalanceSection[] {
+  return balanceSections(data, focus)
+    .map((one) => ({
+      ...one,
+      accounts: one.accounts.filter(
+        (account) => account.opening !== null || focuses(account, focus),
+      ),
+    }))
+    .filter((one) => one.accounts.length > 0);
 }
 
 /**

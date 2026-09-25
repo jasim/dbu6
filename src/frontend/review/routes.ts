@@ -117,11 +117,19 @@ export function withReviewRun(href: string, run: Partial<ReviewRun>): string {
 }
 
 /**
- * Where /add hands off (card 7), with the note: a later add to that
- * account's Drafts tab, the first run (no account) to the account picker.
+ * Where a later add hands off (card 7): the account's Drafts tab, with the
+ * note.
  */
-export function reviewHandOffHref(accountId?: number): string {
-  return accountId === undefined
-    ? withReviewRun(REVIEW_ROUTE, { imported: true, setup: true })
-    : withReviewRun(reviewHref(accountId, "drafts"), { imported: true });
+export function draftsHandOffHref(accountId: number): string {
+  return withReviewRun(reviewHref(accountId, "drafts"), { imported: true });
 }
+
+/**
+ * Where the first run hands off (card 7): the account picker, with the note
+ * and the run. With one account to review, the picker goes on to its Drafts
+ * tab, as a later add does.
+ */
+export const SETUP_HAND_OFF_HREF = withReviewRun(REVIEW_ROUTE, {
+  imported: true,
+  setup: true,
+});

@@ -6,6 +6,7 @@ import {
 } from "../../../shared/index.js";
 import {
   applyImportPresetChanges,
+  changesListingParsers,
   presetAdditions,
   validateImportPresets,
   type PresetInstitution,
@@ -411,6 +412,45 @@ describe("presetAdditions", () => {
         { parser: "sample-wallet-csv", changeIndex: 0 },
       ],
     });
+  });
+});
+
+describe("changesListingParsers", () => {
+  it("lists only the parsers no institution lists, under the one named", () => {
+    expect(
+      changesListingParsers(table, "Sample Bank", [
+        "sample-cc-xls",
+        "other-bank-pdf",
+        "other-bank-pdf",
+      ]),
+    ).toEqual([
+      {
+        kind: "add_parser",
+        institution: "Sample Bank",
+        parser: "other-bank-pdf",
+      },
+    ]);
+    expect(
+      changesListingParsers(table, "Sample Bank", ["sample-bank-xls"]),
+    ).toEqual([]);
+  });
+
+  it("adds an institution the table doesn't have, with them", () => {
+    expect(
+      changesListingParsers(table, "Other Sample Bank", [
+        "sample-bank-xls",
+        "other-bank-pdf",
+      ]),
+    ).toEqual([
+      {
+        kind: "add_institution",
+        name: "Other Sample Bank",
+        parsers: ["other-bank-pdf"],
+      },
+    ]);
+    expect(changesListingParsers(table, "Other Sample Bank", [])).toEqual([
+      { kind: "add_institution", name: "Other Sample Bank", parsers: [] },
+    ]);
   });
 });
 

@@ -47,11 +47,13 @@ import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
 import { JournalsTable } from "./views/JournalsTable";
 import { RenderDraftHledger } from "./views/RenderDraftHledger";
 import { Settings as SettingsPage } from "./views/settings/Settings";
-import { BalancesStep } from "./setup/BalancesStep";
-import { BanksStep } from "./setup/BanksStep";
-import { ChartCard } from "./setup/ChartCard";
-import { ReviewStep } from "./setup/ReviewStep";
-import { StatementsStep } from "./setup/StatementsStep";
+import { BanksAndCards } from "./views/settings/BanksAndCards";
+import { OpeningBalances } from "./views/settings/OpeningBalances";
+import {
+  BALANCES_SETTINGS_ROUTE,
+  BANKS_SETTINGS_ROUTE,
+} from "./views/settings/routes";
+import { ChartCard, SETUP_ROUTE } from "./setup/ChartCard";
 
 /*
  * The sidebar: five everyday destinations, then the door to everything else
@@ -108,9 +110,8 @@ const focusRoutes = (
   <>
     <Route path={ADD_ROUTE.slice(1)} element={<AddAccount />} />
     <Route path={ADD_OTHER_ROUTE.slice(1)} element={<AddOther />} />
-    {/* Card 1, the chart; the old wizard's own path for it too. */}
-    <Route path="setup" element={<ChartCard />} />
-    <Route path="setup/accounts" element={<ChartCard />} />
+    {/* Card 1, the chart. */}
+    <Route path={SETUP_ROUTE.slice(1)} element={<ChartCard />} />
   </>
 );
 
@@ -149,10 +150,11 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
         element={<Navigate to="/reports" replace />}
       />
       <Route path="settings" element={<SettingsPage />} />
-      <Route path="setup/banks" element={<BanksStep />} />
-      <Route path="setup/statements" element={<StatementsStep />} />
-      <Route path="setup/balances" element={<BalancesStep />} />
-      <Route path="setup/review" element={<ReviewStep />} />
+      <Route path={BANKS_SETTINGS_ROUTE.slice(1)} element={<BanksAndCards />} />
+      <Route
+        path={BALANCES_SETTINGS_ROUTE.slice(1)}
+        element={<OpeningBalances />}
+      />
       <Route path="import-instructions" element={<ImportInstructions />} />
       <Route path="tools" element={<Advanced />} />
 

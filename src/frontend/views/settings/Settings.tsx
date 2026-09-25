@@ -17,7 +17,6 @@ import { LoadError } from "../../components/load-error";
 import { Screen } from "../../components/screen";
 import { Button } from "../../components/ui/button";
 import { IMPORT_INSTRUCTIONS_ROUTE } from "../import-instructions/ImportInstructions";
-import { SETUP_STEP_ROUTES } from "../../setup/steps";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { codingAgentSettingsQuery, refreshCodingAgent } from "../../queries";
 import {
@@ -25,6 +24,7 @@ import {
   describeCodingAgent,
   type CodingAgentState,
 } from "./describeCodingAgent";
+import { BALANCES_SETTINGS_ROUTE, BANKS_SETTINGS_ROUTE } from "./routes";
 
 // A model check takes a few seconds; the screen asks again until it's done.
 const CHECKING_POLL_MS = 2000;
@@ -122,13 +122,13 @@ export function Settings() {
           <LinkCard
             label="Banks & cards"
             description="The banks and cards your statements come from"
-            to={SETUP_STEP_ROUTES.banks}
+            to={BANKS_SETTINGS_ROUTE}
             icon={ListChecks}
           />
           <LinkCard
-            label="Other balances"
-            description="What cash, investments and loans started at"
-            to={SETUP_STEP_ROUTES.balances}
+            label="Opening balances"
+            description="What each account held or owed when your books start"
+            to={BALANCES_SETTINGS_ROUTE}
             icon={Scale}
           />
           <LinkCard

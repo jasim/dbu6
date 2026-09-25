@@ -1,14 +1,9 @@
-import { basename } from "node:path";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   setupContract,
-  type FirstStatementRefusal,
   type ChartAccount,
   type ChartRefusal,
-  type SetupStatus,
 } from "../../shared/index.js";
-import { loadAccountChart } from "../modules/accounts/index.js";
-import type { LoadCategorizer } from "../modules/categorization/index.js";
 import { chartLlm } from "../modules/coding-agent/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import {
@@ -20,39 +15,17 @@ import {
   changeStatementAccount,
   loadStatementAccounts,
 } from "../workflows/import-presets.js";
-import { hasTransactions } from "../workflows/add-account.js";
-import {
-  importFirstStatement,
-  loadBanksAndCards,
-  loadFirstStatements,
-  recognizeSample,
-  type SampleOutcome,
-} from "../workflows/first-statement.js";
-import { recordedOtherBalances } from "../workflows/opening-balances.js";
-import { batchResponse } from "./import-draft-statements-auto.js";
-import {
-  removeStagedSample,
-  stagedSamples,
-  stageSample,
-  uploadedFile,
-  type StagedSample,
-} from "./upload-tmp.js";
 import { requireOwner, requireWorkflowLedger } from "./workflow-auth.js";
 
 /*
- * The account setup wizard's routes (/setup), the owner's only. The wizard
- * keeps no state: each step reads where it stands from the books.
+ * Setting up the books (/setup), the owner's only: the chart of accounts,
+ * and the banks and cards statements come from, which /add and agents set
+ * up and Settings › Banks & cards changes. Nothing here keeps state: each
+ * reply is read from the books.
  */
 
-export default function setupApi(
-  loadCategorizer: LoadCategorizer,
-): TsRestApi<SapportaEnv> {
+export default function setupApi(): TsRestApi<SapportaEnv> {
   const api = new TsRestApi<SapportaEnv>();
-
-  api.register("setupStatus", setupContract.setupStatus, async ({ c }) => ({
-    status: 200,
-    body: loadSetupStatus(requireWorkflowLedger(c)),
-  }));
 
   api.register(
     "chartOfAccounts",
@@ -139,197 +112,7 @@ export default function setupApi(
     },
   );
 
-  // A staged statement is kept until it is imported: an account that has
-  // transactions, that no preset lists any more or that the books deleted
-  // loses it here. One that went while the page read it (a new upload
-  // replaces it) is left alone.
-  api.register(
-    "firstStatements",
-    setupContract.firstStatements,
-    async ({ c }) => {
-      const ledger = requireWorkflowLedger(c);
-      const staged = await stagedSamples();
-      const body = await loadFirstStatements(ledger, staged);
-      const waiting = new Set(
-        body.accounts
-          .filter(
-            (row) =>
-              row.status !== "imported" && row.status !== "not_in_ledger",
-          )
-          .map((row) => row.account_id),
-      );
-      for (const accountId of staged.keys()) {
-        if (!waiting.has(accountId)) await removeStagedSample(accountId);
-      }
-      return { status: 200, body };
-    },
-  );
-
-  // The upload replaces the account's staged statement, read or not.
-  api.register(
-    "uploadSampleStatement",
-    setupContract.uploadSampleStatement,
-    async ({ c, request, files }) => {
-      const ledger = requireWorkflowLedger(c);
-      const file = uploadedFile(files, "file");
-      if (file === null) {
-        return {
-          status: 400,
-          body: {
-            error: "Upload the statement as `file`.",
-            code: "missing_multipart_field" as const,
-          },
-        };
-      }
-      const { account_id } = request.body;
-      const staged = await stageSample(account_id, file);
-      const outcome = await recognizeSample(ledger, account_id, staged.path);
-      if (!outcome.ok) await removeStagedSample(account_id);
-      return sampleResponse(outcome, staged);
-    },
-  );
-
-  // One headless import, categorization included, as long as /import's.
-  api.register(
-    "importFirstStatement",
-    setupContract.importFirstStatement,
-    async ({ c, request }) => {
-      const ledger = requireWorkflowLedger(c);
-      const { account_id, opening_amount, use_statement_number } = request.body;
-      const staged = (await stagedSamples()).get(account_id);
-      const noStatement = {
-        status: 404 as const,
-        body: {
-          error: "There is no statement waiting for this account; upload one.",
-          code: "no_staged_statement" as const,
-        },
-      };
-      if (staged === undefined) return noStatement;
-      // The file is read once, and what was read is what is imported.
-      const done = await importFirstStatement(ledger, loadCategorizer, {
-        accountId: account_id,
-        statement: { name: basename(staged.path), path: staged.path },
-        openingAmount: opening_amount ?? null,
-        useStatementNumber: use_statement_number ?? false,
-      }).catch((error: unknown) => {
-        // Removed since it was listed, by another import or an upload.
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-        throw error;
-      });
-      if (done === null) return noStatement;
-      if (!done.ok) return firstStatementRefusal(done.refusal);
-      // The staged copy is what "Try again" imports, so it goes only once the
-      // statement is in.
-      const imported = done.outcome.kind === "imported";
-      if (imported) await removeStagedSample(account_id);
-      return batchResponse(done.outcome, () =>
-        imported ? null : staged.projectPath,
-      );
-    },
-  );
-
-  api.register(
-    "recheckSampleStatement",
-    setupContract.recheckSampleStatement,
-    async ({ c, request }) => {
-      const ledger = requireWorkflowLedger(c);
-      const { account_id } = request.body;
-      const staged = (await stagedSamples()).get(account_id);
-      if (staged === undefined) {
-        return {
-          status: 404,
-          body: {
-            error:
-              "There is no statement waiting for this account; upload one.",
-            code: "no_staged_sample" as const,
-          },
-        };
-      }
-      return sampleResponse(
-        await recognizeSample(ledger, account_id, staged.path),
-        staged,
-      );
-    },
-  );
-
-  api.register(
-    "removeSampleStatement",
-    setupContract.removeSampleStatement,
-    async ({ c, request }) => {
-      requireOwner(c);
-      return {
-        status: 200,
-        body: { removed: await removeStagedSample(request.params.accountId) },
-      };
-    },
-  );
-
   return api;
-}
-
-// A missing account or file isn't there, a state the step must leave first
-// conflicts, and the rest is what the request brought.
-function firstStatementRefusal(refusal: FirstStatementRefusal) {
-  switch (refusal.code) {
-    case "unknown_account":
-    case "no_staged_statement":
-      return { status: 404 as const, body: refusal };
-    case "already_imported":
-    case "statement_unreadable":
-    case "numbers_differ":
-    case "opening_after_statement_start":
-    case "opening_disagrees":
-    case "activity_before_statement":
-      return { status: 409 as const, body: refusal };
-    default:
-      return { status: 422 as const, body: refusal };
-  }
-}
-
-function sampleResponse(outcome: SampleOutcome, staged: StagedSample) {
-  if (!outcome.ok) {
-    return {
-      status: 404 as const,
-      body: {
-        error: "That bank or card isn't set up any more.",
-        code: outcome.code,
-      },
-    };
-  }
-  const { finding } = outcome;
-  return {
-    status: 200 as const,
-    body:
-      finding.outcome === "recognized"
-        ? finding
-        : { ...finding, saved_path: staged.projectPath },
-  };
-}
-
-/**
- * Where the wizard stands: the chart's size, each bank or card's
- * transactions counted as the first statements step counts them, and how
- * many other balances are recorded. A bank or card the books deleted counts
- * nowhere: its row there only asks for it to go.
- */
-export function loadSetupStatus(ledger: Ledger): SetupStatus {
-  const banks = loadBanksAndCards(ledger).filter((bank) => bank.inLedger);
-  return {
-    accounts: loadAccountChart(ledger.db, ledger.auth).length,
-    statement_accounts: banks.length,
-    imported_accounts: banks.filter((bank) => hasTransactions(bank.activity))
-      .length,
-    drafts: banks.reduce((total, bank) => total + bank.activity.drafts, 0),
-    to_review: banks
-      .filter((bank) => bank.activity.drafts > 0)
-      .map(({ account, activity }) => ({
-        account_id: account.account_id,
-        name: account.name,
-        drafts: activity.drafts,
-        uncategorized: activity.uncategorized,
-      })),
-    other_balances: recordedOtherBalances(ledger),
-  };
 }
 
 export function createChartResponse(

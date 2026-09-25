@@ -43,9 +43,11 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
   - Reports: `/reports/<report>`, for example
     `/reports/account-ledger?account_id=<id>`
   - Accounts: `/accounts`
-  - Setting up the books: `/setup`, with the steps `/setup/accounts`,
-    `/setup/banks`, `/setup/statements`, `/setup/balances` and
-    `/setup/review`
+  - Setting up the books: `/setup` (the chart of accounts); adding a bank
+    or card: `/add`; recording cash, a deposit, an investment or a loan:
+    `/add/other`
+  - Settings: `/settings`, with Banks & cards (`/settings/banks`) and
+    Opening balances (`/settings/balances`)
 
 ## Before changing anything
 
@@ -204,11 +206,61 @@ you couldn't encode.
 
 ### Accounts and imports
 
-- **"I opened a new account or card."** The setup wizard's Banks and cards
-  step (`/setup/banks`) does it on screen. Its endpoint makes the ledger
-  account and its preset entry in one transaction, adding the institution
-  when it is new; a refusal leaves neither:
+- **"I opened a new account or card."** Send the user to `/add` (Home's
+  **+ Add** › Bank or card), where they drop its statements: dbu6 reads
+  them, sets the account up with its opening balance, and imports them, in
+  one go. Nothing is written until the statements are read and checked. A
+  bank dbu6 can't read yet leaves nothing in the books; once its parser
+  exists (`dbu6 docs parsers`), the user drops the files again. Its two
+  endpoints take the files as multipart `files`, repeated (curl, as under
+  [Reaching the app](#reaching-the-app)):
+  - `POST /api/add-account/read` writes nothing to the books. Each file has
+    a `status`: `read` (with the `account_key` it belongs to, its parser,
+    period and row count), `unrecognized` or `ambiguous` (no saved parser
+    reads it, or several do). Each account the files belong to has a
+    `status`: `new` (no bank or card takes them), `empty` (a bank or card
+    set up with no transactions yet) or `in_books` (its statements go
+    through `/import`). With it come its bank (`institution`, and
+    `institution_listed` when a preset institution lists the parser), its
+    `kind` (`bank`, `card`, or `null` when the statements print no account
+    number), the printed `identifier`, the `period`, `transactions`, the
+    `opening` the statements give the day before their first row (ledger
+    sign; its `amount` is `null` when they print no balance, and then
+    `needs_opening`), an `opening_refusal`, and `refusal`, the refusal
+    `/import` would give, in `/import`'s words. `categorizer` says who
+    categorizes the import. The files are kept under
+    `tmp/statement-uploads/` (each file's `saved_path`) only when a coding
+    agent needs them: a file no parser reads or several do, or a refusal
+    `/import` gives a prompt for.
+  - `POST /api/add-account/add` takes one account's files again, with form
+    fields: `name` (a new account, under `parent_id`, by default the parent
+    most banks or cards of its kind share) or `account_id` (an Asset or
+    Liability from the chart that no bank or card uses); `institution`, the
+    bank's name, only when `institution_listed` is false; `kind` only when
+    it is `null`; and `opening_amount`, signed, only when `needs_opening`.
+    An `empty` account needs only `opening_amount`, when asked. In order,
+    each step refusing before the next writes, it checks the files as the
+    import would, makes
+    the ledger account and its preset entry (for an `empty` one, lists the
+    parser and number it lacks), records the opening balance unless the
+    account has one that agrees, and imports the files as `/import` does,
+    categorization included. It replies `account_id`, `account_name` and
+    `drafts`. A refusal has a `code` and an `error`: `several_accounts`
+    (the files are two accounts'; add one at a time), `already_in_books`,
+    `opening_balance_needed`, `opening_after_statement_start` (the
+    account's opening entry is dated on or after the first row),
+    `opening_disagrees` (dated the day before, at another balance),
+    `activity_before_statement` (another account's import put a
+    transaction on it before the statements start), or `import_refused`
+    with the import's own `import_error`. Only the import's own last step
+    (duplicates, the categorizer failing) can leave an account set up with
+    no transactions; dropping its files again finishes it, as `empty`.
+
+  To set a bank or card up without its statements, the endpoint `/add`
+  uses makes the ledger account and its preset entry in one transaction,
+  adding the institution when it is new; a refusal leaves neither:
   `sapporta api post /api/setup/statement-accounts --body '{"action":"create","kind":"bank","institution":"…","identifier":"<number or null>","ledger":{"source":"new","name":"…","parent_id":<id>}}'`.
+  Its statements, dropped at `/add` later, find it (`empty`).
   - `kind` is `bank` (an Asset) or `card` (a Liability, `is_credit_card`),
     and the parent must be of that type; pick it with the user, never from a
     name. `"ledger":{"source":"existing","account_id":<id>}` uses an Asset or
@@ -218,80 +270,47 @@ you couldn't encode.
     accounts needs one on each.
   - `{"action":"update",…}` and `{"action":"remove","account_id":<id>,"delete_account":true}`
     change or remove one, but only while no entry or draft is on it
-    (`account_has_transactions`). With only drafts, deleting them frees it;
+    (`account_has_transactions`); on screen, that is Settings › Banks &
+    cards (`/settings/banks`). With only drafts, deleting them frees it;
     after an entry, use the Accounts page and
     [Import presets](#import-presets).
   - `sapporta api get /api/setup/statement-accounts` lists them, each with
     its count of entries and drafts.
-
-  Then record its opening balance.
-- **Setting up the books** (`/setup`). `sapporta api get /api/setup` counts
-  what the wizard's five steps read: `accounts` in the books,
-  `statement_accounts` (the preset accounts still in the books; one the
-  ledger deleted counts nowhere), `imported_accounts` (those with entries or
-  drafts, the `imported` rows below), `drafts` on them, `to_review`
-  (each one with drafts, with its `drafts` and `uncategorized`) and
-  `other_balances` (the assets and liabilities other than banks and cards
-  with an opening entry). The chart is done with any account, banks and
-  cards with any of those, first statements when every one of them is
-  imported, other balances with any recorded, and review when the first
-  statements are done and no drafts remain. Other balances is optional:
-  `/setup` opens the first required step not done, else `/setup/review`,
-  and review never waits for it. Home's "nothing imported yet" is the same
-  rule: no bank or card has entries (its opening entry aside) or drafts.
+- **Setting up the books.** The first run is a run of cards, one question
+  each, and keeps nothing but the URL: `/setup` picks the chart of accounts,
+  `/add?run=setup` adds the banks and cards one at a time, `/add/other`
+  records cash, deposits and loans, and Review takes over. Home resumes from
+  the books: no chart opens `/setup`, a chart with no bank or card
+  `/add?run=setup`. A bank or card counts as imported once it has entries
+  (its opening entry aside) or drafts from its own statements; a card
+  payment another account's import posted to it doesn't count.
   - `sapporta api get /api/setup/chart-of-accounts` gives books with no
     accounts a starter chart, and `POST` with `{"accounts":[…]}` creates one,
     each account naming its parent by name. It refuses books that have any
     account.
-  - `sapporta api get /api/setup/first-statements` gives each bank or card's
-    first statement: `needs_statement`, `read` (a staged statement a saved
-    parser reads, with its period, row count, opening balance and the preset
-    `changes` importing makes), `unreadable` (one no parser reads, at
-    `saved_path`), `imported`, or `not_in_ledger` (the ledger deleted its
-    account; it only asks to be removed from the banks and cards).
-    `imported` means entries or drafts from the account's own statements: a
-    card payment another account's import posted to it doesn't count. A `read` row's `existing_opening` is the
-    account's opening entry when it has one. The screen stages one with
-    `POST /api/setup/sample-statement` (multipart `file` and `account_id`),
-    which writes nothing to the books and replaces any earlier one in
-    `tmp/statement-uploads/setup-sample-<account id>/`.
-  - `POST /api/setup/first-statement` with `{"account_id":<id>}` reads the
-    staged statement again, checks its balances as the import would (a
-    failure replies as the import's does and writes nothing), applies its
-    preset changes, records the opening balance (the statement's;
-    `"opening_amount":<signed>` when it prints no balances, else
-    `opening_balance_needed`) unless the account has one, and imports it as
-    `/api/import-draft/statements/auto` does, replying the same way. A
-    number that differs from the account's is replaced only with
-    `"use_statement_number":true` (else `numbers_differ`). An opening entry
-    dated on or after the statement's first row refuses it
-    (`opening_after_statement_start`), as does one the day before at
-    another balance (`opening_disagrees`), and a transaction another
-    account's import posted before it starts (`activity_before_statement`).
-    The staged file is deleted once imported (even with nothing new in it,
-    `draft_transaction_count` 0) and kept when the import fails.
-  - The fourth step, `/setup/balances`, is the opening balances below.
-  - The last step, `/setup/review`, lists the first-statements rows that
-    have drafts (`activity.drafts`, and `activity.uncategorized` without a
-    category) and sends each to `/review/<account id>`; they are posted
-    there as any drafts are.
+  - Cash, a deposit, an investment or a loan (`/add/other`) is an account
+    in the chart; add a missing one on the Accounts page first. Its
+    balance is recorded as an opening balance (below), dated by default the
+    day before its first activity, else the day the books start.
 - **Opening balance.**
-  The setup wizard's optional Other balances step (`/setup/balances`, also
-  linked from Settings) records, changes and removes them; send the user
-  there. `/opening-balances` redirects to it, keeping its `?account=`,
-  which names an account by name or path and opens its row. Its endpoints
-  do the same:
+  `/add/other` records one for an account the user owns or owes (not a
+  bank or card: its first statements set its balance). Settings › Opening
+  balances (`/settings/balances`) changes and removes them, and records a
+  missing one; `/opening-balances` redirects there, keeping its
+  `?account=`, which names an account by name or path and opens its row.
+  Send the user to one of those. Their endpoints do the same:
   `sapporta api get /api/opening-balances` lists every asset and liability
   account with its `section`, first transaction, a default date, a
   suggested amount and its `opening` entry, and
   `sapporta api post /api/opening-balances --body '{"account_id":<id>,"date":"YYYY-MM-DD","amount":<signed>}'`
   posts one. `"description":"…"` names its journal; left out, it is
   "Opening balance".
-  - `section` is where the step lists the account: `own` (an asset) or
-    `owe` (a liability), in account order, then `statement` (a bank or card
-    an import preset lists, whose first statement set its balance). A group
+  - `section` is where the Opening balances page lists the account: `own`
+    (an asset) or `owe` (a liability), in account order, which `/add/other`
+    offers while they have no opening, then `statement` (a bank or card an
+    import preset lists, whose first statement set its balance). A group
     account with no opening entry is `null` and not listed.
-  - The step asks for what the account held, or what was owed on it, as a
+  - The screens ask for what the account held, or what was owed on it, as a
     positive number; a leading minus means overdrawn or in credit. The
     endpoint's amount is signed like the assertion: positive when held,
     negative when owed. The date must be before the account's first draft
@@ -361,8 +380,9 @@ minus the statement's balance.
 Usual causes:
 
 - **The same difference from the very first check:** no opening balance is in
-  the books. Record it in the Other balances step, which suggests the
-  amount from that first check.
+  the books. Record it on Settings › Opening balances
+  (`/settings/balances?account=<name>`), which suggests the amount from
+  that first check.
 - **A difference that starts on one day:** a transfer or card payment is
   already in the books from the other account's statement, and a draft
   repeats it. `diff` equals its amount.

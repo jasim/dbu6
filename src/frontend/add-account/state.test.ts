@@ -9,7 +9,6 @@ import {
   addCard,
   addHref,
   addMonths,
-  addOtherHref,
   carriedFrom,
   defaultMonth,
   monthChoices,
@@ -149,10 +148,6 @@ describe("the URL", () => {
       "/add?run=setup&from=2025-01&added=12",
     );
     expect(addHref({ from: { kind: "latest" } })).toBe("/add?from=latest");
-    // "That's all" carries the run and the answer, not the account.
-    expect(addOtherHref({ ...SETUP_FROM_JAN, added: 12 })).toBe(
-      "/add/other?run=setup&from=2025-01",
-    );
   });
 
   it("reads card 2's carried answer from the navigation state", () => {

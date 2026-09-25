@@ -2,22 +2,14 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { accountKindSchema } from "./account-kind.js";
-import { dateSpanSchema } from "./date-span.js";
-import {
-  autoImportErrorSchema,
-  autoImportResultSchema,
-} from "./import-drafts.js";
-import {
-  importPresetChangeSchema,
-  importPresetRefusalCodeSchema,
-} from "./import-presets.js";
+import { importPresetRefusalCodeSchema } from "./import-presets.js";
 
 const c = initContract();
 
 /*
- * The account setup wizard at /setup: the chart of accounts, the banks and
- * cards statements come from, and each one's first statement. The wizard
- * keeps no state of its own; where it stands is read from the books.
+ * Setting up the books: the chart of accounts (/setup), and the banks and
+ * cards statements come from, which /add sets up from their statements and
+ * Settings › Banks & cards changes. Nothing here keeps state of its own.
  */
 
 export const LEDGER_ACCOUNT_TYPES = [
@@ -102,7 +94,7 @@ export function chartInTreeOrder(
 // against it (OPENING_BALANCES_ACCOUNT on the server).
 export const OPENING_BALANCES_NAME = "Opening Balances";
 
-// Step 1: a new system (no accounts at all) starts from a proposal; one that
+// The chart: a new system (no accounts at all) starts from a proposal; one that
 // has accounts sees them.
 export const chartOfAccountsSchema = z.discriminatedUnion("state", [
   z.object({
@@ -160,12 +152,12 @@ export const chartSuggestionRefusalSchema = z.object({
   ]),
 });
 
-// Step 2: the banks and cards statements come from, each an account in an
+// The banks and cards statements come from, each an account in an
 // import preset. A row can be changed only while its account has no
 // transactions: no journal entry on it, and no draft from or to it.
 export const statementAccountRowSchema = z.object({
   account_id: z.number().int(),
-  // The preset's name for it, which the wizard keeps equal to the ledger's.
+  // The preset's name for it, which a change keeps equal to the ledger's.
   name: z.string(),
   kind: accountKindSchema,
   institution: z.string(),
@@ -288,229 +280,7 @@ export type StatementAccountRefusal = z.infer<
   typeof statementAccountRefusalSchema
 >;
 
-// Step 3: a first statement for each bank or card. dbu6 reads it with the
-// saved parsers, which sets up the format its statements come in, takes the
-// account's opening balance from it, and imports it. The uploaded statement
-// is staged until it is imported.
-
-// The balance the account opened at, the day before the statement's first
-// row: the statement's own opening, else its first printed balance less the
-// rows up to it, else its closing less every row. Ledger sign: positive when
-// held, negative when owed.
-export const statementOpeningSchema = z.object({
-  date: z.string(),
-  // Null when the statement prints no balances, and the user gives it.
-  amount: z.number().nullable(),
-});
-export type StatementOpening = z.infer<typeof statementOpeningSchema>;
-
-export const recognizedFindingSchema = z.object({
-  outcome: z.literal("recognized"),
-  parser: z.string(),
-  // The number the statement prints about itself, canonical; null when
-  // it prints none.
-  printed_identifier: z.string().nullable(),
-  // The institution's name as the statement prints it, for reading only.
-  printed_institution: z.string().nullable(),
-  // The statement's first and last dates.
-  period: dateSpanSchema.nullable(),
-  transactions: z.number().int(),
-  // Null for a statement with no rows.
-  opening: statementOpeningSchema.nullable(),
-  // The account's opening entry, when it has one already: importing then
-  // records none, and needs the statement to start after it.
-  existing_opening: z
-    .object({ date: z.string(), amount: z.number() })
-    .nullable(),
-  // The institution that lists the parser now, if any.
-  parser_institution: z.string().nullable(),
-  // The account's institution after the changes.
-  institution: z.string(),
-  // Whether the account moves to the institution listing the parser: a
-  // parser belongs to one institution.
-  moves: z.boolean(),
-  identifier_state: z.enum(["none_printed", "set", "same", "different"]),
-  // The preset changes importing makes, with the statement's number where
-  // the account has another. The server derives them again when it imports.
-  changes: z.array(importPresetChangeSchema),
-});
-export type RecognizedFinding = z.infer<typeof recognizedFindingSchema>;
-
-// A statement no saved parser reads, or more than one does. It stays
-// staged at `saved_path` (in the project) for a coding agent.
-const unreadableFindingSchema = z.discriminatedUnion("outcome", [
-  z.object({
-    outcome: z.literal("unrecognized"),
-    saved_path: z.string(),
-    // The saved parsers for the file's extension that rejected it.
-    tried: z.array(z.string()),
-  }),
-  z.object({
-    outcome: z.literal("ambiguous"),
-    saved_path: z.string(),
-    parsers: z.array(z.string()),
-  }),
-]);
-export type UnreadableFinding = z.infer<typeof unreadableFindingSchema>;
-
-// What a statement showed. Reading one writes nothing to the books.
-export const sampleFindingSchema = z.union([
-  recognizedFindingSchema,
-  unreadableFindingSchema,
-]);
-export type SampleFinding = z.infer<typeof sampleFindingSchema>;
-
-export const sampleRefusalSchema = z.object({
-  error: z.string(),
-  code: z.enum([
-    // No `file` in the upload.
-    "missing_multipart_field",
-    // No preset lists the account.
-    "unknown_account",
-    // Check again, with no staged statement for the account.
-    "no_staged_sample",
-  ]),
-});
-
-// What a bank or card holds so far: posted entries (its opening entry left
-// out) and drafts from its own statements, of which `uncategorized` have no
-// category yet.
-export const statementActivitySchema = z.object({
-  entries: z.number().int(),
-  drafts: z.number().int(),
-  uncategorized: z.number().int(),
-});
-export type StatementActivity = z.infer<typeof statementActivitySchema>;
-
-const firstStatementBaseSchema = z.object({
-  account_id: z.number().int(),
-  name: z.string(),
-  kind: accountKindSchema,
-  institution: z.string(),
-  account_identifiers: z.array(z.string()),
-  activity: statementActivitySchema,
-});
-
-// One bank or card, in exactly one state, read from the books and the
-// staged statement: nothing yet; a staged statement a saved parser reads;
-// one none reads, or several do; transactions in the books; or its account
-// deleted from the books, when it can only be removed.
-export const firstStatementRowSchema = z.discriminatedUnion("status", [
-  firstStatementBaseSchema.extend({ status: z.literal("needs_statement") }),
-  firstStatementBaseSchema.extend({
-    status: z.literal("read"),
-    finding: recognizedFindingSchema,
-  }),
-  firstStatementBaseSchema.extend({
-    status: z.literal("unreadable"),
-    finding: unreadableFindingSchema,
-  }),
-  firstStatementBaseSchema.extend({ status: z.literal("imported") }),
-  firstStatementBaseSchema.extend({ status: z.literal("not_in_ledger") }),
-]);
-export type FirstStatementRow = z.infer<typeof firstStatementRowSchema>;
-export type FirstStatementStatus = FirstStatementRow["status"];
-
-// Who categorizes an import, or why nobody can: the check categorization
-// itself makes.
-export const categorizerStatusSchema = z.discriminatedUnion("ready", [
-  z.object({ ready: z.literal(true), name: z.string() }),
-  z.object({ ready: z.literal(false), name: z.string(), reason: z.string() }),
-]);
-export type CategorizerStatus = z.infer<typeof categorizerStatusSchema>;
-
-export const firstStatementsSchema = z.object({
-  categorizer: categorizerStatusSchema,
-  // In the order the banks and cards step lists them.
-  accounts: z.array(firstStatementRowSchema),
-});
-export type FirstStatements = z.infer<typeof firstStatementsSchema>;
-
-export const firstStatementRequestSchema = z.object({
-  account_id: z.number().int().positive(),
-  // What the account held the day before the statement's first row, ledger
-  // sign; used only when the statement prints no balances.
-  opening_amount: z.number().finite().optional(),
-  // The user accepted the statement's number over the one they typed.
-  use_statement_number: z.boolean().optional(),
-});
-export type FirstStatementRequest = z.infer<typeof firstStatementRequestSchema>;
-
-export const firstStatementRefusalSchema = z.object({
-  error: z.string(),
-  code: z.enum([
-    // No staged statement for the account: upload one.
-    "no_staged_statement",
-    // The account has transactions; its statements go through Import.
-    "already_imported",
-    // No saved parser reads the staged statement, or more than one does.
-    "statement_unreadable",
-    // The statement's number isn't the one typed, and it wasn't accepted.
-    "numbers_differ",
-    // The statement has no rows.
-    "statement_has_no_transactions",
-    // The statement prints no balances, and no `opening_amount` was given.
-    "opening_balance_needed",
-    // The opening entry couldn't be posted.
-    "opening_balance_refused",
-    // The account's opening entry is dated on or after the statement's
-    // first row, whose rows would fall behind it.
-    "opening_after_statement_start",
-    // The account's opening entry is dated the day before the statement
-    // starts, at another balance than the statement's.
-    "opening_disagrees",
-    // Another account's import posted a transaction on this one (a card
-    // payment, say) before the statement starts, where the opening goes.
-    "activity_before_statement",
-    // The presets' own rules (`importPresetRefusalSchema`), and
-    // `unknown_account` when no preset lists the account.
-    ...importPresetRefusalCodeSchema.options,
-  ]),
-});
-export type FirstStatementRefusal = z.infer<typeof firstStatementRefusalSchema>;
-
-// A bank or card with drafts from its first statements, as Review lists it.
-export const setupToReviewSchema = z.object({
-  account_id: z.number().int(),
-  name: z.string(),
-  drafts: z.number().int(),
-  uncategorized: z.number().int(),
-});
-export type SetupToReview = z.infer<typeof setupToReviewSchema>;
-
-// Where the wizard stands, counted in the books. The steps' done rules are
-// the rail's (frontend `setup/steps.ts`). A bank or card whose account the
-// books deleted counts nowhere here: no statement can go in.
-export const setupStatusSchema = z.object({
-  // Accounts in the books; the chart step is done with any.
-  accounts: z.number().int(),
-  // Banks and cards set up for statements; that step is done with any.
-  statement_accounts: z.number().int(),
-  // Of those, the ones with transactions (entries or drafts), whose first
-  // statements step row is `imported`; that step is done when all are.
-  imported_accounts: z.number().int(),
-  // Drafts on the banks and cards; Review is done once the first statements
-  // are and none remain.
-  drafts: z.number().int(),
-  // The banks and cards with drafts, in the banks and cards step's order.
-  to_review: z.array(setupToReviewSchema),
-  // Assets and liabilities other than banks and cards (the Other balances
-  // step's) with an opening entry. That step is optional; Review's done
-  // rule never reads it.
-  other_balances: z.number().int(),
-});
-export type SetupStatus = z.infer<typeof setupStatusSchema>;
-
 export const setupContract = c.router({
-  setupStatus: c.query({
-    method: "GET",
-    path: "/setup",
-    summary: "Where the account setup wizard stands, counted in the books",
-    responses: {
-      200: setupStatusSchema,
-      403: errorBodySchema,
-    },
-  }),
   chartOfAccounts: c.query({
     method: "GET",
     path: "/setup/chart-of-accounts",
@@ -564,69 +334,6 @@ export const setupContract = c.router({
       200: statementAccountsSchema,
       403: errorBodySchema,
       422: statementAccountRefusalSchema,
-    },
-  }),
-  firstStatements: c.query({
-    method: "GET",
-    path: "/setup/first-statements",
-    summary:
-      "Each bank or card's first statement: none yet, a staged one a saved parser reads (with what it shows), a staged one none reads, or imported; and who categorizes. Staged statements of accounts that are imported or no longer set up are deleted.",
-    responses: {
-      200: firstStatementsSchema,
-      403: errorBodySchema,
-    },
-  }),
-  uploadSampleStatement: c.mutation({
-    method: "POST",
-    path: "/setup/sample-statement",
-    summary:
-      "Stage one statement (`file`) as a preset account's (`account_id`) first statement under tmp/statement-uploads/, replacing any earlier one, and read it with the saved parsers, writing nothing to the books",
-    contentType: "multipart/form-data",
-    // The statement is the `file` part.
-    body: z.object({ account_id: z.coerce.number().int().positive() }),
-    responses: {
-      200: sampleFindingSchema,
-      400: sampleRefusalSchema,
-      403: errorBodySchema,
-      404: sampleRefusalSchema,
-    },
-  }),
-  importFirstStatement: c.mutation({
-    method: "POST",
-    path: "/setup/first-statement",
-    summary:
-      "Import an account's staged first statement: read it again, check it as the import would (a statement that fails its balance checks replies as a failed import and writes nothing), apply the preset changes it implies, record the opening balance (the statement's, else `opening_amount`) unless the account has one, then import it as /import-draft/statements/auto does, categorization included. Replies as that route does; the staged file is deleted once imported",
-    body: firstStatementRequestSchema,
-    responses: {
-      200: autoImportResultSchema,
-      400: autoImportErrorSchema,
-      403: errorBodySchema,
-      404: firstStatementRefusalSchema,
-      409: firstStatementRefusalSchema,
-      422: z.union([firstStatementRefusalSchema, autoImportErrorSchema]),
-    },
-  }),
-  recheckSampleStatement: c.mutation({
-    method: "POST",
-    path: "/setup/sample-statement/recheck",
-    summary:
-      "Read an account's staged first statement again, after a parser was written for it",
-    body: z.object({ account_id: z.number().int().positive() }),
-    responses: {
-      200: sampleFindingSchema,
-      403: errorBodySchema,
-      404: sampleRefusalSchema,
-    },
-  }),
-  removeSampleStatement: c.mutation({
-    method: "DELETE",
-    path: "/setup/sample-statement/:accountId",
-    summary: "Delete an account's staged first statement",
-    pathParams: z.object({ accountId: z.coerce.number().int().positive() }),
-    body: z.object({}).optional(),
-    responses: {
-      200: z.object({ removed: z.boolean() }),
-      403: errorBodySchema,
     },
   }),
   createChartOfAccounts: c.mutation({

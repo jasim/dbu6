@@ -5,7 +5,7 @@ import { AgentActions, PromptText } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
 import { Button } from "../components/ui/button";
 import { formatDate, joinNames } from "../format";
-import { ledgerAmount } from "../setup/other-balances";
+import { ledgerAmount } from "../setup/opening-balances";
 import {
   ambiguousPrompt,
   unrecognizedPrompt,

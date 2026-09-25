@@ -8,7 +8,6 @@ import {
   type StatementImportError,
 } from "./import-errors.js";
 import { importPresetRefusalCodeSchema } from "./import-presets.js";
-import { categorizerStatusSchema, statementOpeningSchema } from "./setup.js";
 
 const c = initContract();
 
@@ -24,6 +23,25 @@ const c = initContract();
  * no endpoint here: they are the chart's accounts, recorded with
  * POST /opening-balances.
  */
+
+// The balance the account opened at, the day before the statements' first
+// row: the earliest one's own opening, else its first printed balance less
+// the rows up to it, else its closing less every row. Ledger sign: positive
+// when held, negative when owed.
+export const statementOpeningSchema = z.object({
+  date: z.string(),
+  // Null when the statements print no balances, and the user gives it.
+  amount: z.number().nullable(),
+});
+export type StatementOpening = z.infer<typeof statementOpeningSchema>;
+
+// Who categorizes an import, or why nobody can: the check categorization
+// itself makes.
+export const categorizerStatusSchema = z.discriminatedUnion("ready", [
+  z.object({ ready: z.literal(true), name: z.string() }),
+  z.object({ ready: z.literal(false), name: z.string(), reason: z.string() }),
+]);
+export type CategorizerStatus = z.infer<typeof categorizerStatusSchema>;
 
 // One dropped file, as the read found it. `saved_path` is where its staged
 // copy is kept (inside the project) for a coding agent's prompt; the read

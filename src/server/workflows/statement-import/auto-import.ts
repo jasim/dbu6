@@ -122,8 +122,8 @@ async function recognizeStatements(
 // Each group is one account's ordinary statement import, into the ledger
 // account its id names when the batch starts; an id the ledger no longer has
 // refuses that group. Groups run in sequence and stop at the first that
-// refuses. A caller that has already read and placed its statements (the
-// setup wizard's first statement) starts here.
+// refuses. A caller that has already read and placed its statements (/add)
+// starts here.
 export async function importPlannedGroups(
   files: PlannedFile[],
   groups: readonly AutoImportGroup[],

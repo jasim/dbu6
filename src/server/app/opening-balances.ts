@@ -20,7 +20,8 @@ import {
 import { requireWorkflowLedger } from "./workflow-auth.js";
 
 /*
- * The opening balances routes, which the setup step's Other balances reads:
+ * The opening balances routes, which C1 (/add/other) and Settings › Opening
+ * balances read:
  * every asset and liability account with its opening entry, and posting,
  * changing or removing one account's.
  */
@@ -185,7 +186,7 @@ export function removeOpeningBalanceResponse(
 }
 
 /*
- * The refusals' words, which the setup step shows as they are. One wording
+ * The refusals' words, which the screens show as they are. One wording
  * for each, whichever route refuses.
  */
 

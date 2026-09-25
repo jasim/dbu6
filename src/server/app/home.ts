@@ -18,6 +18,7 @@ import {
   hasTransactions,
   loadStatementActivity,
 } from "../workflows/add-account.js";
+import { hasChart } from "../workflows/chart-of-accounts.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
 /*
@@ -49,7 +50,7 @@ export function loadHomeSummary(
   institutions: readonly ImportInstitution[],
 ): HomeSummary {
   const standings = loadAccountStandings(sqlite, auth, institutions);
-  // Setup's rule: an opening entry alone is not an import.
+  // /add's rule: an opening entry alone is not an import.
   const activity = loadStatementActivity({ sqlite, auth });
 
   const withParser = new Set(
@@ -88,8 +89,7 @@ export function loadHomeSummary(
     .sort(byLastAssertion);
 
   return {
-    // Every ledger account in scope has a standing.
-    has_chart: standings.size > 0,
+    has_chart: hasChart({ sqlite, auth }),
     accounts,
     totals: Array.from(standings.values())
       .map((standing) => draftCounts(standing.drafts))

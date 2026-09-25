@@ -479,14 +479,14 @@ built, tested and understood without anything above it. Lowest first:
 | 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
 | 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources, chart-of-accounts | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into a ledger account id, the same-account rule included; the Google Pay Takeout index and enrichment; the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan; the starter chart of accounts and the rules a proposed chart keeps | Database access, coding-agent names, route concepts |
 | 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent; import-presets | Accounts as the stores and screens look them up, and the Opening Balances account; posted journals, writing them from a plan, the last reconciled checkpoint, and each account's opening entry, the entries beside it, and rewriting or deleting a standalone one (`opening-entries.ts`); matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter (its checkpoint-day rule and why: `reconciliation/checkpoint-day.md`); draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status, where an account's drafts begin (`first-drafts.ts`), and the lessons the user teaches the categoriser from them (`categorization-lessons.ts`). The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on. The import_presets rows, read and written under the request's auth | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
-| 5 | `workflows/` | statement-import, posting, reclassification, opening-balances, import-presets, chart-of-accounts; first-statement above opening-balances, import-presets and statement-import | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
+| 5 | `workflows/` | statement-import, posting, reclassification, opening-balances, import-presets, chart-of-accounts; add-account above opening-balances, import-presets and statement-import | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
 | 6 | `app/`, `runtime.ts`, `mount.ts`, `open.ts`, `config.ts`, `project-reports.ts`, `route-collisions.ts`, `report-kit.ts`, `index.ts`, `seed/` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting; the project's reports and `dbu6.config.ts`; the promised exports; sample data | Queries or rules another module needs |
 
 - Only tier 4 orders its modules (accounts < journals < reconciliation <
   drafts). Tier 3 modules never import each other, and neither do workflows: a
   step two of them need moves down into a module. The one exception is
-  `workflows/first-statement.ts`, the setup wizard's import of a first
-  statement, which sequences opening-balances, import-presets and
+  `workflows/add-account.ts`, adding a bank or card from its statements
+  (/add), which sequences opening-balances, import-presets and
   statement-import and is imported by none of them.
 - A module that declares entry files is imported only through them.
 - A route authorizes, calls one workflow (or a module, for a plain read), and
@@ -522,17 +522,17 @@ ledger's tables. The workflows are
 and freeform transactions; imported through its `index.ts`),
 `workflows/posting.ts`, `workflows/reclassification.ts`,
 `workflows/opening-balances.ts` (each asset and liability account's opening
-entry: listing them with the setup step's sections and locks, posting one
+entry: listing them with their sections and locks, posting one
 against Opening Balances, and changing or removing one while nothing else is
 posted on its account and its journal opens it alone),
 `workflows/import-presets.ts` (the presets' one writer: a batch of changes
 applied, checked against the whole table, and written in one transaction),
-`workflows/chart-of-accounts.ts` (the setup wizard's first step: the
-starter chart for books with no accounts, and creating the ticked accounts)
-and `workflows/first-statement.ts` (its third: reading a staged first
-statement, and importing it after the preset changes that tie the account
-to the parser and its opening balance). The wizard's second step, a bank or card's ledger
-account and preset entry written together, is in `workflows/import-presets.ts`.
+`workflows/chart-of-accounts.ts` (setup's chart of accounts: the starter
+chart for books with no accounts, and creating the ticked accounts) and
+`workflows/add-account.ts` (/add: reading dropped statements as /import
+does, then setting up the bank or card they belong to, its opening balance
+and its import). A bank or card's ledger account and preset entry, written
+together, are in `workflows/import-presets.ts`.
 
 `src/shared/` is imported by relative path (`../shared/index.js` from the
 server, `../shared/index` from the frontend). Both
@@ -655,7 +655,7 @@ through its `index.ts`:
 | `models.ts` | Which of an agent's models answer on this machine, and when to ask again. |
 | `nuabase.ts` | The only import of `nuabase`; every call into it and every value out of it. |
 | `categorization-llm.ts` | The engine categorization runs on: the agent, or the deprecated gateway. |
-| `chart-llm.ts` | The same engine for the setup wizard's chart of accounts, on the agent's most capable model. |
+| `chart-llm.ts` | The same engine for setup's chart of accounts, on the agent's most capable model. |
 | `handoff.ts`, `launcher.ts` | Starting an agent on a prompt in a terminal. |
 | `errors.ts` | Why the server refused, as the routes state it. |
 | `settings.ts` | What the Settings screen reads and changes. |
@@ -675,7 +675,7 @@ entry in each of those two tables.
   least capable model that answered, billed to your own Claude or ChatGPT plan
   rather than an API key. Nothing is cached, so reclassifying sends every
   description again.
-- **The chart of accounts** a new user describes in the setup wizard is one
+- **The chart of accounts** a new user describes at `/setup` is one
   more headless call (`Nua.direct`'s `get`, a structured answer checked
   against `chartProposalSchema`), on the most capable model that answered,
   since it is a single call. It reads no files, writes nothing and runs no
