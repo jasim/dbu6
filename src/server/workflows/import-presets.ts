@@ -422,9 +422,7 @@ export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
     chart.filter(
       (account) => account.account_type === LEDGER_ACCOUNT_TYPE[kind],
     );
-  const defaultParent = (kind: AccountKind) =>
-    accounts.find((row) => row.kind === kind && row.parent !== null)?.parent
-      ?.id ?? null;
+  const parentsOf = (kind: AccountKind) => sharedParents(accounts, kind);
   const listed = new Set(accounts.map((row) => row.account_id));
 
   return {
@@ -435,8 +433,12 @@ export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
       card: ofKind("card").map(choice),
     },
     default_parents: {
-      bank: defaultParent("bank"),
-      card: defaultParent("card"),
+      bank: parentsOf("bank").mostShared,
+      card: parentsOf("card").mostShared,
+    },
+    mixed_parents: {
+      bank: parentsOf("bank").mixed,
+      card: parentsOf("card").mixed,
     },
     unlisted: (["bank", "card"] as const).flatMap((kind) =>
       ofKind(kind)
@@ -445,6 +447,27 @@ export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
     ),
     account_names: chart.map((account) => account.name),
   };
+}
+
+/**
+ * The parent most of `kind`'s accounts sit under, the first listed on a tie,
+ * and whether they sit under more than one. Null with none to go by.
+ */
+function sharedParents(
+  accounts: StatementAccountRow[],
+  kind: AccountKind,
+): { mostShared: number | null; mixed: boolean } {
+  const counts = new Map<number, number>();
+  for (const row of accounts) {
+    if (row.kind !== kind || row.parent === null) continue;
+    counts.set(row.parent.id, (counts.get(row.parent.id) ?? 0) + 1);
+  }
+  let mostShared: number | null = null;
+  let most = 0;
+  for (const [id, count] of counts) {
+    if (count > most) [mostShared, most] = [id, count];
+  }
+  return { mostShared, mixed: counts.size > 1 };
 }
 
 /** Creates, changes or removes one bank or card, or says why it can't. */

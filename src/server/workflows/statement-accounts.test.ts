@@ -126,6 +126,38 @@ describe("creating a bank or card", () => {
       },
     ]);
     expect(accounts.default_parents).toEqual({ bank: 2, card: null });
+    expect(accounts.mixed_parents).toEqual({ bank: false, card: false });
+  });
+
+  it("starts a new one under the parent most of its kind share", async () => {
+    const ledger = books();
+    // The first bank account sits under Cash, the next two under Bank
+    // Accounts: the first listed doesn't decide.
+    await created(
+      ledger,
+      savings({
+        ledger: { source: "new", name: "Sample Wallet", parent_id: 7 },
+      }),
+    );
+    await created(
+      ledger,
+      savings({
+        institution: "Sample Bank Two",
+        identifier: null,
+        ledger: { source: "new", name: "Sample Savings", parent_id: 2 },
+      }),
+    );
+    const accounts = await created(
+      ledger,
+      savings({
+        institution: "Sample Bank Three",
+        identifier: null,
+        ledger: { source: "new", name: "Sample Current", parent_id: 2 },
+      }),
+    );
+
+    expect(accounts.default_parents).toEqual({ bank: 2, card: null });
+    expect(accounts.mixed_parents).toEqual({ bank: true, card: false });
   });
 
   it("takes the ledger account back out when the presets refuse", async () => {

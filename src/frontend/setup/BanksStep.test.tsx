@@ -72,6 +72,7 @@ function books(rows: StatementAccountRow[]): StatementAccounts {
       card: [{ id: 4, name: "Credit Cards", path: "Liabilities:Credit Cards" }],
     },
     default_parents: { bank: 2, card: 4 },
+    mixed_parents: { bank: false, card: false },
     unlisted: [],
     account_names: [
       "Bank Accounts",

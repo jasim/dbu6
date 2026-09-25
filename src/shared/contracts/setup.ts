@@ -198,11 +198,17 @@ export const statementAccountsSchema = z.object({
     bank: z.array(chartChoiceSchema),
     card: z.array(chartChoiceSchema),
   }),
-  // The parent of a preset account of the same kind; null with none, when
-  // the user picks one. Never inferred from names.
+  // The parent most preset accounts of the same kind sit under; null with
+  // none, when the user picks one. Never inferred from names.
   default_parents: z.object({
     bank: z.number().int().nullable(),
     card: z.number().int().nullable(),
+  }),
+  // Whether a kind's preset accounts sit under more than one parent, when
+  // the default is only a guess and the form shows it.
+  mixed_parents: z.object({
+    bank: z.boolean(),
+    card: z.boolean(),
   }),
   // Asset and Liability accounts no preset lists, which a row can use
   // instead of a new account.
