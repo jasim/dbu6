@@ -200,6 +200,13 @@ describe("BanksStep", () => {
         account_identifiers: ["050505000034"],
         in_ledger: false,
       },
+      {
+        ...savings,
+        account_id: 11,
+        name: "Sample Joint",
+        account_identifiers: ["050505000056"],
+        drafts: 3,
+      },
     ]);
 
     const rows = [...document.querySelectorAll("tbody tr")];
@@ -210,11 +217,18 @@ describe("BanksStep", () => {
       ["Bank account", "Sample Bank", "ending 0012"],
       ["Credit card", "Sample Issuer", "— from statement"],
       ["Bank account", "Sample Bank", "ending 0034"],
+      ["Bank account", "Sample Bank", "ending 0056"],
     ]);
     expect(rows[2].textContent).toContain("Deleted from your books");
     expect(
       rows[1].querySelector(
-        '[aria-label="Has transactions. Change it on the Accounts page."]',
+        '[aria-label="Has transactions, so it can\'t change here."]',
+      ),
+    ).not.toBeNull();
+    // Only transactions still to review: deleting them unlocks it.
+    expect(
+      rows[3].querySelector(
+        '[aria-label="Has transactions to review. Delete them in Review to change it."]',
       ),
     ).not.toBeNull();
     expect(rows[1].querySelector('[aria-label^="Actions for"]')).toBeNull();

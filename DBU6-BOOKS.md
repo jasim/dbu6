@@ -208,7 +208,8 @@ category ("Categorise these" above), and restart a server started with
     accounts needs one on each.
   - `{"action":"update",…}` and `{"action":"remove","account_id":<id>,"delete_account":true}`
     change or remove one, but only while no entry or draft is on it
-    (`account_has_transactions`); after that, use the Accounts page and
+    (`account_has_transactions`). With only drafts, deleting them frees it;
+    after an entry, use the Accounts page and
     [Import presets](#import-presets).
   - `sapporta api get /api/setup/statement-accounts` lists them, each with
     its count of entries and drafts.
