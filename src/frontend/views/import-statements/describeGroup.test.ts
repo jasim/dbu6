@@ -91,7 +91,7 @@ describe("describeGroup", () => {
       closing: {
         verified: true,
         label: "Closing balance, 31 Aug",
-        figure: "₹2,500.00",
+        figure: "2,500.00",
       },
       notNew: [],
       details: [
@@ -237,7 +237,7 @@ describe("describeGroup", () => {
       title: "Sample Card",
       accountKind: "card",
       caption: "Credit card · 1 Aug to 31 Aug 2026",
-      closing: { figure: "₹2,500.00 owed" },
+      closing: { figure: "2,500.00 owed" },
     });
   });
 

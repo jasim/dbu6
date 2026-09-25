@@ -199,7 +199,7 @@ describe("Income and Expenses", () => {
     expect(text()).toContain("so far");
 
     await act(async () =>
-      button("August 2026 · Income +₹25,000.00 · Spending −₹11,500.00").click(),
+      button("August 2026 · Income +25,000.00 · Spending −11,500.00").click(),
     );
     await settle();
 
@@ -222,13 +222,13 @@ describe("Income and Expenses", () => {
     await act(async () => row("Food").click());
     const rows = Array.from(host.querySelectorAll("li"))
       .map((li) => li.firstElementChild?.textContent ?? "")
-      .filter((row) => row.includes("₹"));
+      .filter((row) => /\d\.\d\d/.test(row));
     expect(rows.slice(0, 5)).toEqual([
-      "Expenses100%−₹23,500.00›",
-      "Rent85%−₹20,000.00›",
-      "Food15%−₹3,500.00›",
-      "Groceries13%−₹3,000.00›",
-      "Food, not in a sub-account2%−₹500.00",
+      "Expenses100%−23,500.00›",
+      "Rent85%−20,000.00›",
+      "Food15%−3,500.00›",
+      "Groceries13%−3,000.00›",
+      "Food, not in a sub-account2%−500.00",
     ]);
     const history = host.querySelector<HTMLAnchorElement>(
       'a[aria-label="Account ledger for Groceries"]',
@@ -283,7 +283,7 @@ describe("Income and Expenses", () => {
     responses = [report({ income: { total: 0, accounts: [] } })];
     await renderAt("/reports/income-expenses");
 
-    expect(text()).toContain("−₹23,500.00");
-    expect(text()).toContain("₹23,500.00 more spent than came in");
+    expect(text()).toContain("−23,500.00");
+    expect(text()).toContain("23,500.00 more spent than came in");
   });
 });

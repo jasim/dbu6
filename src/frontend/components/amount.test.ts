@@ -15,11 +15,4 @@ describe("formatAmount", () => {
     expect(formatAmount(-500, "out")).toBe(`${MINUS}500.00`);
     expect(formatAmount(-500, "out")).not.toContain("-");
   });
-
-  it("puts the rupee sign after the sign when asked", () => {
-    expect(formatAmount(95000, "in", { symbol: true })).toBe("+₹95,000.00");
-    expect(formatAmount(2500000, "out", { symbol: true })).toBe(
-      `${MINUS}₹25,00,000.00`,
-    );
-  });
 });

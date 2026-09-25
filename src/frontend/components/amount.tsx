@@ -2,7 +2,7 @@ import { cn } from "@sapporta/ui/cn";
 
 export type Direction = "in" | "out";
 
-const rupees = new Intl.NumberFormat("en-IN", {
+const money = new Intl.NumberFormat("en-IN", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -12,15 +12,11 @@ export const MINUS = "−";
 
 /**
  * A figure with its direction made explicit: "+4,50,000.00" or
- * "−3,50,560.00", in Indian grouping, with an optional rupee sign.
+ * "−3,50,560.00", in Indian grouping.
  */
-export function formatAmount(
-  value: number,
-  direction: Direction,
-  { symbol = false }: { symbol?: boolean } = {},
-): string {
+export function formatAmount(value: number, direction: Direction): string {
   const sign = direction === "in" ? "+" : MINUS;
-  return `${sign}${symbol ? "₹" : ""}${rupees.format(Math.abs(value))}`;
+  return `${sign}${money.format(Math.abs(value))}`;
 }
 
 const SIZES = {
@@ -38,14 +34,12 @@ export function Amount({
   value,
   direction,
   size = "row",
-  showSymbol = false,
   showLabel = true,
   className,
 }: {
   value: number;
   direction: Direction;
   size?: keyof typeof SIZES;
-  showSymbol?: boolean;
   showLabel?: boolean;
   className?: string;
 }) {
@@ -58,7 +52,7 @@ export function Amount({
           direction === "in" ? "text-money-in" : "text-foreground",
         )}
       >
-        {formatAmount(value, direction, { symbol: showSymbol })}
+        {formatAmount(value, direction)}
       </span>
       {showLabel && (
         <span className="text-label uppercase text-ink-meta">

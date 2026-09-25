@@ -3,14 +3,14 @@
 
 import type { AccountKind, DateSpan, StatementAccount } from "../shared/index";
 
-const inr = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
+const money = new Intl.NumberFormat("en-IN", {
   minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
+// An amount in Indian digit grouping, with no currency sign: "1,20,000.00".
 export function formatMoney(value: number): string {
-  return inr.format(value);
+  return money.format(value);
 }
 
 // A ledger balance as the user thinks of it. A card's ledger balance is

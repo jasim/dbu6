@@ -21,8 +21,9 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
   | journal, entry | a transaction in your books |
   | last reconciled checkpoint | the last statement balance in your books, and its date |
 
-- **Money:** show ₹ with Indian digit grouping (₹1,23,456). For a card or loan,
-  say "you owe ₹X" instead of showing a minus sign.
+- **Money:** show amounts with Indian digit grouping (1,23,456) and no
+  currency sign. For a card or loan, say "you owe X" instead of showing a
+  minus sign.
 - **Answer first:** give the amount or the cause, with the period used. Then
   say what the answer leaves out. Reports count only transactions already in
   the books: not drafts waiting in Review, and nothing after the last imported

@@ -26,7 +26,7 @@ export type ChartBar = {
   soFar: boolean;
   income: number;
   spending: number;
-  /** "March 2026 · Income +₹1,20,000.00 · Spending −₹84,500.00". */
+  /** "March 2026 · Income +1,20,000.00 · Spending −84,500.00". */
   description: string;
   /** What clicking the pair narrows the page to, never past today. */
   dates: DateSpan;
