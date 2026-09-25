@@ -1,4 +1,4 @@
-import type { TransactionMappingsView } from "../../../shared/index";
+import { isVpa, type TransactionMappingsView } from "../../../shared/index";
 
 export type ReadMappings = Extract<TransactionMappingsView, { state: "read" }>;
 
@@ -10,10 +10,11 @@ const matcher = (query: string) => {
 };
 
 /**
- * The exact rules as one row per account, most rules first. Each row keeps
- * all its narrations, in file order, and the ones `query` finds, ignoring
- * case: every one when it finds the account, and the row goes when it
- * finds nothing.
+ * The exact rules as one row per account: first those whose account the
+ * books don't have, which the user must fix, then most rules first. Each
+ * row keeps all its narrations, in file order, and the ones `query` finds,
+ * ignoring case: every one when it finds the account, and the row goes
+ * when it finds nothing.
  */
 export function exactByAccount(mappings: ReadMappings, query = "") {
   const rows = new Map<
@@ -31,7 +32,11 @@ export function exactByAccount(mappings: ReadMappings, query = "") {
   }
   const has = matcher(query);
   return [...rows.values()]
-    .sort((a, b) => b.narrations.length - a.narrations.length)
+    .sort(
+      (a, b) =>
+        Number(a.in_ledger) - Number(b.in_ledger) ||
+        b.narrations.length - a.narrations.length,
+    )
     .map((row) => ({
       ...row,
       found: has(row.account) ? row.narrations : row.narrations.filter(has),
@@ -54,70 +59,33 @@ export function findIncludes(
 }
 
 /**
- * A bank description and the account it goes to, shown atop a tab. The
- * kind says what matches: the whole text, a phrase inside a longer one, or
- * nothing, where the AI reads it. A made-up one is `sample`; its account
- * is null when the books have none to name.
+ * The Exact tab's example: a description an exact rule catches, the
+ * user's own first one, else a made-up one, and a longer one it doesn't. A
+ * rule that is a UPI address also matches inside a longer description, so
+ * it is never the example.
  */
-export interface RuleExample {
-  kind: "whole" | "phrase" | "none";
+export function exactExample(mappings: ReadMappings): {
   text: string;
-  account: string | null;
-  sample: boolean;
+  longer: string;
+} {
+  const text =
+    mappings.exact.find((rule) => !isVpa(rule.narration.trim()))?.narration ??
+    "ACME GROCERS";
+  return { text, longer: `${text} 050505` };
 }
-
-/** The first exact rule, or a made-up one. */
-export function exactExample(mappings: ReadMappings): RuleExample {
-  const rule = mappings.exact[0];
-  return rule
-    ? {
-        kind: "whole",
-        text: rule.narration,
-        account: rule.account,
-        sample: false,
-      }
-    : {
-        kind: "whole",
-        text: "ACME SUPERMARKET",
-        account: "Groceries",
-        sample: true,
-      };
-}
-
-/** The first includes rule's first value, or a made-up one. */
-export function containsExample(mappings: ReadMappings): RuleExample {
-  const rule = mappings.includes[0];
-  const value = rule?.values[0];
-  return rule && value !== undefined
-    ? { kind: "phrase", text: value, account: rule.account, sample: false }
-    : {
-        kind: "phrase",
-        text: "CITY POWER",
-        account: "Electricity",
-        sample: true,
-      };
-}
-
-// The accounts, in order, the AI's example may go to; the first the books
-// have is named.
-const AI_EXAMPLE_ACCOUNTS = ["Dining Out", "Food", "Eating Out", "Restaurants"];
 
 /**
- * A made-up description no rule matches, and, when the books have an
- * account it plainly belongs in, that account. A group, the parent of
- * other accounts, is no answer the AI gives.
+ * The Contains tab's example: a phrase, the user's first one, else a
+ * made-up one, inside a description a bank might print.
  */
-export function aiExample(
-  ledger: readonly { name: string; parent: string | null }[],
-): RuleExample {
-  const groups = new Set(ledger.map((account) => account.parent));
-  const answers = new Set(
-    ledger.map((account) => account.name).filter((name) => !groups.has(name)),
-  );
+export function containsExample(mappings: ReadMappings): {
+  phrase: string;
+  before: string;
+  after: string;
+} {
   return {
-    kind: "none",
-    text: "POS 050505 THE BAKERS DOZEN",
-    account: AI_EXAMPLE_ACCOUNTS.find((name) => answers.has(name)) ?? null,
-    sample: true,
+    phrase: mappings.includes[0]?.values[0] ?? "CITY POWER",
+    before: "NEFT-",
+    after: "-050505",
   };
 }

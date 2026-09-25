@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isVpa } from "../../../shared/index.js";
 import type { Abacus } from "../statement/index.js";
 import { isWithdrawal } from "../values/index.js";
 
@@ -48,10 +49,6 @@ export function normalize(value: string): string {
 // `-`, spaces) or the ends of the text. Letters, digits, and dots continue a
 // VPA, so `x@psp` must not match inside `ax@psp` or `x@psp.example`.
 const VPA_CHAR = /[A-Z0-9.]/;
-
-export function isVpa(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+$/.test(value);
-}
 
 function containsVpa(narration: string, vpa: string): boolean {
   let from = 0;

@@ -39,22 +39,37 @@ export function Screen({
   );
 }
 
-/** A screen's title and the sentence or two under it, if any. */
+/**
+ * A screen's title and the sentence or two under it, if any. `action`, the
+ * screen's one page-level action, sits at the title's right; on a phone it
+ * follows the sentence.
+ */
 export function ScreenTitle({
   title,
+  action,
   children,
 }: {
   title: string;
+  action?: ReactNode;
   children?: ReactNode;
 }) {
   return (
-    <>
-      <h1 className="text-title text-foreground">{title}</h1>
+    <div
+      className={cn(
+        action && "grid sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-8",
+      )}
+    >
+      <h1 className="text-title text-foreground sm:self-center">{title}</h1>
       {children && (
-        <div className="mt-2 max-w-[700px] space-y-2 text-body text-ink-soft">
+        <div className="mt-2 max-w-[700px] space-y-2 text-body text-ink-soft sm:col-span-2">
           {children}
         </div>
       )}
-    </>
+      {action && (
+        <div className="mt-4 sm:col-start-2 sm:row-start-1 sm:mt-0 sm:self-center">
+          {action}
+        </div>
+      )}
+    </div>
   );
 }
