@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  accountsNotInLedger,
-  filterMappings,
-  ruleCount,
+  aiExample,
+  containsExample,
+  exactByAccount,
+  exactExample,
+  findIncludes,
   type ReadMappings,
 } from "./mapping-rules";
 
@@ -12,6 +14,7 @@ const mappings: ReadMappings = {
   exact: [
     { narration: "SAMPLE CAFE 050505", account: "Food", in_ledger: true },
     { narration: "NOPII SHOP", account: "Sample Gone", in_ledger: false },
+    { narration: "NOPII BAKERY", account: "Food", in_ledger: true },
   ],
   includes: [
     {
@@ -29,37 +32,73 @@ const mappings: ReadMappings = {
   ],
 };
 
-describe("the transaction mapping rules", () => {
-  it("counts exact and includes rules together", () => {
-    expect(ruleCount(mappings)).toBe(4);
-  });
+const empty: ReadMappings = { ...mappings, exact: [], includes: [] };
 
-  it("filters on narrations, values and accounts, ignoring case", () => {
-    const cafe = filterMappings(mappings, "cafe");
-    expect(cafe.exact.map((rule) => rule.narration)).toEqual([
-      "SAMPLE CAFE 050505",
-    ]);
-    expect(cafe.includes).toEqual([]);
-
-    const gone = filterMappings(mappings, " sample gone ");
-    expect(gone.exact).toHaveLength(1);
-    expect(gone.includes.map((rule) => rule.values)).toEqual([
-      ["sample-payee@okaxis"],
-    ]);
-  });
-
-  it("keeps each includes rule's place in the checking order", () => {
+describe("the exact rules by account", () => {
+  it("groups the narrations under their account, most rules first", () => {
     expect(
-      filterMappings(mappings, "OKAXIS").includes.map((rule) => rule.position),
+      exactByAccount(mappings).map((row) => [row.account, row.narrations]),
+    ).toEqual([
+      ["Food", ["SAMPLE CAFE 050505", "NOPII BAKERY"]],
+      ["Sample Gone", ["NOPII SHOP"]],
+    ]);
+  });
+
+  it("finds narrations, or every narration of an account it finds, ignoring case", () => {
+    expect(
+      exactByAccount(mappings, "cafe").map((row) => [row.account, row.found]),
+    ).toEqual([["Food", ["SAMPLE CAFE 050505"]]]);
+    expect(exactByAccount(mappings, " FOOD ").map((row) => row.found)).toEqual([
+      ["SAMPLE CAFE 050505", "NOPII BAKERY"],
+    ]);
+  });
+});
+
+describe("the includes rules", () => {
+  it("keeps each rule's place in the checking order", () => {
+    expect(
+      findIncludes(mappings, "OKAXIS").map((rule) => rule.position),
     ).toEqual([2]);
-    expect(
-      filterMappings(mappings, "").includes.map((rule) => rule.position),
-    ).toEqual([1, 2]);
+    expect(findIncludes(mappings).map((rule) => rule.position)).toEqual([1, 2]);
   });
 
-  it("lists the accounts the ledger doesn't have, with their rule counts", () => {
-    expect(accountsNotInLedger(mappings)).toEqual([
-      { account: "Sample Gone", rules: 2 },
-    ]);
+  it("finds values and accounts, ignoring case", () => {
+    expect(
+      findIncludes(mappings, "sample card").map((rule) => rule.values),
+    ).toEqual([["CARD PAYMENT 050505"]]);
+  });
+});
+
+describe("the examples", () => {
+  it("come from the user's first rules", () => {
+    expect(exactExample(mappings)).toEqual({
+      kind: "whole",
+      text: "SAMPLE CAFE 050505",
+      account: "Food",
+      sample: false,
+    });
+    expect(containsExample(mappings)).toEqual({
+      kind: "phrase",
+      text: "CARD PAYMENT 050505",
+      account: "Sample Card",
+      sample: false,
+    });
+  });
+
+  it("are made up, and say so, when there are no rules", () => {
+    expect(exactExample(empty).sample).toBe(true);
+    expect(containsExample(empty).sample).toBe(true);
+  });
+
+  it("name an account for the AI only when the books have it", () => {
+    const account = (name: string, parent: string | null = null) => ({
+      name,
+      parent,
+    });
+    expect(aiExample([account("Food")]).account).toBe("Food");
+    expect(
+      aiExample([account("Food"), account("Groceries", "Food")]).account,
+    ).toBeNull();
+    expect(aiExample([account("Groceries")]).account).toBeNull();
   });
 });
