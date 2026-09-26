@@ -32,8 +32,9 @@ import {
  * How dbu6 runs each agent.
  *
  * `models` are the agent's models, most capable first; the last is a floor, so
- * dbu6 never runs the agent on a less capable model. Which of them answer
- * depends on the user's login and plan, which models.ts checks.
+ * dbu6 never runs the agent on a less capable model. Pi's are the exception:
+ * they are built per machine in preference order (pi-models.ts). Which of them
+ * answer depends on the user's login and plan, which models.ts checks.
  *
  * `autoModeArgs` put an interactive session in the agent's auto mode: its own
  * reviewer approves edits and commands and stops risky ones, so the user
@@ -59,8 +60,10 @@ export const CODING_AGENT_RUN = {
     autoModeArgs: ["--approve-for-me"],
   },
   pi: {
-    // Pi takes its own `provider/id` model names, not the aliases the others
-    // share, so the ChatGPT-plan models dbu6 already uses are named in full.
+    // Pi's own models are built per machine, in preference order:
+    // pi-models.ts puts Pi's configured default and its preferred OpenRouter
+    // models (DeepSeek Flash, GLM, Kimi) ahead of these, the ChatGPT-plan
+    // models dbu6 already uses. Pi names them `provider/id`, not aliases.
     models: [
       { model: "openai-codex/gpt-5.6-sol", label: "GPT-5.6 Sol" },
       { model: "openai-codex/gpt-5.6-terra", label: "GPT-5.6 Terra" },

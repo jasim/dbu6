@@ -12,6 +12,7 @@ import {
   currentCodingAgent,
   logCodingAgent,
 } from "./agents.js";
+import { piModelCandidates } from "./pi-models.js";
 import {
   askModel,
   type DetectedAgent,
@@ -19,9 +20,10 @@ import {
 } from "./nuabase.js";
 
 /*
- * Which of an agent's models (agents.ts) answer on this machine's login.
- * Codex refuses GPT-5.6 Sol on some ChatGPT accounts, so dbu6 asks each model
- * for a one-word reply:
+ * Which of an agent's models answer on this machine's login. The candidates
+ * are the agent's fixed list (agents.ts), except Pi's, which are chosen per
+ * machine in preference order (pi-models.ts). Codex refuses GPT-5.6 Sol on
+ * some ChatGPT accounts, so dbu6 asks each candidate for a one-word reply:
  *
  * - at startup, for the agent dbu6 will use, when it has no check yet;
  * - when Settings shows a signed-in agent that has no check yet;
@@ -116,6 +118,16 @@ function runningCheck(agent: InstalledAgent): Running | undefined {
   return check?.binaryPath === agent.binaryPath ? check : undefined;
 }
 
+/**
+ * The models to probe for an agent: Pi's are built per machine, in the
+ * order dbu6 prefers them (pi-models.ts); the others are fixed lists.
+ */
+function candidateModels(agent: InstalledAgent): Promise<readonly AgentModel[]> {
+  return agent.agent === "pi"
+    ? piModelCandidates(agent)
+    : Promise.resolve(CODING_AGENT_RUN[agent.agent].models);
+}
+
 function checkModels(
   agent: InstalledAgent,
   again: boolean,
@@ -124,11 +136,11 @@ function checkModels(
   if (underWay !== undefined) return underWay.models;
   const stored = again ? null : storedCheck(agent);
   if (stored !== null) return Promise.resolve(stored);
-  const models = Promise.all(
-    CODING_AGENT_RUN[agent.agent].models.map((model) =>
-      checkModel(agent, model),
-    ),
-  ).then(agentModelsFrom);
+  const models = candidateModels(agent)
+    .then((candidates) =>
+      Promise.all(candidates.map((model) => checkModel(agent, model))),
+    )
+    .then(agentModelsFrom);
   const started: Running = { binaryPath: agent.binaryPath, models };
   running.set(agent.agent, started);
   void models.then((settled) => {
