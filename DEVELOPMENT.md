@@ -66,8 +66,9 @@ With the [prerequisites](#prerequisites) installed:
   local Sapporta checkout; copy `mise.toml.example` to `mise.toml` if you want
   it. A project folder keeps its ports and personal settings, such as
   `NUABASE_API_KEY`, in its own `.env` or `mise.toml`.
-- For automatic categorization and the Open in terminal buttons, Claude Code or
-  Codex installed and logged in on this machine. See [LLM engine](#llm-engine).
+- For automatic categorization and the Open in terminal buttons, Claude Code,
+  Codex or Pi installed and logged in on this machine. See
+  [LLM engine](#llm-engine).
 - `pdftotext` (poppler) for PDF imports.
 - `uv`, which runs the saved statement parsers.
 
@@ -84,9 +85,12 @@ there, and point this project at it with
 `link:` specs into `package.json` and `pnpm-workspace.yaml`; `pnpm
 package-sources use:npm` switches back and `pnpm package-sources status` says
 which is active. While linked, rebuild Sapporta's `dist` after changing it
-and before typechecking dbu6, or you will see stale type errors.
+and before typechecking dbu6, or you will see stale type errors. `nuabase` is
+linked the same way but by hand — `package-sources` manages only the
+`@sapporta/*` packages — and is switched back the same way: publish it, then
+pin the registry version in `package.json` and `pnpm-workspace.yaml`.
 
-While the branch depends on Sapporta changes that are not published yet, the
+While the branch depends on framework changes that are not published yet, the
 links are committed, and three things are gated on them:
 
 - `.github/workflows/ci.yml` finds the `link:` specs and skips every job that
@@ -639,10 +643,11 @@ full message and shortens what it returns (`reportedError`).
 
 ### LLM engine
 
-dbu6 uses one coding agent for everything AI: Claude Code (`claude`) or Codex
-(`codex`), installed and logged in on the machine running the server. It is
-chosen on the **Settings** screen; until then dbu6 uses the first installed,
-Claude Code first. The choice is saved in `user-config/settings.json`, and
+dbu6 uses one coding agent for everything AI: Claude Code (`claude`), Codex
+(`codex`) or Pi (`pi`), installed and logged in on the machine running the
+server. It is chosen on the **Settings** screen; until then dbu6 uses the first
+installed, Claude Code first. The choice is saved in
+`user-config/settings.json`, and
 the agent's executable must be on the server's `PATH`.
 
 Everything the server does with an agent is in

@@ -76,13 +76,13 @@ describe("describeCategorizationProblem", () => {
         sent_count: 12,
         failed_count: 12,
         error:
-          "No coding agent found. Install Claude Code or Codex on the machine running dbu6.",
+          "No coding agent found. Install Claude Code or Codex or Pi on the machine running dbu6.",
         failure: "agent_unavailable",
       }),
     ).toEqual({
       text: "Couldn't categorize them automatically",
       reason:
-        "No coding agent found. Install Claude Code or Codex on the machine running dbu6.",
+        "No coding agent found. Install Claude Code or Codex or Pi on the machine running dbu6.",
     });
   });
 });

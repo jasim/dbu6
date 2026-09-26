@@ -63,6 +63,16 @@ const NONE = [
   { agent: "claude-code", installed: false, loggedIn: false },
   { agent: "codex", installed: false, loggedIn: false },
 ];
+const PI_ONLY = [
+  { agent: "claude-code", installed: false, loggedIn: false },
+  { agent: "codex", installed: false, loggedIn: false },
+  {
+    agent: "pi",
+    installed: true,
+    loggedIn: true,
+    binaryPath: "/sample/bin/pi",
+  },
+];
 
 const PROMPT =
   'Rerun with `curl -H "Authorization: Bearer $SAPPORTA_API_TOKEN"` and C:\\sample\\050505.';
@@ -86,7 +96,14 @@ beforeEach(async () => {
   detectLocalAgents.mockReset();
   localAgent.mockClear();
   direct.mockReset();
-  answering("opus", "sonnet", "gpt-5.6-sol", "gpt-5.6-terra");
+  answering(
+    "opus",
+    "sonnet",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "openai-codex/gpt-5.6-sol",
+    "openai-codex/gpt-5.6-terra",
+  );
   execFile.mockReset();
   execFile.mockImplementation((_file, _args, callback) =>
     callback(null, "", ""),
@@ -197,6 +214,18 @@ describe("handOffPrompt", () => {
     ]);
   });
 
+  it("runs Pi on its own provider-qualified model, trusting the project's files", async () => {
+    detectLocalAgents.mockResolvedValue(PI_ONLY);
+    await choose("pi");
+
+    const written = await handoff.handOffPrompt(PROMPT, "linux", root);
+
+    expect(written.agent).toBe("pi");
+    expect(await readFile(written.launcher_path, "utf8")).toContain(
+      `'--model' 'openai-codex/gpt-5.6-sol' '--approve' -- "$(cat '`,
+    );
+  });
+
   it("falls to the model that answered", async () => {
     detectLocalAgents.mockResolvedValue(CLAUDE_ONLY);
     answering("sonnet");
@@ -216,7 +245,7 @@ describe("handOffPrompt", () => {
     ).rejects.toMatchObject({
       error: "no_coding_agent",
       message:
-        "No coding agent found. Install Claude Code or Codex on the machine running dbu6.",
+        "No coding agent found. Install Claude Code or Codex or Pi on the machine running dbu6.",
     });
     await expect(stat(join(root, "tmp"))).rejects.toThrow();
   });

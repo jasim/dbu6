@@ -12,18 +12,19 @@ import { initContract } from "@sapporta/rest-core";
  * src/server/modules/coding-agent/.
  */
 
-export const codingAgentSchema = z.enum(["claude-code", "codex"]);
+export const codingAgentSchema = z.enum(["claude-code", "codex", "pi"]);
 export type CodingAgent = z.infer<typeof codingAgentSchema>;
 
 export const CODING_AGENTS = {
   "claude-code": { label: "Claude Code", signInCommand: "claude" },
   codex: { label: "Codex", signInCommand: "codex login" },
+  pi: { label: "Pi", signInCommand: "pi" },
 } as const satisfies Record<
   CodingAgent,
   { label: string; signInCommand: string }
 >;
 
-/** "Claude Code or Codex": the agents dbu6 works with, named. */
+/** "Claude Code or Codex or Pi": the agents dbu6 works with, named. */
 export const ANY_CODING_AGENT = codingAgentSchema.options
   .map((agent) => CODING_AGENTS[agent].label)
   .join(" or ");

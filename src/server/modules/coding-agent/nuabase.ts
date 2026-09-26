@@ -82,7 +82,7 @@ export async function detectAgents(): Promise<DetectedAgent[]> {
 export function llmFailureMessage(error: string): string {
   const message = error
     .replace(/^LLM call failed after \d+ attempts\. Last error: /, "")
-    .replace(/^(claude|codex): /, "");
+    .replace(/^(claude|codex|pi): /, "");
   try {
     const inner = (JSON.parse(message) as { error?: { message?: unknown } })
       .error?.message;

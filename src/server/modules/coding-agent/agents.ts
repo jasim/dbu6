@@ -38,8 +38,10 @@ import {
  * `autoModeArgs` put an interactive session in the agent's auto mode: its own
  * reviewer approves edits and commands and stops risky ones, so the user
  * answers questions but isn't asked for every step. Codex's auto review keeps
- * it in the workspace-write sandbox. Headless categorization has nothing to
- * approve and takes none of these.
+ * it in the workspace-write sandbox. Pi asks for no per-tool approval by
+ * default, so `--approve` only trusts the project's local files, which is
+ * what lets the session load AGENTS.md without stopping at a trust prompt.
+ * Headless categorization has nothing to approve and takes none of these.
  */
 export const CODING_AGENT_RUN = {
   "claude-code": {
@@ -55,6 +57,15 @@ export const CODING_AGENT_RUN = {
       { model: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
     ],
     autoModeArgs: ["--approve-for-me"],
+  },
+  pi: {
+    // Pi takes its own `provider/id` model names, not the aliases the others
+    // share, so the ChatGPT-plan models dbu6 already uses are named in full.
+    models: [
+      { model: "openai-codex/gpt-5.6-sol", label: "GPT-5.6 Sol" },
+      { model: "openai-codex/gpt-5.6-terra", label: "GPT-5.6 Terra" },
+    ],
+    autoModeArgs: ["--approve"],
   },
 } as const satisfies Record<
   CodingAgent,

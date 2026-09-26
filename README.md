@@ -94,9 +94,10 @@ belongs to. A parser of your own goes in your folder's
 For a layout that has no parser yet, ask your coding agent to write one. The
 guide that ships with dbu6 (`npx dbu6 docs parser-guide`) lets the agent
 create an accurate parser in a single shot, and the Import statements screen
-gives you the prompt: copy it, or, when Claude Code or Codex is installed on
-the machine running dbu6, click **Open in Claude Code** (or **Codex**,
-whichever Settings names) to start the agent on it in a new terminal window,
+gives you the prompt: copy it, or, when a coding agent (Claude Code, Codex or
+Pi) is installed on the machine running dbu6, click **Open in Claude Code**
+(or **Codex** or **Pi**, whichever Settings names) to start the agent on it in
+a new terminal window,
 in your books folder. (On Linux the button gives you a command to run in a
 terminal instead.) Every prompt asks the agent to show you its steps first
 and to do nothing until you say go. The guides are
@@ -122,7 +123,7 @@ Each imported transaction is assigned an account in two passes.
    Equity, from the Accounts table) and your written instructions on how to
    categorize. If the LLM is not confident, it leaves the entry blank for you.
 
-The LLM is the coding agent on your own machine, Claude Code or Codex, logged
+The LLM is the coding agent on your own machine, Claude Code, Codex or Pi, logged
 in with your own plan. dbu6 finds whichever is installed; **Settings** shows
 which one it uses and lets you switch. Without one, nothing is categorized
 automatically. If the LLM can't be reached, the import still goes through and

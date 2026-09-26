@@ -109,7 +109,7 @@ describe("/agent-handoff routes", () => {
     expect(await response.json()).toEqual({
       error: "no_coding_agent",
       message:
-        "No coding agent found. Install Claude Code or Codex on the machine running dbu6.",
+        "No coding agent found. Install Claude Code or Codex or Pi on the machine running dbu6.",
     });
   });
 
