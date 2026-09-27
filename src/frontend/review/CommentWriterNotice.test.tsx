@@ -56,7 +56,12 @@ beforeEach(() => {
       }
       if (method === "POST" && url.pathname.endsWith("/comment-writer/run")) {
         retried++;
-        status = { ...IDLE, running: true, pending: 12 };
+        status = {
+          ...status,
+          running: true,
+          pending: status.pending + status.failed,
+          failed: 0,
+        };
         return Response.json(status);
       }
       throw new Error(`Unexpected request: ${method} ${url}`);
@@ -114,6 +119,36 @@ describe("CommentWriterNotice", () => {
 
     expect(retried).toBe(1);
     expect(host.textContent).toBe("");
+  });
+
+  it("keeps saying the agent isn't answering through a Retry, until the run ends", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      status = { ...IDLE, pending: 30, last_error: "Sample agent failed." };
+      await render();
+
+      const retry = () =>
+        [...host.querySelectorAll("button")].find(
+          (button) => button.textContent === "Retry",
+        )!;
+      await act(async () => retry().click());
+      await settle();
+
+      // The run has only started: the agent may still not answer.
+      expect(retried).toBe(1);
+      expect(host.textContent).toContain("Your coding agent isn't answering");
+      expect(retry().disabled).toBe(true);
+
+      // The run gets past the agent, and the notice follows it.
+      status = { ...IDLE };
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      await settle();
+      expect(host.textContent).toBe("");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says when the coding agent isn't answering", async () => {

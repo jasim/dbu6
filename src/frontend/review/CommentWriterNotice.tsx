@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiErrorMessage, commentWriterApi } from "../api";
 import { plural } from "../format";
+import type { CommentWriterStatus } from "../../shared/index";
 import { commentWriterStatusQuery } from "../queries";
+
+// While a notice is up and a run is going, the status is read this often, so
+// the notice follows the run, a Retry's included, to its end.
+const RUNNING_POLL_MS = 3000;
 
 /**
  * One line, only when the comment writer has given up on some comments or
@@ -10,20 +15,23 @@ import { commentWriterStatusQuery } from "../queries";
  */
 export function CommentWriterNotice() {
   const queryClient = useQueryClient();
-  const status = useQuery(commentWriterStatusQuery);
+  const status = useQuery({
+    ...commentWriterStatusQuery,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.running && noticeFor(data) !== null
+        ? RUNNING_POLL_MS
+        : false;
+    },
+  });
   const retry = useMutation({
     mutationFn: () => commentWriterApi.retryCommentWriter({ body: {} }),
     onSuccess: (next) =>
       queryClient.setQueryData(commentWriterStatusQuery.queryKey, next),
   });
-  const shown = retry.data ?? status.data;
+  const shown = status.data;
   if (!shown) return null;
-  const message =
-    shown.last_error !== null
-      ? "Your coding agent isn't answering"
-      : shown.failed > 0
-        ? `Couldn't write ${plural(shown.failed, "comment")}`
-        : null;
+  const message = noticeFor(shown);
   if (message === null) return null;
   return (
     <p
@@ -48,4 +56,13 @@ export function CommentWriterNotice() {
       )}
     </p>
   );
+}
+
+/** What the notice says, or null when there is nothing to say. */
+function noticeFor(status: CommentWriterStatus): string | null {
+  if (status.last_error !== null) return "Your coding agent isn't answering";
+  if (status.failed > 0) {
+    return `Couldn't write ${plural(status.failed, "comment")}`;
+  }
+  return null;
 }

@@ -5,7 +5,10 @@ import {
   categorizationIdle,
   type CategorizationLlm,
 } from "../modules/categorization/index.js";
-import { categorizationLlm } from "../modules/coding-agent/index.js";
+import {
+  categorizationLlm,
+  recheckCodingAgentModels,
+} from "../modules/coding-agent/index.js";
 import {
   COMMENT_OUTPUT_FIELD,
   COMMENT_PROMPT,
@@ -47,12 +50,20 @@ export interface CommentWriterDeps {
   llm: () => Promise<CategorizationLlm>;
   /** Settles when no categorization is running. */
   categorizationIdle: () => Promise<void>;
+  /**
+   * Asks the engine again whether it answers, as Settings does, rather than
+   * trusting the check kept when it last didn't. Retry calls it first.
+   */
+  recheckEngine: () => Promise<unknown>;
 }
 
 export interface CommentWriter {
   /** Starts a run, or has the running one go round again. */
   trigger(): void;
-  /** Forgets the failures and the error, then triggers. */
+  /**
+   * Forgets the failures and triggers; when the engine wasn't answering, the
+   * run asks it again first. The error stays until a run gets past it.
+   */
   retry(): void;
   status(): CommentWriterStatus;
   /** Settles once no run is going. */
@@ -64,6 +75,8 @@ export function createCommentWriter(deps: CommentWriterDeps): CommentWriter {
   // Failed answers by text, until a retry or a restart.
   const failures = new Map<string, number>();
   let lastError: string | null = null;
+  // Set by a retry while the engine wasn't answering.
+  let recheck = false;
   let running: Promise<void> | null = null;
   let again = false;
 
@@ -116,6 +129,10 @@ export function createCommentWriter(deps: CommentWriterDeps): CommentWriter {
     if (texts.length === 0) {
       lastError = null;
       return;
+    }
+    if (recheck) {
+      recheck = false;
+      await deps.recheckEngine();
     }
     const llm = await deps.llm();
     if (!llm.caller.ready) {
@@ -179,7 +196,7 @@ export function createCommentWriter(deps: CommentWriterDeps): CommentWriter {
     },
     retry() {
       failures.clear();
-      lastError = null;
+      if (lastError !== null) recheck = true;
       writer.trigger();
     },
     status() {
@@ -201,17 +218,22 @@ export function createCommentWriter(deps: CommentWriterDeps): CommentWriter {
 
 let started: CommentWriter | null = null;
 
+// The server's engine: the one categorization runs on, asked again as
+// Settings asks it.
+const serverDeps = (db: BetterSQLite3Database): CommentWriterDeps => ({
+  db,
+  llm: categorizationLlm,
+  categorizationIdle,
+  recheckEngine: recheckCodingAgentModels,
+});
+
 /**
  * Starts the server's writer on its database and runs it: at startup, this
  * is what writes the comments still missing, the backlog after migration
  * 0012 included.
  */
 export function startCommentWriter(db: BetterSQLite3Database): void {
-  started = createCommentWriter({
-    db,
-    llm: categorizationLlm,
-    categorizationIdle,
-  });
+  started = createCommentWriter(serverDeps(db));
   started.trigger();
 }
 
@@ -228,14 +250,7 @@ export function writeCommentsSoon(): void {
 export function commentWriterStatus(
   db: BetterSQLite3Database,
 ): CommentWriterStatus {
-  return (
-    started ??
-    createCommentWriter({
-      db,
-      llm: categorizationLlm,
-      categorizationIdle,
-    })
-  ).status();
+  return (started ?? createCommentWriter(serverDeps(db))).status();
 }
 
 /** Retry: the server's writer forgets its failures and runs again. */

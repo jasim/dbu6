@@ -89,13 +89,15 @@ function fakeLlm(
 
 function writerOn(
   db: ReturnType<typeof books>["db"],
-  llm: CategorizationLlm,
+  llm: CategorizationLlm | (() => CategorizationLlm),
   categorizationIdle: () => Promise<void> = () => Promise.resolve(),
+  recheckEngine: () => Promise<unknown> = () => Promise.resolve(),
 ) {
   return createCommentWriter({
     db,
-    llm: async () => llm,
+    llm: async () => (typeof llm === "function" ? llm() : llm),
     categorizationIdle,
+    recheckEngine,
   });
 }
 
@@ -244,6 +246,58 @@ describe("the comment writer", () => {
       failed: 0,
       last_error: "Sample agent isn't answering.",
     });
+  });
+
+  it("keeps the agent's error through Retry, which asks the agent again", async () => {
+    const { sqlite, db } = books();
+    const down = fakeLlm(undefined, {
+      failCalls: true,
+      unavailable: "Sample agent isn't answering.",
+    }).llm;
+    const up = fakeLlm().llm;
+    // Down until the agent is asked again, as Settings would.
+    let engine = down;
+    let rechecks = 0;
+    const writer = writerOn(
+      db,
+      () => engine,
+      undefined,
+      async () => {
+        rechecks++;
+        engine = up;
+      },
+    );
+
+    writer.trigger();
+    await writer.settled();
+    expect(writer.status().last_error).toBe("Sample agent isn't answering.");
+
+    // Nothing is fixed yet when Retry answers, so the error is still there.
+    writer.retry();
+    expect(writer.status()).toMatchObject({
+      running: true,
+      last_error: "Sample agent isn't answering.",
+    });
+
+    await writer.settled();
+    expect(rechecks).toBe(1);
+    expect(writer.status()).toMatchObject({ running: false, last_error: null });
+    expect(comments(sqlite, "draft_transactions")[0]).toEqual({
+      id: 1,
+      comment: "UPI Sample Cafe",
+    });
+  });
+
+  it("asks the agent again only when it wasn't answering", async () => {
+    const { db } = books();
+    let rechecks = 0;
+    const writer = writerOn(db, fakeLlm().llm, undefined, async () => {
+      rechecks++;
+    });
+
+    writer.retry();
+    await writer.settled();
+    expect(rechecks).toBe(0);
   });
 
   it("counts a failed call against its texts when the agent still answers", async () => {
