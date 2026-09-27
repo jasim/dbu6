@@ -45,7 +45,7 @@ export async function chartLlm(): Promise<ChartLlm> {
     case "agent": {
       const { agent } = engine;
       const { model } = engine.models.session;
-      const key = `${agent.agent}:${agent.binaryPath}:${model}`;
+      const key = `${agent.agent}:${agent.binaryPath}:${model ?? "default"}`;
       let llm = clients.get(key);
       if (llm === undefined) {
         llm = {

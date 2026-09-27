@@ -5,16 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DetectedAgent, InstalledAgent } from "./nuabase.js";
 
 // Nuabase is stubbed: each test says which models answer.
-const { detectLocalAgents, localAgent, direct, piModelCandidates } =
-  vi.hoisted(() => ({
-    detectLocalAgents: vi.fn(),
-    localAgent: vi.fn((config: { model: string }) => config),
-    direct: vi.fn(),
-    piModelCandidates: vi.fn(),
-  }));
+const { detectLocalAgents, localAgent, direct } = vi.hoisted(() => ({
+  detectLocalAgents: vi.fn(),
+  localAgent: vi.fn((config: { model: string }) => config),
+  direct: vi.fn(),
+}));
 vi.mock("nuabase/local-agent", () => ({ detectLocalAgents, localAgent }));
 vi.mock("nuabase", () => ({ Nua: { direct } }));
-vi.mock("./pi-models.js", () => ({ piModelCandidates }));
 
 // The module keeps each agent's check, so each test loads it afresh.
 let models: typeof import("./models.js");
@@ -42,26 +39,15 @@ const PI: InstalledAgent = {
 
 const SOL = { model: "gpt-5.6-sol", label: "GPT-5.6 Sol" };
 const TERRA = { model: "gpt-5.6-terra", label: "GPT-5.6 Terra" };
-const DEEPSEEK = {
-  model: "~deepseek/deepseek-flash-latest",
-  label: "DeepSeek Flash",
-};
-const GLM = { model: "~z-ai/glm-latest", label: "GLM" };
-const KIMI = { model: "~moonshotai/kimi-latest", label: "Kimi" };
-const PI_SOL = { model: "openai-codex/gpt-5.6-sol", label: "GPT-5.6 Sol" };
-const PI_TERRA = {
-  model: "openai-codex/gpt-5.6-terra",
-  label: "GPT-5.6 Terra",
-};
 
-function refusal(model: string): string {
+function refusal(model: string | undefined): string {
   return `codex: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The '${model}' model is not supported on this sample account."}}`;
 }
 
-/** Only these models answer; the rest are refused. */
-function answering(...answered: string[]) {
+/** Only these models answer; the rest are refused. `undefined` is the default. */
+function answering(...answered: (string | undefined)[]) {
   direct.mockImplementation(
-    ({ localAgent: config }: { localAgent: { model: string } }) => ({
+    ({ localAgent: config }: { localAgent: { model?: string } }) => ({
       get: async () =>
         answered.includes(config.model)
           ? { success: true, data: "OK" }
@@ -70,7 +56,7 @@ function answering(...answered: string[]) {
   );
 }
 
-function askedModels(): string[] {
+function askedModels(): (string | undefined)[] {
   return localAgent.mock.calls.map(([config]) => config.model);
 }
 
@@ -83,7 +69,6 @@ beforeEach(async () => {
   detectLocalAgents.mockReset();
   localAgent.mockClear();
   direct.mockReset();
-  piModelCandidates.mockReset();
   // startCodingAgent logs the chosen agent, which reads user-config.
   projectDir = await mkdtemp(join(tmpdir(), "dbu6-agent-models-"));
   vi.stubEnv("DBU6_ROOT", projectDir);
@@ -201,28 +186,16 @@ describe("agentModels", () => {
     ]);
   });
 
-  it("asks Pi's models in preference order and opens prompts on the first that answers", async () => {
-    piModelCandidates.mockResolvedValue([
-      DEEPSEEK,
-      GLM,
-      KIMI,
-      PI_SOL,
-      PI_TERRA,
-    ]);
-    answering("~z-ai/glm-latest", "~moonshotai/kimi-latest");
+  it("asks Pi only its configured default, naming no model", async () => {
+    answering(undefined);
 
-    expect(await models.agentModels(PI)).toMatchObject({
+    expect(await models.agentModels(PI)).toEqual({
       state: "ready",
-      session: GLM,
-      categorization: KIMI,
+      session: { label: "Pi's default" },
+      categorization: { label: "Pi's default" },
+      unavailable: [],
     });
-    expect(askedModels()).toEqual([
-      "~deepseek/deepseek-flash-latest",
-      "~z-ai/glm-latest",
-      "~moonshotai/kimi-latest",
-      "openai-codex/gpt-5.6-sol",
-      "openai-codex/gpt-5.6-terra",
-    ]);
+    expect(askedModels()).toEqual([undefined]);
   });
 
   it("keeps a check where a model answered", async () => {

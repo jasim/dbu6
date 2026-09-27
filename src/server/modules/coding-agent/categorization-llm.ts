@@ -102,7 +102,7 @@ export async function confirmAgentUnavailable(
 /** Categorization on a coding agent, on one of its models. */
 export function localAgentLlm(
   agent: InstalledAgent,
-  model: string,
+  model: string | undefined,
 ): CategorizationLlm {
   return {
     agent: agent.agent,
@@ -202,7 +202,7 @@ export async function categorizationLlm(): Promise<CategorizationLlm> {
     case "agent": {
       const { agent } = engine;
       const { model } = engine.models.categorization;
-      const key = `${agent.agent}:${agent.binaryPath}:${model}`;
+      const key = `${agent.agent}:${agent.binaryPath}:${model ?? "default"}`;
       let llm = localAgents.get(key);
       if (llm === undefined) {
         llm = localAgentLlm(agent, model);

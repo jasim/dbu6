@@ -657,7 +657,6 @@ through its `index.ts`:
 | Module | What it holds |
 | --- | --- |
 | `agents.ts` | `CODING_AGENT_RUN`: each agent's models, most capable first, and its auto-mode options. Detection, the saved choice, and which agent is active. |
-| `pi-models.ts` | Pi's model candidates, in preference order, built per machine from Pi's configured default and dbu6's preferred OpenRouter models. |
 | `models.ts` | Which of an agent's models answer on this machine, and when to ask again. |
 | `nuabase.ts` | The only import of `nuabase`; every call into it and every value out of it. |
 | `categorization-llm.ts` | The engine categorization runs on: the agent, or the deprecated gateway. |
@@ -676,10 +675,9 @@ entry in each of those two tables.
   reply at startup, for every signed-in agent, and logs what it found. It asks
   again when a prompt or categorization needs a model and none answered last
   time, and when **Check models again** is pressed on Settings, which shows the
-  models and why any didn't answer. Pi's candidate list is the exception to a
-  fixed order: `pi-models.ts` starts with Pi's own configured default, then the
-  OpenRouter models dbu6 prefers (DeepSeek Flash, GLM, Kimi), then the
-  ChatGPT-plan models, keeping only the models Pi has credentials for.
+  models and why any didn't answer. Pi is the exception: dbu6 names no model
+  for it, so Pi runs whatever default is configured in Pi (`settings.json`),
+  and the check only confirms that default answers.
 - **Categorization** runs headless (`Nua.direct` with `localAgent`), on the
   least capable model that answered, billed to your own Claude or ChatGPT plan
   rather than an API key. Nothing is cached, so reclassifying sends every

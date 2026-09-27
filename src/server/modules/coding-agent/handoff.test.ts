@@ -29,10 +29,10 @@ vi.mock("node:child_process", async (importOriginal) => ({
 // Detection and the model checks are kept, so each test loads it afresh.
 let handoff: typeof import("./handoff.js");
 
-/** Only these models answer. */
-function answering(...answered: string[]) {
+/** Only these models answer; `undefined` is the agent's own default. */
+function answering(...answered: (string | undefined)[]) {
   direct.mockImplementation(
-    ({ localAgent: config }: { localAgent: { model: string } }) => ({
+    ({ localAgent: config }: { localAgent: { model?: string } }) => ({
       get: async () =>
         answered.includes(config.model)
           ? { success: true, data: "OK" }
@@ -96,14 +96,7 @@ beforeEach(async () => {
   detectLocalAgents.mockReset();
   localAgent.mockClear();
   direct.mockReset();
-  answering(
-    "opus",
-    "sonnet",
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "openai-codex/gpt-5.6-sol",
-    "openai-codex/gpt-5.6-terra",
-  );
+  answering("opus", "sonnet", "gpt-5.6-sol", "gpt-5.6-terra", undefined);
   execFile.mockReset();
   execFile.mockImplementation((_file, _args, callback) =>
     callback(null, "", ""),
@@ -214,16 +207,16 @@ describe("handOffPrompt", () => {
     ]);
   });
 
-  it("runs Pi on its own provider-qualified model, trusting the project's files", async () => {
+  it("runs Pi without naming a model, trusting the project's files", async () => {
     detectLocalAgents.mockResolvedValue(PI_ONLY);
     await choose("pi");
 
     const written = await handoff.handOffPrompt(PROMPT, "linux", root);
 
     expect(written.agent).toBe("pi");
-    expect(await readFile(written.launcher_path, "utf8")).toContain(
-      `'--model' 'openai-codex/gpt-5.6-sol' '--approve' -- "$(cat '`,
-    );
+    const launcher = await readFile(written.launcher_path, "utf8");
+    expect(launcher).toContain(`'/sample/bin/pi' '--approve' -- "$(cat '`);
+    expect(launcher).not.toContain("--model");
   });
 
   it("falls to the model that answered", async () => {

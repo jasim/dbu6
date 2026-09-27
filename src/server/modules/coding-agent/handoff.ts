@@ -111,7 +111,7 @@ export async function handOffPrompt(
 async function writeHandoffFiles(
   root: string,
   { agent, binaryPath }: InstalledAgent,
-  model: string,
+  model: string | undefined,
   prompt: string,
 ): Promise<Omit<AgentHandoff, "agent" | "mode">> {
   const dir = join(root, ...PROMPTS_DIR);
@@ -126,7 +126,11 @@ async function writeHandoffFiles(
     launcherScript({
       projectRoot: root,
       binaryPath,
-      agentArgs: ["--model", model, ...CODING_AGENT_RUN[agent].autoModeArgs],
+      // Pi names no model, so it runs its own configured default.
+      agentArgs: [
+        ...(model === undefined ? [] : ["--model", model]),
+        ...CODING_AGENT_RUN[agent].autoModeArgs,
+      ],
       promptPath,
     }),
     { mode: 0o700, flag: "wx" },

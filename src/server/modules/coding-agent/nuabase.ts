@@ -127,10 +127,13 @@ const CHECK_PROMPT = "Reply with the single word OK.";
 export type ModelReply =
   { answered: true } | { answered: false; reason: string };
 
-/** Asks one model of an installed agent whether it answers at all. */
+/**
+ * Asks one model of an installed agent whether it answers at all. An undefined
+ * model runs the agent's own configured default, as Pi's one candidate does.
+ */
 export async function askModel(
   agent: InstalledAgent,
-  model: string,
+  model: string | undefined,
 ): Promise<ModelReply> {
   try {
     const nua: UntypedNua = Nua.direct({
@@ -164,7 +167,7 @@ export async function askModel(
 /** Categorization on one of an installed agent's own models. */
 export function agentListClient(
   agent: InstalledAgent,
-  model: string,
+  model: string | undefined,
 ): ListClient {
   const nua: UntypedNua = Nua.direct({
     localAgent: localAgent({
@@ -224,7 +227,7 @@ function listClient(
 /** One structured answer on one of an installed agent's own models. */
 export function agentGetClient(
   agent: InstalledAgent,
-  model: string,
+  model: string | undefined,
 ): GetClient {
   const nua: UntypedNua = Nua.direct({
     localAgent: localAgent({

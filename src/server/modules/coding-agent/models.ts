@@ -12,7 +12,6 @@ import {
   currentCodingAgent,
   logCodingAgent,
 } from "./agents.js";
-import { piModelCandidates } from "./pi-models.js";
 import {
   askModel,
   type DetectedAgent,
@@ -21,9 +20,9 @@ import {
 
 /*
  * Which of an agent's models answer on this machine's login. The candidates
- * are the agent's fixed list (agents.ts), except Pi's, which are chosen per
- * machine in preference order (pi-models.ts). Codex refuses GPT-5.6 Sol on
- * some ChatGPT accounts, so dbu6 asks each candidate for a one-word reply:
+ * are the agent's list (agents.ts); Pi's is its one configured default. Codex
+ * refuses GPT-5.6 Sol on some ChatGPT accounts, so dbu6 asks each candidate
+ * for a one-word reply:
  *
  * - at startup, for the agent dbu6 will use, when it has no check yet;
  * - when Settings shows a signed-in agent that has no check yet;
@@ -118,16 +117,6 @@ function runningCheck(agent: InstalledAgent): Running | undefined {
   return check?.binaryPath === agent.binaryPath ? check : undefined;
 }
 
-/**
- * The models to probe for an agent: Pi's are built per machine, in the
- * order dbu6 prefers them (pi-models.ts); the others are fixed lists.
- */
-function candidateModels(agent: InstalledAgent): Promise<readonly AgentModel[]> {
-  return agent.agent === "pi"
-    ? piModelCandidates(agent)
-    : Promise.resolve(CODING_AGENT_RUN[agent.agent].models);
-}
-
 function checkModels(
   agent: InstalledAgent,
   again: boolean,
@@ -136,11 +125,11 @@ function checkModels(
   if (underWay !== undefined) return underWay.models;
   const stored = again ? null : storedCheck(agent);
   if (stored !== null) return Promise.resolve(stored);
-  const models = candidateModels(agent)
-    .then((candidates) =>
-      Promise.all(candidates.map((model) => checkModel(agent, model))),
-    )
-    .then(agentModelsFrom);
+  const models = Promise.all(
+    CODING_AGENT_RUN[agent.agent].models.map((model) =>
+      checkModel(agent, model),
+    ),
+  ).then(agentModelsFrom);
   const started: Running = { binaryPath: agent.binaryPath, models };
   running.set(agent.agent, started);
   void models.then((settled) => {
@@ -198,13 +187,13 @@ export async function startCodingAgent(): Promise<void> {
 function logAgentModels(agent: CodingAgent, models: CheckedAgentModels) {
   const label = CODING_AGENTS[agent].label;
   const unavailable = models.unavailable
-    .map((model) => `${model.model} didn't answer (${model.reason})`)
+    .map((model) => `${model.label} didn't answer (${model.reason})`)
     .join("; ");
   if (models.state === "no_model") {
     console.warn(`[coding-agent] ${label} can't be used: ${unavailable}`);
     return;
   }
   console.log(
-    `[coding-agent] ${label}: prompts open on ${models.session.model}, categorization runs on ${models.categorization.model}${unavailable && `; ${unavailable}`}`,
+    `[coding-agent] ${label}: prompts open on ${models.session.label}, categorization runs on ${models.categorization.label}${unavailable && `; ${unavailable}`}`,
   );
 }

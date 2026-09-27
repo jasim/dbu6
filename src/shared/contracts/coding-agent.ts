@@ -41,9 +41,13 @@ export type LlmStatus = z.infer<typeof llmStatusSchema>;
 
 const c = initContract();
 
-/** One of the models dbu6 runs an agent on, by the agent's own name for it. */
+/**
+ * One of the models dbu6 runs an agent on, by the agent's own name for it. An
+ * absent `model` means the agent's own configured default: dbu6 runs it
+ * without naming a model.
+ */
 export const agentModelSchema = z.object({
-  model: z.string(),
+  model: z.string().optional(),
   label: z.string(),
 });
 export type AgentModel = z.infer<typeof agentModelSchema>;
