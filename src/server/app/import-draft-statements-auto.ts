@@ -30,6 +30,7 @@ import {
   type StagedUploads,
 } from "./upload-tmp.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
+import { writeCommentsSoon } from "../workflows/comment-writer.js";
 
 // Automatic statement import: the user uploads statement files, and
 // optionally a Google Pay Takeout, and nothing else.
@@ -245,6 +246,8 @@ async function importStaged(
       ledger,
       loadCategorizer,
     );
+    // The new drafts' comments, in the background.
+    writeCommentsSoon();
     // The outcome keys a file by the name it was uploaded under, which is how
     // its staged copy is found again.
     const stagedAt = new Map(

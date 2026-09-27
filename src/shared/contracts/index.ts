@@ -247,3 +247,8 @@ export {
   type AddAccountRefusal,
   type AddProgress,
 } from "./add-account.js";
+export {
+  commentWriterContract,
+  commentWriterStatusSchema,
+  type CommentWriterStatus,
+} from "./comment-writer.js";

@@ -24,6 +24,7 @@ import {
   type StagedUploads,
 } from "./upload-tmp.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
+import { writeCommentsSoon } from "../workflows/comment-writer.js";
 
 /*
  * Adding a bank or card from its statements (/add); the owner's only. The
@@ -111,6 +112,8 @@ export default function addAccountApi(
               : (event) =>
                   running.set(id, nextProgress(running.get(id), event)),
           );
+          // The new drafts' comments, in the background.
+          writeCommentsSoon();
           if (done.ok) return { status: 200 as const, body: done.added };
           return addRefusal(done);
         });

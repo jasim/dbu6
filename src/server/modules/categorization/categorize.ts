@@ -18,6 +18,7 @@ import {
   type StatementTransaction,
 } from "./llm-categorization.js";
 import { PROMPT_TEMPLATE } from "./prompt-template.js";
+import { whileCategorizing } from "./categorizing.js";
 
 /*
  * Categorization below its top: what `loadCategorizer` read, applied to
@@ -87,9 +88,20 @@ export interface Categorization {
  * Each row's account: the mapping rules first, the LLM for the rest, choosing
  * from the ledger's accounts, then the ledger account the answer names, left
  * out when it is the row's own base account. With the report of how the LLM
- * fared.
+ * fared. Counted as categorization while it runs (`categorizationIdle`).
  */
-export async function categorize(
+export function categorize(
+  categorizer: Categorizer,
+  rows: readonly CategorizationRow[],
+  accountsByName: AccountsByName,
+  onProgress?: OnCategorizationProgress,
+): Promise<Categorization> {
+  return whileCategorizing(() =>
+    categorizeRows(categorizer, rows, accountsByName, onProgress),
+  );
+}
+
+async function categorizeRows(
   categorizer: Categorizer,
   rows: readonly CategorizationRow[],
   accountsByName: AccountsByName,

@@ -1,9 +1,9 @@
 // The drafts module: draft rows from categorized statement rows, saving them
 // and placing their balance assertions, loading them back categorized,
-// reclassifying and clearing them, what an account's drafts hold, whether a
-// bank or card has transactions of its own, where drafts begin, and the
-// lessons the user teaches the categoriser from them. Import from here
-// rather than from the files.
+// reclassifying and clearing them, the comments the comment writer fills,
+// what an account's drafts hold, whether a bank or card has transactions of
+// its own, where drafts begin, and the lessons the user teaches the
+// categoriser from them. Import from here rather than from the files.
 export {
   partitionByCategorization,
   type CategorizedDraft,
@@ -28,6 +28,7 @@ export {
   type DraftRow,
   type PersistSummary,
 } from "./draft-persistence.js";
+export { uncommentedDraftTexts, writeDraftComment } from "./draft-comments.js";
 export {
   countDraftsByAccount,
   countDraftsByBaseAccount,

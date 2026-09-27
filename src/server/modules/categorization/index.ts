@@ -14,6 +14,7 @@ export {
   type Categorizer,
   type SameAccountSkip,
 } from "./categorize.js";
+export { categorizationIdle } from "./categorizing.js";
 export type {
   AccountsByName,
   CategorizedTransaction,

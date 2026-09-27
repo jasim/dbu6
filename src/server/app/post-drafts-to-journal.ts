@@ -9,6 +9,7 @@ import {
 } from "../../shared/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { postDrafts } from "../workflows/posting.js";
+import { writeCommentsSoon } from "../workflows/comment-writer.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
 
 const api = new TsRestApi<SapportaEnv>();
@@ -37,6 +38,8 @@ export function postDraftsToJournal(
   base_account_id: number,
 ): PostingResponse {
   const outcome = postDrafts(ledger, base_account_id);
+  // Entries posted after the writer's last run get their comments now.
+  if (outcome.kind === "posted") writeCommentsSoon();
   switch (outcome.kind) {
     case "account-not-found":
       return { status: 404, body: { error: "Base account not found" } };

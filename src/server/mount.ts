@@ -23,6 +23,7 @@ import agentHandoffApi from "./app/agent-handoff.js";
 import categorizationLessonsApi from "./app/categorization-lessons.js";
 import classifyDraftTransactionsApi from "./app/classify-draft-transactions.js";
 import codingAgentApi from "./app/coding-agent.js";
+import commentWriterApi from "./app/comment-writer.js";
 import homeApi from "./app/home.js";
 import importDraftAbacusApi from "./app/import-draft-abacus.js";
 import importDraftStatementsAutoApi from "./app/import-draft-statements-auto.js";
@@ -39,6 +40,7 @@ import {
   llmEngineSetting,
   startCodingAgent,
 } from "./modules/coding-agent/index.js";
+import { startCommentWriter } from "./workflows/comment-writer.js";
 import type { DataLock } from "./data-lock.js";
 import type { Dbu6Runtime } from "./runtime.js";
 
@@ -114,6 +116,7 @@ export function loadDbu6App(
   mountApi(api, addAccountApi(loadCategorizer));
   mountApi(api, agentHandoffApi);
   mountApi(api, codingAgentApi);
+  mountApi(api, commentWriterApi);
 }
 
 /**
@@ -183,6 +186,9 @@ export function serveDbu6(
   startCodingAgent().catch((error: unknown) => {
     console.error("[coding-agent] startup check failed:", error);
   });
+  // Writes the comments still missing, the backlog after migration 0012
+  // included. It waits on the coding agent's check, and on categorization.
+  startCommentWriter(runtime.conn.db);
 
   const port = runtime.env.apiPort;
   const server = serve({ fetch: app.fetch, port }, () => {

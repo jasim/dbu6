@@ -11,6 +11,7 @@ import type { Ledger } from "../modules/ledger-sql/index.js";
 import { importFreeformStatement } from "../workflows/statement-import/index.js";
 import { respondWithImportErrors } from "./import-error-response.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
+import { writeCommentsSoon } from "../workflows/comment-writer.js";
 
 // Import of one Abacus statement posted as JSON by a coding agent, for
 // freeform transactions (custom-built-parsers/freeform-transactions-guide.md).
@@ -47,6 +48,8 @@ export async function importAbacusStatement(
       loadCategorizer,
     ),
   );
+  // The new drafts' comments, in the background.
+  writeCommentsSoon();
   if (response.status !== 200) return response;
   return {
     status: 200,
