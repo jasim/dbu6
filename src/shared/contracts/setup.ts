@@ -188,8 +188,9 @@ export const statementAccountsSchema = z.object({
     bank: z.array(chartChoiceSchema),
     card: z.array(chartChoiceSchema),
   }),
-  // The parent most preset accounts of the same kind sit under; null with
-  // none, when the user picks one. Never inferred from names.
+  // The parent most preset accounts of the same kind sit under; with none,
+  // the type's top account when it has one (Assets, Liabilities); else
+  // null, and the user picks one. Never inferred from names.
   default_parents: z.object({
     bank: z.number().int().nullable(),
     card: z.number().int().nullable(),

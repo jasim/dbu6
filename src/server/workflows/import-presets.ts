@@ -437,6 +437,14 @@ export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
       (account) => account.account_type === LEDGER_ACCOUNT_TYPE[kind],
     );
   const parentsOf = (kind: AccountKind) => sharedParents(accounts, kind);
+  // With no bank or card of the kind to follow, the type's top account,
+  // when it has just one: a new account always has somewhere to sit.
+  const defaultParent = (kind: AccountKind) => {
+    const tops = ofKind(kind).filter((account) => account.parent_id === null);
+    return (
+      parentsOf(kind).mostShared ?? (tops.length === 1 ? tops[0].id : null)
+    );
+  };
   const listed = new Set(accounts.map((row) => row.account_id));
   const parents = new Set(chart.map((account) => account.parent_id));
 
@@ -448,8 +456,8 @@ export function loadStatementAccounts(ledger: Ledger): StatementAccounts {
       card: ofKind("card").map(choice),
     },
     default_parents: {
-      bank: parentsOf("bank").mostShared,
-      card: parentsOf("card").mostShared,
+      bank: defaultParent("bank"),
+      card: defaultParent("card"),
     },
     mixed_parents: {
       bank: parentsOf("bank").mixed,

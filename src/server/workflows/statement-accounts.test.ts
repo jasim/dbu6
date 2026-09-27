@@ -156,7 +156,8 @@ describe("creating a bank or card", () => {
         drafts: 0,
       },
     ]);
-    expect(accounts.default_parents).toEqual({ bank: 2, card: null });
+    // No card yet: its type's top account.
+    expect(accounts.default_parents).toEqual({ bank: 2, card: 3 });
     expect(accounts.mixed_parents).toEqual({ bank: false, card: false });
   });
 
@@ -187,7 +188,7 @@ describe("creating a bank or card", () => {
       }),
     );
 
-    expect(accounts.default_parents).toEqual({ bank: 2, card: null });
+    expect(accounts.default_parents).toEqual({ bank: 2, card: 3 });
     expect(accounts.mixed_parents).toEqual({ bank: true, card: false });
   });
 
