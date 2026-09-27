@@ -11,8 +11,9 @@ import { accountsTable } from "./accounts.js";
  * only through `/categorization-lessons` (app/categorization-lessons.ts): the
  * table API can read them and nothing else, as with import_presets.
  *
- * The narrations are copied from the drafts, which are gone once posted. A
- * lesson about an account that is deleted goes with it.
+ * The drafts' date, narration, direction and amount are copied, since the
+ * drafts are gone once posted. A lesson about an account that is deleted goes
+ * with it.
  */
 export const categorizationLessonsTable = sqliteTable(
   "categorization_lessons",
@@ -28,8 +29,11 @@ export const categorizationLessonsTable = sqliteTable(
     account_id: integer("account_id")
       .notNull()
       .references(() => accountsTable.id, { onDelete: "cascade" }),
-    /** JSON: the drafts' narrations, `string[]`. */
-    narrations: text("narrations").notNull(),
+    /**
+     * JSON: the drafts, `{ date, narration, direction, amount }[]`, as
+     * `categorizationLessonTransactionSchema` (shared/contracts) reads them.
+     */
+    transactions: text("transactions").notNull(),
     // What the user added for next time, or "".
     note: text("note").notNull().default(""),
     created_at: timestamp("created_at")

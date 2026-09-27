@@ -18,7 +18,7 @@ import {
   classifyDraftTransactions,
   forgetCategorizationLesson,
   forgetCategorizationLessons,
-  setDraftsCategory,
+  setDraftsAccount,
   teachCategorization,
 } from "./reclassification.js";
 
@@ -123,60 +123,60 @@ describe("classifyDraftTransactions", () => {
   });
 });
 
-describe("setDraftsCategory", () => {
-  const category = (sqlite: Database.Database) =>
+describe("setDraftsAccount", () => {
+  const account = (sqlite: Database.Database) =>
     sqlite
       .prepare("SELECT account_id FROM draft_transactions WHERE id = 1")
       .get();
 
-  it("gives the drafts the category", () => {
+  it("sends the drafts to the account", () => {
     const { db, sqlite } = setupDatabase();
-    expect(setDraftsCategory({ db, sqlite, auth }, [1, 1], 2)).toEqual({
+    expect(setDraftsAccount({ db, sqlite, auth }, [1, 1], 2)).toEqual({
       kind: "set",
       updated: 1,
     });
-    expect(category(sqlite)).toEqual({ account_id: 2 });
+    expect(account(sqlite)).toEqual({ account_id: 2 });
   });
 
   it("changes nothing for an account that isn't in the books", () => {
     const { db, sqlite } = setupDatabase();
-    expect(setDraftsCategory({ db, sqlite, auth }, [1], 99)).toEqual({
+    expect(setDraftsAccount({ db, sqlite, auth }, [1], 99)).toEqual({
       kind: "account-not-found",
     });
-    expect(category(sqlite)).toEqual({ account_id: null });
+    expect(account(sqlite)).toEqual({ account_id: null });
   });
 
   it("changes nothing when a draft isn't there", () => {
     const { db, sqlite } = setupDatabase();
-    expect(setDraftsCategory({ db, sqlite, auth }, [1, 7], 2)).toEqual({
+    expect(setDraftsAccount({ db, sqlite, auth }, [1, 7], 2)).toEqual({
       kind: "drafts-not-found",
       ids: [7],
     });
-    expect(category(sqlite)).toEqual({ account_id: null });
+    expect(account(sqlite)).toEqual({ account_id: null });
   });
 
   it("refuses the drafts' own base account", () => {
     const { db, sqlite } = setupDatabase();
-    expect(setDraftsCategory({ db, sqlite, auth }, [1], 1)).toEqual({
+    expect(setDraftsAccount({ db, sqlite, auth }, [1], 1)).toEqual({
       kind: "own-account",
     });
-    expect(category(sqlite)).toEqual({ account_id: null });
+    expect(account(sqlite)).toEqual({ account_id: null });
   });
 });
 
 describe("teachCategorization", () => {
-  const categories = (sqlite: Database.Database) =>
+  const accounts = (sqlite: Database.Database) =>
     sqlite
       .prepare("SELECT id, account_id FROM draft_transactions ORDER BY id")
       .all();
 
-  it("records the lesson and leaves the drafts without a category", () => {
+  it("records the lesson, its drafts oldest first, and leaves them without an account", () => {
     const { db, sqlite } = setupDatabase();
     const ledger = { db, sqlite, auth };
     addDraft(db, 3, "UPI debit again", 1);
 
     const outcome = teachCategorization(ledger, {
-      draftIds: [1, 3],
+      draftIds: [3, 1],
       accountId: 2,
       note: "  A coffee shop.  ",
     });
@@ -185,11 +185,24 @@ describe("teachCategorization", () => {
       id: 1,
       base_account_id: 1,
       account: { id: 2, name: "Coffee" },
-      narrations: ["UPI debit", "UPI debit again"],
+      transactions: [
+        {
+          date: "2026-04-24",
+          narration: "UPI debit",
+          direction: "withdrawal",
+          amount: 250,
+        },
+        {
+          date: "2026-04-25",
+          narration: "UPI debit again",
+          direction: "withdrawal",
+          amount: 1000,
+        },
+      ],
       note: "A coffee shop.",
     };
     expect(outcome).toEqual({ kind: "taught", lesson });
-    expect(categories(sqlite)).toEqual([
+    expect(accounts(sqlite)).toEqual([
       { id: 1, account_id: null },
       { id: 3, account_id: null },
     ]);
@@ -205,14 +218,14 @@ describe("teachCategorization", () => {
     expect(
       teachCategorization(ledger, { draftIds: [1, 3], accountId: 2, note: "" }),
     ).toEqual({ kind: "not-one-account" });
-    expect(categories(sqlite)).toEqual([
+    expect(accounts(sqlite)).toEqual([
       { id: 1, account_id: null },
       { id: 3, account_id: null },
     ]);
     expect(loadCategorizationLessons(db, auth, 1)).toEqual([]);
   });
 
-  it("records no lesson when the category is refused", () => {
+  it("records no lesson when the account is refused", () => {
     const { db, sqlite } = setupDatabase();
     const ledger = { db, sqlite, auth };
 
@@ -302,7 +315,7 @@ function setupDatabase() {
       scoped_to_user_id TEXT NOT NULL,
       base_account_id INTEGER NOT NULL,
       account_id INTEGER NOT NULL,
-      narrations TEXT NOT NULL,
+      transactions TEXT NOT NULL,
       note TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL
     );

@@ -6,7 +6,11 @@ import type {
 } from "../../shared/index.js";
 import type { Abacus } from "../modules/statement/index.js";
 import { enrichWithGPay, parseGPayHtml } from "../modules/gpay/index.js";
-import { moneyFromColumns } from "../modules/values/index.js";
+import {
+  amount,
+  direction,
+  moneyFromColumns,
+} from "../modules/values/index.js";
 import {
   categorize,
   tallyCategorization,
@@ -104,21 +108,21 @@ export async function classifyDraftTransactions(input: {
   };
 }
 
-export type SetDraftsCategoryOutcome =
+export type SetDraftsAccountOutcome =
   | { kind: "set"; updated: number }
   | { kind: "account-not-found" }
   | { kind: "drafts-not-found"; ids: number[] }
   | { kind: "own-account" };
 
-// Give every draft the one category the user chose, or none of them when the
-// category isn't in the books, a draft isn't, or the category is a draft's
+// Send every draft to the one account the user chose, or none of them when
+// the account isn't in the books, a draft isn't, or the account is a draft's
 // own base account.
-export function setDraftsCategory(
+export function setDraftsAccount(
   ledger: Ledger,
   ids: readonly number[],
   accountId: number,
-): SetDraftsCategoryOutcome {
-  const checked = checkDraftsCategory(ledger, ids, accountId);
+): SetDraftsAccountOutcome {
+  const checked = checkDraftsAccount(ledger, ids, accountId);
   if (checked.kind !== "valid") return checked;
   saveReclassifiedDrafts(
     ledger.db,
@@ -134,13 +138,13 @@ export function setDraftsCategory(
 
 // The drafts, when they may all go to the account: it is in the books, so is
 // every draft, and it isn't a draft's own base account.
-function checkDraftsCategory(
+function checkDraftsAccount(
   ledger: Ledger,
   ids: readonly number[],
   accountId: number,
 ):
   | { kind: "valid"; drafts: ReturnType<typeof loadDraftsById> }
-  | Exclude<SetDraftsCategoryOutcome, { kind: "set" }> {
+  | Exclude<SetDraftsAccountOutcome, { kind: "set" }> {
   const { db, auth } = ledger;
   const accounts = [...loadAccountsByName(db, auth).values()];
   if (!accounts.some((account) => account.id === accountId)) {
@@ -163,13 +167,13 @@ function checkDraftsCategory(
 
 export type TeachCategorizationOutcome =
   | { kind: "taught"; lesson: CategorizationLesson }
-  | Exclude<SetDraftsCategoryOutcome, { kind: "set" }>
+  | Exclude<SetDraftsAccountOutcome, { kind: "set" }>
   | { kind: "not-one-account" };
 
 /**
  * Records that drafts of one statement account go to the account the user
  * chose, as a lesson for the coding agent to turn into a rule. The drafts
- * keep no category: the categorizer gives them one once the rule is in.
+ * keep no account: the categorizer gives them one once the rule is in.
  */
 export function teachCategorization(
   ledger: Ledger,
@@ -177,7 +181,7 @@ export function teachCategorization(
 ): TeachCategorizationOutcome {
   const { auth } = ledger;
   return ledger.db.transaction((tx: any): TeachCategorizationOutcome => {
-    const checked = checkDraftsCategory(
+    const checked = checkDraftsAccount(
       { ...ledger, db: tx },
       lesson.draftIds,
       lesson.accountId,
@@ -193,7 +197,17 @@ export function teachCategorization(
     const id = insertCategorizationLesson(tx, auth, {
       baseAccountId,
       accountId: lesson.accountId,
-      narrations: checked.drafts.map((draft) => draft.narration),
+      transactions: checked.drafts
+        .map((draft) => {
+          const money = moneyFromColumns(draft);
+          return {
+            date: formatPlainDate(draft.date),
+            narration: draft.narration,
+            direction: direction(money),
+            amount: amount(money),
+          };
+        })
+        .sort((a, b) => a.date.localeCompare(b.date)),
       note: lesson.note.trim(),
     });
     const taught = loadCategorizationLesson(tx, auth, id);

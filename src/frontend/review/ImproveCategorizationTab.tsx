@@ -25,12 +25,17 @@ import { AgentActions, PromptText } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
 import { Field } from "../components/focus-card";
 import { Button } from "../components/ui/button";
-import { formatMoney, formatShortDate, plural } from "../format";
+import {
+  formatAmountRange,
+  formatMoney,
+  formatShortDate,
+  plural,
+} from "../format";
 import { categorizationLessonsQuery } from "../queries";
 import { Chip } from "../views/import-instructions/rule-parts";
 import { categorizationRulesHref } from "../views/import-instructions/routes";
 import type { CategorizationLesson } from "../../shared/index";
-import { lessonsPrompt } from "./categorization-lessons";
+import { amountsSeen, lessonsPrompt } from "./categorization-lessons";
 import { useReviewAccount } from "./ReviewAccount";
 import {
   IMPROVE_CATEGORIZATION_TAB,
@@ -77,7 +82,7 @@ interface SelectedDraft {
 
 /**
  * Improve categorization: new rules on the left, the account's drafts with
- * no category on the right, by narration. The user selects drafts that go
+ * no account on the right, by narration. The user selects drafts that go
  * together, which makes a draft rule, with the selected transactions under
  * it; choosing its account adds it to the new rules, kept in the books as
  * lessons, and takes its drafts off the list.
@@ -121,11 +126,18 @@ export function ImproveCategorizationTab() {
     }),
     [accountId, navigate, searchParams],
   );
-  // A draft in a new rule leaves the list. Lessons keep narrations, not
-  // drafts, so the list leaves out every draft with one of them. A new object
-  // recreates the grid's session, so it is kept per account and new rules.
+  // A draft in a new rule leaves the list. Lessons keep copies of their
+  // drafts, not the drafts, so the list leaves out every draft with one of
+  // their narrations. A new object recreates the grid's session, so it is
+  // kept per account and new rules.
   const queued = useMemo(
-    () => [...new Set(lessons.data?.flatMap((lesson) => lesson.narrations))],
+    () => [
+      ...new Set(
+        lessons.data?.flatMap((lesson) =>
+          lesson.transactions.map((transaction) => transaction.narration),
+        ),
+      ),
+    ],
     [lessons.data],
   );
   const queuedKey = JSON.stringify(queued);
@@ -229,7 +241,7 @@ export function ImproveCategorizationTab() {
           uncategorised={detail.account.uncategorised}
           inNewRules={
             lessons.data?.reduce(
-              (sum, lesson) => sum + lesson.narrations.length,
+              (sum, lesson) => sum + lesson.transactions.length,
               0,
             ) ?? 0
           }
@@ -370,6 +382,19 @@ function SelectedDrafts({ selected }: { selected: readonly SelectedDraft[] }) {
 }
 
 /**
+ * The amounts a new rule's drafts moved, which the agent turns into a range
+ * for the rule: "money out · 60 – 480".
+ */
+function amountsLine(lesson: CategorizationLesson): string {
+  return amountsSeen(lesson.transactions)
+    .map(
+      (seen) =>
+        `money ${seen.direction === "withdrawal" ? "out" : "in"} · ${formatAmountRange(seen)}`,
+    )
+    .join(", ");
+}
+
+/**
  * A rule's descriptions as chips, each once, the first few and a count of the
  * rest.
  */
@@ -396,7 +421,7 @@ function Descriptions({ narrations: all }: { narrations: readonly string[] }) {
 /**
  * The rule the selected drafts would make: the account they go to and a note
  * for next time; the drafts themselves are listed under it. Adding it puts it
- * with the new rules; the drafts keep no category until the categorizer runs.
+ * with the new rules; the drafts keep no account until the categorizer runs.
  */
 function DraftRule({
   selected,
@@ -405,7 +430,7 @@ function DraftRule({
   onAdded,
 }: {
   selected: readonly SelectedDraft[];
-  /** The account's drafts that have no category. */
+  /** The account's drafts that have no account. */
   uncategorised: number;
   /** How many of them are in new rules, and so off the list. */
   inNewRules: number;
@@ -557,8 +582,11 @@ function NewRules({
             }
           >
             <div className="flex items-start gap-2">
-              <p className="min-w-0 flex-1 text-row font-semibold text-foreground">
+              <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 text-row font-semibold text-foreground">
                 {lesson.account.name}
+                <span className="tnum text-meta font-normal text-ink-soft">
+                  {amountsLine(lesson)}
+                </span>
               </p>
               <button
                 type="button"
@@ -571,7 +599,11 @@ function NewRules({
                 <X aria-hidden="true" className="size-3.5" />
               </button>
             </div>
-            <Descriptions narrations={lesson.narrations} />
+            <Descriptions
+              narrations={lesson.transactions.map(
+                (transaction) => transaction.narration,
+              )}
+            />
             {lesson.note !== "" && (
               <p className="mt-1.5 text-meta text-ink-soft [overflow-wrap:anywhere]">
                 {lesson.note}

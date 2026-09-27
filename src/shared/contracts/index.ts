@@ -118,7 +118,9 @@ export {
 export {
   categorizationLessonSchema,
   categorizationLessonsContract,
+  categorizationLessonTransactionSchema,
   type CategorizationLesson,
+  type CategorizationLessonTransaction,
 } from "./categorization-lessons.js";
 export {
   agentModelSchema,

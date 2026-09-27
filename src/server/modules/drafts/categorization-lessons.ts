@@ -1,6 +1,10 @@
 import { asc, eq, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import type { CategorizationLesson } from "../../../shared/index.js";
+import {
+  categorizationLessonTransactionSchema,
+  type CategorizationLesson,
+  type CategorizationLessonTransaction,
+} from "../../../shared/index.js";
 import { accountsTable } from "../../schema/accounts.js";
 import {
   categorizationLessons,
@@ -13,9 +17,11 @@ import type { LedgerAuth } from "../ledger-sql/index.js";
  * categoriser about drafts, until their coding agent has encoded it.
  */
 
-const narrationsColumnSchema = z.array(z.string()).min(1);
+const transactionsColumnSchema = z
+  .array(categorizationLessonTransactionSchema)
+  .min(1);
 
-/** A statement account's lessons, oldest first, with each category's name. */
+/** A statement account's lessons, oldest first, with each account's name. */
 export function loadCategorizationLessons(
   db: any,
   auth: LedgerAuth,
@@ -65,7 +71,9 @@ function selectLessons(
     id: lesson.id,
     base_account_id: lesson.base_account_id,
     account: { id: lesson.account_id, name: accountName },
-    narrations: narrationsColumnSchema.parse(JSON.parse(lesson.narrations)),
+    transactions: transactionsColumnSchema.parse(
+      JSON.parse(lesson.transactions),
+    ),
     note: lesson.note,
   }));
 }
@@ -73,7 +81,7 @@ function selectLessons(
 export interface NewCategorizationLesson {
   baseAccountId: number;
   accountId: number;
-  narrations: readonly string[];
+  transactions: readonly CategorizationLessonTransaction[];
   note: string;
 }
 
@@ -90,7 +98,7 @@ export function insertCategorizationLesson(
       access.insertValuesSync(tx, {
         base_account_id: lesson.baseAccountId,
         account_id: lesson.accountId,
-        narrations: JSON.stringify(lesson.narrations),
+        transactions: JSON.stringify(lesson.transactions),
         note: lesson.note,
       }),
     )

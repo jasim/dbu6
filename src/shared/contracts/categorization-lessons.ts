@@ -9,8 +9,20 @@ const errorSchema = z.object({ error: z.string() }).passthrough();
  * Lessons for the categoriser, taught on Review's Improve categorization tab
  * (schema/categorization-lessons.ts), where the user calls them new rules.
  * The user's coding agent turns each into a rule or guidance, and then
- * deletes it; the categorizer then gives the drafts their category.
+ * deletes it; the categorizer then gives the drafts their account.
  */
+
+// A draft in a lesson, as its statement showed it. The amount is what moved,
+// in `direction`.
+export const categorizationLessonTransactionSchema = z.object({
+  date: z.string(),
+  narration: z.string(),
+  direction: z.enum(["withdrawal", "deposit"]),
+  amount: z.number().nonnegative(),
+});
+export type CategorizationLessonTransaction = z.infer<
+  typeof categorizationLessonTransactionSchema
+>;
 
 export const categorizationLessonSchema = z.object({
   id: z.number().int(),
@@ -18,7 +30,8 @@ export const categorizationLessonSchema = z.object({
   base_account_id: z.number().int(),
   // Where the user said the drafts go.
   account: z.object({ id: z.number().int(), name: z.string() }),
-  narrations: z.array(z.string()).min(1),
+  // Oldest first.
+  transactions: z.array(categorizationLessonTransactionSchema).min(1),
   // What the user added for next time, or "".
   note: z.string(),
 });

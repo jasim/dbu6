@@ -37,14 +37,34 @@ const LESSONS: CategorizationLesson[] = [
     id: 11,
     base_account_id: 5,
     account: { id: 7, name: "Groceries" },
-    narrations: ["NOPII SHOP ONE", "NOPII SHOP ONE AGAIN"],
+    transactions: [
+      {
+        date: "2026-09-01",
+        narration: "NOPII SHOP ONE",
+        direction: "withdrawal",
+        amount: 120,
+      },
+      {
+        date: "2026-09-03",
+        narration: "NOPII SHOP ONE AGAIN",
+        direction: "withdrawal",
+        amount: 450.5,
+      },
+    ],
     note: "A sample grocery shop",
   },
   {
     id: 12,
     base_account_id: 5,
     account: { id: 8, name: "Dining" },
-    narrations: ["NOPII CAFE"],
+    transactions: [
+      {
+        date: "2026-09-02",
+        narration: "NOPII CAFE",
+        direction: "withdrawal",
+        amount: 300,
+      },
+    ],
     note: "",
   },
 ];
@@ -189,7 +209,8 @@ async function settle() {
 const panel = () => host.querySelector("aside")?.textContent ?? "";
 const rules = () =>
   [...host.querySelectorAll("aside ol > li")].map((li) => ({
-    account: li.querySelector("p")?.textContent,
+    account: li.querySelector("p")?.firstChild?.textContent,
+    amounts: li.querySelector("p > span")?.textContent,
     descriptions: [...li.querySelectorAll("ul > li")].map(
       (chip) => chip.textContent,
     ),
@@ -202,16 +223,21 @@ const button = (label: string) =>
   );
 
 describe("Improve categorization", () => {
-  it("says what to select, and lists the new rules account first", async () => {
+  it("says what to select, and lists the new rules account first, with their amounts", async () => {
     await render();
 
     expect(panel()).toContain("Select transactions that go together");
     expect(rules()).toEqual([
       {
         account: "Groceries",
+        amounts: "money out · 120 – 450.50",
         descriptions: ["NOPII SHOP ONE", "NOPII SHOP ONE AGAIN"],
       },
-      { account: "Dining", descriptions: ["NOPII CAFE"] },
+      {
+        account: "Dining",
+        amounts: "money out · 300",
+        descriptions: ["NOPII CAFE"],
+      },
     ]);
     expect(panel()).toContain("A sample grocery shop");
     expect(button("Add 2 to categorization rules")).toBeDefined();
