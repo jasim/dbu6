@@ -85,7 +85,12 @@ async function created(ledger: Ledger, change = savings()) {
 // categorized account's line keyed, as another statement's import posts it, or neither,
 // as Sample Savings' own import posts its line.
 function posted(ledger: Ledger, keyed: "savings" | "neither") {
-  const line = { assertion: null, sourceReference: null, comment: null };
+  const line = {
+    assertion: null,
+    sourceReference: null,
+    comment: null,
+    sourceNarration: null,
+  };
   insertJournalPlan(
     ledger.db,
     [
@@ -317,7 +322,7 @@ describe("changing a bank or card", () => {
     await created(ledger);
     ledger.sqlite.exec(`
       INSERT INTO draft_transactions
-        (workspace_id, scoped_to_user_id, date, narration, withdrawal, deposit,
+        (workspace_id, scoped_to_user_id, date, source_narration, withdrawal, deposit,
          account_id, base_account_id, created_at, updated_at)
       VALUES ('workspace', 'user', '2026-02-03', 'NOPII groceries', 100, 0, 6, 8, '', '');
     `);
@@ -501,7 +506,12 @@ describe("removing a bank or card", () => {
       VALUES (20, 'workspace', 'user', 'Owner Capital', NULL, 'Equity', '', '');
     `);
     // Sample Savings' own import put a row on Owner Capital.
-    const line = { assertion: null, sourceReference: null, comment: null };
+    const line = {
+      assertion: null,
+      sourceReference: null,
+      comment: null,
+      sourceNarration: null,
+    };
     insertJournalPlan(
       ledger.db,
       [

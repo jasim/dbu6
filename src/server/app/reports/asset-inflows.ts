@@ -66,7 +66,8 @@ export function loadAssetInflows(
         )
       ) AS source_accounts,
       j.description,
-      je.comment,
+      -- The person's comment, else the statement's text.
+      COALESCE(je.comment, je.source_narration) AS comment,
       je.debit AS amount
     FROM scoped_journal_entries je
     JOIN scoped_journals j ON j.id = je.journal_id

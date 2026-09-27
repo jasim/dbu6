@@ -4,11 +4,13 @@ import { type Chrono, isWithdrawal } from "../values/index.js";
 // A statement row on its way into the books. `account` is its counterparty;
 // `assertion` is the base account's balance after this row, which the plan
 // asserts. Callers set it on a day's last row only (the balance-check rule,
-// in reconciliation).
+// in reconciliation). `comment` is the person's line for the row, a draft's
+// comment; a row not yet saved as a draft has none.
 export interface PlanRow<A> {
   transaction: Abacus;
   account: A;
   assertion: number | null;
+  comment?: string | null;
 }
 
 // One posting. `account` is whatever the plan's reader needs: an account id
@@ -19,6 +21,9 @@ export interface PlannedEntry<A> {
   amount: number;
   assertion: number | null;
   comment: string | null;
+  // The statement row's text; null on the base account's line and on a
+  // manual entry.
+  sourceNarration: string | null;
   sourceReference: string | null;
   sourceTransactionKey: string | null;
 }
@@ -33,14 +38,16 @@ export type JournalPlan<A> = PlannedJournal<A>[];
 
 /**
  * The journals a base account's statement rows become: one per row, in order,
- * described by the row's narration, as the statement is. A withdrawal lists
+ * described by the row's comment, else its narration. The description is a
+ * copy: a later edit to the entry's comment leaves it. A withdrawal lists
  * the counterparty and then the base account; a deposit lists the base
  * account first. The base account's line asserts the row's `assertion`, in
  * the same place the draft balance check tested it, and carries no source
- * identity: the counterparty's line holds that, and the narration too, where
- * matching looks for it. The statement import tells its own rows from another
- * account's by which line holds the key (`loadPostedRowsOn`,
- * reconciliation/checkpoint-day.md), so moving the key breaks that.
+ * identity: the counterparty's line holds that, the narration as its source
+ * narration too, where matching looks for it, and the comment. The
+ * statement import tells its own rows from another account's by which line
+ * holds the key (`loadPostedRowsOn`, reconciliation/checkpoint-day.md), so
+ * moving the key breaks that.
  */
 export function planJournals<A>(
   rows: Chrono<PlanRow<A>>,
@@ -53,6 +60,7 @@ export function planJournals<A>(
       amount,
       assertion: row.assertion,
       comment: null,
+      sourceNarration: null,
       sourceReference: null,
       sourceTransactionKey: null,
     });
@@ -60,7 +68,8 @@ export function planJournals<A>(
       account: row.account,
       amount,
       assertion: null,
-      comment: transaction.narration,
+      comment: row.comment ?? null,
+      sourceNarration: transaction.narration,
       sourceReference: transaction.source_reference ?? null,
       sourceTransactionKey: transaction.source_transaction_key ?? null,
     });
@@ -69,7 +78,7 @@ export function planJournals<A>(
       : [base(transaction.deposit), counterparty(-transaction.deposit)];
     return {
       date: transaction.date,
-      description: transaction.narration,
+      description: row.comment ?? transaction.narration,
       entries,
     };
   });

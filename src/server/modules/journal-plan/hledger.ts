@@ -43,11 +43,14 @@ export function hledgerAccountNames(
  * account by its name in the ledger, and `hledgerNames`
  * (`hledgerAccountNames`) gives the name hledger writes for it; a name the
  * ledger doesn't have, such as an answer naming no account, is written as it
- * is. A comment that only repeats the description, as a statement row's
- * narration does, is left out.
+ * is. An entry's comment follows it, and its source narration after that as
+ * `source: …`, so an export keeps the statement's references; either one
+ * that only repeats the description is left out. The first text shown sits
+ * on the posting's line, a second on the line below it.
  *
  *   {date} {description}
  *       {account:<35} {amount:>10.2f}[ = {assertion:.2f}][ ; {comment}]
+ *           [; source: {source narration}]
  */
 export function formatHledger(
   plan: JournalPlan<string>,
@@ -73,8 +76,17 @@ function formatEntry(
   const account = hledgerNames.get(entry.account) ?? entry.account;
   const assertion =
     entry.assertion === null ? "" : ` = ${entry.assertion.toFixed(2)}`;
-  const comment =
-    entry.comment && entry.comment !== description ? ` ; ${entry.comment}` : "";
+  const comments = [
+    entry.comment && entry.comment !== description ? entry.comment : null,
+    entry.sourceNarration && entry.sourceNarration !== description
+      ? `source: ${entry.sourceNarration}`
+      : null,
+  ].filter((text): text is string => text !== null);
+  const [sameLine, ...below] = comments;
   // hledger ends an account name at two spaces, since names hold single ones.
-  return `    ${`${account} `.padEnd(35)} ${entry.amount.toFixed(2).padStart(10)}${assertion}${comment}`;
+  // A comment on the lines below a posting is indented past it.
+  return [
+    `    ${`${account} `.padEnd(35)} ${entry.amount.toFixed(2).padStart(10)}${assertion}${sameLine ? ` ; ${sameLine}` : ""}`,
+    ...below.map((text) => `        ; ${text}`),
+  ].join("\n");
 }

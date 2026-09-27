@@ -18,7 +18,12 @@ export const draftTransactionsTable = sqliteTable(
     scoped_to_user_id: text("scoped_to_user_id").notNull(),
     date: date("date").notNull(),
     account_id: integer("account_id").references(() => accountsTable.id),
-    narration: text("narration").notNull(),
+    // The text the import saw, GPay recipient in front when a takeout
+    // matched. Written once; rules, matching and agents read it.
+    source_narration: text("source_narration").notNull(),
+    // The person's readable line. Null until someone, or the comment
+    // writer, writes it; screens show `source_narration` meanwhile.
+    comment: text("comment"),
     withdrawal: money("withdrawal").notNull().default(0),
     deposit: money("deposit").notNull().default(0),
     base_account_id: integer("base_account_id").references(
@@ -48,10 +53,10 @@ export const draftTransactions = sapportaTable({
   drizzle: draftTransactionsTable,
   meta: {
     label: "Draft Transactions",
-    rowLabelColumns: ["narration"],
+    rowLabelColumns: ["source_narration"],
     rowScope: "workspaceUserScoped",
     defaultSort: desc(draftTransactionsTable.date),
-    search: { self: ["narration"] },
+    search: { self: ["comment", "source_narration"] },
     columns: {
       workspace_id: { visuallyHidden: true },
       scoped_to_user_id: { visuallyHidden: true },
@@ -79,6 +84,7 @@ export const draftTransactions = sapportaTable({
           },
         ],
       },
+      source_narration: { gridEditable: false },
       balance_assertion_base_account: { additive: false },
       source_reference: { visuallyHidden: true },
       source_transaction_key: { visuallyHidden: true },

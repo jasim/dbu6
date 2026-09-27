@@ -1750,8 +1750,8 @@ function writeLedger(sqlite, scope, { posted, drafts }) {
       VALUES (@workspaceId, @userId, @date, @description, @now, @now)`);
     const insertEntry = sqlite.prepare(`
       INSERT INTO journal_entries (workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit,
-                                   account_balance_assertion, comment, created_at, updated_at)
-      VALUES (@workspaceId, @userId, @journalId, @accountId, @debit, @credit, @assertion, @comment, @now, @now)`);
+                                   account_balance_assertion, source_narration, created_at, updated_at)
+      VALUES (@workspaceId, @userId, @journalId, @accountId, @debit, @credit, @assertion, @sourceNarration, @now, @now)`);
     const balances = new Map();
     posted.forEach((e, i) => {
       const journalId = Number(
@@ -1775,16 +1775,18 @@ function writeLedger(sqlite, scope, { posted, drafts }) {
             closingPosting.get(`${p.account}|${e.date}`) === `${i}|${j}`
               ? rupees(balance)
               : null,
-          comment: p.comment,
+          // Posted as a statement's text, with no comment yet: the comment
+          // writer reads them as it reads any imported books.
+          sourceNarration: p.comment,
           now,
         });
       });
     });
 
     const insertDraft = sqlite.prepare(`
-      INSERT INTO draft_transactions (workspace_id, scoped_to_user_id, date, narration, withdrawal, deposit,
+      INSERT INTO draft_transactions (workspace_id, scoped_to_user_id, date, source_narration, withdrawal, deposit,
                                       account_id, base_account_id, balance_assertion_base_account, created_at, updated_at)
-      VALUES (@workspaceId, @userId, @date, @narration, @withdrawal, @deposit, @accountId, @baseAccountId, @assertion, @now, @now)`);
+      VALUES (@workspaceId, @userId, @date, @sourceNarration, @withdrawal, @deposit, @accountId, @baseAccountId, @assertion, @now, @now)`);
     let hdfcBalance = balances.get(HDFC);
     drafts.forEach((e, i) => {
       const base = e.postings.find((p) => p.account === HDFC);
@@ -1797,7 +1799,7 @@ function writeLedger(sqlite, scope, { posted, drafts }) {
       insertDraft.run({
         ...scope,
         date: e.date,
-        narration: e.narration,
+        sourceNarration: e.narration,
         withdrawal: base.paise < 0 ? rupees(-base.paise) : 0,
         deposit: base.paise > 0 ? rupees(base.paise) : 0,
         accountId: account ? accountIds.get(account) : null,

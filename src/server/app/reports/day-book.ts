@@ -61,7 +61,8 @@ export function loadDayBookLines(
       a.name AS account_name,
       je.debit,
       je.credit,
-      je.comment
+      -- The person's comment, else the statement's text.
+      COALESCE(je.comment, je.source_narration) AS comment
     FROM scoped_journal_entries je
     JOIN scoped_journals j ON j.id = je.journal_id
     JOIN scoped_accounts a ON a.id = je.account_id

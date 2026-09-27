@@ -55,8 +55,9 @@ const HIDDEN_COLUMNS = [
   "created_at",
   "updated_at",
 ];
-// Repeat payees sit together, so a run of them is one shift-click.
-const BY_NARRATION = [{ colId: "narration", direction: "asc" }] as const;
+// Repeat payees sit together, so a run of them is one shift-click. The
+// bank's text, which rules match, not the comment.
+const BY_NARRATION = [{ colId: "source_narration", direction: "asc" }] as const;
 // Whole rows, never cells: a click selects the row, Shift-click the run up
 // to it, and nothing in the grid is editable.
 const SELECT_ROWS = {
@@ -128,13 +129,15 @@ export function ImproveCategorizationTab() {
   );
   // A draft in a new rule leaves the list. Lessons keep copies of their
   // drafts, not the drafts, so the list leaves out every draft with one of
-  // their narrations. A new object recreates the grid's session, so it is
+  // their source narrations. A new object recreates the grid's session, so it is
   // kept per account and new rules.
   const queued = useMemo(
     () => [
       ...new Set(
         lessons.data?.flatMap((lesson) =>
-          lesson.transactions.map((transaction) => transaction.narration),
+          lesson.transactions.map(
+            (transaction) => transaction.source_narration,
+          ),
         ),
       ),
     ],
@@ -153,8 +156,8 @@ export function ImproveCategorizationTab() {
         },
         // One condition each, since a list value can't hold a comma.
         ...queued.map((narration): FilterCondition => ({
-          id: mintFilterId("narration", "neq"),
-          column: "narration",
+          id: mintFilterId("source_narration", "neq"),
+          column: "source_narration",
           op: "neq",
           value: narration,
         })),
@@ -307,16 +310,18 @@ export function ImproveCategorizationTab() {
 /** A loaded grid row as the draft the panel shows, or none. */
 function selectedDraft(row: unknown): SelectedDraft[] {
   if (typeof row !== "object" || row === null) return [];
-  const { id, date, narration, withdrawal, deposit } = row as Record<
+  const { id, date, source_narration, withdrawal, deposit } = row as Record<
     string,
     unknown
   >;
-  if (typeof id !== "number" || typeof narration !== "string") return [];
+  if (typeof id !== "number" || typeof source_narration !== "string") {
+    return [];
+  }
   return [
     {
       id,
       date: typeof date === "string" ? date : "",
-      narration,
+      narration: source_narration,
       amount: (Number(deposit) || 0) - (Number(withdrawal) || 0),
     },
   ];
@@ -601,7 +606,7 @@ function NewRules({
             </div>
             <Descriptions
               narrations={lesson.transactions.map(
-                (transaction) => transaction.narration,
+                (transaction) => transaction.source_narration,
               )}
             />
             {lesson.note !== "" && (

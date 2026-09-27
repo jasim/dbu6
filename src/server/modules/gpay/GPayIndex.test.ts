@@ -68,6 +68,20 @@ describe("enrichWithGPay", () => {
       "Coffee Shop | UPI debit",
       "refund",
     ]);
+    expect(result.recipients).toEqual(["Coffee Shop", null]);
+  });
+
+  it("names the recipient of a row already prefixed, without prefixing it again", () => {
+    const idx: GPayIndex = new Map([["2026-04-24|250.00", ["Sample Stall"]]]);
+
+    const result = enrichWithGPay(
+      [txn({ withdrawal: 250, narration: "Sample Stall | UPI debit" })],
+      idx,
+    );
+
+    expect(result.matchCount).toBe(0);
+    expect(result.enriched[0].narration).toBe("Sample Stall | UPI debit");
+    expect(result.recipients).toEqual(["Sample Stall"]);
   });
 
   it("allows one-day settlement skew", () => {

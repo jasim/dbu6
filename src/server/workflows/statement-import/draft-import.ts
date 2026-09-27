@@ -37,6 +37,9 @@ export interface DraftImportInput {
   accountsByName: AccountsByName;
   // Keyed and already filtered to what the ledger doesn't hold yet.
   transactions: Chrono<Abacus>;
+  // Each transaction's comment by its index, such as its Google Pay
+  // recipient; none when omitted.
+  comments?: readonly (string | null)[];
   // How many rows the statement had before the reconciliation filter.
   rawTransactionCount: number;
   categorizer: Categorizer;
@@ -59,6 +62,7 @@ export async function runDraftImport(
     baseAccountId,
     accountsByName,
     transactions: newTransactions,
+    comments = [],
     rawTransactionCount: rawCount,
     categorizer,
     onProgress,
@@ -82,6 +86,7 @@ export async function runDraftImport(
   const { rows: draftRows, expectedClosingByDate } = toDraftRows(
     categorized,
     baseAccountId,
+    comments,
   );
   // Each day's closing on its last row, as the drafts will carry it. Each row
   // shows the account its answer named.
@@ -95,6 +100,7 @@ export async function runDraftImport(
             categorized[index + 1]?.transaction.date === transaction.date
               ? null
               : (expectedClosingByDate.get(transaction.date) ?? null),
+          comment: comments[index] ?? null,
         })),
       ),
       baseAccount,

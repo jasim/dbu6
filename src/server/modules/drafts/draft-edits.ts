@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import type { LedgerAuth } from "../ledger-sql/index.js";
 import {
   draftTransactions,
@@ -28,11 +28,17 @@ export function loadDraftsById(
 
 export interface ReclassifiedDraft {
   id: number;
-  narration: string;
+  // The source narration, with a Google Pay recipient now in front when a
+  // takeout named one: the one change a saved source narration takes.
+  sourceNarration: string;
   accountId: number | null;
+  // A comment for a draft that has none yet, such as its Google Pay
+  // recipient. A comment the draft already has stays.
+  comment?: string | null;
 }
 
-// Saves each draft's new narration and account, all or none.
+// Saves each draft's source narration and account, and its comment where it
+// has none, all or none.
 export function saveReclassifiedDrafts(
   db: any,
   drafts: readonly ReclassifiedDraft[],
@@ -42,7 +48,15 @@ export function saveReclassifiedDrafts(
   db.transaction((tx: any) => {
     for (const draft of drafts) {
       tx.update(draftTransactionsTable)
-        .set({ narration: draft.narration, account_id: draft.accountId })
+        .set({
+          source_narration: draft.sourceNarration,
+          account_id: draft.accountId,
+          ...(draft.comment
+            ? {
+                comment: sql`coalesce(${draftTransactionsTable.comment}, ${draft.comment})`,
+              }
+            : {}),
+        })
         .where(draftAccess.ownedRows(eq(draftTransactionsTable.id, draft.id)))
         .run();
     }

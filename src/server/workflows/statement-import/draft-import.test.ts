@@ -116,7 +116,7 @@ function setup() {
       workspace_id TEXT NOT NULL,
       scoped_to_user_id TEXT NOT NULL,
       date TEXT NOT NULL,
-      narration TEXT NOT NULL,
+      source_narration TEXT NOT NULL,
       withdrawal REAL NOT NULL DEFAULT 0,
       deposit REAL NOT NULL DEFAULT 0,
       account_id INTEGER,
@@ -125,7 +125,7 @@ function setup() {
       source_reference TEXT,
       source_transaction_key TEXT,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL, comment TEXT
     );
     CREATE TABLE journals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -149,7 +149,7 @@ function setup() {
       source_reference TEXT,
       source_transaction_key TEXT,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL, source_narration TEXT
     );
   `);
   const db = drizzle(sqlite);

@@ -40,6 +40,9 @@ export const journalEntriesTable = sqliteTable(
     credit: money("credit").notNull().default(0),
     account_balance_assertion: money("account_balance_assertion"),
     comment: text("comment"),
+    // The statement row's text for an imported entry, as the draft had it.
+    // Null on a manual entry.
+    source_narration: text("source_narration"),
     source_reference: text("source_reference"),
     source_transaction_key: text("source_transaction_key"),
     created_at: timestamp("created_at")
@@ -91,7 +94,7 @@ export const journalEntries = sapportaTable({
     label: "Journal Entries",
     rowLabelColumns: ["comment"],
     rowScope: "workspaceUserScoped",
-    search: { self: ["comment"] },
+    search: { self: ["comment", "source_narration"] },
     columns: {
       workspace_id: { visuallyHidden: true },
       scoped_to_user_id: { visuallyHidden: true },
@@ -110,6 +113,7 @@ export const journalEntries = sapportaTable({
       credit: { colorRule: "negative" },
       account_balance_assertion: { additive: false, strong: true },
       comment: { textDisplay: "multiLine" },
+      source_narration: { gridEditable: false },
       source_reference: { visuallyHidden: true },
       source_transaction_key: { visuallyHidden: true },
     },

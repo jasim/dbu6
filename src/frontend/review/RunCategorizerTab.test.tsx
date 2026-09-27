@@ -76,7 +76,8 @@ function draft(id: number, narration: string) {
   return {
     id,
     date: "2026-09-01",
-    narration,
+    source_narration: narration,
+    comment: null,
     withdrawal: "1000",
     deposit: "0",
     account_id: null,
@@ -94,18 +95,32 @@ const CLASSIFIED: DraftClassification = {
   transactions: [
     {
       id: 1,
-      narration: "NOPII SHOP ONE",
+      source_narration: "NOPII SHOP ONE",
+      comment: null,
       account_id: 7,
       account_name: "Groceries",
     },
     {
       id: 2,
-      narration: "NOPII SHOP TWO",
+      source_narration: "NOPII SHOP TWO",
+      comment: null,
       account_id: 7,
       account_name: "Groceries",
     },
-    { id: 3, narration: "NOPII CAFE", account_id: 8, account_name: "Dining" },
-    { id: 4, narration: "NOPII UNKNOWN", account_id: null, account_name: null },
+    {
+      id: 3,
+      source_narration: "NOPII CAFE",
+      comment: null,
+      account_id: 8,
+      account_name: "Dining",
+    },
+    {
+      id: 4,
+      source_narration: "NOPII UNKNOWN",
+      comment: null,
+      account_id: null,
+      account_name: null,
+    },
   ],
   categorization: {
     agent: "claude-code",
@@ -333,7 +348,7 @@ describe("Run categorizer", () => {
         transactions: [
           {
             date: "2026-09-01",
-            narration: "NOPII SHOP ONE",
+            source_narration: "NOPII SHOP ONE",
             direction: "withdrawal",
             amount: 100,
           },

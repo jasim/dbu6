@@ -112,6 +112,7 @@ type PostedLine = {
   account_id: number;
   debit: number;
   credit: number;
+  source_narration: string | null;
   comment: string | null;
   key: string | null;
   counted: number | null;
@@ -138,6 +139,7 @@ export function loadPostedRowsOn(
       je.account_id,
       je.debit,
       je.credit,
+      je.source_narration,
       je.comment,
       je.source_transaction_key AS key,
       j.id <= (
@@ -178,7 +180,9 @@ export function loadPostedRowsOn(
 // another account is one row, as an older grouped import wrote them.
 function postedRowsOf(journal: PostedLine[], accountId: number): PostedRow[] {
   const counted = journal[0].counted === 1;
-  const narration = (line: PostedLine) => line.comment ?? line.description;
+  // The statement's text first: the checkpoint compares it with the rows.
+  const narration = (line: PostedLine) =>
+    line.source_narration ?? line.comment ?? line.description;
   const elsewhere = journal.filter((line) => line.account_id !== accountId);
   const own = elsewhere.filter((line) => line.key !== null);
   if (own.length > 0) {

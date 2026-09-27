@@ -69,7 +69,7 @@ describe("draft persistence reconciliation", () => {
           account_id: 2,
           debit: 125.5,
           credit: 0,
-          comment: "Merchant",
+          source_narration: "Merchant",
           source_transaction_key: "posted-key",
         },
         {
@@ -91,6 +91,51 @@ describe("draft persistence reconciliation", () => {
       duplicates: 1,
       journalDuplicates: 1,
     });
+    expect(
+      sqlite.prepare("SELECT COUNT(*) AS count FROM draft_transactions").get(),
+    ).toEqual({ count: 0 });
+  });
+
+  it("reimport without a takeout matches an unkeyed entry posted with a Google Pay recipient in front", () => {
+    const { db, sqlite } = setup();
+    // An older import's row, from a takeout-enriched statement, as migration
+    // 0012 left it: the text in its source narration, no key, no comment.
+    const journal = db
+      .insert(journalsTable)
+      .values({
+        workspace_id: "workspace",
+        scoped_to_user_id: "user",
+        date: parsePlainDate("2026-05-07"),
+        description: "Sample Payee | Merchant",
+      })
+      .returning({ id: journalsTable.id })
+      .get();
+    db.insert(journalEntriesTable)
+      .values([
+        {
+          workspace_id: "workspace",
+          scoped_to_user_id: "user",
+          journal_id: journal.id,
+          account_id: SOFTWARE_ACCOUNT_ID,
+          debit: 125.5,
+          credit: 0,
+          source_narration: "Sample Payee | Merchant",
+        },
+        {
+          workspace_id: "workspace",
+          scoped_to_user_id: "user",
+          journal_id: journal.id,
+          account_id: BASE_ACCOUNT_ID,
+          debit: 0,
+          credit: 125.5,
+        },
+      ])
+      .run();
+
+    const rows = draftRows(tx("fresh-key"), SOFTWARE_ACCOUNT_ID);
+    expect(
+      persistDrafts(db, rows.rows, rows.expectedClosingByDate, auth),
+    ).toMatchObject({ inserted: 0, duplicates: 1, journalDuplicates: 1 });
     expect(
       sqlite.prepare("SELECT COUNT(*) AS count FROM draft_transactions").get(),
     ).toEqual({ count: 0 });
@@ -119,7 +164,7 @@ describe("draft persistence reconciliation", () => {
           account_id: SOFTWARE_ACCOUNT_ID,
           debit: 100,
           credit: 0,
-          comment: "Merchant",
+          source_narration: "Merchant",
           source_transaction_key: "moved-key",
         },
         {
@@ -197,12 +242,12 @@ describe("draft persistence reconciliation", () => {
     expect(
       sqlite
         .prepare(
-          "SELECT narration, balance_assertion_base_account AS assertion FROM draft_transactions ORDER BY id",
+          "SELECT source_narration, comment, balance_assertion_base_account AS assertion FROM draft_transactions ORDER BY id",
         )
         .all(),
     ).toEqual([
-      { narration: "Merchant", assertion: null },
-      { narration: "Second", assertion: -235.5 },
+      { source_narration: "Merchant", comment: null, assertion: null },
+      { source_narration: "Second", comment: null, assertion: -235.5 },
     ]);
   });
 
@@ -272,7 +317,7 @@ function insertLegacyDraft(
       workspace_id: "workspace",
       scoped_to_user_id: "user",
       date: parsePlainDate("2026-05-07"),
-      narration: input.narration,
+      source_narration: input.narration,
       withdrawal: input.narration === "Existing" ? 1 : 125.5,
       deposit: 0,
       account_id: input.accountId,
@@ -300,7 +345,7 @@ function setup() {
       workspace_id TEXT NOT NULL,
       scoped_to_user_id TEXT NOT NULL,
       date TEXT NOT NULL,
-      narration TEXT NOT NULL,
+      source_narration TEXT NOT NULL,
       withdrawal REAL NOT NULL DEFAULT 0,
       deposit REAL NOT NULL DEFAULT 0,
       account_id INTEGER,
@@ -309,7 +354,7 @@ function setup() {
       source_reference TEXT,
       source_transaction_key TEXT,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL, comment TEXT
     );
     CREATE TABLE journals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -333,7 +378,7 @@ function setup() {
       source_reference TEXT,
       source_transaction_key TEXT,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL, source_narration TEXT
     );
   `);
   const db = drizzle(sqlite);

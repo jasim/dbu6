@@ -36,7 +36,8 @@ describe("Account Ledger journal entry query", () => {
         debit REAL,
         credit REAL,
         account_balance_assertion REAL,
-        comment TEXT
+        comment TEXT,
+        source_narration TEXT
       );
       CREATE TABLE draft_transactions (
         id INTEGER,
@@ -57,12 +58,12 @@ describe("Account Ledger journal entry query", () => {
         (13, 'workspace', 'other-user', '2026-01-15', 'Other user journal');
 
       INSERT INTO journal_entries VALUES
-        (101, 'workspace', 'user', 10, 2, 100, 0, 900, 'Bank line'),
-        (102, 'workspace', 'user', 10, 3, 0, 100, NULL, 'Counterpart line'),
-        (103, 'workspace', 'other-user', 10, 4, 50, 0, NULL, 'Hidden line'),
-        (104, 'workspace', 'user', 11, 3, 25, 0, NULL, 'Unrelated line'),
-        (105, 'workspace', 'user', 12, 2, 40, 0, NULL, 'Old line'),
-        (106, 'workspace', 'other-user', 13, 4, 75, 0, NULL, 'Other user line');
+        (101, 'workspace', 'user', 10, 2, 100, 0, 900, 'Bank line', NULL),
+        (102, 'workspace', 'user', 10, 3, 0, 100, NULL, NULL, 'COUNTERPART LINE'),
+        (103, 'workspace', 'other-user', 10, 4, 50, 0, NULL, 'Hidden line', NULL),
+        (104, 'workspace', 'user', 11, 3, 25, 0, NULL, 'Unrelated line', NULL),
+        (105, 'workspace', 'user', 12, 2, 40, 0, NULL, 'Old line', NULL),
+        (106, 'workspace', 'other-user', 13, 4, 75, 0, NULL, 'Other user line', NULL);
     `);
 
     const auth = testLedgerAuth();
@@ -82,6 +83,7 @@ describe("Account Ledger journal entry query", () => {
         debit: 100,
         credit: 0,
         comment: "Bank line",
+        source_narration: null,
       },
       {
         entry_id: 102,
@@ -90,7 +92,8 @@ describe("Account Ledger journal entry query", () => {
         account_name: "Groceries",
         debit: 0,
         credit: 100,
-        comment: "Counterpart line",
+        comment: null,
+        source_narration: "COUNTERPART LINE",
       },
     ]);
   });
@@ -104,6 +107,7 @@ describe("Account Ledger result", () => {
     debit: number,
     credit: number,
     comment: string | null,
+    source_narration: string | null = null,
   ) => ({
     entry_id,
     journal_id,
@@ -112,6 +116,7 @@ describe("Account Ledger result", () => {
     debit,
     credit,
     comment,
+    source_narration,
   });
   const bank: [number, string] = [1, "Bank"];
   const income: [number, string] = [3, "Income"];
@@ -134,9 +139,9 @@ describe("Account Ledger result", () => {
   ];
   const lines = [
     line(101, 10, bank, 2000, 0, null),
-    line(102, 10, income, 0, 2000, "NOPII sample employer"),
-    line(111, 11, food, 100, 0, "UPI-sample-grocer-050505"),
-    line(112, 11, fuel, 50, 0, "UPI-sample-fuel-050505"),
+    line(102, 10, income, 0, 2000, null, "NOPII sample employer"),
+    line(111, 11, food, 100, 0, null, "UPI-sample-grocer-050505"),
+    line(112, 11, fuel, 50, 0, null, "UPI-sample-fuel-050505"),
     line(113, 11, bank, 0, 150, null),
     line(121, 12, loan, 800, 0, "Principal"),
     line(122, 12, interest, 200, 0, "Interest"),
@@ -262,6 +267,23 @@ describe("Account Ledger result", () => {
         credit: 0,
         balance: 100,
       },
+    ]);
+  });
+
+  it("narrates a row by the line's comment before its source narration", () => {
+    const result = toAccountLedgerResult(
+      { id: 1, name: "Bank", opening_balance: 0 },
+      [1],
+      [journals[0]],
+      [
+        line(101, 10, bank, 2000, 0, null),
+        line(102, 10, income, 0, 2000, "Sample salary", "NEFT CR-050505-NOPII"),
+      ],
+      null,
+    );
+
+    expect(result.nodes.map((row) => row.columns.narration)).toEqual([
+      "Sample salary",
     ]);
   });
 

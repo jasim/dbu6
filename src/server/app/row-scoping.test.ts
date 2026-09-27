@@ -37,12 +37,12 @@ function ledger(): Database.Database {
     CREATE TABLE journal_entries (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
       account_id INTEGER, debit REAL, credit REAL, account_balance_assertion REAL,
-      comment TEXT, source_reference TEXT, source_transaction_key TEXT
+      comment TEXT, source_reference TEXT, source_transaction_key TEXT, source_narration TEXT
     );
     CREATE TABLE draft_transactions (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT, narration TEXT,
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT, source_narration TEXT,
       withdrawal REAL, deposit REAL, account_id INTEGER, base_account_id INTEGER,
-      balance_assertion_base_account REAL, source_reference TEXT, source_transaction_key TEXT
+      balance_assertion_base_account REAL, source_reference TEXT, source_transaction_key TEXT, comment TEXT
     );
 
     INSERT INTO accounts VALUES
@@ -51,10 +51,10 @@ function ledger(): Database.Database {
       (3, 'workspace', 'user', 'Groceries', NULL, 'Expense');
     INSERT INTO journals VALUES (10, 'workspace', 'user', '2026-01-10', 'Opening');
     INSERT INTO journal_entries VALUES
-      (101, 'workspace', 'user', 10, 1, 1000, 0, 1000, NULL, NULL, NULL),
-      (102, 'workspace', 'user', 10, 2, 0, 1000, NULL, NULL, NULL, NULL);
+      (101, 'workspace', 'user', 10, 1, 1000, 0, 1000, NULL, NULL, NULL, NULL),
+      (102, 'workspace', 'user', 10, 2, 0, 1000, NULL, NULL, NULL, NULL, NULL);
     INSERT INTO draft_transactions VALUES
-      (201, 'workspace', 'user', '2026-02-01', 'NOPII grocer', 100, 0, 3, 1, 900, NULL, 'k-201');
+      (201, 'workspace', 'user', '2026-02-01', 'NOPII grocer', 100, 0, 3, 1, 900, NULL, 'k-201', NULL);
   `);
   return sqlite;
 }
@@ -76,13 +76,13 @@ function addOtherRows(sqlite: Database.Database): void {
       (20, 'workspace', 'other-user', '2026-01-20', 'NOPII opening'),
       (30, 'other-workspace', 'user', '2026-01-25', 'NOPII opening');
     INSERT INTO journal_entries VALUES
-      (301, 'workspace', 'other-user', 20, 11, 5000, 0, 5000, NULL, NULL, NULL),
-      (302, 'workspace', 'other-user', 20, 12, 0, 5000, NULL, NULL, NULL, NULL),
-      (501, 'other-workspace', 'user', 30, 21, 3000, 0, 3000, NULL, NULL, NULL),
-      (502, 'other-workspace', 'user', 10, 1, 2000, 0, 2000, NULL, NULL, NULL);
+      (301, 'workspace', 'other-user', 20, 11, 5000, 0, 5000, NULL, NULL, NULL, NULL),
+      (302, 'workspace', 'other-user', 20, 12, 0, 5000, NULL, NULL, NULL, NULL, NULL),
+      (501, 'other-workspace', 'user', 30, 21, 3000, 0, 3000, NULL, NULL, NULL, NULL),
+      (502, 'other-workspace', 'user', 10, 1, 2000, 0, 2000, NULL, NULL, NULL, NULL);
     INSERT INTO draft_transactions VALUES
-      (401, 'workspace', 'other-user', '2026-02-01', 'NOPII grocer', 100, 0, NULL, 11, 4900, NULL, 'k-201'),
-      (601, 'other-workspace', 'user', '2026-02-01', 'NOPII grocer', 100, 0, 3, 1, 100, NULL, 'k-201');
+      (401, 'workspace', 'other-user', '2026-02-01', 'NOPII grocer', 100, 0, NULL, 11, 4900, NULL, 'k-201', NULL),
+      (601, 'other-workspace', 'user', '2026-02-01', 'NOPII grocer', 100, 0, 3, 1, 100, NULL, 'k-201', NULL);
   `);
 }
 

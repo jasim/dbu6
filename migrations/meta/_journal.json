@@ -85,6 +85,13 @@
       "when": 1790504334492,
       "tag": "0011_categorization_lesson_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790538290344,
+      "tag": "0012_source_narration",
+      "breakpoints": true
     }
   ]
 }

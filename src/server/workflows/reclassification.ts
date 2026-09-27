@@ -31,7 +31,8 @@ import type { Ledger, LedgerAuth } from "../modules/ledger-sql/index.js";
 
 export interface ClassifiedDraftTransaction {
   id: number;
-  narration: string;
+  source_narration: string;
+  comment: string | null;
   account_id: number | null;
   account_name: string | null;
 }
@@ -45,7 +46,9 @@ export interface DraftClassificationResult {
 }
 
 // Categorize drafts again, as an import categorizes its rows, optionally
-// after naming their Google Pay recipients from a staged Takeout.
+// after naming their Google Pay recipients from a staged Takeout: a draft's
+// source narration gets its recipient in front, if it hasn't one, and the
+// recipient becomes its comment if it has none.
 export async function classifyDraftTransactions(input: {
   db: any;
   auth: LedgerAuth;
@@ -63,13 +66,13 @@ export async function classifyDraftTransactions(input: {
 
   const sourceTransactions: Abacus[] = drafts.map((draft) => ({
     date: formatPlainDate(draft.date),
-    narration: draft.narration,
+    narration: draft.source_narration,
     ...moneyFromColumns(draft),
     balance: null,
   }));
   const enrichment = gpayHtmlPath
     ? enrichWithGPay(sourceTransactions, parseGPayHtml(gpayHtmlPath))
-    : { enriched: sourceTransactions, matchCount: 0 };
+    : { enriched: sourceTransactions, recipients: [], matchCount: 0 };
 
   const accountsByName = loadAccountsByName(db, auth);
   const { rows, report } = await categorize(
@@ -85,15 +88,18 @@ export async function classifyDraftTransactions(input: {
 
   const reclassified: ReclassifiedDraft[] = drafts.map((draft, index) => ({
     id: draft.id,
-    narration: rows[index].transaction.narration,
+    sourceNarration: rows[index].transaction.narration,
     accountId: rows[index].accountId,
+    comment: enrichment.recipients[index] ?? null,
   }));
   saveReclassifiedDrafts(db, reclassified, auth);
 
   const transactions: ClassifiedDraftTransaction[] = reclassified.map(
-    ({ id, narration, accountId }) => ({
+    ({ id, sourceNarration, accountId, comment }, index) => ({
       id,
-      narration,
+      source_narration: sourceNarration,
+      // As saved: the draft's own comment stays.
+      comment: drafts[index].comment ?? comment ?? null,
       account_id: accountId,
       account_name:
         accountId === null ? null : (accountNameById.get(accountId) ?? null),
@@ -128,7 +134,7 @@ export function setDraftsAccount(
     ledger.db,
     checked.drafts.map((draft) => ({
       id: draft.id,
-      narration: draft.narration,
+      sourceNarration: draft.source_narration,
       accountId,
     })),
     ledger.auth,
@@ -202,7 +208,7 @@ export function teachCategorization(
           const money = moneyFromColumns(draft);
           return {
             date: formatPlainDate(draft.date),
-            narration: draft.narration,
+            source_narration: draft.source_narration,
             direction: direction(money),
             amount: amount(money),
           };

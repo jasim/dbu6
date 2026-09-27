@@ -73,7 +73,8 @@ export interface ImportOptions {
   categorizer: Categorizer;
   // A Google Pay Takeout, parsed once by the batch. When set, withdrawals
   // that survive the reconciliation filter get their narration prefixed with
-  // the GPay recipient before categorization. Applied after transaction keys
+  // the GPay recipient before categorization, and the recipient as their
+  // comment. Applied after transaction keys
   // are assigned, so the takeout never changes transaction identity.
   gpay: GPayIndex | null;
   // Told how far the import has got, for a screen waiting on it.
@@ -307,10 +308,12 @@ export async function runStatementImport(
   // identity) and after the reconciliation filter (so already-reconciled rows
   // do not consume activities a live row with the same date/amount needs).
   let importable = survivors;
+  let comments: (string | null)[] = [];
   let gpayEnrichedCount = 0;
   if (opts.gpay && survivors.length > 0) {
     const enrichment = enrichWithGPay(survivors, opts.gpay);
     importable = unsafeAsChrono(enrichment.enriched);
+    comments = enrichment.recipients;
     gpayEnrichedCount = enrichment.matchCount;
     console.log(
       `[statement-import] GPay takeout: ${opts.gpay.size} (date,amount) keys; enriched ${gpayEnrichedCount} of ${survivors.length} narration(s)`,
@@ -332,6 +335,7 @@ export async function runStatementImport(
     baseAccountId,
     accountsByName,
     transactions: importable,
+    comments,
     rawTransactionCount: withBalances.length,
     categorizer: opts.categorizer,
     onProgress: opts.onProgress,

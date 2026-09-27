@@ -50,7 +50,7 @@ function books() {
       (302, 'workspace', 'user', 30, 4, 0, 2500, -2500, NULL, '', ''),
       (303, 'workspace', 'user', 30, 7, 2300, 0, NULL, NULL, '', '');
     INSERT INTO draft_transactions
-      (id, workspace_id, scoped_to_user_id, date, narration, withdrawal, deposit,
+      (id, workspace_id, scoped_to_user_id, date, source_narration, withdrawal, deposit,
        base_account_id, created_at, updated_at)
     VALUES (41, 'workspace', 'user', '2026-01-20', 'NOPII draft', 50, 0, 3, '', '');
   `);

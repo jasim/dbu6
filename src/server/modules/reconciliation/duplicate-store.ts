@@ -130,7 +130,7 @@ function storedDrafts(
     .select({
       id: draftTransactionsTable.id,
       date: draftTransactionsTable.date,
-      narration: draftTransactionsTable.narration,
+      narration: draftTransactionsTable.source_narration,
       withdrawal: draftTransactionsTable.withdrawal,
       deposit: draftTransactionsTable.deposit,
       accountId: draftTransactionsTable.account_id,
@@ -190,7 +190,7 @@ function storedJournals(
       accountId: journalEntriesTable.account_id,
       debit: journalEntriesTable.debit,
       credit: journalEntriesTable.credit,
-      comment: journalEntriesTable.comment,
+      sourceNarration: journalEntriesTable.source_narration,
       sourceReference: journalEntriesTable.source_reference,
       sourceTransactionKey: journalEntriesTable.source_transaction_key,
     })
@@ -221,7 +221,7 @@ function storedJournals(
       accountId: row.accountId,
       debit: row.debit,
       credit: row.credit,
-      comment: row.comment ?? null,
+      sourceNarration: row.sourceNarration ?? null,
       sourceReference: row.sourceReference ?? null,
       sourceTransactionKey: row.sourceTransactionKey ?? null,
     });

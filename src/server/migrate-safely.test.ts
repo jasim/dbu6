@@ -119,9 +119,9 @@ describe("migrateSafely", () => {
     const sqlite = new Database(dbFile, { readonly: true });
     expect(
       sqlite
-        .prepare("SELECT narration FROM draft_transactions WHERE id = 1")
+        .prepare("SELECT source_narration FROM draft_transactions WHERE id = 1")
         .get(),
-    ).toEqual({ narration: "sample, written late" });
+    ).toEqual({ source_narration: "sample, written late" });
     sqlite.close();
   });
 

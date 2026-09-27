@@ -120,6 +120,7 @@ describe("hledger text of a plan", () => {
     const entry = {
       assertion: null,
       comment: null,
+      sourceNarration: null,
       sourceReference: null,
       sourceTransactionKey: null,
     };
@@ -164,6 +165,70 @@ describe("hledger text of a plan", () => {
     );
   });
 
+  it("describes a commented row by its comment and keeps its statement text as a source line", () => {
+    const commented: PlanRow<Account> = {
+      ...row(
+        "2026-02-01",
+        { withdrawal: 100 },
+        "UPI/050505123456/SAMPLE CAFE/sample@ybl",
+        parseAccount("Eating Out"),
+        null,
+      ),
+      comment: "UPI Sample Cafe",
+    };
+
+    expect(
+      formatHledger(planJournals(unsafeAsChrono([commented]), BASE), new Map()),
+    ).toBe(
+      [
+        "2026-02-01 UPI Sample Cafe",
+        "    Eating Out                              100.00 ; source: UPI/050505123456/SAMPLE CAFE/sample@ybl",
+        "    Sample Savings                         -100.00",
+      ].join("\n"),
+    );
+  });
+
+  it("puts a posted entry's comment on its line and its source narration below it", () => {
+    const output = formatHledger(
+      [
+        {
+          date: "2026-07-09",
+          description: "Expenses",
+          entries: [
+            {
+              account: "Food",
+              amount: 125.5,
+              assertion: null,
+              comment: "Lunch",
+              sourceNarration: "POS 050505 SAMPLE DINER",
+              sourceReference: null,
+              sourceTransactionKey: null,
+            },
+            {
+              account: "Food",
+              amount: 20,
+              assertion: null,
+              comment: null,
+              sourceNarration: "POS 050505 SAMPLE KIOSK",
+              sourceReference: null,
+              sourceTransactionKey: null,
+            },
+          ],
+        },
+      ],
+      new Map(),
+    );
+
+    expect(output).toBe(
+      [
+        "2026-07-09 Expenses",
+        "    Food                                    125.50 ; Lunch",
+        "        ; source: POS 050505 SAMPLE DINER",
+        "    Food                                     20.00 ; source: POS 050505 SAMPLE KIOSK",
+      ].join("\n"),
+    );
+  });
+
   it("writes each account by its path down the account tree", () => {
     const hledgerNames = hledgerAccountNames([
       { id: 1, name: "Expenses", parent_id: null },
@@ -176,6 +241,7 @@ describe("hledger text of a plan", () => {
     const entry = {
       assertion: null,
       comment: null,
+      sourceNarration: null,
       sourceReference: null,
       sourceTransactionKey: null,
     };

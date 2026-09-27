@@ -24,12 +24,12 @@ function ledger(): Database.Database {
     CREATE TABLE journal_entries (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
       account_id INTEGER, debit REAL, credit REAL, account_balance_assertion REAL,
-      comment TEXT, source_reference TEXT, source_transaction_key TEXT
+      comment TEXT, source_reference TEXT, source_transaction_key TEXT, source_narration TEXT
     );
     CREATE TABLE draft_transactions (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT, narration TEXT,
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT, source_narration TEXT,
       withdrawal REAL, deposit REAL, account_id INTEGER, base_account_id INTEGER,
-      balance_assertion_base_account REAL, source_reference TEXT, source_transaction_key TEXT
+      balance_assertion_base_account REAL, source_reference TEXT, source_transaction_key TEXT, comment TEXT
     );
 
     INSERT INTO accounts VALUES
@@ -42,16 +42,16 @@ function ledger(): Database.Database {
 
     INSERT INTO journals VALUES (10, 'workspace', 'user', '2026-02-10', 'Opening');
     INSERT INTO journal_entries VALUES
-      (101, 'workspace', 'user', 10, 2, 1500, 0, 1500, NULL, NULL, NULL),
-      (102, 'workspace', 'user', 10, 3, 0, 1500, NULL, NULL, NULL, NULL);
+      (101, 'workspace', 'user', 10, 2, 1500, 0, 1500, NULL, NULL, NULL, NULL),
+      (102, 'workspace', 'user', 10, 3, 0, 1500, NULL, NULL, NULL, NULL, NULL);
 
     INSERT INTO draft_transactions VALUES
-      (201, 'workspace', 'user', '2026-03-02', 'NOPII grocer', 40, 0, 3, 2, 1460, NULL, 'k-201'),
-      (202, 'workspace', 'user', '2026-03-02', 'NOPII grocer', 40, 0, 3, 2, 1460, NULL, 'k-201'),
-      (203, 'workspace', 'user', '2026-03-13', 'NOPII shop', 60, 0, NULL, 2, NULL, NULL, 'k-203'),
-      (204, 'workspace', 'user', '2026-03-04', 'NOPII card shop', 25, 0, 3, 1, NULL, NULL, 'k-204'),
-      (205, 'workspace', 'user', '2026-03-05', 'NOPII loan', 10, 0, 3, 4, NULL, NULL, 'k-205'),
-      (206, 'workspace', 'other-user', '2026-03-05', 'NOPII other', 10, 0, NULL, 5, NULL, NULL, 'k-206');
+      (201, 'workspace', 'user', '2026-03-02', 'NOPII grocer', 40, 0, 3, 2, 1460, NULL, 'k-201', NULL),
+      (202, 'workspace', 'user', '2026-03-02', 'NOPII grocer', 40, 0, 3, 2, 1460, NULL, 'k-201', NULL),
+      (203, 'workspace', 'user', '2026-03-13', 'NOPII shop', 60, 0, NULL, 2, NULL, NULL, 'k-203', NULL),
+      (204, 'workspace', 'user', '2026-03-04', 'NOPII card shop', 25, 0, 3, 1, NULL, NULL, 'k-204', NULL),
+      (205, 'workspace', 'user', '2026-03-05', 'NOPII loan', 10, 0, 3, 4, NULL, NULL, 'k-205', NULL),
+      (206, 'workspace', 'other-user', '2026-03-05', 'NOPII other', 10, 0, NULL, 5, NULL, NULL, 'k-206', NULL);
   `);
   return sqlite;
 }

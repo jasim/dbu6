@@ -25,7 +25,8 @@ export interface JournalEntryCandidate {
   accountId: number;
   debit: number;
   credit: number;
-  comment: string | null;
+  // The statement text the entry was posted from; null on a manual entry.
+  sourceNarration: string | null;
   sourceReference: string | null;
   sourceTransactionKey: string | null;
 }
@@ -83,10 +84,20 @@ function narrationOrReferenceMatches(
     );
   }
   return (
-    entry.comment !== null &&
-    normalizeIdentityText(transaction.narration) ===
-      normalizeIdentityText(entry.comment)
+    entry.sourceNarration !== null &&
+    sameOrGPayPrefixed(transaction.narration, entry.sourceNarration)
   );
+}
+
+// The stored text is the incoming one, or the incoming one with a Google Pay
+// recipient in front (`Recipient | <text>`). An entry posted from a
+// takeout-enriched import still matches a re-import of the row without one.
+function sameOrGPayPrefixed(incoming: string, stored: string): boolean {
+  const text = normalizeIdentityText(incoming);
+  const storedText = normalizeIdentityText(stored);
+  if (storedText === text) return true;
+  const separator = storedText.indexOf(" | ");
+  return separator !== -1 && storedText.slice(separator + 3) === text;
 }
 
 export function matchTransactionToJournal(

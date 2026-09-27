@@ -31,6 +31,7 @@ type JournalHledgerRow = {
   credit: number;
   assertion: number | null;
   comment: string | null;
+  sourceNarration: string | null;
   sourceReference: string | null;
   sourceTransactionKey: string | null;
 };
@@ -84,6 +85,7 @@ function loadJournalHledgerRows({
       credit: journalEntriesTable.credit,
       assertion: journalEntriesTable.account_balance_assertion,
       comment: journalEntriesTable.comment,
+      sourceNarration: journalEntriesTable.source_narration,
       sourceReference: journalEntriesTable.source_reference,
       sourceTransactionKey: journalEntriesTable.source_transaction_key,
     })
@@ -127,6 +129,7 @@ function groupRowsIntoPlan(
       amount: row.debit - row.credit,
       assertion: row.assertion,
       comment: row.comment,
+      sourceNarration: row.sourceNarration,
       sourceReference: row.sourceReference,
       sourceTransactionKey: row.sourceTransactionKey,
     });

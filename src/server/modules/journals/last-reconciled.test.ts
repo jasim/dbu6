@@ -229,7 +229,8 @@ function postedLedger(): Database.Database {
     CREATE TABLE journal_entries (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
       account_id INTEGER, debit REAL, credit REAL, comment TEXT,
-      source_transaction_key TEXT, account_balance_assertion REAL
+      source_narration TEXT, source_transaction_key TEXT,
+      account_balance_assertion REAL
     );
     CREATE TABLE draft_transactions (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
@@ -249,20 +250,20 @@ function postedLedger(): Database.Database {
       (35, 'workspace', 'user', '2026-05-11', 'sample next day'),
       (36, 'workspace', 'other-user', '2026-05-10', 'sample other user');
     INSERT INTO journal_entries VALUES
-      (301, 'workspace', 'user', 30, 3, 100, 0, 'sample one', 'semantic:one', NULL),
-      (302, 'workspace', 'user', 30, 1, 0, 100, NULL, NULL, NULL),
-      (311, 'workspace', 'user', 31, 3, 200, 0, 'sample two', 'ref:two', NULL),
-      (312, 'workspace', 'user', 31, 4, 0, 1000, 'sample three', 'ref:three', NULL),
-      (313, 'workspace', 'user', 31, 1, 800, 0, NULL, NULL, 5000),
-      (321, 'workspace', 'user', 32, 1, 0, 500, 'NOPII PAYMENT RECEIVED', 'ref:card-payment', NULL),
-      (322, 'workspace', 'user', 32, 2, 500, 0, NULL, NULL, NULL),
-      (331, 'workspace', 'user', 33, 3, 50, 0, NULL, NULL, NULL),
-      (332, 'workspace', 'user', 33, 1, 0, 50, NULL, NULL, NULL),
-      (341, 'workspace', 'user', 34, 3, 70, 0, 'sample card only', 'ref:card-only', NULL),
-      (342, 'workspace', 'user', 34, 2, 0, 70, NULL, NULL, NULL),
-      (351, 'workspace', 'user', 35, 3, 10, 0, 'sample next day', 'ref:next-day', NULL),
-      (352, 'workspace', 'user', 35, 1, 0, 10, NULL, NULL, NULL),
-      (361, 'workspace', 'other-user', 36, 1, 0, 20, NULL, NULL, NULL);
+      (301, 'workspace', 'user', 30, 3, 100, 0, NULL, 'sample one', 'semantic:one', NULL),
+      (302, 'workspace', 'user', 30, 1, 0, 100, NULL, NULL, NULL, NULL),
+      (311, 'workspace', 'user', 31, 3, 200, 0, NULL, 'sample two', 'ref:two', NULL),
+      (312, 'workspace', 'user', 31, 4, 0, 1000, NULL, 'sample three', 'ref:three', NULL),
+      (313, 'workspace', 'user', 31, 1, 800, 0, NULL, NULL, NULL, 5000),
+      (321, 'workspace', 'user', 32, 1, 0, 500, NULL, 'NOPII PAYMENT RECEIVED', 'ref:card-payment', NULL),
+      (322, 'workspace', 'user', 32, 2, 500, 0, NULL, NULL, NULL, NULL),
+      (331, 'workspace', 'user', 33, 3, 50, 0, NULL, NULL, NULL, NULL),
+      (332, 'workspace', 'user', 33, 1, 0, 50, NULL, NULL, NULL, NULL),
+      (341, 'workspace', 'user', 34, 3, 70, 0, NULL, 'sample card only', 'ref:card-only', NULL),
+      (342, 'workspace', 'user', 34, 2, 0, 70, NULL, NULL, NULL, NULL),
+      (351, 'workspace', 'user', 35, 3, 10, 0, NULL, 'sample next day', 'ref:next-day', NULL),
+      (352, 'workspace', 'user', 35, 1, 0, 10, NULL, NULL, NULL, NULL),
+      (361, 'workspace', 'other-user', 36, 1, 0, 20, NULL, NULL, NULL, NULL);
   `);
   return sqlite;
 }

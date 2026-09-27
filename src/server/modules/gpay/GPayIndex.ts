@@ -22,6 +22,9 @@ export function parseGPayHtml(path: string): GPayIndex {
 
 export interface EnrichmentResult {
   enriched: Abacus[];
+  // Each row's Google Pay recipient, by the row's index, or null. A row
+  // already prefixed still names its recipient here.
+  recipients: (string | null)[];
   matchCount: number;
 }
 
@@ -33,6 +36,7 @@ export function enrichWithGPay(
     [...idx].map(([entryKey, recipients]) => [entryKey, [...recipients]]),
   );
   const enriched = [...txns];
+  const recipientsByRow: (string | null)[] = txns.map(() => null);
   const assigned = new Set<number>();
   let matchCount = 0;
 
@@ -63,6 +67,7 @@ export function enrichWithGPay(
         const prefix = `${recipient} | `;
 
         assigned.add(transactionIndex);
+        recipientsByRow[transactionIndex] = recipient;
         if (transaction.narration.startsWith(prefix)) continue;
         enriched[transactionIndex] = {
           ...transaction,
@@ -73,7 +78,7 @@ export function enrichWithGPay(
     }
   }
 
-  return { enriched, matchCount };
+  return { enriched, recipients: recipientsByRow, matchCount };
 }
 
 function groupUnassignedTransactions(

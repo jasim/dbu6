@@ -26,11 +26,11 @@ function ledger() {
     );
     CREATE TABLE draft_transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT NOT NULL,
-      scoped_to_user_id TEXT NOT NULL, date TEXT NOT NULL, narration TEXT NOT NULL,
+      scoped_to_user_id TEXT NOT NULL, date TEXT NOT NULL, source_narration TEXT NOT NULL,
       withdrawal REAL NOT NULL DEFAULT 0, deposit REAL NOT NULL DEFAULT 0,
       account_id INTEGER, base_account_id INTEGER, balance_assertion_base_account REAL,
       source_reference TEXT, source_transaction_key TEXT,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, comment TEXT
     );
     CREATE TABLE journals (
       id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT NOT NULL,
@@ -43,7 +43,7 @@ function ledger() {
       account_id INTEGER NOT NULL, debit REAL NOT NULL DEFAULT 0,
       credit REAL NOT NULL DEFAULT 0, account_balance_assertion REAL, comment TEXT,
       source_reference TEXT, source_transaction_key TEXT,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, source_narration TEXT
     );
 
     INSERT INTO accounts VALUES
@@ -53,12 +53,12 @@ function ledger() {
 
     INSERT INTO journals VALUES (10, 'workspace', 'user', '2026-01-10', 'Opening', ${stamp});
     INSERT INTO journal_entries VALUES
-      (101, 'workspace', 'user', 10, 1, 1000, 0, 1000, NULL, NULL, NULL, ${stamp}),
-      (102, 'workspace', 'user', 10, 3, 0, 1000, NULL, NULL, NULL, NULL, ${stamp});
+      (101, 'workspace', 'user', 10, 1, 1000, 0, 1000, NULL, NULL, NULL, ${stamp}, NULL),
+      (102, 'workspace', 'user', 10, 3, 0, 1000, NULL, NULL, NULL, NULL, ${stamp}, NULL);
 
     INSERT INTO draft_transactions VALUES
-      (201, 'workspace', 'user', '2026-02-01', 'NOPII salary', 0, 500, 3, 1, NULL, NULL, 'k-201', ${stamp}),
-      (202, 'workspace', 'user', '2026-02-03', 'NOPII grocer', 100, 0, 2, 1, 1400, NULL, 'k-202', ${stamp});
+      (201, 'workspace', 'user', '2026-02-01', 'NOPII salary', 0, 500, 3, 1, NULL, NULL, 'k-201', ${stamp}, NULL),
+      (202, 'workspace', 'user', '2026-02-03', 'NOPII grocer', 100, 0, 2, 1, 1400, NULL, 'k-202', ${stamp}, NULL);
   `);
   const posting = { db: drizzle(sqlite), sqlite, auth };
   const count = (table: string) =>
@@ -88,9 +88,9 @@ describe("postDraftsToJournal", () => {
     const { sqlite, posting, count } = ledger();
     sqlite.exec(`
       INSERT INTO draft_transactions
-      SELECT 203, workspace_id, scoped_to_user_id, date, narration, withdrawal, deposit,
+      SELECT 203, workspace_id, scoped_to_user_id, date, source_narration, withdrawal, deposit,
         account_id, base_account_id, NULL, source_reference, source_transaction_key,
-        created_at, updated_at
+        created_at, updated_at, comment
       FROM draft_transactions WHERE id = 202
     `);
 
@@ -181,6 +181,50 @@ describe("postDraftsToJournal", () => {
     ]);
   });
 
+  it("copies each draft's texts to its counterparty line, and describes the journal by its comment", () => {
+    const { sqlite, posting } = ledger();
+    sqlite.exec(
+      `UPDATE draft_transactions SET comment = 'Sample grocer' WHERE id = 202`,
+    );
+
+    expect(postDraftsToJournal(posting, 1)).toMatchObject({ status: 200 });
+    expect(
+      sqlite
+        .prepare(
+          `SELECT j.description, e.account_id, e.comment, e.source_narration
+           FROM journal_entries e JOIN journals j ON j.id = e.journal_id
+           WHERE j.id <> 10 ORDER BY j.date, e.id`,
+        )
+        .all(),
+    ).toEqual([
+      // No comment yet: the statement's text describes the journal.
+      {
+        description: "NOPII salary",
+        account_id: 1,
+        comment: null,
+        source_narration: null,
+      },
+      {
+        description: "NOPII salary",
+        account_id: 3,
+        comment: null,
+        source_narration: "NOPII salary",
+      },
+      {
+        description: "Sample grocer",
+        account_id: 2,
+        comment: "Sample grocer",
+        source_narration: "NOPII grocer",
+      },
+      {
+        description: "Sample grocer",
+        account_id: 1,
+        comment: null,
+        source_narration: null,
+      },
+    ]);
+  });
+
   it("writes the journals the draft preview shows", () => {
     const { sqlite, posting } = ledger();
     // A later day of a withdrawal, a deposit and two more withdrawals, whose
@@ -188,10 +232,10 @@ describe("postDraftsToJournal", () => {
     const stamp = "'2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'";
     sqlite.exec(`
       INSERT INTO draft_transactions VALUES
-        (203, 'workspace', 'user', '2026-02-05', 'NOPII cafe', 50, 0, 2, 1, NULL, NULL, 'k-203', ${stamp}),
-        (204, 'workspace', 'user', '2026-02-05', 'NOPII refund', 0, 200, 3, 1, NULL, NULL, 'k-204', ${stamp}),
-        (205, 'workspace', 'user', '2026-02-05', 'NOPII bakery', 30, 0, 2, 1, NULL, NULL, 'k-205', ${stamp}),
-        (206, 'workspace', 'user', '2026-02-05', 'NOPII market', 20, 0, 2, 1, 1500, NULL, 'k-206', ${stamp});
+        (203, 'workspace', 'user', '2026-02-05', 'NOPII cafe', 50, 0, 2, 1, NULL, NULL, 'k-203', ${stamp}, NULL),
+        (204, 'workspace', 'user', '2026-02-05', 'NOPII refund', 0, 200, 3, 1, NULL, NULL, 'k-204', ${stamp}, NULL),
+        (205, 'workspace', 'user', '2026-02-05', 'NOPII bakery', 30, 0, 2, 1, NULL, NULL, 'k-205', ${stamp}, NULL),
+        (206, 'workspace', 'user', '2026-02-05', 'NOPII market', 20, 0, 2, 1, 1500, NULL, 'k-206', ${stamp}, NULL);
     `);
 
     const preview = renderDraftHledger(posting.db, 1, auth)?.hledger_journal;
@@ -233,11 +277,11 @@ function treeLedger() {
     );
     CREATE TABLE draft_transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT NOT NULL,
-      scoped_to_user_id TEXT NOT NULL, date TEXT NOT NULL, narration TEXT NOT NULL,
+      scoped_to_user_id TEXT NOT NULL, date TEXT NOT NULL, source_narration TEXT NOT NULL,
       withdrawal REAL NOT NULL DEFAULT 0, deposit REAL NOT NULL DEFAULT 0,
       account_id INTEGER, base_account_id INTEGER, balance_assertion_base_account REAL,
       source_reference TEXT, source_transaction_key TEXT,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, comment TEXT
     );
     CREATE TABLE journals (
       id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT NOT NULL,
@@ -250,7 +294,7 @@ function treeLedger() {
       account_id INTEGER NOT NULL, debit REAL NOT NULL DEFAULT 0,
       credit REAL NOT NULL DEFAULT 0, account_balance_assertion REAL, comment TEXT,
       source_reference TEXT, source_transaction_key TEXT,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, source_narration TEXT
     );
 
     INSERT INTO accounts VALUES
@@ -277,24 +321,24 @@ function treeLedger() {
       (12, 'workspace', 'user', '2026-01-06', 'Cash to the bank', ${stamp});
 
     INSERT INTO journal_entries VALUES
-      (101, 'workspace', 'user', 10, 16, 100000, 0, NULL, NULL, NULL, NULL, ${stamp}),
-      (102, 'workspace', 'user', 10, 13, 0, 90000, NULL, NULL, NULL, NULL, ${stamp}),
-      (103, 'workspace', 'user', 10, 14, 0, 10000, NULL, NULL, NULL, NULL, ${stamp}),
-      (111, 'workspace', 'user', 11, 1, 500, 0, NULL, NULL, NULL, NULL, ${stamp}),
-      (112, 'workspace', 'user', 11, 2, 3000, 0, NULL, NULL, NULL, NULL, ${stamp}),
-      (113, 'workspace', 'user', 11, 4, 1500, 0, NULL, NULL, NULL, NULL, ${stamp}),
-      (114, 'workspace', 'user', 11, 5, 50, 0, NULL, NULL, NULL, NULL, ${stamp}),
-      (115, 'workspace', 'user', 11, 6, 20000, 0, NULL, NULL, NULL, NULL, ${stamp}),
-      (116, 'workspace', 'user', 11, 7, 800, 0, NULL, NULL, NULL, NULL, ${stamp}),
-      (117, 'workspace', 'user', 11, 10, 200, 0, NULL, NULL, NULL, NULL, ${stamp}),
-      (118, 'workspace', 'user', 11, 16, 0, 26050, NULL, NULL, NULL, NULL, ${stamp}),
-      (121, 'workspace', 'user', 12, 15, 2000, 0, NULL, NULL, NULL, NULL, ${stamp}),
-      (122, 'workspace', 'user', 12, 16, 0, 2000, NULL, NULL, NULL, NULL, ${stamp});
+      (101, 'workspace', 'user', 10, 16, 100000, 0, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (102, 'workspace', 'user', 10, 13, 0, 90000, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (103, 'workspace', 'user', 10, 14, 0, 10000, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (111, 'workspace', 'user', 11, 1, 500, 0, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (112, 'workspace', 'user', 11, 2, 3000, 0, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (113, 'workspace', 'user', 11, 4, 1500, 0, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (114, 'workspace', 'user', 11, 5, 50, 0, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (115, 'workspace', 'user', 11, 6, 20000, 0, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (116, 'workspace', 'user', 11, 7, 800, 0, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (117, 'workspace', 'user', 11, 10, 200, 0, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (118, 'workspace', 'user', 11, 16, 0, 26050, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (121, 'workspace', 'user', 12, 15, 2000, 0, NULL, NULL, NULL, NULL, ${stamp}, NULL),
+      (122, 'workspace', 'user', 12, 16, 0, 2000, NULL, NULL, NULL, NULL, ${stamp}, NULL);
 
     INSERT INTO draft_transactions VALUES
-      (201, 'workspace', 'user', '2026-01-20', 'NOPII sample grocer', 700, 0, 2, 16, NULL, NULL, 'k-201', ${stamp}),
-      (202, 'workspace', 'user', '2026-01-20', 'NOPII sample cafe', 900, 0, 1, 16, NULL, NULL, 'k-202', ${stamp}),
-      (203, 'workspace', 'user', '2026-01-20', 'NOPII sample employer', 0, 5000, 13, 16, NULL, NULL, 'k-203', ${stamp});
+      (201, 'workspace', 'user', '2026-01-20', 'NOPII sample grocer', 700, 0, 2, 16, NULL, NULL, 'k-201', ${stamp}, NULL),
+      (202, 'workspace', 'user', '2026-01-20', 'NOPII sample cafe', 900, 0, 1, 16, NULL, NULL, 'k-202', ${stamp}, NULL),
+      (203, 'workspace', 'user', '2026-01-20', 'NOPII sample employer', 0, 5000, 13, 16, NULL, NULL, 'k-203', ${stamp}, NULL);
   `);
   const posting = { db: drizzle(sqlite), sqlite, auth };
   const count = (table: string) =>

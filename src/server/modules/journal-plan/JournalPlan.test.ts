@@ -20,13 +20,39 @@ describe("JournalPlan source identity", () => {
     const [journal] = planJournals(unsafeAsChrono([row]), 1);
     expect(journal.entries[0]).toMatchObject({
       account: 2,
+      comment: null,
+      sourceNarration: "Merchant",
       sourceReference: "issuer-ref",
       sourceTransactionKey: "stable-key",
     });
     expect(journal.entries[1]).toMatchObject({
       account: 1,
+      comment: null,
+      sourceNarration: null,
       sourceReference: null,
       sourceTransactionKey: null,
+    });
+    expect(journal.description).toBe("Merchant");
+  });
+
+  it("copies a draft's comment to its line and describes the journal by it", () => {
+    const row: PlanRow<number> = {
+      transaction: {
+        date: "2026-05-07",
+        narration: "UPI/050505123456/SAMPLE CAFE",
+        withdrawal: 100,
+        deposit: 0,
+        balance: null,
+      },
+      account: 2,
+      assertion: null,
+      comment: "UPI Sample Cafe",
+    };
+    const [journal] = planJournals(unsafeAsChrono([row]), 1);
+    expect(journal.description).toBe("UPI Sample Cafe");
+    expect(journal.entries[0]).toMatchObject({
+      comment: "UPI Sample Cafe",
+      sourceNarration: "UPI/050505123456/SAMPLE CAFE",
     });
   });
 

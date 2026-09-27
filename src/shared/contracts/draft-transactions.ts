@@ -22,12 +22,13 @@ const errorSchema = z
 
 const classifiedDraftTransactionSchema = z.object({
   id: z.number(),
-  narration: z.string(),
+  source_narration: z.string(),
+  comment: z.string().nullable(),
   account_id: z.number().nullable(),
   account_name: z.string().nullable(),
 });
 
-// Classifying drafts again: each draft's narration and account, how the LLM
+// Classifying drafts again: each draft's texts and account, how the LLM
 // fared on what the mapping rules didn't categorize, and the drafts by who
 // categorized them.
 export const draftClassificationSchema = z.object({

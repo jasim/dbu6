@@ -79,7 +79,8 @@ describe("classifyDraftTransactions", () => {
       transactions: [
         {
           id: 1,
-          narration: "Coffee Shop | UPI debit",
+          source_narration: "Coffee Shop | UPI debit",
+          comment: "Coffee Shop",
           account_id: 2,
           account_name: "Coffee",
         },
@@ -103,10 +104,14 @@ describe("classifyDraftTransactions", () => {
     expect(
       sqlite
         .prepare(
-          "SELECT narration, account_id FROM draft_transactions WHERE id = 1",
+          "SELECT source_narration, comment, account_id FROM draft_transactions WHERE id = 1",
         )
         .get(),
-    ).toEqual({ narration: "Coffee Shop | UPI debit", account_id: 2 });
+    ).toEqual({
+      source_narration: "Coffee Shop | UPI debit",
+      comment: "Coffee Shop",
+      account_id: 2,
+    });
 
     const second = await classifyDraftTransactions({
       db,
@@ -117,7 +122,36 @@ describe("classifyDraftTransactions", () => {
       loadCategorizer,
     });
     expect(second.gpayEnrichedCount).toBe(0);
-    expect(second.transactions[0].narration).toBe("Coffee Shop | UPI debit");
+
+    // A comment the person wrote stays through another reclassification.
+    sqlite
+      .prepare(
+        "UPDATE draft_transactions SET comment = 'sample note' WHERE id = 1",
+      )
+      .run();
+    const third = await classifyDraftTransactions({
+      db,
+      auth,
+      ids: [1],
+      customMappingsFilenames: [],
+      gpayHtmlPath: gpayPath,
+      loadCategorizer,
+    });
+    expect(third.transactions[0].comment).toBe("sample note");
+    expect(
+      sqlite
+        .prepare("SELECT comment FROM draft_transactions WHERE id = 1")
+        .get(),
+    ).toEqual({ comment: "sample note" });
+    sqlite
+      .prepare(
+        "UPDATE draft_transactions SET comment = 'Coffee Shop' WHERE id = 1",
+      )
+      .run();
+    expect(second.transactions[0]).toMatchObject({
+      source_narration: "Coffee Shop | UPI debit",
+      comment: "Coffee Shop",
+    });
 
     sqlite.close();
   });
@@ -188,13 +222,13 @@ describe("teachCategorization", () => {
       transactions: [
         {
           date: "2026-04-24",
-          narration: "UPI debit",
+          source_narration: "UPI debit",
           direction: "withdrawal",
           amount: 250,
         },
         {
           date: "2026-04-25",
-          narration: "UPI debit again",
+          source_narration: "UPI debit again",
           direction: "withdrawal",
           amount: 1000,
         },
@@ -264,7 +298,7 @@ function addDraft(
       workspace_id: "workspace",
       scoped_to_user_id: "user",
       date: parsePlainDate("2026-04-25"),
-      narration,
+      source_narration: narration,
       withdrawal: 1000,
       deposit: 0,
       account_id: null,
@@ -298,7 +332,8 @@ function setupDatabase() {
       workspace_id TEXT NOT NULL,
       scoped_to_user_id TEXT NOT NULL,
       date TEXT NOT NULL,
-      narration TEXT NOT NULL,
+      source_narration TEXT NOT NULL,
+      comment TEXT,
       withdrawal REAL NOT NULL DEFAULT 0,
       deposit REAL NOT NULL DEFAULT 0,
       account_id INTEGER,
@@ -334,7 +369,7 @@ function setupDatabase() {
       workspace_id: "workspace",
       scoped_to_user_id: "user",
       date: parsePlainDate("2026-04-24"),
-      narration: "UPI debit",
+      source_narration: "UPI debit",
       withdrawal: 250,
       deposit: 0,
       account_id: null,
@@ -369,7 +404,13 @@ describe("draft classification response contract", () => {
       failure: "partial",
     };
     const transactions = [
-      { id: 1, narration: "NOPII SHOP", account_id: null, account_name: null },
+      {
+        id: 1,
+        source_narration: "NOPII SHOP",
+        comment: null,
+        account_id: null,
+        account_name: null,
+      },
     ];
     const tally = {
       by_rule: 0,

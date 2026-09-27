@@ -37,7 +37,7 @@ function ledger(): Database.Database {
     CREATE TABLE journal_entries (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
       account_id INTEGER, debit REAL, credit REAL, account_balance_assertion REAL,
-      comment TEXT
+      comment TEXT, source_narration TEXT
     );
     CREATE TABLE draft_transactions (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT

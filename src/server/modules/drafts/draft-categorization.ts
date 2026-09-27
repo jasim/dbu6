@@ -65,7 +65,7 @@ export function loadCategorizedDrafts(
     drafts.map((d: DraftRow): DraftCategorizedTransaction => ({
       transaction: {
         date: formatPlainDate(d.date),
-        narration: d.narration,
+        narration: d.source_narration,
         ...moneyFromColumns(d),
         balance: null,
         source_reference: d.source_reference,
@@ -76,6 +76,7 @@ export function loadCategorizedDrafts(
           ? UNCATEGORIZED
           : parseAccount(accountNameById.get(d.account_id) ?? UNCATEGORIZED),
       draftId: d.id,
+      comment: d.comment,
       accountId: d.account_id,
       assertion: d.balance_assertion_base_account,
     })),

@@ -36,7 +36,7 @@ describe("Asset inflows query", () => {
         account_id INTEGER,
         debit REAL,
         credit REAL,
-        comment TEXT
+        comment TEXT, source_narration TEXT
       );
       CREATE TABLE draft_transactions (
         id INTEGER,
@@ -63,22 +63,22 @@ describe("Asset inflows query", () => {
         (16, 'other-workspace', 'user', '2026-01-17', 'Other workspace');
 
       INSERT INTO journal_entries VALUES
-        (101, 'workspace', 'user', 10, 1, 100, 0, 'Bank line'),
-        (102, 'workspace', 'user', 10, 3, 0, 100, NULL),
-        (103, 'workspace', 'user', 11, 2, 40, 0, 'Deposit line'),
-        (104, 'workspace', 'user', 11, 4, 0, 25, NULL),
-        (105, 'workspace', 'user', 11, 3, 0, 15, NULL),
-        (106, 'workspace', 'user', 12, 1, 105, 0, 'Redemption receipt'),
-        (107, 'workspace', 'user', 12, 2, 0, 100, NULL),
-        (108, 'workspace', 'user', 12, 7, 0, 5, NULL),
-        (109, 'workspace', 'user', 13, 1, 5, 0, 'Gain receipt'),
-        (110, 'workspace', 'user', 13, 7, 0, 5, NULL),
-        (111, 'workspace', 'user', 14, 1, 30, 0, NULL),
-        (112, 'workspace', 'user', 14, 3, 0, 30, NULL),
-        (113, 'workspace', 'other-user', 15, 5, 50, 0, NULL),
-        (114, 'workspace', 'other-user', 15, 3, 0, 50, NULL),
-        (115, 'other-workspace', 'user', 16, 6, 60, 0, NULL),
-        (116, 'other-workspace', 'user', 16, 3, 0, 60, NULL);
+        (101, 'workspace', 'user', 10, 1, 100, 0, NULL, 'Bank line'),
+        (102, 'workspace', 'user', 10, 3, 0, 100, NULL, NULL),
+        (103, 'workspace', 'user', 11, 2, 40, 0, NULL, 'Deposit line'),
+        (104, 'workspace', 'user', 11, 4, 0, 25, NULL, NULL),
+        (105, 'workspace', 'user', 11, 3, 0, 15, NULL, NULL),
+        (106, 'workspace', 'user', 12, 1, 105, 0, NULL, 'Redemption receipt'),
+        (107, 'workspace', 'user', 12, 2, 0, 100, NULL, NULL),
+        (108, 'workspace', 'user', 12, 7, 0, 5, NULL, NULL),
+        (109, 'workspace', 'user', 13, 1, 5, 0, NULL, 'Gain receipt'),
+        (110, 'workspace', 'user', 13, 7, 0, 5, NULL, NULL),
+        (111, 'workspace', 'user', 14, 1, 30, 0, NULL, NULL),
+        (112, 'workspace', 'user', 14, 3, 0, 30, NULL, NULL),
+        (113, 'workspace', 'other-user', 15, 5, 50, 0, NULL, NULL),
+        (114, 'workspace', 'other-user', 15, 3, 0, 50, NULL, NULL),
+        (115, 'other-workspace', 'user', 16, 6, 60, 0, NULL, NULL),
+        (116, 'other-workspace', 'user', 16, 3, 0, 60, NULL, NULL);
     `);
 
     const rows = loadAssetInflows(readOnlyLedger(sqlite, testLedgerAuth()), {

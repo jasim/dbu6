@@ -40,13 +40,13 @@ const LESSONS: CategorizationLesson[] = [
     transactions: [
       {
         date: "2026-09-01",
-        narration: "NOPII SHOP ONE",
+        source_narration: "NOPII SHOP ONE",
         direction: "withdrawal",
         amount: 120,
       },
       {
         date: "2026-09-03",
-        narration: "NOPII SHOP ONE AGAIN",
+        source_narration: "NOPII SHOP ONE AGAIN",
         direction: "withdrawal",
         amount: 450.5,
       },
@@ -60,7 +60,7 @@ const LESSONS: CategorizationLesson[] = [
     transactions: [
       {
         date: "2026-09-02",
-        narration: "NOPII CAFE",
+        source_narration: "NOPII CAFE",
         direction: "withdrawal",
         amount: 300,
       },

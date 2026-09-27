@@ -50,6 +50,7 @@ export function insertJournalPlan(
         account_balance_assertion:
           entry.assertion === null ? null : cents(entry.assertion),
         comment: entry.comment,
+        source_narration: entry.sourceNarration,
         source_reference: entry.sourceReference,
         source_transaction_key: entry.sourceTransactionKey,
       }),

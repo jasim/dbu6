@@ -14,7 +14,7 @@ export const duplicateDraftRowsSql = `
 SELECT
   dt.id AS draft_id,
   dt.date AS date,
-  dt.narration AS narration,
+  dt.source_narration AS narration,
   dt.withdrawal AS withdrawal,
   dt.deposit AS deposit,
   dt.account_id AS account_id,
@@ -37,6 +37,7 @@ SELECT
   je.account_id AS account_id,
   je.debit AS debit,
   je.credit AS credit,
+  je.source_narration AS source_narration,
   je.comment AS comment,
   je.source_reference AS source_reference,
   je.source_transaction_key AS source_transaction_key,
@@ -67,6 +68,7 @@ export interface DuplicateJournalEntrySourceRow {
   account_id: number;
   debit: number;
   credit: number;
+  source_narration: string | null;
   comment: string | null;
   source_reference: string | null;
   source_transaction_key: string | null;
@@ -135,7 +137,7 @@ export function findDuplicateDiagnostics(
       accountId: row.account_id,
       debit: row.debit,
       credit: row.credit,
-      comment: row.comment,
+      sourceNarration: row.source_narration,
       sourceReference: row.source_reference,
       sourceTransactionKey: row.source_transaction_key,
     });
@@ -197,7 +199,8 @@ export function findDuplicateDiagnostics(
           direction,
           amount,
           narration: left.narration,
-          other_narration: entry.comment,
+          // A manual entry, matched by its reference, has only its comment.
+          other_narration: entry.source_narration ?? entry.comment,
           source_reference: left.source_reference,
           source_transaction_key: left.source_transaction_key,
           other_source_reference: entry.source_reference,

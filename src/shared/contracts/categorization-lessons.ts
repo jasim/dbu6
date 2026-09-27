@@ -16,7 +16,7 @@ const errorSchema = z.object({ error: z.string() }).passthrough();
 // in `direction`.
 export const categorizationLessonTransactionSchema = z.object({
   date: z.string(),
-  narration: z.string(),
+  source_narration: z.string(),
   direction: z.enum(["withdrawal", "deposit"]),
   amount: z.number().nonnegative(),
 });

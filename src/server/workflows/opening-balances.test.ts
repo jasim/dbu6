@@ -36,7 +36,7 @@ function books(extra = ""): Ledger {
       (4, 'workspace', 'user', 'Sample Card', 3, 'Liability', '', ''),
       (5, 'workspace', 'user', 'Groceries', NULL, 'Expense', '', '');
     INSERT INTO draft_transactions
-      (id, workspace_id, scoped_to_user_id, date, narration, withdrawal, deposit,
+      (id, workspace_id, scoped_to_user_id, date, source_narration, withdrawal, deposit,
        account_id, base_account_id, balance_assertion_base_account, created_at, updated_at)
     VALUES
       (11, 'workspace', 'user', '2026-02-03', 'NOPII deposit', 0, 500, NULL, 2, NULL, '', ''),
@@ -426,7 +426,7 @@ const SHARED_OPENING = `
 // February: posted, it is on the card too.
 const CARD_PAYMENT = `
   INSERT INTO draft_transactions
-    (id, workspace_id, scoped_to_user_id, date, narration, withdrawal, deposit,
+    (id, workspace_id, scoped_to_user_id, date, source_narration, withdrawal, deposit,
      account_id, base_account_id, created_at, updated_at)
   VALUES (13, 'workspace', 'user', '2026-02-04', 'NOPII card payment', 300, 0, 4, 2, '', '');
 `;

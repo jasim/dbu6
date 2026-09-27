@@ -92,6 +92,7 @@ type AccountLedgerJournalEntryRow = {
   debit: number;
   credit: number;
   comment: string | null;
+  source_narration: string | null;
 };
 
 type AccountLedgerQuery = {
@@ -147,7 +148,8 @@ export function loadAccountLedgerJournalEntries(
       a.name AS account_name,
       je.debit,
       je.credit,
-      je.comment
+      je.comment,
+      je.source_narration
     FROM scoped_journal_entries je
     JOIN matching_journals mj ON mj.id = je.journal_id
     JOIN scoped_accounts a ON a.id = je.account_id
@@ -178,14 +180,15 @@ export type LedgerPosting = {
  * line has one account against it only where the journal makes that exact:
  *
  * - The other side is one line: the row is against it. Narrated by the
- *   line's own comment, else that line's, else the journal's description.
+ *   line's own text, else that line's, else the journal's description. A
+ *   line's text is its comment, else its source narration.
  * - The journal is a day of statement rows as the importer grouped them
  *   before it wrote one journal per row (`isGroupedImport`), and the line is
  *   the statement account's, alone on its side: one row per statement row,
- *   for its amount, narrated by its comment.
+ *   for its amount, narrated by its text.
  * - Otherwise, a compound entry such as a salary or a loan instalment: one row
  *   for the line, against every account on the other side, narrated by the
- *   line's comment, else the journal's description.
+ *   line's text, else the journal's description.
  */
 export function ledgerPostings(
   journal: AccountLedgerJournalRow,
@@ -227,7 +230,11 @@ export function ledgerPostings(
           posting(
             `entry:${line.entry_id}`,
             amount(line),
-            narrate(line.comment, opposite[0].comment, journal.description),
+            narrate(
+              ...lineText(line),
+              ...lineText(opposite[0]),
+              journal.description,
+            ),
             opposite,
           ),
         ];
@@ -243,7 +250,7 @@ export function ledgerPostings(
           posting(
             `entry:${line.entry_id}:${other.entry_id}`,
             amount(other),
-            narrate(other.comment, journal.description),
+            narrate(...lineText(other), journal.description),
             [other],
           ),
         );
@@ -252,7 +259,7 @@ export function ledgerPostings(
         posting(
           `entry:${line.entry_id}`,
           amount(line),
-          narrate(line.comment, journal.description),
+          narrate(...lineText(line), journal.description),
           opposite.length > 0 ? opposite : others,
         ),
       ];
@@ -395,6 +402,14 @@ function isGroupedImport(journal: AccountLedgerJournalRow): boolean {
 }
 
 /** The first of the texts that says something. */
+// A line's texts in the order a row reads them: the person's comment, then
+// the statement's.
+function lineText(
+  line: AccountLedgerJournalEntryRow,
+): [string | null, string | null] {
+  return [line.comment, line.source_narration];
+}
+
 function narrate(...texts: (string | null)[]): string {
   return texts.find((text) => text !== null && text.trim() !== "") ?? "";
 }

@@ -865,7 +865,7 @@ describe("addAccount", () => {
     const ledger = books();
     // The savings statement's card payment, posted with the card as its
     // categorized account: the import keys that account's line.
-    const line = { assertion: null, sourceReference: null };
+    const line = { assertion: null, sourceReference: null, comment: null };
     insertJournalPlan(
       ledger.db,
       [
@@ -877,14 +877,14 @@ describe("addAccount", () => {
               ...line,
               account: 4,
               amount: 1000,
-              comment: "NOPII CARD PAYMENT",
+              sourceNarration: "NOPII CARD PAYMENT",
               sourceTransactionKey: "sample-key-050505",
             },
             {
               ...line,
               account: 2,
               amount: -1000,
-              comment: null,
+              sourceNarration: null,
               sourceTransactionKey: null,
             },
           ],

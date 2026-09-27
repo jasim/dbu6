@@ -130,7 +130,7 @@ function lessonText(
     `${index + 1}. ${plural(transactions.length, "draft")} ${agree(transactions.length, "goes", "go")} to "${lesson.account.name}" (lesson id ${lesson.id}), ${amountsSeen(transactions).map(amountsText).join("; ")}:`,
     ...shown.map(
       (transaction) =>
-        `   - ${transaction.date} · ${way(transaction.direction)} ${amount(transaction.amount)} · ${transaction.narration}`,
+        `   - ${transaction.date} · ${way(transaction.direction)} ${amount(transaction.amount)} · ${transaction.source_narration}`,
     ),
     ...(rest > 0
       ? [

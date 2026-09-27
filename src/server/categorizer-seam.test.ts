@@ -199,7 +199,7 @@ describe("the runtime's loadCategorizer", () => {
         workspace_id: "workspace",
         scoped_to_user_id: "user",
         date: parsePlainDate("2026-09-04"),
-        narration: "NOPII SAMPLE MERCHANT TWO",
+        source_narration: "NOPII SAMPLE MERCHANT TWO",
         withdrawal: 500,
         deposit: 0,
         account_id: null,

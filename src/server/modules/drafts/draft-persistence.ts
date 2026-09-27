@@ -31,7 +31,8 @@ export interface PersistSummary {
 
 export type DraftRow = {
   date: Temporal.PlainDate;
-  narration: string;
+  source_narration: string;
+  comment: string | null;
   withdrawal: number;
   deposit: number;
   account_id: number | null;
@@ -66,10 +67,12 @@ export interface CategorizedStatementRow {
 function toDraftRow(
   { transaction: t, accountId }: CategorizedStatementRow,
   baseAccountId: number,
+  comment: string | null,
 ): DraftRow {
   return {
     date: parsePlainDate(t.date),
-    narration: t.narration,
+    source_narration: t.narration,
+    comment,
     withdrawal: t.withdrawal,
     deposit: t.deposit,
     account_id: accountId,
@@ -82,15 +85,20 @@ function toDraftRow(
 
 // The drafts to save, and each day's closing, which `persistDrafts` asserts
 // on the day's last draft (the balance-check rule, in reconciliation).
+// `comments` holds each row's comment by its index, such as a Google Pay
+// recipient; a row without one gets none, for the comment writer to fill.
 export function toDraftRows(
   categorized: Chrono<CategorizedStatementRow>,
   baseAccountId: number,
+  comments: readonly (string | null)[] = [],
 ): {
   rows: DraftRow[];
   expectedClosingByDate: Map<string, number>;
 } {
   return {
-    rows: categorized.map((row) => toDraftRow(row, baseAccountId)),
+    rows: categorized.map((row, index) =>
+      toDraftRow(row, baseAccountId, comments[index] ?? null),
+    ),
     expectedClosingByDate: dayClosings(
       chronoMap(categorized, (row) => row.transaction),
     ),
@@ -121,7 +129,7 @@ export function persistDrafts(
           databaseDate: row.date,
           baseAccountId: row.base_account_id,
           date: formatPlainDate(row.date),
-          narration: row.narration,
+          narration: row.source_narration,
           withdrawal: row.withdrawal,
           deposit: row.deposit,
           accountId: row.account_id,

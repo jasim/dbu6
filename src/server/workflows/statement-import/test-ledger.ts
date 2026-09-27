@@ -32,7 +32,8 @@ export function testImportLedger(
     CREATE TABLE journal_entries (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
       account_id INTEGER, debit REAL, credit REAL, comment TEXT,
-      account_balance_assertion REAL, source_transaction_key TEXT
+      source_narration TEXT, account_balance_assertion REAL,
+      source_transaction_key TEXT
     );
     CREATE TABLE draft_transactions (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
@@ -50,7 +51,7 @@ export function testImportLedger(
       )
       .run(checkpoint.date);
     const line = sqlite.prepare(
-      "INSERT INTO journal_entries VALUES (?, 'workspace', 'user', 1, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO journal_entries VALUES (?, 'workspace', 'user', 1, ?, ?, ?, NULL, ?, ?, ?)",
     );
     line.run(
       1,

@@ -59,6 +59,7 @@ export function postDrafts(
         transaction: draft.transaction,
         account: draft.accountId,
         assertion: draft.assertion,
+        comment: draft.comment,
       })),
     ),
     baseAccountId,

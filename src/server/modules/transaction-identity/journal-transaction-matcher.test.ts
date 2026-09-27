@@ -26,7 +26,7 @@ const groupedJournal: JournalCandidate = {
       accountId: 2,
       debit: 500,
       credit: 0,
-      comment: "MERCHANT ONE",
+      sourceNarration: "MERCHANT ONE",
       sourceReference: null,
       sourceTransactionKey: null,
     },
@@ -35,7 +35,7 @@ const groupedJournal: JournalCandidate = {
       accountId: 3,
       debit: 700.25,
       credit: 0,
-      comment: "MERCHANT TWO",
+      sourceNarration: "MERCHANT TWO",
       sourceReference: null,
       sourceTransactionKey: null,
     },
@@ -44,7 +44,7 @@ const groupedJournal: JournalCandidate = {
       accountId: 1,
       debit: 0,
       credit: 1200.25,
-      comment: null,
+      sourceNarration: null,
       sourceReference: null,
       sourceTransactionKey: null,
     },
@@ -81,7 +81,7 @@ describe("matchTransactionToJournal", () => {
           accountId: 1,
           debit: 3500.75,
           credit: 0,
-          comment: null,
+          sourceNarration: null,
           sourceReference: null,
           sourceTransactionKey: null,
         },
@@ -90,7 +90,7 @@ describe("matchTransactionToJournal", () => {
           accountId: 4,
           debit: 0,
           credit: 3500.75,
-          comment: "Transfer",
+          sourceNarration: "Transfer",
           sourceReference: null,
           sourceTransactionKey: null,
         },
@@ -99,6 +99,40 @@ describe("matchTransactionToJournal", () => {
     expect(matchTransactionToJournal(payment, journal)[0]?.matchType).toBe(
       "base-account-payment",
     );
+  });
+
+  it("matches an entry whose source narration has a Google Pay recipient in front", () => {
+    const prefixed = {
+      ...groupedJournal,
+      entries: groupedJournal.entries.map((entry) =>
+        entry.id === 101
+          ? { ...entry, sourceNarration: "Sample Payee | merchant  one" }
+          : entry,
+      ),
+    };
+    expect(
+      matchTransactionToJournal(purchase, prefixed).map(
+        (m) => m.journalEntryId,
+      ),
+    ).toEqual([101]);
+  });
+
+  it("matches a manual entry, which has no source narration, only by reference", () => {
+    const manual = {
+      ...groupedJournal,
+      entries: groupedJournal.entries.map((entry) => ({
+        ...entry,
+        sourceNarration: null,
+        sourceReference: entry.id === 101 ? "REF050505" : null,
+      })),
+    };
+    expect(matchTransactionToJournal(purchase, manual)).toEqual([]);
+    expect(
+      matchTransactionToJournal(
+        { ...purchase, sourceReference: "ref050505" },
+        manual,
+      ).map((m) => m.journalEntryId),
+    ).toEqual([101]);
   });
 
   it("does not semantically match distinct keyed transactions", () => {

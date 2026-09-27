@@ -33,7 +33,10 @@ export interface TestLedger {
       account_id: number;
       debit?: number;
       credit?: number;
+      /** The person's line. */
       comment?: string;
+      /** The statement's text, on an imported entry. */
+      source_narration?: string;
     }[];
   }): number;
 }
@@ -66,8 +69,8 @@ export function openTestLedger(): TestLedger {
   );
   const insertEntry = sqlite.prepare(
     `INSERT INTO journal_entries
-       (workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit, comment, created_at, updated_at)
-     VALUES (@workspace_id, @scoped_to_user_id, @journal_id, @account_id, @debit, @credit, @comment, @created_at, @updated_at)`,
+       (workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit, comment, source_narration, created_at, updated_at)
+     VALUES (@workspace_id, @scoped_to_user_id, @journal_id, @account_id, @debit, @credit, @comment, @source_narration, @created_at, @updated_at)`,
   );
 
   return {
@@ -87,7 +90,13 @@ export function openTestLedger(): TestLedger {
       const journal_id = Number(
         insertJournal.run({ ...stamp, date, description }).lastInsertRowid,
       );
-      for (const { account_id, debit = 0, credit = 0, comment } of entries) {
+      for (const {
+        account_id,
+        debit = 0,
+        credit = 0,
+        comment,
+        source_narration,
+      } of entries) {
         insertEntry.run({
           ...stamp,
           journal_id,
@@ -95,6 +104,7 @@ export function openTestLedger(): TestLedger {
           debit,
           credit,
           comment: comment ?? null,
+          source_narration: source_narration ?? null,
         });
       }
       return journal_id;

@@ -47,7 +47,8 @@ export const reviewDuplicateSchema = z.object({
   direction: z.enum(["deposit", "withdrawal"]),
   amount: z.number(),
   narration: z.string(),
-  // The other draft's narration, or the matched entry's comment.
+  // The other draft's source narration, or the matched entry's; a manual
+  // entry, which has none, gives its comment.
   other_narration: z.string().nullable(),
   draft_account: z.string().nullable(),
   // The other draft's account, or the matched entry's account.

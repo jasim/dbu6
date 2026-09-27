@@ -415,6 +415,7 @@ function openingPlan(
 ): JournalPlan<number> {
   const line = {
     comment: "Opening balance",
+    sourceNarration: null,
     sourceReference: null,
     sourceTransactionKey: null,
   };

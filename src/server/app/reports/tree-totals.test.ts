@@ -46,7 +46,7 @@ function ledger(): Database.Database {
     CREATE TABLE journal_entries (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
       account_id INTEGER, debit REAL, credit REAL, account_balance_assertion REAL,
-      comment TEXT
+      comment TEXT, source_narration TEXT
     );
     CREATE TABLE draft_transactions (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
@@ -517,15 +517,15 @@ function treeLedger(): Database.Database {
     CREATE TABLE journal_entries (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
       account_id INTEGER, debit REAL, credit REAL, account_balance_assertion REAL,
-      comment TEXT
+      comment TEXT, source_narration TEXT
     );
     CREATE TABLE draft_transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT NOT NULL,
-      scoped_to_user_id TEXT NOT NULL, date TEXT NOT NULL, narration TEXT NOT NULL,
+      scoped_to_user_id TEXT NOT NULL, date TEXT NOT NULL, source_narration TEXT NOT NULL,
       withdrawal REAL NOT NULL DEFAULT 0, deposit REAL NOT NULL DEFAULT 0,
       account_id INTEGER, base_account_id INTEGER, balance_assertion_base_account REAL,
       source_reference TEXT, source_transaction_key TEXT,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, comment TEXT
     );
 
     INSERT INTO accounts VALUES
@@ -569,9 +569,9 @@ function treeLedger(): Database.Database {
       (122, 'workspace', 'user', 12, 16, 0, 2000);
 
     INSERT INTO draft_transactions VALUES
-      (201, 'workspace', 'user', '2026-01-20', 'NOPII sample grocer', 700, 0, 2, 16, NULL, NULL, 'k-201', ${stamp}),
-      (202, 'workspace', 'user', '2026-01-20', 'NOPII sample cafe', 900, 0, 1, 16, NULL, NULL, 'k-202', ${stamp}),
-      (203, 'workspace', 'user', '2026-01-20', 'NOPII sample employer', 0, 5000, 13, 16, NULL, NULL, 'k-203', ${stamp});
+      (201, 'workspace', 'user', '2026-01-20', 'NOPII sample grocer', 700, 0, 2, 16, NULL, NULL, 'k-201', ${stamp}, NULL),
+      (202, 'workspace', 'user', '2026-01-20', 'NOPII sample cafe', 900, 0, 1, 16, NULL, NULL, 'k-202', ${stamp}, NULL),
+      (203, 'workspace', 'user', '2026-01-20', 'NOPII sample employer', 0, 5000, 13, 16, NULL, NULL, 'k-203', ${stamp}, NULL);
   `);
   return sqlite;
 }

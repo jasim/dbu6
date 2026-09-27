@@ -38,7 +38,7 @@ function draft(
   direction: "withdrawal" | "deposit" = "withdrawal",
   date = "2026-09-01",
 ): CategorizationLessonTransaction {
-  return { date, narration, direction, amount };
+  return { date, source_narration: narration, direction, amount };
 }
 
 function lesson(
