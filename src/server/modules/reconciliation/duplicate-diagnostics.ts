@@ -22,7 +22,7 @@ SELECT
   dt.source_reference AS source_reference,
   dt.source_transaction_key AS source_transaction_key,
   base.name AS base_account,
-  cp.name AS draft_category
+  cp.name AS draft_account
 FROM scoped_draft_transactions dt
 LEFT JOIN scoped_accounts base ON base.id = dt.base_account_id
 LEFT JOIN scoped_accounts cp ON cp.id = dt.account_id
@@ -56,7 +56,7 @@ export interface DuplicateDraftSourceRow {
   source_reference: string | null;
   source_transaction_key: string | null;
   base_account: string;
-  draft_category: string | null;
+  draft_account: string | null;
 }
 
 export interface DuplicateJournalEntrySourceRow {
@@ -92,8 +92,8 @@ export interface DuplicateDiagnostic extends Record<string, unknown> {
   source_transaction_key: string | null;
   other_source_reference: string | null;
   other_source_transaction_key: string | null;
-  draft_category: string | null;
-  matched_category: string | null;
+  draft_account: string | null;
+  matched_account: string | null;
 }
 
 function identity(row: DuplicateDraftSourceRow): TransactionIdentityInput {
@@ -175,8 +175,8 @@ export function findDuplicateDiagnostics(
         source_transaction_key: left.source_transaction_key,
         other_source_reference: right.source_reference,
         other_source_transaction_key: right.source_transaction_key,
-        draft_category: left.draft_category,
-        matched_category: right.draft_category,
+        draft_account: left.draft_account,
+        matched_account: right.draft_account,
       });
     }
 
@@ -202,8 +202,8 @@ export function findDuplicateDiagnostics(
           source_transaction_key: left.source_transaction_key,
           other_source_reference: entry.source_reference,
           other_source_transaction_key: entry.source_transaction_key,
-          draft_category: left.draft_category,
-          matched_category: entry.account,
+          draft_account: left.draft_account,
+          matched_account: entry.account,
         });
       }
     }

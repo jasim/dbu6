@@ -28,7 +28,7 @@ export function failingChecksText(count: number): string {
 /** A check in one line, whether it passes, blocks, or has nothing to check. */
 export function checkText(check: PostingCheck): string {
   switch (check.kind) {
-    case "categories":
+    case "categorization":
       if (check.state === "blocks") return uncategorisedText(check.count);
       return check.drafts === 1
         ? "The transaction goes to an account"

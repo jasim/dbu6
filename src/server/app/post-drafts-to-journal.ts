@@ -3,7 +3,10 @@ import {
   type SapportaEnv,
   type ServerInferResponses,
 } from "@sapporta/server";
-import { draftTransactionsContract, type PostingBlock } from "../../shared/index.js";
+import {
+  draftTransactionsContract,
+  type PostingBlock,
+} from "../../shared/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { postDrafts } from "../workflows/posting.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
@@ -55,7 +58,7 @@ export function postDraftsToJournal(
 /** The 422 for the first block, in the codes and counts callers read. */
 function refusal(block: PostingBlock, account: string): PostingResponse {
   switch (block.kind) {
-    case "categories":
+    case "categorization":
       return {
         status: 422,
         body: {

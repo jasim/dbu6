@@ -138,7 +138,7 @@
   --attention-bg: #eef3fa;
   --attention-border: #a9c4e4;
   --attention-ink: #1b4a80;
-  --attention-hover: #e4edf8; /* NeedsCategory hover */
+  --attention-hover: #e4edf8; /* NeedsAccount hover */
   --attention-surface: #fbfdff; /* the current step card */
 
   /* Assist: violet, only for the coding-agent prompts the app hands over.
@@ -162,39 +162,39 @@
   /* The initials circle in the sidebar's account card */
   --sidebar-avatar: #d5d8d8;
 
-  /* The category pill's fill */
-  --category-bg: #f5f6f6;
+  /* The account chip's fill */
+  --account-chip-bg: #f5f6f6;
 
   /* Import: the dropzone's fill, and the tiles that carry a glyph or a file
      type (the dropzone's arrow, XLS, PDF) */
   --dropzone-bg: #fcfcfc;
   --tile-bg: #eff1f1;
 
-  /* Category hues: one per top-level group; children inherit. The first
+  /* Account hues: one per top-level group; children inherit. The first
      name is the design's key, the alias is the seeded dbu6 group name. */
-  --cat-taxes: #475569;
-  --cat-home: #2563a8;
-  --cat-housing: var(--cat-home);
-  --cat-food: #c2410c;
-  --cat-family: #be185d;
-  --cat-children: #0e7490;
-  --cat-child: var(--cat-children);
-  --cat-transport: #7c3aed;
-  --cat-insurance: #0f766e;
-  --cat-travel: #b45309;
-  --cat-shopping: #9333ea;
-  --cat-health: #15803d;
-  --cat-utilities: #0369a1;
-  --cat-personal: #db2777;
-  --cat-subscriptions: #4f46e5;
-  --cat-fees: #78716c;
-  --cat-finance: var(--cat-fees);
-  --cat-fun: #e11d48;
-  --cat-entertainment: var(--cat-fun);
-  --cat-giving: #0891b2;
-  --cat-learning: #65a30d;
-  --cat-education: var(--cat-learning);
-  --cat-other: #c3c6c6;
+  --hue-taxes: #475569;
+  --hue-home: #2563a8;
+  --hue-housing: var(--hue-home);
+  --hue-food: #c2410c;
+  --hue-family: #be185d;
+  --hue-children: #0e7490;
+  --hue-child: var(--hue-children);
+  --hue-transport: #7c3aed;
+  --hue-insurance: #0f766e;
+  --hue-travel: #b45309;
+  --hue-shopping: #9333ea;
+  --hue-health: #15803d;
+  --hue-utilities: #0369a1;
+  --hue-personal: #db2777;
+  --hue-subscriptions: #4f46e5;
+  --hue-fees: #78716c;
+  --hue-finance: var(--hue-fees);
+  --hue-fun: #e11d48;
+  --hue-entertainment: var(--hue-fun);
+  --hue-giving: #0891b2;
+  --hue-learning: #65a30d;
+  --hue-education: var(--hue-learning);
+  --hue-other: #c3c6c6;
 }
 
 /* Density: how tall rows, grid headers and controls are, and the text in
@@ -319,7 +319,7 @@
   --color-waiting-button-bg: var(--waiting-button-bg);
   --color-waiting-button-fg: var(--waiting-button-fg);
   --color-sidebar-avatar: var(--sidebar-avatar);
-  --color-category-bg: var(--category-bg);
+  --color-account-chip-bg: var(--account-chip-bg);
   --color-dropzone-bg: var(--dropzone-bg);
   --color-tile-bg: var(--tile-bg);
 }

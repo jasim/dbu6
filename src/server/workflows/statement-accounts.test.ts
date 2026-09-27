@@ -82,7 +82,7 @@ async function created(ledger: Ledger, change = savings()) {
 }
 
 // A posted transaction between Sample Savings (8) and Groceries (6): the
-// category line keyed, as another statement's import posts it, or neither,
+// categorized account's line keyed, as another statement's import posts it, or neither,
 // as Sample Savings' own import posts its line.
 function posted(ledger: Ledger, keyed: "savings" | "neither") {
   const line = { assertion: null, sourceReference: null, comment: null };

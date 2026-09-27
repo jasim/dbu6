@@ -24,8 +24,8 @@ function duplicate(draft_id: number): ReviewDuplicate {
     amount: 12000,
     narration: "NOPII CARD PAYMENT",
     other_narration: "NOPII payment received",
-    draft_category: "Sample Card",
-    matched_category: "Sample Card",
+    draft_account: "Sample Card",
+    matched_account: "Sample Card",
   };
 }
 

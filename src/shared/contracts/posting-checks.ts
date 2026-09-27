@@ -13,7 +13,7 @@ import { z } from "zod";
 
 export const draftCountsSchema = z.object({
   drafts: z.number(),
-  /** Drafts with no category. */
+  /** Drafts with no account. */
   uncategorised: z.number(),
   duplicates: z.number(),
   /** Drafts carrying a balance the statement printed. */
@@ -36,7 +36,7 @@ export const NO_DRAFTS: DraftCounts = {
  * refuses in.
  */
 export const POSTING_CHECK_KINDS = [
-  "categories",
+  "categorization",
   "duplicates",
   "balance-checks",
 ] as const;
@@ -45,13 +45,13 @@ export type PostingCheckKind = (typeof POSTING_CHECK_KINDS)[number];
 /**
  * One check on an account's drafts: it passes, or it blocks posting with a
  * count. A block is a problem when the numbers don't add up (usually a wrong or
- * missing statement), and needs attention when drafts only need a category.
+ * missing statement), and needs attention when drafts only need an account.
  * Drafts that carry no balance check have none to pass, which doesn't block.
  */
 export type PostingCheck =
-  | { kind: "categories"; state: "passes"; drafts: number }
+  | { kind: "categorization"; state: "passes"; drafts: number }
   | {
-      kind: "categories";
+      kind: "categorization";
       state: "blocks";
       severity: "attention";
       count: number;
@@ -75,15 +75,15 @@ const CHECKS: {
     counts: DraftCounts,
   ) => Extract<PostingCheck, { kind: Kind }>;
 } = {
-  categories: (counts) =>
+  categorization: (counts) =>
     counts.uncategorised > 0
       ? {
-          kind: "categories",
+          kind: "categorization",
           state: "blocks",
           severity: "attention",
           count: counts.uncategorised,
         }
-      : { kind: "categories", state: "passes", drafts: counts.drafts },
+      : { kind: "categorization", state: "passes", drafts: counts.drafts },
   duplicates: (counts) =>
     counts.duplicates > 0
       ? {

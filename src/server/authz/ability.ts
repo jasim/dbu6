@@ -34,7 +34,7 @@ export function buildAbility(ctx: AppAuthFacts): AppAbility {
     // the whole table (schema/import-presets.ts).
     cannot(["create", "update", "delete"], "import_presets");
     // Lessons are written only through /categorization-lessons, which sets
-    // the drafts' category with them (schema/categorization-lessons.ts).
+    // the drafts' account with them (schema/categorization-lessons.ts).
     cannot(["create", "update", "delete"], "categorization_lessons");
   }
 

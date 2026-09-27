@@ -13,7 +13,7 @@ import type { AgentUnavailable } from "./describeCategorization";
 
 /*
  * Said once per run when the coding agent couldn't be used: the entries were
- * saved without a category, and dbu6 won't ask the agent again until its
+ * saved without an account, and dbu6 won't ask the agent again until its
  * configuration is checked on Settings. The user comes back and runs the
  * categorization again from here.
  */

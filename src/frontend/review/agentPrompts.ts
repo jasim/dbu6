@@ -40,7 +40,7 @@ transactions in the books that have an entry on this account. So a match is
 usually two drafts for the same transaction; a draft for a statement row
 that's already in the books; or a draft that looks like a transaction in the
 books that doesn't say which statement row it came from (one I entered by
-hand, or an older import), with the same date, amount and category. A transfer
+hand, or an older import), with the same date, amount and account. A transfer
 already added from my other account's statement usually isn't flagged here; it
 shows up as a failing balance check instead.
 
@@ -130,8 +130,8 @@ function duplicateLine(row: ReviewDuplicate): string {
   const matched =
     row.other_draft_id !== null
       ? `draft ${row.other_draft_id} "${row.other_narration ?? ""}"`
-      : `journal ${row.matched_journal_id}, entry ${row.matched_journal_entry_id} "${row.other_narration ?? ""}" (${row.matched_category ?? "no account"})`;
-  return `- ${row.date} · ${row.direction} ${amount(row.amount)} · draft ${row.draft_id} "${row.narration}" (${row.draft_category ?? "no account"}) · matched ${matched} · ${row.match_type}, confidence ${Math.round(row.confidence * 100)}%`;
+      : `journal ${row.matched_journal_id}, entry ${row.matched_journal_entry_id} "${row.other_narration ?? ""}" (${row.matched_account ?? "no account"})`;
+  return `- ${row.date} · ${row.direction} ${amount(row.amount)} · draft ${row.draft_id} "${row.narration}" (${row.draft_account ?? "no account"}) · matched ${matched} · ${row.match_type}, confidence ${Math.round(row.confidence * 100)}%`;
 }
 
 function failingLine(row: ReviewFailingCheck): string {

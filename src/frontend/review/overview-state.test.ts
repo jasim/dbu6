@@ -69,7 +69,7 @@ describe("overviewView", () => {
     expect(view.posting).toBeUndefined();
     expect(view.waiting).toBe("12 still need an account");
     expect(view.checks[0]).toEqual({
-      check: "categories",
+      check: "categorization",
       tone: "attention",
       text: "12 transactions need an account",
       link: {

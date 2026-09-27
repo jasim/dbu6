@@ -5,8 +5,8 @@
  * labels the account; the tree decides who inherits.
  */
 
-/** The hue keys frontend.css defines as `--cat-<key>` (PLAN.md §4.3). */
-export const CATEGORY_HUE_KEYS = [
+/** The hue keys frontend.css defines as `--hue-<key>` (PLAN.md §4.3). */
+export const ACCOUNT_HUE_KEYS = [
   "taxes",
   "home",
   "food",
@@ -27,10 +27,10 @@ export const CATEGORY_HUE_KEYS = [
   "other",
 ] as const;
 
-export type CategoryHueKey = (typeof CATEGORY_HUE_KEYS)[number];
+export type AccountHueKey = (typeof ACCOUNT_HUE_KEYS)[number];
 
 /** Seeded dbu6 group names whose hue is filed under the design's key. */
-const GROUP_HUE_ALIASES: Record<string, CategoryHueKey> = {
+const GROUP_HUE_ALIASES: Record<string, AccountHueKey> = {
   housing: "home",
   entertainment: "fun",
   education: "learning",
@@ -42,13 +42,13 @@ const GROUP_HUE_ALIASES: Record<string, CategoryHueKey> = {
  * seeded group name filed under one. `other` is the fallback, so an account
  * named "Other" asks for nothing and inherits.
  */
-export function ownHue(name: string): CategoryHueKey | null {
+export function ownHue(name: string): AccountHueKey | null {
   const key = name.trim().toLowerCase();
   if (key === "other") return null;
   const aliased = GROUP_HUE_ALIASES[key];
   if (aliased) return aliased;
-  return (CATEGORY_HUE_KEYS as readonly string[]).includes(key)
-    ? (key as CategoryHueKey)
+  return (ACCOUNT_HUE_KEYS as readonly string[]).includes(key)
+    ? (key as AccountHueKey)
     : null;
 }
 
@@ -58,12 +58,12 @@ export function ownHue(name: string): CategoryHueKey | null {
  */
 export function accountHue(
   name: string,
-  parentHue: CategoryHueKey = "other",
-): CategoryHueKey {
+  parentHue: AccountHueKey = "other",
+): AccountHueKey {
   return ownHue(name) ?? parentHue;
 }
 
 /** The CSS colour for a hue key, as frontend.css defines it. */
-export function categoryHueColor(key: CategoryHueKey): string {
-  return `var(--cat-${key})`;
+export function accountHueColor(key: AccountHueKey): string {
+  return `var(--hue-${key})`;
 }

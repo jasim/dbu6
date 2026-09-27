@@ -42,7 +42,7 @@ export type FailingCheck = {
 export interface DraftAccountStatus {
   account_id: number;
   drafts: number;
-  /** Drafts with no category (`account_id` is null). */
+  /** Drafts with no account (`account_id` is null). */
   uncategorised: number;
   /** The drafts' first and last dates. */
   draft_span: DateSpan;

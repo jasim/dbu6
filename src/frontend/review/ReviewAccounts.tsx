@@ -159,11 +159,11 @@ function accountStatus(account: ReviewAccount): {
   if (postingBlocks(account).some(isProblem)) {
     return { tone: "problem", label: "Problems to fix" };
   }
-  const categories = postingCheck(account, "categories");
-  if (categories.state === "blocks") {
+  const categorization = postingCheck(account, "categorization");
+  if (categorization.state === "blocks") {
     return {
-      tone: categories.severity,
-      label: `${categories.count} ${agree(categories.count, "needs", "need")} an account`,
+      tone: categorization.severity,
+      label: `${categorization.count} ${agree(categorization.count, "needs", "need")} an account`,
     };
   }
   return { tone: "ok", label: "Ready to add" };

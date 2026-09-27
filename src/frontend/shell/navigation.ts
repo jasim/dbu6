@@ -1,7 +1,7 @@
 import type { NavigationItem as SapportaNavigationItem } from "@sapporta/frontend/shell";
 
 /** A live count an item can show beside its label. */
-export type NavigationBadge = "needsCategory";
+export type NavigationBadge = "needsAccount";
 
 export interface NavigationItem extends SapportaNavigationItem {
   badge?: NavigationBadge;

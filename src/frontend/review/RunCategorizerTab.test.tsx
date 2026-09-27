@@ -32,10 +32,10 @@ import {
 
 /*
  * Run categorizer, a tab of the account's review: one card says how many of
- * the account's drafts have no category and sends them, with the
+ * the account's drafts have no account and sends them, with the
  * instructions the account imports with; another preset account's are a
  * Change away. After the run the card counts what it categorized, by
- * category, and what is left, and points at Drafts and Improve
+ * account, and what is left, and points at Drafts and Improve
  * categorization for the rest. The old page's URL opens the tab.
  */
 
@@ -330,7 +330,14 @@ describe("Run categorizer", () => {
         id: 11,
         base_account_id: 5,
         account: { id: 7, name: "Groceries" },
-        narrations: ["NOPII SHOP ONE"],
+        transactions: [
+          {
+            date: "2026-09-01",
+            narration: "NOPII SHOP ONE",
+            direction: "withdrawal",
+            amount: 100,
+          },
+        ],
         note: "",
       },
     ];

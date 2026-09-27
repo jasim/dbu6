@@ -70,7 +70,7 @@ WHERE r.source = 'draft'
  * `posted_assertion_failures`: each balance assertion in the books, posted
  * entries only, that the account's running balance misses there. The running
  * balance is summed only for accounts that carry an assertion, the statement
- * accounts, which leaves out every category account. Within a day, entries
+ * accounts, which leaves out every categorized account. Within a day, entries
  * go in journal and entry id order, as the posting gate added them. The
  * statement import relies on that order to know which of a day's rows a
  * balance check counted (`loadPostedRowsOn`, checkpoint-day.md).

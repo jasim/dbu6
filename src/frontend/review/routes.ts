@@ -8,11 +8,11 @@ import { POSTING_CHECK_KINDS, type PostingCheckKind } from "../../shared/index";
 export const REVIEW_ROUTE = "/review";
 
 /**
- * The tab where each posting check is looked into: categories are chosen in
+ * The tab where each posting check is looked into: accounts are chosen in
  * the Drafts table, and the other two checks have a tab of their own.
  */
 const CHECK_TABS = {
-  categories: "drafts",
+  categorization: "drafts",
   duplicates: "duplicates",
   "balance-checks": "balance-checks",
 } as const satisfies Record<PostingCheckKind, string>;
@@ -21,12 +21,12 @@ type CheckTab = (typeof CHECK_TABS)[PostingCheckKind];
 
 /**
  * Where the user teaches the categoriser from the drafts, beside the Drafts
- * tab, which is for setting a category by hand.
+ * tab, which is for choosing an account by hand.
  */
 export const IMPROVE_CATEGORIZATION_TAB = "improve-categorization";
 
 /**
- * Where the categoriser runs again over the drafts still without a category,
+ * Where the categoriser runs again over the drafts still without an account,
  * once Improve categorization has taught it.
  */
 export const RUN_CATEGORIZER_TAB = "run-categorizer";
@@ -45,7 +45,7 @@ export type ReviewTab = CheckTab | (typeof CATEGORIZATION_TABS)[number];
  */
 export const REVIEW_TABS: readonly ReviewTab[] = POSTING_CHECK_KINDS.flatMap(
   (kind): ReviewTab[] =>
-    kind === "categories"
+    kind === "categorization"
       ? [CHECK_TABS[kind], ...CATEGORIZATION_TABS]
       : [CHECK_TABS[kind]],
 );
@@ -60,8 +60,8 @@ export function reviewHref(accountId: number, tab?: ReviewTab): string {
     : `${REVIEW_ROUTE}/${accountId}`;
 }
 
-/** The Drafts tab filtered to the drafts with no category. */
-export function needsCategoryHref(accountId: number): string {
+/** The Drafts tab filtered to the drafts with no account. */
+export function needsAccountHref(accountId: number): string {
   const query = new URLSearchParams([["filter[account_id][is]", "null"]]);
   return `${reviewHref(accountId, "drafts")}?${query}`;
 }

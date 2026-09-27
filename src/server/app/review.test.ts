@@ -165,8 +165,8 @@ describe("loadReviewAccount", () => {
         amount: 40,
         narration: "NOPII grocer",
         other_narration: "NOPII grocer",
-        draft_category: "Groceries",
-        matched_category: "Groceries",
+        draft_account: "Groceries",
+        matched_account: "Groceries",
       },
     ]);
   });

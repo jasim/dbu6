@@ -1,12 +1,12 @@
 import type { ComponentProps } from "react";
 import { cn } from "@sapporta/ui/cn";
-import { categoryHueColor, type CategoryHueKey } from "./category";
+import { accountHueColor, type AccountHueKey } from "./account-hue";
 
 /**
- * A category as the everyday screens show it: a dot in its hue, then the
+ * A draft's account as the everyday screens show it: a dot in its hue, then the
  * account's name.
  */
-export function CategoryLabel({
+export function AccountChip({
   name,
   hue,
   className,
@@ -14,21 +14,21 @@ export function CategoryLabel({
   /** The account's name, such as "Food Delivery". */
   name: string;
   /** Its colour through the account tree (`accountHue`). */
-  hue: CategoryHueKey;
+  hue: AccountHueKey;
   className?: string;
 }) {
   return (
     <span
       title={name}
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border border-sap-border bg-category-bg py-[5px] pl-[10px] pr-[13px] text-[13px] text-foreground",
+        "inline-flex items-center gap-2 rounded-full border border-sap-border bg-account-chip-bg py-[5px] pl-[10px] pr-[13px] text-[13px] text-foreground",
         className,
       )}
     >
       <span
         aria-hidden="true"
         className="size-[9px] shrink-0 rounded-full"
-        style={{ background: categoryHueColor(hue) }}
+        style={{ background: accountHueColor(hue) }}
       />
       {name}
     </span>
@@ -36,10 +36,10 @@ export function CategoryLabel({
 }
 
 /**
- * The empty state of a category, the thing the user is here to fix. Blue,
- * because it needs them; clicking it opens the category picker.
+ * A draft with no account yet, the thing the user is here to fix. Blue,
+ * because it needs them; clicking it opens the account picker.
  */
-export function NeedsCategory({
+export function NeedsAccount({
   className,
   children = "Choose an account",
   ...props

@@ -1,11 +1,14 @@
 import { z } from "zod";
-import { depositMoneySchema, withdrawalMoneySchema } from "../../../shared/index.js";
+import {
+  depositMoneySchema,
+  withdrawalMoneySchema,
+} from "../../../shared/index.js";
 
 // Money moves one way: a positive withdrawal or a positive deposit, never
 // both. The wire schemas in src/shared state the rule and every statement
 // row is parsed against them; a stored draft's columns become Money through
 // `moneyFromColumns`. Direction and amount are read here and nowhere else, so
-// a row's transaction key, its journal match, its journal and its category
+// a row's transaction key, its journal match, its journal and its account
 // all agree on which way it moved.
 export type Money =
   z.infer<typeof withdrawalMoneySchema> | z.infer<typeof depositMoneySchema>;

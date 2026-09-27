@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountHue, categoryHueColor, ownHue } from "./category";
+import { accountHue, accountHueColor, ownHue } from "./account-hue";
 
 describe("account hues", () => {
   it("takes the hue the account's own name asks for, in any case", () => {
@@ -28,7 +28,7 @@ describe("account hues", () => {
   });
 
   it("names the CSS variable frontend.css defines", () => {
-    expect(categoryHueColor("home")).toBe("var(--cat-home)");
-    expect(categoryHueColor(accountHue("Housing"))).toBe("var(--cat-home)");
+    expect(accountHueColor("home")).toBe("var(--hue-home)");
+    expect(accountHueColor(accountHue("Housing"))).toBe("var(--hue-home)");
   });
 });

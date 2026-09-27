@@ -85,9 +85,9 @@ export const draftTransactionsContract = c.router({
       403: errorSchema,
     },
   }),
-  setDraftsCategory: c.mutation({
+  setDraftsAccount: c.mutation({
     method: "POST",
-    path: "/draft-transactions/set-category",
+    path: "/draft-transactions/set-account",
     summary: "Send the drafts to one account, all or none",
     body: z.object({
       ids: z.array(z.number().int().positive()).min(1),

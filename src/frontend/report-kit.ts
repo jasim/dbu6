@@ -130,9 +130,9 @@ export {
 } from "./components/ui/toggle-group";
 export {
   accountHue,
-  categoryHueColor,
-  type CategoryHueKey,
-} from "./components/category";
+  accountHueColor,
+  type AccountHueKey,
+} from "./components/account-hue";
 export { cn } from "@sapporta/ui/cn";
 export { Popover, PopoverContent, PopoverTrigger } from "@sapporta/ui/popover";
 export { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";

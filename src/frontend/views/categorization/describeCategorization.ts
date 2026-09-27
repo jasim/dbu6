@@ -34,7 +34,7 @@ export function agentUnavailable(
 
 // Why the LLM left some transactions uncategorized, because a call failed or
 // couldn't run: said under the figures on the Import statements result and
-// on Classify drafts, so "them" is the ones that need a category.
+// on Classify drafts, so "them" is the ones that need an account.
 export interface CategorizationProblem {
   // "Claude Code couldn't categorize some of them"
   text: string;
@@ -57,12 +57,12 @@ export function describeCategorizationProblem(
   };
 }
 
-// The transactions categorization saved, by whether they got a category.
+// The transactions categorization saved, by whether they got an account.
 // Who gave it, the rules or the LLM, stays in the tally: the user doesn't
 // need it to get on with their books.
 export interface CategorizationCounts {
   categorized: number;
-  // Left without a category, whatever the reason.
+  // Left without an account, whatever the reason.
   remaining: number;
 }
 

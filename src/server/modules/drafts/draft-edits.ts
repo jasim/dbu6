@@ -32,7 +32,7 @@ export interface ReclassifiedDraft {
   accountId: number | null;
 }
 
-// Saves each draft's new narration and category, all or none.
+// Saves each draft's new narration and account, all or none.
 export function saveReclassifiedDrafts(
   db: any,
   drafts: readonly ReclassifiedDraft[],

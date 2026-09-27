@@ -82,9 +82,9 @@ describe("describeGroup", () => {
       kind: "new",
       fresh: 6,
       outOf: null,
-      categories: { categorized: 5, remaining: 1 },
+      categorization: { categorized: 5, remaining: 1 },
       problem: null,
-      byCategory: [
+      byAccount: [
         { label: "Groceries", value: "3" },
         { label: "Dining", value: "2" },
       ],

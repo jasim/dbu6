@@ -8,7 +8,7 @@ import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
  * Its Drizzle rows are a stub that finds that account and nothing else, and
  * writes nowhere; its raw queries read an in-memory SQLite that holds the
  * account and, when given, `checkpoint` as its one posted balance assertion.
- * The checkpoint's journal also holds a category line for each of its
+ * The checkpoint's journal also holds a categorized account's line for each of its
  * `rows`, the statement rows it posted: keyed as an import keys them, or
  * with no key, as a journal entered by hand has.
  */

@@ -103,7 +103,7 @@ describe("ledgerFingerprint", () => {
       "drafts.hash",
     ],
     [
-      "a draft's category",
+      "a draft's account",
       "UPDATE draft_transactions SET account_id = 3 WHERE id = 1",
       "account.draft-balance:3",
     ],

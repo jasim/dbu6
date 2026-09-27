@@ -68,7 +68,7 @@ This is what Sapporta's packages already do, and it is the form that works.
   against `dist/frontend/` and compared selectors: the compiled-JS run had no
   selector the source run lacked, and lacked 17, all of them from files nothing
   imports (`components/progress-steps.tsx`, `components/transaction-row.tsx`,
-  `components/category-label.tsx`), so tree-shaking removed them. That is
+  `components/account-chip.tsx`), so tree-shaking removed them. That is
   correct behaviour, but it means a class name must be in a module that is
   reachable from the entry. It always is for code that renders.
 - There is **one Tailwind run**, in the host, over our compiled JS and the
@@ -169,7 +169,7 @@ and `dbu6/frontend.css` begins:
 @import "@sapporta/ui/index.css";
 @import "@sapporta/grid/index.css";
 @import "@sapporta/frontend/index.css";
-@source "./";          /* dist/frontend: our compiled JS */
+@source "./"; /* dist/frontend: our compiled JS */
 ```
 
 - `source(none)` matters. Without it Tailwind scans Vite's root, which is the
@@ -199,7 +199,7 @@ in the project. `configFile: false` means a stray `vite.config.*` in the
 project is never read.
 
 - **index.html** lives in the package (`dist/frontend-host/index.html`).
-  - Dev: a middleware added from the function `configureServer` *returns* (so
+  - Dev: a middleware added from the function `configureServer` _returns_ (so
     it runs after Vite's own, which find no `index.html` under the root and
     fall through). It answers any GET that accepts `text/html` with
     `server.transformIndexHtml(url, template)`, so plugin-react's preamble and
@@ -238,7 +238,7 @@ project is never read.
   needs the source mode mentioned above.
 - After `dbu6 upgrade`, Vite's dependency cache
   (`node_modules/.vite-dbu6`) is keyed on the lockfile, so it re-optimizes on
-  its own. Reinstalling a rebuilt tarball with the *same version* does not
+  its own. Reinstalling a rebuilt tarball with the _same version_ does not
   refresh anything: npm serves the old tarball from its cache by lockfile
   integrity. Bump the version on every hand-built pack (the spike lost ten
   minutes to this); CI for R3/N5 should use a unique prerelease version.
@@ -247,9 +247,11 @@ project is never read.
 
 ```ts
 import { build, createServer } from "vite";
-await build(createHostViteConfig({ projectRoot }));                 // dbu6 build, start
-const server = await createServer(createHostViteConfig({ projectRoot, port, apiPort }));
-await server.listen();                                               // dbu6 dev
+await build(createHostViteConfig({ projectRoot })); // dbu6 build, start
+const server = await createServer(
+  createHostViteConfig({ projectRoot, port, apiPort }),
+);
+await server.listen(); // dbu6 dev
 ```
 
 Output goes to `<project>/dist/app` (`emptyOutDir: true` is set explicitly,
@@ -369,7 +371,10 @@ export interface HostPluginOptions {
  * Serves the three things that live in the package rather than in the user's
  * project: index.html, the entry module and the Tailwind stylesheet.
  */
-export function dbu6Host({ projectRoot, packageDir }: HostPluginOptions): Plugin {
+export function dbu6Host({
+  projectRoot,
+  packageDir,
+}: HostPluginOptions): Plugin {
   const htmlTemplate = path.join(packageDir, "dist/frontend-host/index.html");
   // Build only: Vite wants an .html input under its root, and names the
   // output after it. This path never exists on disk; `load` supplies it.
@@ -559,7 +564,10 @@ import { SINGLE_COPY } from "./plugin.js";
  * page would load React twice (or the wrong one). Vite's dev optimizer cannot
  * be talked out of that, so refuse to start and name the package.
  */
-export function assertSingleCopies(projectRoot: string, packageDir: string): void {
+export function assertSingleCopies(
+  projectRoot: string,
+  packageDir: string,
+): void {
   const fromProject = createRequire(path.join(projectRoot, "package.json"));
   const fromPackage = createRequire(path.join(packageDir, "package.json"));
   const conflicts: string[] = [];
@@ -567,7 +575,9 @@ export function assertSingleCopies(projectRoot: string, packageDir: string): voi
     const ours = packageJsonOf(fromPackage, name);
     const theirs = packageJsonOf(fromProject, name);
     if (ours && theirs && fs.realpathSync(ours) !== fs.realpathSync(theirs)) {
-      conflicts.push(`${name}: the project resolves ${theirs}, dbu6 resolves ${ours}`);
+      conflicts.push(
+        `${name}: the project resolves ${theirs}, dbu6 resolves ${ours}`,
+      );
     }
   }
   if (conflicts.length > 0) {

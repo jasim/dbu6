@@ -3,8 +3,8 @@ import {
   accountLedgerHref,
   Amount,
   Button,
-  categoryHueColor,
-  type CategoryHueKey,
+  accountHueColor,
+  type AccountHueKey,
   ChevronRight,
   cn,
   Link,
@@ -163,7 +163,7 @@ function AccountRow({
   sectionTotal: number;
   account: IncomeExpensesAccount;
   depth: number;
-  parentHue: CategoryHueKey;
+  parentHue: AccountHueKey;
   dates: DateSpan;
   open: ReadonlySet<number>;
   onToggle: (accountId: number) => void;
@@ -287,7 +287,7 @@ function RowBody({
   sectionTotal: number;
   name: string;
   amount: number;
-  hue: CategoryHueKey;
+  hue: AccountHueKey;
   strong: boolean;
 }) {
   const share = shareOf(amount, sectionTotal);
@@ -296,7 +296,7 @@ function RowBody({
       <span
         aria-hidden="true"
         className="size-[9px] shrink-0 rounded-full"
-        style={{ background: categoryHueColor(hue) }}
+        style={{ background: accountHueColor(hue) }}
       />
       <span className="min-w-0 flex-1">
         <span
@@ -315,9 +315,7 @@ function RowBody({
             style={{
               width: `${Math.min(share, 1) * 100}%`,
               background:
-                section === "income"
-                  ? "var(--money-in)"
-                  : categoryHueColor(hue),
+                section === "income" ? "var(--money-in)" : accountHueColor(hue),
             }}
           />
         )}

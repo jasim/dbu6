@@ -45,7 +45,7 @@ export function postDrafts(
   }
 
   // The drafts and the status were read in one synchronous pass, so every
-  // draft loaded here has a category.
+  // draft loaded here has an account.
   const { categorized, uncategorized } = partitionByCategorization([
     ...loaded.categorized,
   ]);

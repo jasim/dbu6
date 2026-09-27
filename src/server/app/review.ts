@@ -109,8 +109,8 @@ export function loadReviewAccount(
       amount: row.amount,
       narration: row.narration,
       other_narration: row.other_narration,
-      draft_category: row.draft_category,
-      matched_category: row.matched_category,
+      draft_account: row.draft_account,
+      matched_account: row.matched_account,
     })),
     other_accounts: otherAccountsWithDrafts(
       sqlite,

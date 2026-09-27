@@ -63,7 +63,7 @@ const NAVIGATION: Navigation = {
   everyday: [
     { label: "Home", to: "/" },
     { label: "Import statements", shortLabel: "Import", to: "/import" },
-    { label: "Review", to: "/review", badge: "needsCategory" },
+    { label: "Review", to: "/review", badge: "needsAccount" },
     { label: "Reports", to: "/reports" },
   ],
   more: [{ label: "All tools", to: "/tools" }],
@@ -71,7 +71,7 @@ const NAVIGATION: Navigation = {
 
 let host: HTMLDivElement;
 let root: Root;
-let needsCategory = 0;
+let needsAccount = 0;
 
 beforeAll(() => {
   (
@@ -84,11 +84,11 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   window.localStorage.clear();
-  needsCategory = 0;
+  needsAccount = 0;
   vi.stubGlobal(
     "fetch",
     vi.fn(async () =>
-      Response.json({ data: [], meta: { total: needsCategory } }),
+      Response.json({ data: [], meta: { total: needsAccount } }),
     ),
   );
 });
@@ -148,7 +148,7 @@ describe("dbu6 app shell", () => {
 
   it("shows icons, the control, and the account initials in the rail", async () => {
     installMedia({ desktop: true });
-    needsCategory = 12;
+    needsAccount = 12;
     window.localStorage.setItem(SIDEBAR_EXPANDED_PREF_KEY, "false");
     await renderShell(page("Application content"));
 
@@ -254,9 +254,9 @@ describe("dbu6 app shell", () => {
     ).toBeInstanceOf(HTMLButtonElement);
   });
 
-  it("shows the needs-a-category count on Review and hides it at zero", async () => {
+  it("shows the needs-an-account count on Review and hides it at zero", async () => {
     installMedia({ desktop: true });
-    needsCategory = 12;
+    needsAccount = 12;
     await renderShell(page("Application content"));
 
     const review = navLink("/review");
@@ -264,7 +264,7 @@ describe("dbu6 app shell", () => {
     expect(review.getAttribute("aria-label")).toBe("Review, 12");
     expect(navLink("/").textContent).not.toContain("12");
 
-    needsCategory = 0;
+    needsAccount = 0;
     await act(() => root.unmount());
     root = createRoot(host);
     await renderShell(page("Application content"));

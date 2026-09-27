@@ -83,8 +83,8 @@ export function ResultsCard({
 }
 
 // One account's card, top to bottom: a header band naming the account, then
-// what came in and whether it still needs a category, the closing balance,
-// and the categories and the facts behind the import folded away.
+// what came in and whether it still needs an account, the closing balance,
+// and the accounts they went to and the facts behind the import folded away.
 function AccountResult({
   group,
   sources,
@@ -114,7 +114,7 @@ function AccountResult({
             <Figures>
               <Figure label="New" value={summary.fresh} note={summary.outOf} />
               <CategorizationFigures
-                counts={summary.categories}
+                counts={summary.categorization}
                 accountId={accountId}
               />
             </Figures>
@@ -136,9 +136,9 @@ function AccountResult({
         )}
         <ClosingLine closing={summary.closing} />
         <div>
-          {summary.kind === "new" && summary.byCategory.length > 0 && (
-            <Disclosure summary={`By account (${summary.byCategory.length})`}>
-              <FactTable rows={summary.byCategory} />
+          {summary.kind === "new" && summary.byAccount.length > 0 && (
+            <Disclosure summary={`By account (${summary.byAccount.length})`}>
+              <FactTable rows={summary.byAccount} />
             </Disclosure>
           )}
           <Disclosure summary="Details">

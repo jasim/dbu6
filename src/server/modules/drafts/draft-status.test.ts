@@ -139,7 +139,7 @@ describe("postingChecks", () => {
     expect(
       postingChecks({ ...NO_DRAFTS, drafts: 21, balance_checks: 13 }),
     ).toEqual([
-      { kind: "categories", state: "passes", drafts: 21 },
+      { kind: "categorization", state: "passes", drafts: 21 },
       { kind: "duplicates", state: "passes" },
       { kind: "balance-checks", state: "passes" },
     ]);
@@ -154,7 +154,7 @@ describe("postingChecks", () => {
     expect(postingBlocks(counts)).toEqual([]);
   });
 
-  it("lists every block in tab order, problems marked apart from categories", () => {
+  it("lists every block in tab order, problems marked apart from categorization", () => {
     expect(
       postingBlocks({
         drafts: 21,
@@ -165,7 +165,7 @@ describe("postingChecks", () => {
       }),
     ).toEqual([
       {
-        kind: "categories",
+        kind: "categorization",
         state: "blocks",
         severity: "attention",
         count: 12,

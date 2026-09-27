@@ -4,12 +4,12 @@ import { FRESH_QUERY, useRefetchOnNavigate } from "../queries";
 import type { NavigationCounts } from "./navigation";
 
 /**
- * How many drafts still need a category, across every account: the table
+ * How many drafts still need an account, across every account: the table
  * API's row count (`meta.total`), one cheap request. Home and Review count
  * the same drafts per account through the draft status; moving the badge onto
  * that is a follow-up (PLAN.md §11 P1).
  */
-export async function fetchNeedsCategoryCount(): Promise<number> {
+export async function fetchNeedsAccountCount(): Promise<number> {
   const res = await fetch(
     `${getApiBase()}/tables/draft_transactions?filter[account_id][is]=null&limit=1`,
   );
@@ -26,12 +26,12 @@ export async function fetchNeedsCategoryCount(): Promise<number> {
  */
 export function useNavigationCounts(enabled: boolean): NavigationCounts {
   const query = useQuery({
-    queryKey: ["navigation-counts", "needs-category"],
-    queryFn: fetchNeedsCategoryCount,
+    queryKey: ["navigation-counts", "needs-account"],
+    queryFn: fetchNeedsAccountCount,
     enabled,
     ...FRESH_QUERY,
   });
   useRefetchOnNavigate(query.refetch, enabled);
   if (!enabled || query.isError || query.data === undefined) return {};
-  return { needsCategory: query.data };
+  return { needsAccount: query.data };
 }

@@ -37,7 +37,7 @@ vi.mock("./modules/coding-agent/categorization-llm.js", () => ({
 // migrated with our migrations. The project has no transaction_mappings.mjs,
 // so a draft can only reach "Sample Dining" through the categorizer the
 // runtime was given.
-const CATEGORY = "Sample Dining";
+const EXPENSE_ACCOUNT = "Sample Dining";
 const BANK = "Sample Bank";
 const CARD = "Sample Card";
 const BANK_PARSER = "hdfc-bank-xls";
@@ -46,7 +46,7 @@ const loadedWith: CategorizerSettings[] = [];
 const loadCategorizer: LoadCategorizer = async (settings) => {
   loadedWith.push(settings);
   return {
-    classify: { ok: true, value: () => parseAccount(CATEGORY) },
+    classify: { ok: true, value: () => parseAccount(EXPENSE_ACCOUNT) },
     customMappings: { ok: true, value: "" },
     llm: settings.llm,
   };
@@ -79,7 +79,7 @@ beforeAll(() => {
     .values([
       account(1, BANK, "Asset"),
       account(2, CARD, "Liability"),
-      account(3, CATEGORY, "Expense"),
+      account(3, EXPENSE_ACCOUNT, "Expense"),
     ])
     .run();
   // The bank's import preset, whose one account imports into account 1.

@@ -8,6 +8,6 @@
 - Clearly travel-related merchants map to 'Travel'.
 - Clearly leisure-related purchases map to 'Leisure'.
 
-Do not infer a category for a transfer to an individual person. If the
-merchant or purpose is not clear enough to apply one of these categories,
+Do not infer an account for a transfer to an individual person. If the
+merchant or purpose is not clear enough to apply one of these accounts,
 leave it uncategorized.

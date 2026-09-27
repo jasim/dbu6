@@ -25,9 +25,9 @@ import {
 export type Stat = Fact;
 
 // One account's card in the results, in the order someone doing their books
-// reads it: which account, what came in and whether it still needs a
-// category, whether the balance agrees with the bank, and, folded away, the
-// categories and the facts behind the import.
+// reads it: which account, what came in and whether it still needs an
+// account, whether the balance agrees with the bank, and, folded away, the
+// accounts they went to and the facts behind the import.
 export type GroupSummary = {
   // The account the statement went into, by the name the presets give it.
   title: string;
@@ -48,11 +48,11 @@ export type GroupSummary = {
       // "of 8 in the statement" when some of its rows were already in the
       // books; null when every row was new.
       outOf: string | null;
-      categories: CategorizationCounts;
+      categorization: CategorizationCounts;
       // Why the LLM left some uncategorized; null when it answered for all.
       problem: CategorizationProblem | null;
       // Folded under "By account": how many each account was given.
-      byCategory: Stat[];
+      byAccount: Stat[];
     }
   | {
       kind: "nothing-new";
@@ -195,12 +195,12 @@ export function describeGroup(
       r.transaction_count === fresh
         ? null
         : `of ${r.transaction_count} in the statement`,
-    categories: categorizationCounts(r.categorization_tally),
+    categorization: categorizationCounts(r.categorization_tally),
     problem:
       r.categorization === null
         ? null
         : describeCategorizationProblem(r.categorization),
-    byCategory: r.categorization_tally.accounts.map((account) => ({
+    byAccount: r.categorization_tally.accounts.map((account) => ({
       label: account.account_name,
       value: String(account.count),
     })),

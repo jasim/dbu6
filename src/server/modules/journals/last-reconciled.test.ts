@@ -210,8 +210,8 @@ describe("the last reconciled checkpoint", () => {
 
 /*
  * Sample Savings (1) on 10 May. Journal 30 is one row its import posted, and
- * journal 31 two more in the older grouped form, its keys on the category
- * lines; 31 asserts the day's balance. Journal 32 is a card payment posted
+ * journal 31 two more in the older grouped form, its keys on the categorized
+ * accounts' lines; 31 asserts the day's balance. Journal 32 is a card payment posted
  * later from Sample Card's (2) statement, its key on the Savings line, and
  * journal 33 an entry by hand, with no key. Journal 34 is Sample Card's
  * alone, journal 35 is on 11 May, and journal 36 belongs to another user.

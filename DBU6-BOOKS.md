@@ -10,16 +10,16 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
 
 - **Use the app's words, not the data's:**
 
-  | In the data | Say |
-  | --- | --- |
-  | draft | an imported transaction waiting in Review |
-  | post | add to your books ("Add N to my books" on Review) |
-  | base account | the bank or card account the statement is for |
-  | `account_id` on a draft or entry | its category |
-  | balance assertion | the balance printed on the statement |
-  | failing balance check | on that day the running total misses the statement's balance |
-  | journal, entry | a transaction in your books |
-  | last reconciled checkpoint | the last statement balance in your books, and its date |
+  | In the data                      | Say                                                          |
+  | -------------------------------- | ------------------------------------------------------------ |
+  | draft                            | an imported transaction waiting in Review                    |
+  | post                             | add to your books ("Add N to my books" on Review)            |
+  | base account                     | the bank or card account the statement is for                |
+  | `account_id` on a draft or entry | the account it goes to                                       |
+  | balance assertion                | the balance printed on the statement                         |
+  | failing balance check            | on that day the running total misses the statement's balance |
+  | journal, entry                   | a transaction in your books                                  |
+  | last reconciled checkpoint       | the last statement balance in your books, and its date       |
 
 - **Money:** show amounts with Indian digit grouping (1,23,456) and no
   currency sign. For a card or loan, say "you owe X" instead of showing a
@@ -52,7 +52,7 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
 ## Before changing anything
 
 - Reading needs no permission. Every change does. Describe it in the user's
-  words (date, description, amount, old → new category, and how many), then
+  words (date, description, amount, old → new account, and how many), then
   wait for a yes.
 - After a change, run the check that prompted it again, such as the Review
   status or the report, and tell the user what the screen now shows.
@@ -107,20 +107,20 @@ Look up an account's id with
 
 - **"Why won't these go into my books?"**
   `sapporta api get /api/review/accounts/<id>`. Drafts are added only when three
-  checks pass, in this order: every draft has a category; there are no
+  checks pass, in this order: every draft goes to an account; there are no
   possible duplicates; every balance check passes.
 - **"Categorise these."**
-  - List the drafts with no category:
+  - List the drafts with no account:
     `sapporta rows list draft_transactions --where '{"base_account_id":{"eq":<id>},"account_id":{"is":"null"}}'`.
   - Set one by hand:
-    `sapporta rows update draft_transactions <draft> --values '{"account_id":<category>}'`.
-    Never set a draft's category to its own base account. For many drafts at
+    `sapporta rows update draft_transactions <draft> --values '{"account_id":<account>}'`.
+    Never send a draft to its own base account. For many drafts at
     once, all or none:
-    `sapporta api post /api/draft-transactions/set-category --body '{"ids":[…],"account_id":<category>}'`.
+    `sapporta api post /api/draft-transactions/set-account --body '{"ids":[…],"account_id":<account>}'`.
   - Or run the categoriser again:
     `sapporta api post /api/draft-transactions/classify --body '{"ids":[…],"custom_mappings_filenames":[…]}'`.
     It overwrites every draft you pass, and leaves blank any it is unsure of.
-    So pass only drafts with no category. Pass the account's own instruction
+    So pass only drafts with no account. Pass the account's own instruction
     files, in order: `custom_mappings_filenames` of the account in
     `sapporta api get /api/import-presets` whose `account_id` is this account
     (see [Import presets](#import-presets)).
@@ -147,38 +147,50 @@ string in the narration settles it:
 - **Yes** → a rule in `user-config/transaction_mappings.mjs`; the file's
   comments have the shape. Prefer this: free, instant, and it applies to every
   account. An `account` that is not a name in Accounts silently leaves the row
-  uncategorised.
+  uncategorised. A contains rule can be limited to one direction and to an
+  amount range (`amount: { min, max }`, either end open), for a phrase that
+  alone would also catch other payments.
 - **No** → a line in a `custom_mappings_*.prompt` file in `user-config/`,
   read by the AI after the rules miss. It applies only to the accounts whose
   import preset lists that file (`custom_mappings_filenames`; see
-  [Import presets](#import-presets)).
+  [Import presets](#import-presets)). The AI sees each transaction's
+  direction and amount beside its narration, so a line may give an amount
+  range too.
+
+Neither sees the date. A string shared only by how the money moved (`UPI`,
+`NEFT`, `IMPS`, `POS`, `ATM`) settles nothing: a rule on it catches every such
+payment. Before adding a rule, count what it would have caught among the
+transactions already in the books that are in other accounts. Give a range
+from the amounts seen, rounded out to round figures, not the exact amounts.
 
 Neither is retroactive: re-run the categoriser over the drafts with no
-category ("Categorise these" above), and restart a server started with
+account ("Categorise these" above), and restart a server started with
 `dbu6 start`.
 
 **New rules from Review.** The Improve categorization tab keeps the new rules
-the user made there as lessons, each with its drafts' narrations, the account
-they go to and a note:
+the user made there as lessons, each with its drafts (date, narration,
+direction and amount), the account they go to and a note:
 `sapporta api get /api/categorization-lessons --query '{"base_account_id":<id>}'`.
-Their drafts have no category yet; the user runs the categorizer once the
-rules are in. Once a lesson is a rule or guidance, delete it, which takes it
-off the user's list:
+Their drafts have no account yet; the user runs the categorizer once the
+rules are in. The user picked the drafts, so they may share nothing the
+categorizer can see; propose each change, and say so when they don't, before
+writing anything. Once a lesson is a rule or guidance, delete it, which takes
+it off the user's list:
 `sapporta api delete /api/categorization-lessons/<lesson id>`. Leave a lesson
 you couldn't encode.
 
 ### Fixing the books
 
-- **"All my X payments are in the wrong category."**
+- **"All my X payments are in the wrong account."**
   1. Preview with SQL: how many transactions, their total, and a few examples.
      A loose pattern catches the wrong ones.
   2. Update each entry's `account_id`, one `rows update journal_entries` per
      entry.
   3. Update the matching drafts too.
   4. Add a mapping so future imports get it right (above).
-- **"This one transaction has the wrong category."**
-  Update the category entry's `account_id`. Never change the line on the
-  statement's own account. If the old or new category is itself a bank or
+- **"This one transaction is in the wrong account."**
+  Update the categorized account's entry's `account_id`. Never change the
+  line on the statement's own account. If the old or new account is itself a bank or
   card account, as in a transfer or card payment, the change moves that
   account's balance checks. Check `balance-assertions` afterwards.
 - **"Add a transaction by hand."**
@@ -196,10 +208,10 @@ you couldn't encode.
     first. When no other journal is on that day, say so: the day loses its
     check, and if it was the account's last, the next import starts from the
     day before and brings back whatever that statement still shows. If the
-    transaction is real but misfiled, change its category instead of
-    deleting it.
+    transaction is real but misfiled, change its categorized account
+    instead of deleting it.
   - To remove one transaction from an older, grouped journal: delete its
-    category entry, and reduce the statement account's line by the same
+    categorized account's entry, and reduce the statement account's line by the same
     amount.
 
   Either way, every later balance check on that account moves. Check
@@ -298,6 +310,7 @@ you couldn't encode.
     the Accounts page and [Import presets](#import-presets).
   - `sapporta api get /api/setup/statement-accounts` lists them, each with
     its count of its own `entries` and `drafts`.
+
 - **Setting up the books.** The first run is a run of cards, one question
   each, and keeps nothing but the URL: `/setup` picks the chart of accounts,
   `/add?run=setup` adds the banks and cards one at a time, `/add/other`
@@ -360,6 +373,7 @@ you couldn't encode.
     that journal instead, which moves every later balance check.
 
   Without an opening balance, every balance check fails by the same amount.
+
 - **"Rename or move an account."**
   `sapporta rows update accounts <id> --values '{…}'`. Rules and prompt files
   name accounts by name, so make the same rename in `user-config/`:
@@ -511,19 +525,19 @@ user the change in their words and wait for a yes, as for any other change.
 **Refusals** are a 422 with `error`, `code` and `change_index`, the change the
 refusal is about (null when it is the table the whole batch leaves):
 
-| `code` | What to do |
-| --- | --- |
-| `unknown_institution`, `unknown_account`, `parser_not_listed` | The change names what the presets don't hold at that point in the batch. Read them again and name what is there. |
-| `institution_has_accounts` | Remove the institution's accounts first, in the same batch. |
-| `institution_name_empty`, `institution_name_taken` | Give the institution a name no other has. |
-| `parser_listed_twice`, `parser_in_two_institutions` | A parser is listed once, by one institution. Remove it from the other first. |
-| `account_listed_twice` | An account is in one institution once. To move it, `remove_account` then `add_account`. |
-| `account_name_empty`, `account_name_taken` | Give the account a name no other preset account has. |
-| `identifier_on_two_accounts` | Two accounts of one institution list the same identifier; one of them is wrong. |
-| `account_identifier_required` | An institution with more than one account needs every account's identifier, so a statement can be told apart. Add them in the same batch. |
-| `mapping_file_listed_twice` | List each instruction file once per account. |
-| `unknown_ledger_account` | No ledger account has that id. Look it up again, or create the account first. |
-| `unknown_parser` | No saved parser has that name, in the project's `custom-built-parsers/` or dbu6's (`dbu6 docs parsers`). |
+| `code`                                                        | What to do                                                                                                                                |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `unknown_institution`, `unknown_account`, `parser_not_listed` | The change names what the presets don't hold at that point in the batch. Read them again and name what is there.                          |
+| `institution_has_accounts`                                    | Remove the institution's accounts first, in the same batch.                                                                               |
+| `institution_name_empty`, `institution_name_taken`            | Give the institution a name no other has.                                                                                                 |
+| `parser_listed_twice`, `parser_in_two_institutions`           | A parser is listed once, by one institution. Remove it from the other first.                                                              |
+| `account_listed_twice`                                        | An account is in one institution once. To move it, `remove_account` then `add_account`.                                                   |
+| `account_name_empty`, `account_name_taken`                    | Give the account a name no other preset account has.                                                                                      |
+| `identifier_on_two_accounts`                                  | Two accounts of one institution list the same identifier; one of them is wrong.                                                           |
+| `account_identifier_required`                                 | An institution with more than one account needs every account's identifier, so a statement can be told apart. Add them in the same batch. |
+| `mapping_file_listed_twice`                                   | List each instruction file once per account.                                                                                              |
+| `unknown_ledger_account`                                      | No ledger account has that id. Look it up again, or create the account first.                                                             |
+| `unknown_parser`                                              | No saved parser has that name, in the project's `custom-built-parsers/` or dbu6's (`dbu6 docs parsers`).                                  |
 
 An instruction file may be listed before it exists; `npx dbu6 check` names
 the missing ones, and the ones a deleted account leaves behind.
@@ -569,7 +583,7 @@ it could belong to), it keeps the file, `dbu6 migrate` prints why, and
   you can from SQLite.
   - `APP_SERVER_UNREACHABLE`: look at `target.apiUrl` in the error. If the
     port is right, dbu6 isn't running: ask the user to start it (`npx dbu6
-    dev` in the project), or offer to.
+dev` in the project), or offer to.
     In a sandbox, ask for network access.
   - `unauthenticated`, `token_expired` or `token_revoked`: ask the user to
     open `<app URL>/account/profile?token=new`, create a token and choose
@@ -600,14 +614,14 @@ The owner allows reading SQLite directly for diagnosis:
 
 ## The data
 
-| Table | Holds | Columns that matter |
-| --- | --- | --- |
-| `accounts` | The chart of accounts, one tree | `name` (unique), `parent_id`, `account_type`: Asset, Liability, Equity, Revenue or Expense |
-| `draft_transactions` | Imported rows waiting in Review | `base_account_id`, `account_id` (the category; null when uncategorised), `date`, `narration`, `withdrawal`, `deposit`, `balance_assertion_base_account`, `source_transaction_key` |
-| `journals` | Transactions in the books | `date`, `description` (the narration when imported; `Expenses` or `Deposits` on older imports) |
-| `journal_entries` | A journal's lines | `journal_id`, `account_id`, `debit`, `credit`, `account_balance_assertion`, `comment`, `source_transaction_key` |
-| `import_presets` | The import presets, one institution per row; read only, change them through `/api/import-presets/changes` | `name`, `parsers` and `accounts` (JSON; see [Import presets](#import-presets)) |
-| `categorization_lessons` | What the user taught the categoriser in Review, waiting to become a rule or guidance; read only, change them through `/api/categorization-lessons` | `base_account_id`, `account_id` (where the drafts go), `narrations` (JSON), `note` |
+| Table                    | Holds                                                                                                                                              | Columns that matter                                                                                                                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accounts`               | The chart of accounts, one tree                                                                                                                    | `name` (unique), `parent_id`, `account_type`: Asset, Liability, Equity, Revenue or Expense                                                                                                   |
+| `draft_transactions`     | Imported rows waiting in Review                                                                                                                    | `base_account_id`, `account_id` (the categorized account; null when uncategorised), `date`, `narration`, `withdrawal`, `deposit`, `balance_assertion_base_account`, `source_transaction_key` |
+| `journals`               | Transactions in the books                                                                                                                          | `date`, `description` (the narration when imported; `Expenses` or `Deposits` on older imports)                                                                                               |
+| `journal_entries`        | A journal's lines                                                                                                                                  | `journal_id`, `account_id`, `debit`, `credit`, `account_balance_assertion`, `comment`, `source_transaction_key`                                                                              |
+| `import_presets`         | The import presets, one institution per row; read only, change them through `/api/import-presets/changes`                                          | `name`, `parsers` and `accounts` (JSON; see [Import presets](#import-presets))                                                                                                               |
+| `categorization_lessons` | What the user taught the categoriser in Review, waiting to become a rule or guidance; read only, change them through `/api/categorization-lessons` | `base_account_id`, `account_id` (where the drafts go), `narrations` (JSON), `note`                                                                                                           |
 
 - Amounts are rupees, stored as REAL. In the tables, a balance is
   debit − credit, so money held is positive, and money owed and income are
@@ -615,12 +629,12 @@ The owner allows reading SQLite directly for diagnosis:
 - A draft's `withdrawal` and `deposit` are both positive.
 - Adding drafts to the books makes one journal per draft, described by its
   narration:
-  - One entry on its category, carrying the narration and
+  - One entry on its categorized account, carrying the narration and
     `source_transaction_key`.
   - One entry on the statement's account, with no key. The day's last one
     carries the day's closing statement balance.
 - Journals added before 2026-09-24 group a run of same-day, same-direction
-  drafts: one category entry per draft as above, and one entry on the
+  drafts: one categorized account's entry per draft as above, and one entry on the
   statement's account for the run's total, carrying the run's last statement
   balance. Their description is `Expenses` or `Deposits`.
 - Reports show amounts the way people read them, not the way the tables store

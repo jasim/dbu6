@@ -20,7 +20,7 @@ const OFFICE_ACCOUNT_ID = 3;
 const auth = testLedgerAuth();
 
 describe("draft persistence reconciliation", () => {
-  it("reimport after category change reuses the keyed draft and preserves user category", () => {
+  it("reimport after an account change reuses the keyed draft and keeps the user's account", () => {
     const { db, sqlite } = setup();
     const transaction = tx("stable-key");
     const first = draftRows(transaction, SOFTWARE_ACCOUNT_ID);

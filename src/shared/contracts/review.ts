@@ -49,9 +49,9 @@ export const reviewDuplicateSchema = z.object({
   narration: z.string(),
   // The other draft's narration, or the matched entry's comment.
   other_narration: z.string().nullable(),
-  draft_category: z.string().nullable(),
-  // The other draft's category, or the matched entry's account.
-  matched_category: z.string().nullable(),
+  draft_account: z.string().nullable(),
+  // The other draft's account, or the matched entry's account.
+  matched_account: z.string().nullable(),
 });
 export type ReviewDuplicate = z.infer<typeof reviewDuplicateSchema>;
 

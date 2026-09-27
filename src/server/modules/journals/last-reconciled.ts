@@ -89,7 +89,7 @@ export function lookupLastReconciled(
  * - "statement": this account's own import posted it, and `key` is the
  *   statement row's source key;
  * - "other-statement": another account's import posted it with this account
- *   as its category, as a card payment or a transfer is, so this account's
+ *   as its categorized account, as a card payment or a transfer is, so this account's
  *   statement keys it differently;
  * - "unkeyed": its journal carries no key, entered by hand or imported
  *   before rows were keyed.
@@ -171,10 +171,10 @@ export function loadPostedRowsOn(
   );
 }
 
-// An import keys the category line of each row it posts, never its own
+// An import keys the categorized account's line of each row it posts, never its own
 // account's line (journal-plan). So a key on another account's line is this
 // account's own row, and a key on this account's line is another account's
-// row that has this account as its category. With no key, each line on
+// row that has this account as its categorized account. With no key, each line on
 // another account is one row, as an older grouped import wrote them.
 function postedRowsOf(journal: PostedLine[], accountId: number): PostedRow[] {
   const counted = journal[0].counted === 1;

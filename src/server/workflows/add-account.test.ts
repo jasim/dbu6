@@ -864,7 +864,7 @@ describe("addAccount", () => {
   it("refuses an opening behind a payment another account's import posted", async () => {
     const ledger = books();
     // The savings statement's card payment, posted with the card as its
-    // category: the import keys the category's line.
+    // categorized account: the import keys that account's line.
     const line = { assertion: null, sourceReference: null };
     insertJournalPlan(
       ledger.db,

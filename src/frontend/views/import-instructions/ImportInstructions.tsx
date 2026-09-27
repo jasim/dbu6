@@ -37,8 +37,8 @@ const PAGE_TITLE = "Automatic transaction categorization rules";
  * transaction_mappings.mjs, which apply to every account; AI is each bank
  * or card's notes, for whatever the rules miss. Each tab opens on one of
  * the user's own rules as an example. Read-only: the files are edited in
- * user-config/. Its one action, beside the title while drafts need a
- * category, is Improve categorization.
+ * user-config/. Its one action, beside the title while drafts need an
+ * account, is Improve categorization.
  */
 export function ImportInstructions() {
   usePageTitle(PAGE_TITLE);
@@ -145,10 +145,10 @@ export function ImportInstructions() {
 }
 
 /**
- * Where to improve categorization, and how many drafts need a category
+ * Where to improve categorization, and how many drafts need an account
  * there: the Improve categorization tab of the account on show, or of the
  * one account with such drafts, else the list of accounts to review. None
- * when every draft has a category.
+ * when every draft goes to an account.
  */
 function improveTarget(
   accounts: readonly ReviewAccount[] | undefined,

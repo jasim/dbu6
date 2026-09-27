@@ -35,7 +35,7 @@ import { ReportTab } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 import {
   IMPROVE_CATEGORIZATION_TAB,
-  needsCategoryHref,
+  needsAccountHref,
   parseAccountId,
   REVIEW_ROUTE,
   reviewHref,
@@ -81,7 +81,7 @@ export function ReclassifyDraftsRedirect() {
 
 /**
  * Run categorizer: the categoriser again over the account's drafts that have
- * no category. One card says how many and runs it, with the account's own
+ * no account. One card says how many and runs it, with the account's own
  * instructions unless the user changes them, and optionally a Google Pay
  * export. After the run the card sums it up and points at what is left.
  */
@@ -256,7 +256,7 @@ export function RunCategorizerTab() {
         {run && !unavailable ? (
           <RunResult
             run={run}
-            draftsHref={inRun(needsCategoryHref(accountId))}
+            draftsHref={inRun(needsAccountHref(accountId))}
             improveHref={inRun(
               reviewHref(accountId, IMPROVE_CATEGORIZATION_TAB),
             )}
@@ -414,7 +414,7 @@ export function RunCategorizerTab() {
               </Button>
               {!loadingRows && (
                 <Link
-                  to={inRun(needsCategoryHref(accountId))}
+                  to={inRun(needsAccountHref(accountId))}
                   className="text-meta text-ink-soft hover:text-foreground hover:underline"
                 >
                   See them in Drafts
@@ -505,7 +505,7 @@ function InstructionsValue({
 /**
  * What a run did, in place of the card that started it: how many it
  * categorized and where they went, and then the way on. Drafts still without
- * a category go to Drafts, to categorize by hand, or to Improve
+ * an account go to Drafts, to categorize by hand, or to Improve
  * categorization, to make rules for them.
  */
 function RunResult({

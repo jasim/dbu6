@@ -32,7 +32,7 @@ export function migrateUpTo(
 
 /**
  * Small books in the columns of `FIRST_LEDGER_MIGRATION`: a two-level account
- * tree, three balanced journals, and drafts with and without a category.
+ * tree, three balanced journals, and drafts with and without an account.
  */
 export function seedBooksAtFirstLedgerSchema(sqlite: Database.Database): void {
   const at = "2026-01-01T00:00:00Z";

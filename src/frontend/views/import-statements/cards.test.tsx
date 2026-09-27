@@ -13,7 +13,7 @@ import { ResultsCard } from "./cards";
 /*
  * An account's row in the import results: the new transactions and whether
  * they still need an account as figures, the closing balance, and the
- * categories folded away. Who categorized them is not the user's concern.
+ * accounts they went to folded away. Who categorized them is not the user's concern.
  */
 
 let host: HTMLDivElement;

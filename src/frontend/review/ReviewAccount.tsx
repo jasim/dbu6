@@ -299,7 +299,7 @@ function Tabs({
         count: tab === "drafts" ? account.drafts : undefined,
         problems: isBlock(check) && isProblem(check) ? check.count : undefined,
       };
-      if (check.kind !== "categories") return [link];
+      if (check.kind !== "categorization") return [link];
       return [
         link,
         ...CATEGORIZATION_TABS.map((categorizationTab) => ({

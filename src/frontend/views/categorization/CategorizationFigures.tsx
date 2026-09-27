@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@sapporta/ui/cn";
-import { needsCategoryHref } from "../../review/routes";
+import { needsAccountHref } from "../../review/routes";
 import type {
   CategorizationCounts,
   CategorizationProblem,
@@ -65,7 +65,7 @@ export function Figure({
 }
 
 /**
- * How many got a category and how many still need one, linked to the
+ * How many got an account and how many still need one, linked to the
  * account's drafts that do; or, when none do, one "All entries categorized"
  * box, as wide as the two it stands for.
  */
@@ -99,7 +99,7 @@ export function CategorizationFigures({
         tone="attention"
         action={
           <Link
-            to={needsCategoryHref(accountId)}
+            to={needsAccountHref(accountId)}
             className="text-meta font-semibold text-attention-ink underline-offset-4 hover:underline"
           >
             Categorize

@@ -10,11 +10,11 @@
  *   account.balance:<id>         posted debits less credits
  *   account.draft-balance:<id>   draft deposits less withdrawals where the
  *                                account is the base, and the reverse where it
- *                                is the category
+ *                                is the categorized account
  *   journals.count  entries.count  drafts.count
  *   entries.hash    every entry's id, journal, account, date, debit, credit
- *   drafts.hash     every draft's id, date, withdrawal, deposit, category
- *                   account, base account
+ *   drafts.hash     every draft's id, date, withdrawal, deposit, account,
+ *                   base account
  *   journals.unbalanced          ids of journals whose debits and credits
  *                                differ, or "none"
  *   trial-balance                all debits less all credits

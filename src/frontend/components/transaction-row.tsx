@@ -1,8 +1,8 @@
 import { Checkbox } from "@sapporta/ui/checkbox";
 import { cn } from "@sapporta/ui/cn";
 import { Amount, type Direction } from "./amount";
-import type { CategoryHueKey } from "./category";
-import { CategoryLabel, NeedsCategory } from "./category-label";
+import type { AccountHueKey } from "./account-hue";
+import { AccountChip, NeedsAccount } from "./account-chip";
 
 export interface Transaction {
   id: string;
@@ -14,13 +14,13 @@ export interface Transaction {
   raw: string;
   amount: number;
   direction: Direction;
-  /** The category's account name and hue, or nothing while it still needs one. */
-  category?: { name: string; hue: CategoryHueKey };
+  /** The account it goes to, by name and hue, or nothing while it needs one. */
+  account?: { name: string; hue: AccountHueKey };
 }
 
 /**
  * The review list's row. A fixed grid, so four hundred rows stay readable
- * and never reflow: checkbox, date, name over the raw description, category,
+ * and never reflow: checkbox, date, name over the raw description, account,
  * amount. Virtualise the list beyond about a hundred rows, not the row.
  */
 export function TransactionRow({
@@ -58,13 +58,13 @@ export function TransactionRow({
         </span>
       </span>
       <span>
-        {transaction.category ? (
-          <CategoryLabel
-            name={transaction.category.name}
-            hue={transaction.category.hue}
+        {transaction.account ? (
+          <AccountChip
+            name={transaction.account.name}
+            hue={transaction.account.hue}
           />
         ) : (
-          <NeedsCategory onClick={() => onCategorise?.(transaction.id)} />
+          <NeedsAccount onClick={() => onCategorise?.(transaction.id)} />
         )}
       </span>
       <Amount

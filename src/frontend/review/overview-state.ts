@@ -19,7 +19,7 @@ import {
 import { checkText, duplicatesText } from "./posting-checks";
 import {
   checkTab,
-  needsCategoryHref,
+  needsAccountHref,
   REVIEW_ROUTE,
   reviewHref,
   withReviewRun,
@@ -90,7 +90,7 @@ export const BOOKS_SET_UP_NEXT: OverviewLink = { label: "Go to Home", to: "/" };
 
 /**
  * The Overview, for an account's drafts. `imported` is what the add that
- * opened the visit imported, for the categories row's note.
+ * opened the visit imported, for the categorization row's note.
  */
 export function overviewView(
   detail: ReviewAccountDetail,
@@ -191,7 +191,7 @@ export function arrivalNotice(
   }
   const row = checkRow(block, detail, null);
   switch (block.kind) {
-    case "categories":
+    case "categorization":
       return {
         title,
         facts,
@@ -217,7 +217,7 @@ export function arrivalNotice(
 
 /** One unmet check, as the waiting button lists it: "12 still need an account". */
 function waitingReason(block: PostingBlock): string {
-  return block.kind === "categories"
+  return block.kind === "categorization"
     ? `${block.count} still ${agree(block.count, "needs", "need")} an account`
     : checkText(block);
 }
@@ -276,7 +276,7 @@ function checkRow(
   imported: ImportCounts | null,
 ): CheckRow {
   const note =
-    check.kind === "categories" && imported !== null
+    check.kind === "categorization" && imported !== null
       ? `${imported.categorized} of ${imported.drafts} categorized automatically`
       : undefined;
   if (!isBlock(check)) {
@@ -290,7 +290,7 @@ function checkRow(
   const accountId = detail.account.account_id;
   const tab = reviewHref(accountId, checkTab(check.kind));
   switch (check.kind) {
-    case "categories":
+    case "categorization":
       return {
         check: check.kind,
         tone: check.severity,
@@ -298,7 +298,7 @@ function checkRow(
         note,
         link: {
           label: check.count === 1 ? "See it in Drafts" : "See them in Drafts",
-          to: needsCategoryHref(accountId),
+          to: needsAccountHref(accountId),
         },
       };
     case "duplicates":

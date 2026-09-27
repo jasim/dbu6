@@ -76,7 +76,7 @@ const ownNavigation: Navigation = {
       label: "Review",
       icon: ListChecks,
       to: "/review",
-      badge: "needsCategory",
+      badge: "needsAccount",
     },
     { label: "Reports", icon: BarChart3, to: "/reports" },
   ],

@@ -71,7 +71,7 @@ function ledger() {
 }
 
 describe("postDraftsToJournal", () => {
-  it("refuses while a draft has no category", () => {
+  it("refuses while a draft has no account", () => {
     const { sqlite, posting, count } = ledger();
     sqlite.exec(
       `UPDATE draft_transactions SET account_id = NULL WHERE id = 202`,

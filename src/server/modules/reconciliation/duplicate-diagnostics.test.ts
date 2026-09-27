@@ -18,19 +18,19 @@ const draft = (
   source_reference: null,
   source_transaction_key: null,
   base_account: "StanC Credit Card",
-  draft_category: "Software",
+  draft_account: "Software",
   ...overrides,
 });
 
 describe("findDuplicateDiagnostics", () => {
-  it("reports draft-draft duplicates even when categories differ", () => {
+  it("reports draft-draft duplicates even when their accounts differ", () => {
     const rows = findDuplicateDiagnostics(
       [
         draft(),
         draft({
           draft_id: 2,
           account_id: 3,
-          draft_category: "Office",
+          draft_account: "Office",
         }),
       ],
       [],
@@ -41,8 +41,8 @@ describe("findDuplicateDiagnostics", () => {
       match_type: "legacy-draft",
       draft_id: 1,
       other_draft_id: 2,
-      draft_category: "Software",
-      matched_category: "Office",
+      draft_account: "Software",
+      matched_account: "Office",
     });
   });
 

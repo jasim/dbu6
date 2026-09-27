@@ -38,10 +38,10 @@ The books hold three kinds of row that day (`loadPostedRowsOn`):
 
 - **This account's imports.** Each carries the statement row's source key
   (the bank reference, or account, date, direction, amount, narration and
-  occurrence), on its category line, in both the one-row-per-journal form
+  occurrence), on its categorized account's line, in both the one-row-per-journal form
   and the older grouped form.
 - **Another account's imports.** A card payment or a transfer that the other
-  account's import posted with this account as its category. Its key is the
+  account's import posted with this account as its categorized account. Its key is the
   other statement's, on this account's line, so it never matches a row here.
 - **Unkeyed journals.** Entered by hand, or imported before rows were keyed.
   Each line on another account is one row, as the older grouped imports
@@ -92,7 +92,7 @@ The pairing reads the books through facts other code keeps. Changing any of
 them can break it silently. `JournalPlan.ts` and `running-balance.ts` point
 back here.
 
-- **An import keys the category line, never its own account's line**
+- **An import keys the categorized account's line, never its own account's line**
   (`journal-plan/JournalPlan.ts`). That is how a row this account's import
   posted is told from one another account's import posted.
 - **A key includes the statement's account** (`transaction-identity.ts`).

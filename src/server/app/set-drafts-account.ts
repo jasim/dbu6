@@ -1,22 +1,18 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import { draftTransactionsContract } from "../../shared/index.js";
-import { setDraftsCategory } from "../workflows/reclassification.js";
+import { setDraftsAccount } from "../workflows/reclassification.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
 
-// Setting a category by hand on many drafts at once, from Review's Improve
+// Choosing an account by hand for many drafts at once, from Review's Improve
 // categorization tab.
 const api = new TsRestApi<SapportaEnv>();
 
 api.register(
-  "setDraftsCategory",
-  draftTransactionsContract.setDraftsCategory,
+  "setDraftsAccount",
+  draftTransactionsContract.setDraftsAccount,
   async ({ c, request }) => {
     const { ids, account_id } = request.body;
-    const outcome = setDraftsCategory(
-      requireWorkflowLedger(c),
-      ids,
-      account_id,
-    );
+    const outcome = setDraftsAccount(requireWorkflowLedger(c), ids, account_id);
     switch (outcome.kind) {
       case "set":
         return { status: 200, body: { updated: outcome.updated } };
