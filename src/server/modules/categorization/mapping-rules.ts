@@ -1,10 +1,28 @@
 import { z } from "zod";
 import { isVpa } from "../../../shared/index.js";
 import type { Abacus } from "../statement/index.js";
-import { isWithdrawal } from "../values/index.js";
+import { amount, isWithdrawal } from "../values/index.js";
 
 const accountSchema = z.string().trim().min(1);
 const directionSchema = z.enum(["withdrawal", "deposit"]);
+// The amounts a rule applies to, both ends included, compared with the
+// amount that moved, whichever way. Either end may be left open.
+const amountRangeSchema = z
+  .object({
+    min: z.number().nonnegative().optional(),
+    max: z.number().nonnegative().optional(),
+  })
+  .strict()
+  .refine((range) => range.min !== undefined || range.max !== undefined, {
+    message: "an amount range needs a min, a max, or both",
+  })
+  .refine(
+    (range) =>
+      range.min === undefined ||
+      range.max === undefined ||
+      range.min <= range.max,
+    { message: "an amount range's min is above its max" },
+  );
 
 /**
  * Shape of the `mappings` export in the user's `transaction_mappings.mjs`.
@@ -16,6 +34,7 @@ export const mappingRulesSchema = z.object({
     z.object({
       account: accountSchema,
       direction: directionSchema.optional(),
+      amount: amountRangeSchema.optional(),
       values: z.array(accountSchema).min(1),
     }),
   ),
@@ -23,10 +42,12 @@ export const mappingRulesSchema = z.object({
 
 export type MappingRules = z.infer<typeof mappingRulesSchema>;
 type Direction = z.infer<typeof directionSchema>;
+export type AmountRange = z.infer<typeof amountRangeSchema>;
 
 interface CompiledInclude {
   account: string;
   direction?: Direction;
+  amount?: AmountRange;
   value: string;
 }
 
@@ -83,6 +104,7 @@ export function compileMappings(rules: MappingRules): CompiledMappings {
     rule.values.map((value) => ({
       account: rule.account,
       direction: rule.direction,
+      amount: rule.amount,
       value: normalize(value),
     })),
   );
@@ -94,7 +116,8 @@ export function compileMappings(rules: MappingRules): CompiledMappings {
  * Exact mappings always win: first against the whole narration, then a VPA
  * key against the VPA embedded in the narration. Includes are checked in
  * declaration order, so narrower patterns must be declared ahead of broader
- * category patterns.
+ * patterns; one with a direction or an amount range skips the
+ * transactions outside them.
  */
 export function classifyWith(
   compiled: CompiledMappings,
@@ -112,10 +135,19 @@ export function classifyWith(
   const direction: Direction = isWithdrawal(transaction)
     ? "withdrawal"
     : "deposit";
+  const moved = amount(transaction);
   for (const mapping of compiled.includes) {
     if (mapping.direction && mapping.direction !== direction) continue;
+    if (mapping.amount && !inRange(moved, mapping.amount)) continue;
     if (narration.includes(mapping.value)) return mapping.account;
   }
 
   return null;
+}
+
+function inRange(value: number, range: AmountRange): boolean {
+  return (
+    (range.min === undefined || value >= range.min) &&
+    (range.max === undefined || value <= range.max)
+  );
 }

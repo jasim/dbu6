@@ -17,12 +17,20 @@ export const mappings = {
   },
 
   // Substring matches, checked in this order after exact misses. Keep narrower
-  // patterns ahead of broader category patterns.
+  // patterns ahead of broader ones.
   //
   //   account   - the account to assign, by its name in the Accounts table
   //   values    - substrings to look for in the narration
   //   direction - optional, "withdrawal" or "deposit"; omit to match both
+  //   amount    - optional, { min, max }: only amounts in this range, both
+  //               ends included; leave either end out to leave it open
   includes: [
+    {
+      account: "Tolls & Parking",
+      direction: "withdrawal",
+      amount: { max: 200 },
+      values: ["CITY CAR PARK"],
+    },
     {
       account: "Electricity",
       values: ["CITY POWER", "ELECTRIC UTILITY"],

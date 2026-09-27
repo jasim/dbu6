@@ -341,7 +341,7 @@ describe("the transaction mappings", () => {
     );
   }
 
-  it("lists the rules in order, each account checked against the ledger", async () => {
+  it("lists the rules in order, each account checked against the ledger, with any amount range", async () => {
     writeMappings({
       exact: { "SAMPLE CAFE 050505": "Sample Card" },
       includes: [
@@ -350,7 +350,11 @@ describe("the transaction mappings", () => {
           direction: "deposit",
           values: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
         },
-        { account: "Sample Gone", values: ["SAMPLE SHOP"] },
+        {
+          account: "Sample Gone",
+          amount: { max: 500 },
+          values: ["SAMPLE SHOP"],
+        },
       ],
     });
     expect(await books().mappings()).toEqual({
@@ -370,12 +374,14 @@ describe("the transaction mappings", () => {
             account: "Sample Savings",
             in_ledger: true,
             direction: "deposit",
+            amount: null,
             values: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
           },
           {
             account: "Sample Gone",
             in_ledger: false,
             direction: null,
+            amount: { min: null, max: 500 },
             values: ["SAMPLE SHOP"],
           },
         ],

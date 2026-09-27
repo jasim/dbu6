@@ -13,6 +13,34 @@ export function formatMoney(value: number): string {
   return money.format(value);
 }
 
+const wholeMoney = new Intl.NumberFormat("en-IN", {
+  maximumFractionDigits: 0,
+});
+
+// An amount without paise when it has none: "500", "450.50".
+function rangeEnd(value: number): string {
+  return Number.isInteger(value)
+    ? wholeMoney.format(value)
+    : formatMoney(value);
+}
+
+/**
+ * A range of amounts, both ends included, with no paise when an end is whole:
+ * "100 – 500", "up to 500", "5,000 or more".
+ */
+export function formatAmountRange(range: {
+  min: number | null;
+  max: number | null;
+}): string {
+  const { min, max } = range;
+  if (min !== null && max !== null) {
+    return min === max ? rangeEnd(min) : `${rangeEnd(min)} – ${rangeEnd(max)}`;
+  }
+  if (max !== null) return `up to ${rangeEnd(max)}`;
+  if (min !== null) return `${rangeEnd(min)} or more`;
+  return "any amount";
+}
+
 // A ledger balance as the user thinks of it. A card's ledger balance is
 // negative when money is owed, so it is read out as an amount owed.
 export function formatBalance(value: number, kind: AccountKind): string {

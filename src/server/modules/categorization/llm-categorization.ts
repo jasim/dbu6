@@ -4,7 +4,12 @@ import type {
   CodingAgent,
 } from "../../../shared/index.js";
 import type { Abacus } from "../statement/index.js";
-import { type Account, parseAccount, isWithdrawal } from "../values/index.js";
+import {
+  type Account,
+  amount,
+  parseAccount,
+  isWithdrawal,
+} from "../values/index.js";
 import type { OnCategorizationProgress } from "./categorize.js";
 
 /*
@@ -72,10 +77,13 @@ export interface LLMCategorizationConfig {
   llm: CategorizationLlm;
 }
 
+// Each row's id, and the transactions it stands for, by their index.
+export type ReverseMap = Record<string, number[]>;
+
 export interface LLMRequest {
   prompt: string;
   rows: ListRow[];
-  reverseMap: Record<string, string[]>;
+  reverseMap: ReverseMap;
 }
 
 export interface LLMResponseRow {
@@ -95,37 +103,39 @@ export function buildPrompt(config: LLMCategorizationConfig): string {
 /**
  * Prepare deduplicated input rows for nua.list().
  *
- * Each unmapped transaction gets prefixed with "Expense: " or "Deposit: ", and
- * before that its statement account in brackets, so the LLM knows whose
- * statement the row is on. Narrations are sent verbatim so the LLM can use
- * every part of the transaction.
- * Duplicate texts produce one row; the reverse map tracks all original narrations.
+ * Each unmapped transaction is "Expense" or "Deposit" and its amount, before
+ * that its statement account in brackets, so the LLM knows whose statement
+ * the row is on, and after it the narration, verbatim, so the LLM can use
+ * every part of the transaction:
+ * `[Checking] Expense 550.00: UPIOUT/050505000001/payee@psp`.
+ * Rows with the same text are sent once; the reverse map tracks every
+ * transaction each row stands for.
  */
 export function buildLLMInput(
   transactions: readonly StatementTransaction[],
   unmappedIndices: number[],
 ): {
   rows: ListRow[];
-  reverseMap: Record<string, string[]>;
+  reverseMap: ReverseMap;
 } {
   const rows: ListRow[] = [];
-  const reverseMap: Record<string, string[]> = {};
+  const reverseMap: ReverseMap = {};
   const seenTexts = new Map<string, string>(); // text -> rowId
 
   for (const idx of unmappedIndices) {
     const { transaction: t, statementAccount } = transactions[idx];
     const prefix = isWithdrawal(t) ? "Expense" : "Deposit";
     const statement = statementAccount === null ? "" : `[${statementAccount}] `;
-    const text = `${statement}${prefix}: ${t.narration}`;
+    const text = `${statement}${prefix} ${amount(t).toFixed(2)}: ${t.narration}`;
 
     const existingId = seenTexts.get(text);
     if (existingId) {
-      reverseMap[existingId].push(t.narration);
+      reverseMap[existingId].push(idx);
     } else {
       const id = `txn-${rows.length}`;
       seenTexts.set(text, id);
       rows.push({ id, text });
-      reverseMap[id] = [t.narration];
+      reverseMap[id] = [idx];
     }
   }
 
@@ -147,23 +157,20 @@ export function buildLLMRequest(
 }
 
 /**
- * Pure: turn the rows returned by Nua.list() into a narration→Account map.
- * Skips rows with empty/missing accounts.
+ * Pure: turn the rows returned by Nua.list() into each transaction's Account,
+ * by its index. Skips rows with empty/missing accounts.
  */
 export function parseLLMResponse(
   rows: LLMResponseRow[],
-  reverseMap: Record<string, string[]>,
-): Record<string, Account> {
-  const mappings: Record<string, Account> = {};
+  reverseMap: ReverseMap,
+): Map<number, Account> {
+  const mappings = new Map<number, Account>();
   for (const row of rows) {
     const account = row.account;
     if (!account || !account.trim()) continue;
 
-    const originalNarrations = reverseMap[row.id];
-    if (originalNarrations) {
-      for (const narration of originalNarrations) {
-        mappings[narration] = parseAccount(account);
-      }
+    for (const index of reverseMap[row.id] ?? []) {
+      mappings.set(index, parseAccount(account));
     }
   }
   return mappings;
@@ -186,9 +193,9 @@ export function nothingSentReport(
   };
 }
 
-/** The narration→Account answers, and how the LLM fared. */
+/** Each answered transaction's Account, by its index, and how the LLM fared. */
 export interface LLMCategorization {
-  mappings: Record<string, Account>;
+  mappings: Map<number, Account>;
   report: CategorizationReport;
 }
 
@@ -248,8 +255,8 @@ async function callList(
 
 /**
  * I/O shell: ask the LLM for the accounts of unmapped transactions, in calls
- * of at most `llm.maxRowsPerCall` descriptions. Returns a map from original
- * narration to Account with the answers of the calls that succeeded, and a
+ * of at most `llm.maxRowsPerCall` descriptions. Returns a map from each
+ * transaction's index to Account with the answers of the calls that succeeded, and a
  * report counting the descriptions left unanswered because a call failed or
  * couldn't run. Failures are reported, never thrown.
  *
@@ -274,14 +281,14 @@ export async function categorizeViaLLM(
     ...nothingSentReport(llm),
     sent_count: rows.length,
   };
-  if (rows.length === 0) return { mappings: {}, report };
+  if (rows.length === 0) return { mappings: new Map(), report };
 
   if (!llm.caller.ready) {
     console.error(
       `[${llm.name}] LLM categorization can't run: ${llm.caller.reason}`,
     );
     return {
-      mappings: {},
+      mappings: new Map(),
       report: unavailableReport(report, llm.caller.reason),
     };
   }
@@ -318,7 +325,10 @@ export async function categorizeViaLLM(
       console.error(
         `[${llm.name}] can't be used, so no further calls are sent: ${unavailable}`,
       );
-      return { mappings: {}, report: unavailableReport(report, unavailable) };
+      return {
+        mappings: new Map(),
+        report: unavailableReport(report, unavailable),
+      };
     }
   }
   const rest = await Promise.all(

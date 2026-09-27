@@ -238,7 +238,7 @@ async function answerAccounts(
   });
 
   // 2. Call LLM for unmapped transactions
-  let llmMappings: Record<string, Account> = {};
+  let llmMappings = new Map<number, Account>();
   let report = nothingSentReport(llm);
   if (unmappedIndices.length > 0) {
     ({ mappings: llmMappings, report } = await categorizeViaLLM(
@@ -254,34 +254,32 @@ async function answerAccounts(
     ));
   }
 
-  // 3. Combine all mappings. Both are keyed by narration, and a rule can
-  // match one direction only, so a narration can have both: the LLM's wins.
+  // 3. Combine: a transaction the rules answered was never sent to the LLM.
   return {
-    answers: transactions.map(({ narration }): Answer => {
-      if (Object.hasOwn(llmMappings, narration)) {
-        return { account: llmMappings[narration], answeredBy: "llm" };
-      }
-      if (Object.hasOwn(mapped, narration)) {
-        return { account: mapped[narration], answeredBy: "rule" };
-      }
+    answers: transactions.map((_, index): Answer => {
+      const byRule = mapped.get(index);
+      if (byRule !== undefined) return { account: byRule, answeredBy: "rule" };
+      const byLlm = llmMappings.get(index);
+      if (byLlm !== undefined) return { account: byLlm, answeredBy: "llm" };
       return { account: UNCATEGORIZED, answeredBy: null };
     }),
     report,
   };
 }
 
+// Each transaction the rules answer, by its index, and the rest. A rule can
+// turn on the direction and the amount, so the same narration may be
+// answered for one transaction and not another.
 function partitionByClassifier(
   transactions: Abacus[],
   classify: (transaction: Abacus) => Account | null,
-): { mapped: Record<string, Account>; unmappedIndices: number[] } {
-  const mapped: Record<string, Account> = {};
+): { mapped: Map<number, Account>; unmappedIndices: number[] } {
+  const mapped = new Map<number, Account>();
   const unmappedIndices: number[] = [];
 
   transactions.forEach((transaction, index) => {
-    if (transaction.narration in mapped) return;
-
     const account = classify(transaction);
-    if (account) mapped[transaction.narration] = account;
+    if (account) mapped.set(index, account);
     else unmappedIndices.push(index);
   });
 

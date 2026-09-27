@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import type { Abacus } from "../statement/index.js";
-import { parseAccount, UNCATEGORIZED } from "../values/index.js";
+import { type Account, parseAccount, UNCATEGORIZED } from "../values/index.js";
 
 // Mock the Nuabase-touching module so categorization runs as a pure pipeline.
 vi.mock("./llm-categorization.js", async (importOriginal) => ({
@@ -21,6 +21,7 @@ import {
   categorizeViaLLM,
   type CategorizationLlm,
   type LLMCategorization,
+  type StatementTransaction,
 } from "./llm-categorization.js";
 import { PROMPT_TEMPLATE } from "./prompt-template.js";
 
@@ -33,21 +34,31 @@ const llm: CategorizationLlm = {
   caller: { ready: false, reason: "not called in these tests" },
 };
 
+// The mocked LLM's answers, given by narration: each unmapped transaction
+// with one of them is answered.
 function answered(
-  mappings: LLMCategorization["mappings"],
+  byNarration: Record<string, Account>,
   report: Partial<LLMCategorization["report"]> = {},
-): LLMCategorization {
-  return {
-    mappings,
+) {
+  return async (
+    transactions: readonly StatementTransaction[],
+    unmappedIndices: number[],
+  ): Promise<LLMCategorization> => ({
+    mappings: new Map(
+      unmappedIndices.flatMap((index) => {
+        const account = byNarration[transactions[index].transaction.narration];
+        return account === undefined ? [] : [[index, account] as const];
+      }),
+    ),
     report: {
       agent: "claude-code",
-      sent_count: Object.keys(mappings).length,
+      sent_count: Object.keys(byNarration).length,
       failed_count: 0,
       error: null,
       failure: null,
       ...report,
     },
-  };
+  });
 }
 
 let dir: string;
@@ -108,7 +119,7 @@ async function categorizeRows(
 
 describe("categorize", () => {
   it("uses executable mappings without calling the LLM when all transactions match", async () => {
-    llmMock.mockResolvedValue(answered({}));
+    llmMock.mockImplementation(answered({}));
     const txns = [withdrawal("STARBUCKS")];
     const result = await categorizeRows(txns, baseConfig());
 
@@ -134,7 +145,7 @@ describe("categorize", () => {
   });
 
   it("calls the LLM with merged custom mappings, prompt context, and unmapped indices", async () => {
-    llmMock.mockResolvedValue(
+    llmMock.mockImplementation(
       answered({ MYSTERY: parseAccount("Other Expenses") }),
     );
     const txns = [withdrawal("STARBUCKS"), withdrawal("MYSTERY")];
@@ -156,7 +167,7 @@ describe("categorize", () => {
   });
 
   it("says what the rules answered before the LLM is asked", async () => {
-    llmMock.mockResolvedValue(answered({}));
+    llmMock.mockImplementation(answered({}));
     const progress: unknown[] = [];
 
     await categorize(
@@ -175,7 +186,7 @@ describe("categorize", () => {
   });
 
   it("tells the LLM each row's statement account by name", async () => {
-    llmMock.mockResolvedValue(answered({}));
+    llmMock.mockImplementation(answered({}));
     const onTheBank = withdrawal("MYSTERY");
     const onNoAccount = withdrawal("OTHER MYSTERY");
 
@@ -197,7 +208,7 @@ describe("categorize", () => {
 
   it("offers the LLM the ledger's accounts but Equity, by name, and not hledger_accounts.prompt", async () => {
     writeFileSync(join(dir, "hledger_accounts.prompt"), "Stale Account");
-    llmMock.mockResolvedValue(answered({}));
+    llmMock.mockImplementation(answered({}));
 
     await categorizeRows([withdrawal("MYSTERY")], baseConfig());
 
@@ -210,7 +221,7 @@ describe("categorize", () => {
   });
 
   it("ignores missing optional custom mapping files", async () => {
-    llmMock.mockResolvedValue(
+    llmMock.mockImplementation(
       answered({ MYSTERY: parseAccount("Other Expenses") }),
     );
     const txns = [withdrawal("MYSTERY")];
@@ -256,7 +267,7 @@ describe("categorize", () => {
   });
 
   it("merges executable + LLM mappings into the final categorized list", async () => {
-    llmMock.mockResolvedValue(
+    llmMock.mockImplementation(
       answered({ MYSTERY: parseAccount("Other Expenses") }),
     );
     const txns = [withdrawal("STARBUCKS"), withdrawal("MYSTERY")];
@@ -268,8 +279,36 @@ describe("categorize", () => {
     ]);
   });
 
+  it("answers the same narration by rule within a rule's amount range, and asks the LLM outside it", async () => {
+    writeFileSync(
+      join(dir, "transaction_mappings.mjs"),
+      `export const mappings = {
+        exact: {},
+        includes: [
+          { account: "Food", amount: { max: 500 }, values: ["SAMPLE CAFE"] },
+        ],
+      };`,
+    );
+    llmMock.mockImplementation(
+      answered({ "SAMPLE CAFE": parseAccount("Other Expenses") }),
+    );
+    const txns = [
+      withdrawal("SAMPLE CAFE", 300),
+      withdrawal("SAMPLE CAFE", 2000),
+    ];
+
+    const result = await categorizeRows(txns, baseConfig());
+    expect(
+      result.rows.map(({ account, outcome }) => [account, outcome]),
+    ).toEqual([
+      ["Food", "rule"],
+      ["Other Expenses", "llm"],
+    ]);
+    expect(llmMock.mock.calls[0][1]).toEqual([1]);
+  });
+
   it("passes the LLM's report up with the categorized transactions", async () => {
-    llmMock.mockResolvedValue(
+    llmMock.mockImplementation(
       answered(
         {},
         {
@@ -297,7 +336,7 @@ describe("categorize", () => {
   });
 
   it("leaves unresolved withdrawals uncategorized at the review-range boundaries", async () => {
-    llmMock.mockResolvedValue(answered({}));
+    llmMock.mockImplementation(answered({}));
     const txns = [
       withdrawal("UNKNOWN UNDER 200", 199.99),
       withdrawal("UNKNOWN AT 200", 200),
@@ -313,7 +352,7 @@ describe("categorize", () => {
   });
 
   it("skips the LLM call entirely when there are no unmapped transactions", async () => {
-    llmMock.mockResolvedValue(answered({}));
+    llmMock.mockImplementation(answered({}));
     await categorizeRows([withdrawal("STARBUCKS")], baseConfig());
     expect(llmMock).not.toHaveBeenCalled();
   });
@@ -339,7 +378,7 @@ describe("categorize", () => {
   });
 
   it("gives each answer's ledger account id and who answered, and none for an account the ledger doesn't hold", async () => {
-    llmMock.mockResolvedValue(
+    llmMock.mockImplementation(
       answered({
         MYSTERY: parseAccount("Other Expenses"),
         UNKNOWN: parseAccount("Not In Ledger"),
@@ -370,7 +409,7 @@ describe("categorize", () => {
   });
 
   it("leaves a row uncategorized and records a skip when the answer is its own base account", async () => {
-    llmMock.mockResolvedValue(
+    llmMock.mockImplementation(
       answered({ "to my sample": parseAccount("Sample Bank") }),
     );
     const onTheBank = withdrawal("to my sample", 1000);
@@ -411,7 +450,7 @@ describe("categorize", () => {
 
 describe("tallyCategorization", () => {
   it("counts each row once by who categorized it, and each account's rows, most first", async () => {
-    llmMock.mockResolvedValue(
+    llmMock.mockImplementation(
       answered({
         MYSTERY: parseAccount("Other Expenses"),
         "to my sample": parseAccount("Sample Bank"),

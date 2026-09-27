@@ -99,18 +99,21 @@ const RULES: TransactionMappingsView = {
       account: "Dining",
       in_ledger: true,
       direction: "withdrawal",
+      amount: { min: null, max: 500 },
       values: ["NOPII CAFE", "NOPII BISTRO"],
     },
     {
       account: "Salary",
       in_ledger: true,
       direction: "deposit",
+      amount: null,
       values: ["NOPII PAYROLL"],
     },
     {
       account: "Transfers",
       in_ledger: true,
       direction: null,
+      amount: null,
       values: ["sample-payee@okaxis"],
     },
   ],
@@ -359,7 +362,7 @@ describe("Automatic transaction categorization rules", () => {
   });
 
   describe("Contains", () => {
-    it("lists the rules in checking order, with their direction", async () => {
+    it("lists the rules in checking order, with their direction and amounts", async () => {
       await renderAt("/categorization-rules?show=contains");
 
       expect(text()).toContain(
@@ -367,7 +370,7 @@ describe("Automatic transaction categorization rules", () => {
       );
       expect(host.querySelector("mark")?.textContent).toBe("NOPII CAFE");
       expect(rows()).toEqual([
-        "1Diningmoney out: NOPII CAFE · NOPII BISTRO",
+        "1Diningmoney out · up to 500: NOPII CAFE · NOPII BISTRO",
         "2Salarymoney in: NOPII PAYROLL",
         "3Transfers: sample-payee@okaxis",
       ]);

@@ -118,6 +118,9 @@ export async function loadTransactionMappingsView(
       account: rule.account,
       in_ledger: names.has(rule.account),
       direction: rule.direction ?? null,
+      amount: rule.amount
+        ? { min: rule.amount.min ?? null, max: rule.amount.max ?? null }
+        : null,
       values: rule.values,
     })),
   };

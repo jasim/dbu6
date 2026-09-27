@@ -34,13 +34,14 @@ const RULES: MappingRules = {
 function transaction(
   narration: string,
   direction: "withdrawal" | "deposit" = "withdrawal",
+  amount = 100,
 ): Abacus {
   return {
     date: "2026-01-01",
     narration,
     ...moneyFromColumns({
-      withdrawal: direction === "withdrawal" ? 100 : 0,
-      deposit: direction === "deposit" ? 100 : 0,
+      withdrawal: direction === "withdrawal" ? amount : 0,
+      deposit: direction === "deposit" ? amount : 0,
     }),
     balance: 0,
   };
@@ -77,6 +78,37 @@ describe("classifyWith", () => {
   it("honors direction", () => {
     expect(classify("Interest Paid", "deposit")).toBe("Credit Interest");
     expect(classify("Interest Paid", "withdrawal")).toBeNull();
+  });
+
+  it("applies a contains rule only to amounts in its range, both ends included", () => {
+    const compiled = compileMappings({
+      exact: {},
+      includes: [
+        {
+          account: "Auto rickshaw",
+          direction: "withdrawal",
+          amount: { min: 20, max: 500 },
+          values: ["UPIOUT"],
+        },
+        { account: "Big UPI", amount: { min: 5000 }, values: ["UPIOUT"] },
+      ],
+    });
+    const at = (
+      amount: number,
+      direction: "withdrawal" | "deposit" = "withdrawal",
+    ) =>
+      classifyWith(
+        compiled,
+        transaction("UPIOUT/050505000001", direction, amount),
+      );
+    expect(at(20)).toBe("Auto rickshaw");
+    expect(at(500)).toBe("Auto rickshaw");
+    expect(at(10)).toBeNull();
+    expect(at(1000)).toBeNull();
+    expect(at(5000)).toBe("Big UPI");
+    // The range is of the amount moved, either way.
+    expect(at(6000, "deposit")).toBe("Big UPI");
+    expect(at(300, "deposit")).toBeNull();
   });
 
   it("leaves unknown transactions unmatched", () => {
@@ -169,6 +201,20 @@ describe("mappingRulesSchema", () => {
         includes: [{ account: "Food", values: [] }],
       }).success,
     ).toBe(false);
+  });
+
+  it("rejects an amount range with no end, or with its ends reversed", () => {
+    const withAmount = (amount: unknown) =>
+      mappingRulesSchema.safeParse({
+        exact: {},
+        includes: [{ account: "Food", amount, values: ["X"] }],
+      }).success;
+    expect(withAmount({ max: 500 })).toBe(true);
+    expect(withAmount({ min: 100, max: 100 })).toBe(true);
+    expect(withAmount({})).toBe(false);
+    expect(withAmount({ min: 500, max: 100 })).toBe(false);
+    expect(withAmount({ min: -1 })).toBe(false);
+    expect(withAmount({ below: 500 })).toBe(false);
   });
 
   it("rejects an unknown direction", () => {

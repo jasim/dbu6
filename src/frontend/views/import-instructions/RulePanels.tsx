@@ -2,6 +2,7 @@ import { type ReactNode, useDeferredValue, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@sapporta/ui/cn";
 import { apiErrorMessage } from "../../api";
+import { formatAmountRange } from "../../format";
 import { LoadError } from "../../components/load-error";
 import { transactionMappingsQuery } from "../../queries";
 import {
@@ -194,11 +195,9 @@ function ContainsRules({ mappings }: { mappings: ReadMappings }) {
               </span>
               <div>
                 <Account name={rule.account} inLedger={rule.in_ledger}>
-                  {rule.direction !== null && (
+                  {(rule.direction !== null || rule.amount !== null) && (
                     <span className="text-meta font-normal text-ink-soft">
-                      {rule.direction === "withdrawal"
-                        ? "money out"
-                        : "money in"}
+                      {ruleLimits(rule)}
                     </span>
                   )}
                 </Account>
@@ -233,6 +232,23 @@ function RuleRows({
   ) : (
     <ul>{children}</ul>
   );
+}
+
+/** What a contains rule is limited to: "money out · up to 500". */
+function ruleLimits(rule: {
+  direction: "withdrawal" | "deposit" | null;
+  amount: { min: number | null; max: number | null } | null;
+}): string {
+  return [
+    rule.direction === null
+      ? null
+      : rule.direction === "withdrawal"
+        ? "money out"
+        : "money in",
+    rule.amount === null ? null : formatAmountRange(rule.amount),
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
 }
 
 /** A rule's account in bold, with facts beside it. */

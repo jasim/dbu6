@@ -107,12 +107,12 @@ describe("buildLLMInput", () => {
     });
   });
 
-  it("prefixes withdrawals with 'Expense: ' and deposits with 'Deposit: '", () => {
+  it("prefixes withdrawals with 'Expense' and deposits with 'Deposit', and the amount", () => {
     const txns = [withdrawal("STARBUCKS"), deposit("SALARY ACME")];
     const { rows } = buildLLMInput(txns, [0, 1]);
     expect(rows).toEqual([
-      { id: "txn-0", text: "Expense: STARBUCKS" },
-      { id: "txn-1", text: "Deposit: SALARY ACME" },
+      { id: "txn-0", text: "Expense 100.00: STARBUCKS" },
+      { id: "txn-1", text: "Deposit 100.00: SALARY ACME" },
     ]);
   });
 
@@ -123,8 +123,8 @@ describe("buildLLMInput", () => {
     ];
     const { rows } = buildLLMInput(txns, [0, 1]);
     expect(rows).toEqual([
-      { id: "txn-0", text: "[cc:sample-card] Expense: SAMPLE EMI" },
-      { id: "txn-1", text: "[assets:bank:sample] Deposit: SALARY ACME" },
+      { id: "txn-0", text: "[cc:sample-card] Expense 100.00: SAMPLE EMI" },
+      { id: "txn-1", text: "[assets:bank:sample] Deposit 100.00: SALARY ACME" },
     ]);
   });
 
@@ -135,12 +135,12 @@ describe("buildLLMInput", () => {
     ];
     const { rows } = buildLLMInput(txns, [0, 1]);
     expect(rows.map((r) => r.text)).toEqual([
-      "[cc:sample-card] Expense: SAMPLE EMI",
-      "[cc:other-card] Expense: SAMPLE EMI",
+      "[cc:sample-card] Expense 100.00: SAMPLE EMI",
+      "[cc:other-card] Expense 100.00: SAMPLE EMI",
     ]);
   });
 
-  it("dedupes rows with identical prefixed text and tracks all narrations in the reverse map", () => {
+  it("dedupes rows with identical prefixed text and tracks every transaction in the reverse map", () => {
     const txns = [
       withdrawal("STARBUCKS"),
       withdrawal("STARBUCKS"),
@@ -148,25 +148,45 @@ describe("buildLLMInput", () => {
     ];
     const { rows, reverseMap } = buildLLMInput(txns, [0, 1, 2]);
     expect(rows).toEqual([
-      { id: "txn-0", text: "Expense: STARBUCKS" },
-      { id: "txn-1", text: "Expense: AMAZON" },
+      { id: "txn-0", text: "Expense 100.00: STARBUCKS" },
+      { id: "txn-1", text: "Expense 100.00: AMAZON" },
     ]);
     expect(reverseMap).toEqual({
-      "txn-0": ["STARBUCKS", "STARBUCKS"],
-      "txn-1": ["AMAZON"],
+      "txn-0": [0, 1],
+      "txn-1": [2],
     });
+  });
+
+  it("sends the same narration with a different amount as two rows", () => {
+    const small = withdrawal("SAMPLE CAFE");
+    const large: StatementTransaction = {
+      transaction: {
+        date: "2026-01-01",
+        narration: "SAMPLE CAFE",
+        withdrawal: 2500,
+        deposit: 0,
+        balance: 0,
+      },
+      statementAccount: null,
+    };
+    const { rows, reverseMap } = buildLLMInput([small, large], [0, 1]);
+    expect(rows.map((r) => r.text)).toEqual([
+      "Expense 100.00: SAMPLE CAFE",
+      "Expense 2500.00: SAMPLE CAFE",
+    ]);
+    expect(reverseMap).toEqual({ "txn-0": [0], "txn-1": [1] });
   });
 
   it("treats the same narration with different prefixes as distinct rows", () => {
     const txns = [withdrawal("REFUND"), deposit("REFUND")];
     const { rows, reverseMap } = buildLLMInput(txns, [0, 1]);
     expect(rows).toEqual([
-      { id: "txn-0", text: "Expense: REFUND" },
-      { id: "txn-1", text: "Deposit: REFUND" },
+      { id: "txn-0", text: "Expense 100.00: REFUND" },
+      { id: "txn-1", text: "Deposit 100.00: REFUND" },
     ]);
     expect(reverseMap).toEqual({
-      "txn-0": ["REFUND"],
-      "txn-1": ["REFUND"],
+      "txn-0": [0],
+      "txn-1": [1],
     });
   });
 
@@ -176,17 +196,18 @@ describe("buildLLMInput", () => {
     ];
     const { rows, reverseMap } = buildLLMInput(txns, [0]);
     expect(rows[0].text).toBe(
-      "Expense: IMPS-050505000001-JOHN DOE-SCBL-XXXXXXX0505-TO MY STANC",
+      "Expense 100.00: IMPS-050505000001-JOHN DOE-SCBL-XXXXXXX0505-TO MY STANC",
     );
-    expect(reverseMap["txn-0"]).toEqual([
-      "IMPS-050505000001-JOHN DOE-SCBL-XXXXXXX0505-TO MY STANC",
-    ]);
+    expect(reverseMap["txn-0"]).toEqual([0]);
   });
 
   it("only processes the indices passed in", () => {
     const txns = [withdrawal("A"), withdrawal("B"), withdrawal("C")];
     const { rows } = buildLLMInput(txns, [0, 2]);
-    expect(rows.map((r) => r.text)).toEqual(["Expense: A", "Expense: C"]);
+    expect(rows.map((r) => r.text)).toEqual([
+      "Expense 100.00: A",
+      "Expense 100.00: C",
+    ]);
   });
 });
 
@@ -201,12 +222,12 @@ describe("buildLLMRequest", () => {
         "Custom mappings:\nSTARBUCKS -> Food",
     );
     expect(req.rows).toEqual([
-      { id: "txn-0", text: "Expense: STARBUCKS" },
-      { id: "txn-1", text: "Deposit: SALARY" },
+      { id: "txn-0", text: "Expense 100.00: STARBUCKS" },
+      { id: "txn-1", text: "Deposit 100.00: SALARY" },
     ]);
     expect(req.reverseMap).toEqual({
-      "txn-0": ["STARBUCKS"],
-      "txn-1": ["SALARY"],
+      "txn-0": [0],
+      "txn-1": [1],
     });
   });
 
@@ -220,11 +241,11 @@ describe("buildLLMRequest", () => {
 
 describe("parseLLMResponse", () => {
   const reverseMap = {
-    "txn-0": ["STARBUCKS", "STARBUCKS DUPLICATE"],
-    "txn-1": ["AMAZON"],
+    "txn-0": [0, 2],
+    "txn-1": [1],
   };
 
-  it("maps every original narration for a row to its account", () => {
+  it("maps every transaction a row stands for to its account", () => {
     const result = parseLLMResponse(
       [
         { id: "txn-0", account: "Food" },
@@ -232,11 +253,13 @@ describe("parseLLMResponse", () => {
       ],
       reverseMap,
     );
-    expect(result).toEqual({
-      STARBUCKS: "Food",
-      "STARBUCKS DUPLICATE": "Food",
-      AMAZON: "Shopping",
-    });
+    expect(result).toEqual(
+      new Map([
+        [0, "Food"],
+        [2, "Food"],
+        [1, "Shopping"],
+      ]),
+    );
   });
 
   it("skips rows with empty or whitespace-only accounts", () => {
@@ -247,7 +270,7 @@ describe("parseLLMResponse", () => {
       ],
       reverseMap,
     );
-    expect(result).toEqual({});
+    expect(result).toEqual(new Map());
   });
 
   it("skips rows whose id is not in the reverse map", () => {
@@ -255,11 +278,11 @@ describe("parseLLMResponse", () => {
       [{ id: "txn-unknown", account: "Food" }],
       reverseMap,
     );
-    expect(result).toEqual({});
+    expect(result).toEqual(new Map());
   });
 
   it("returns an empty map for empty input", () => {
-    expect(parseLLMResponse([], reverseMap)).toEqual({});
+    expect(parseLLMResponse([], reverseMap)).toEqual(new Map());
   });
 });
 
@@ -294,7 +317,7 @@ describe("categorizeViaLLM", () => {
         ok: true,
         rows: request.rows.map((row) => ({
           id: row.id,
-          account: `Account ${row.text.slice("Expense: ".length)}`,
+          account: `Account ${row.text.slice("Expense 100.00: ".length)}`,
         })),
       }),
     );
@@ -316,13 +339,11 @@ describe("categorizeViaLLM", () => {
 
     const result = await categorizeViaLLM(txns, [0, 1], config);
 
-    expect(result.mappings).toEqual({
-      "STARBUCKS 123": "Food",
-    });
+    expect(result.mappings).toEqual(new Map([[0, "Food"]]));
     expect(listMock).toHaveBeenCalledTimes(1);
     expect(listMock.mock.calls[0][0].rows).toEqual([
-      { id: "txn-0", text: "Expense: STARBUCKS 123" },
-      { id: "txn-1", text: "Expense: DUMMY NAME/NONP0050505" },
+      { id: "txn-0", text: "Expense 100.00: STARBUCKS 123" },
+      { id: "txn-1", text: "Expense 100.00: DUMMY NAME/NONP0050505" },
     ]);
     expect(listMock.mock.calls[0][0].output.name).toBe("account");
   });
@@ -344,10 +365,11 @@ describe("categorizeViaLLM", () => {
     const result = await categorizeViaLLM(txns, [0, 1, 2], config);
 
     expect(result).toEqual({
-      mappings: {
-        "STARBUCKS 123": "Food",
-        "UBER 456": "Travel",
-      },
+      mappings: new Map([
+        [0, "Food"],
+        [1, "Food"],
+        [2, "Travel"],
+      ]),
       report: {
         agent: "claude-code",
         sent_count: 2,
@@ -363,7 +385,7 @@ describe("categorizeViaLLM", () => {
     const result = await categorizeViaLLM([withdrawal("X")], [], config);
 
     expect(result).toEqual({
-      mappings: {},
+      mappings: new Map(),
       report: {
         agent: "claude-code",
         sent_count: 0,
@@ -388,7 +410,7 @@ describe("categorizeViaLLM", () => {
     );
 
     expect(result).toEqual({
-      mappings: {},
+      mappings: new Map(),
       report: {
         agent: "claude-code",
         sent_count: 2,
@@ -405,7 +427,7 @@ describe("categorizeViaLLM", () => {
 
     const failed = await categorizeViaLLM([withdrawal("A")], [0], config);
 
-    expect(failed.mappings).toEqual({});
+    expect(failed.mappings).toEqual(new Map());
     expect(failed.report).toEqual({
       agent: "claude-code",
       sent_count: 1,
@@ -428,8 +450,8 @@ describe("categorizeViaLLM", () => {
     expect(listMock.mock.calls.map((call) => call[0].rows.length)).toEqual([
       50, 50, 20,
     ]);
-    expect(Object.keys(result.mappings)).toHaveLength(120);
-    expect(result.mappings.SHOP119).toBe("Account SHOP119");
+    expect(result.mappings.size).toBe(120);
+    expect(result.mappings.get(119)).toBe("Account SHOP119");
     expect(result.report).toEqual({
       agent: "claude-code",
       sent_count: 120,
@@ -490,10 +512,10 @@ describe("categorizeViaLLM", () => {
       error: "claude-code timed out",
       failure: "partial",
     });
-    expect(result.mappings.SHOP0).toBe("First Expense");
-    expect(result.mappings.SHOP50).toBeUndefined();
-    expect(result.mappings.SHOP100).toBe("Account SHOP100");
-    expect(Object.keys(result.mappings)).toHaveLength(70);
+    expect(result.mappings.get(0)).toBe("First Expense");
+    expect(result.mappings.get(50)).toBeUndefined();
+    expect(result.mappings.get(100)).toBe("Account SHOP100");
+    expect(result.mappings.size).toBe(70);
     expect(confirmUnavailableMock).not.toHaveBeenCalled();
   });
 
@@ -513,7 +535,7 @@ describe("categorizeViaLLM", () => {
     expect(listMock).toHaveBeenCalledTimes(1);
     expect(confirmUnavailableMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
-      mappings: {},
+      mappings: new Map(),
       report: {
         agent: "claude-code",
         sent_count: 120,
@@ -547,6 +569,6 @@ describe("categorizeViaLLM", () => {
       error: "claude-code timed out",
       failure: "partial",
     });
-    expect(Object.keys(result.mappings)).toHaveLength(70);
+    expect(result.mappings.size).toBe(70);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   agree,
   fileTypeLabel,
+  formatAmountRange,
   formatDateRange,
   formatDaySpan,
   formatFileSize,
@@ -13,6 +14,18 @@ import {
 const span = (first_date: string, last_date: string) => ({
   first_date,
   last_date,
+});
+
+describe("formatAmountRange", () => {
+  it("writes both ends, or the one there is, without paise when whole", () => {
+    expect(formatAmountRange({ min: 50, max: 500 })).toBe("50 – 500");
+    expect(formatAmountRange({ min: 120, max: 450.5 })).toBe("120 – 450.50");
+    expect(formatAmountRange({ min: 300, max: 300 })).toBe("300");
+    expect(formatAmountRange({ min: null, max: 500 })).toBe("up to 500");
+    expect(formatAmountRange({ min: 100000, max: null })).toBe(
+      "1,00,000 or more",
+    );
+  });
 });
 
 describe("formatFileSize", () => {

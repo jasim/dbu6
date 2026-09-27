@@ -230,11 +230,15 @@ export const transactionMappingsViewSchema = z.discriminatedUnion("state", [
     exact: z.array(z.object({ narration: z.string(), ...mappingTargetFields })),
     // In the order they are checked; the first to match wins. A rule matches
     // a narration containing any of its values, moving money in `direction`
-    // when it has one.
+    // when it has one, and an amount within `amount` when it has one.
     includes: z.array(
       z.object({
         ...mappingTargetFields,
         direction: z.enum(["withdrawal", "deposit"]).nullable(),
+        // Both ends included; an open end is null.
+        amount: z
+          .object({ min: z.number().nullable(), max: z.number().nullable() })
+          .nullable(),
         values: z.array(z.string()),
       }),
     ),
