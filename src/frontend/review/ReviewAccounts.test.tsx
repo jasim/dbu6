@@ -122,11 +122,11 @@ describe("the account picker after /add", () => {
     ).toEqual(["/review/5?run=setup", "/review/6?run=setup"]);
   });
 
-  it("opens the only account's drafts with what /add handed over", async () => {
+  it("opens the only account's Overview with what /add handed over", async () => {
     accounts = [account(5, "Sample Savings")];
     await renderAt("/review?imported=1&run=setup");
 
-    expect(where()).toBe("/review/5/drafts?imported=1&run=setup");
+    expect(where()).toBe("/review/5?imported=1&run=setup");
   });
 
   it("opens the only account's Overview outside a hand-off", async () => {

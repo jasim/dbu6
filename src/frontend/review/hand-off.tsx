@@ -6,11 +6,12 @@ import { BOOKS_SET_UP, BOOKS_SET_UP_NEXT } from "./overview-state";
 
 /*
  * Cards 7 and 8 of /add (PLAN.md "The cards"), as Review shows them: the
- * hand-off note where the flow lands, and the first run's end once nothing
- * is left to post.
+ * hand-off note on the account list the first run lands on (an account's
+ * Overview says it itself), and the first run's end once nothing is left
+ * to post.
  */
 
-/** The note above the account list or the Drafts tab, on `?imported=1`. */
+/** The note above the account list, on `?imported=1`. */
 export function HandOffNote({ className }: { className?: string }) {
   return (
     <p

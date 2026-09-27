@@ -23,7 +23,7 @@ import { apiErrorMessage } from "../api";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
-import { BooksSetUp, HandOffNote } from "./hand-off";
+import { BooksSetUp } from "./hand-off";
 import {
   refreshDraftStatus,
   reviewAccountQuery,
@@ -40,6 +40,7 @@ import {
   reviewPage,
   RUN_CATEGORIZER_TAB,
   withReviewRun,
+  type ImportCounts,
   type ReviewTab,
 } from "./routes";
 
@@ -57,6 +58,11 @@ export interface ReviewAccountContext {
   setPosted: (posted: ReviewPosted) => void;
   /** The first run (`?run=setup`), which this visit opened on. */
   setup: boolean;
+  /** What the add that opened this visit imported; null for any other visit. */
+  imported: ImportCounts | null;
+  /** Whether the notice of that import is still open. */
+  notice: boolean;
+  closeNotice: () => void;
 }
 
 /** The account summary the frame loaded, for the tab inside it. */
@@ -88,13 +94,11 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
   useRefetchOnNavigate(query.refetch);
   const [posted, setPosted] = useState<ReviewPosted | null>(null);
   // What /add handed over, read once where the visit opened: the Drafts
-  // grid rewrites its own query, and a tab change drops the note.
+  // grid rewrites its own query.
   const [searchParams] = useSearchParams();
-  const [arrival] = useState(() => ({
-    run: readReviewRun(searchParams),
-    pathname,
-  }));
-  const { setup } = arrival.run;
+  const [arrival] = useState(() => readReviewRun(searchParams));
+  const { setup } = arrival;
+  const [notice, setNotice] = useState(arrival.counts !== null);
 
   const refresh = useCallback(
     () => void refreshDraftStatus(queryClient),
@@ -144,10 +148,6 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
   if (detail === null) return <FrameSkeleton />;
 
   const empty = detail.account.drafts === 0 && posted === null;
-  // The note stays on the page the flow landed on, while there is
-  // something to categorize and post.
-  const handOff =
-    arrival.run.imported && pathname === arrival.pathname && !empty && !posted;
 
   return (
     <div
@@ -160,9 +160,6 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
           its tabs. It lines up with the shell's content-side sidebar toggle,
           and with the grid's toolbar below. */}
       <FrameHeader detail={detail} tabs={!empty} setup={setup} />
-      {handOff && (
-        <HandOffNote className="mx-4 mt-4 max-w-[760px] shrink-0 sm:mx-6 lg:mx-8" />
-      )}
       {empty && setup && detail.other_accounts.length === 0 ? (
         <div className="px-4 py-5 sm:px-6 lg:px-8">
           <BooksSetUp className="max-w-[760px]" />
@@ -194,6 +191,9 @@ function ReviewAccountFrame({ accountId }: { accountId: number }) {
               posted,
               setPosted,
               setup,
+              imported: arrival.counts,
+              notice,
+              closeNotice: () => setNotice(false),
             } satisfies ReviewAccountContext
           }
         />

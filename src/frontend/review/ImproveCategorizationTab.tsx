@@ -23,8 +23,9 @@ import {
 import { apiErrorMessage, categorizationLessonsApi } from "../api";
 import { AgentActions, PromptText } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
+import { Field } from "../components/focus-card";
 import { Button } from "../components/ui/button";
-import { plural } from "../format";
+import { formatMoney, formatShortDate, plural } from "../format";
 import { categorizationLessonsQuery } from "../queries";
 import { Chip } from "../views/import-instructions/rule-parts";
 import { categorizationRulesHref } from "../views/import-instructions/routes";
@@ -62,18 +63,24 @@ const SELECT_ROWS = {
 } satisfies GridInteractionConfig;
 // Descriptions shown on a rule before the rest are counted.
 const SHOWN_DESCRIPTIONS = 3;
+// Selected transactions listed before the rest open on demand.
+const SHOWN_SELECTED = 8;
 
 /** A draft the user selected in the grid. */
 interface SelectedDraft {
   id: number;
+  date: string;
   narration: string;
+  /** Money in is positive, money out negative. */
+  amount: number;
 }
 
 /**
  * Improve categorization: new rules on the left, the account's drafts with
  * no category on the right, by narration. The user selects drafts that go
- * together, which makes a draft rule; choosing its account adds it to the
- * new rules, kept in the books as lessons, and takes its drafts off the list.
+ * together, which makes a draft rule, with the selected transactions under
+ * it; choosing its account adds it to the new rules, kept in the books as
+ * lessons, and takes its drafts off the list.
  * Nothing is categorised here: the user hands the new rules to their coding
  * agent, which turns each into a rule or guidance and takes it off the list,
  * and then runs the categorizer, where this sends them.
@@ -145,8 +152,10 @@ export function ImproveCategorizationTab() {
     [accountId, queuedKey],
   );
 
-  // The grid owns the selection; the draft rule follows it.
+  // The grid owns the selection; the draft rule follows it. Its row count
+  // heads it.
   const [selected, setSelected] = useState<SelectedDraft[]>([]);
+  const [listed, setListed] = useState<number | null>(null);
   const session = useRef<TGridSession<SchemaTableRowsByLevel> | null>(null);
   const unsubscribe = useRef<(() => void)[]>([]);
   const sessionRef = useCallback(
@@ -156,6 +165,7 @@ export function ImproveCategorizationTab() {
       session.current = current;
       if (current === null) {
         setSelected([]);
+        setListed(null);
         return;
       }
       const level = current.runtime.root;
@@ -174,8 +184,12 @@ export function ImproveCategorizationTab() {
         current.runtime.on("rowActivated", ({ activeRow }) =>
           activeRow.level.selectRow(activeRow.row.id),
         ),
+        current.queryStore.subscribe((state) =>
+          setListed(state.totalCount ?? null),
+        ),
       ];
       read();
+      setListed(current.queryStore.getState().totalCount ?? null);
     },
     [],
   );
@@ -221,6 +235,7 @@ export function ImproveCategorizationTab() {
           }
           onAdded={refreshLessons}
         />
+        {selected.length > 0 && <SelectedDrafts selected={selected} />}
         {lessons.isError ? (
           <p className="text-meta text-destructive [overflow-wrap:anywhere]">
             {apiErrorMessage(lessons.error)}
@@ -238,7 +253,21 @@ export function ImproveCategorizationTab() {
           )
         )}
       </aside>
-      <div className="h-[60vh] min-h-0 min-w-0 flex-1 [--sap-page-header-inset:0px] [--sap-selection:var(--sap-brand-soft)] md:h-auto">
+      <section
+        aria-labelledby="uncategorised-heading"
+        className="flex h-[60vh] min-h-0 min-w-0 flex-1 flex-col [--sap-page-header-inset:0px] [--sap-selection:var(--sap-brand-soft)] md:h-auto"
+      >
+        <h2
+          id="uncategorised-heading"
+          className="px-3 pt-4 text-subheading text-foreground sm:px-4"
+        >
+          Couldn't categorize
+          {listed !== null && (
+            <span className="tnum ml-2 text-meta font-medium text-ink-meta">
+              {listed}
+            </span>
+          )}
+        </h2>
         {!source ? (
           <p className="px-3 py-5 text-body text-ink-meta sm:px-4">
             We could not find the schema for "draft_transactions".
@@ -258,7 +287,7 @@ export function ImproveCategorizationTab() {
             />
           )
         )}
-      </div>
+      </section>
     </div>
   );
 }
@@ -266,10 +295,78 @@ export function ImproveCategorizationTab() {
 /** A loaded grid row as the draft the panel shows, or none. */
 function selectedDraft(row: unknown): SelectedDraft[] {
   if (typeof row !== "object" || row === null) return [];
-  const { id, narration } = row as Record<string, unknown>;
-  return typeof id === "number" && typeof narration === "string"
-    ? [{ id, narration }]
-    : [];
+  const { id, date, narration, withdrawal, deposit } = row as Record<
+    string,
+    unknown
+  >;
+  if (typeof id !== "number" || typeof narration !== "string") return [];
+  return [
+    {
+      id,
+      date: typeof date === "string" ? date : "",
+      narration,
+      amount: (Number(deposit) || 0) - (Number(withdrawal) || 0),
+    },
+  ];
+}
+
+/**
+ * The transactions selected in the grid, as the statement shows them: date,
+ * description, amount. The first few, and the rest on demand.
+ */
+function SelectedDrafts({ selected }: { selected: readonly SelectedDraft[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? selected : selected.slice(0, SHOWN_SELECTED);
+  const rest = selected.length - shown.length;
+  return (
+    <section aria-labelledby="selected-heading" className="space-y-2">
+      <h3
+        id="selected-heading"
+        className="text-row font-semibold text-foreground"
+      >
+        Selected
+        <span className="tnum ml-2 text-meta font-medium text-ink-meta">
+          {selected.length}
+        </span>
+      </h3>
+      <ul className="rounded-card border border-sap-border bg-card text-meta">
+        {shown.map((draft, index) => (
+          <li
+            key={draft.id}
+            className={
+              "flex items-baseline gap-3 px-3 py-1.5" +
+              (index === 0 ? "" : " border-t border-line-inner")
+            }
+          >
+            <span className="tnum w-12 shrink-0 text-ink-meta">
+              {formatShortDate(draft.date)}
+            </span>
+            <span
+              className="min-w-0 flex-1 text-foreground [overflow-wrap:anywhere] line-clamp-2"
+              title={draft.narration}
+            >
+              {draft.narration}
+            </span>
+            <span className="tnum shrink-0 font-mono text-foreground">
+              {draft.amount > 0 ? "+" : ""}
+              {formatMoney(Math.abs(draft.amount))}
+            </span>
+          </li>
+        ))}
+        {rest > 0 && (
+          <li className="border-t border-line-inner">
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="w-full px-3 py-1.5 text-left font-semibold text-ink-meta hover:bg-sap-row-hover hover:text-foreground"
+            >
+              Show {rest} more
+            </button>
+          </li>
+        )}
+      </ul>
+    </section>
+  );
 }
 
 /**
@@ -297,9 +394,9 @@ function Descriptions({ narrations: all }: { narrations: readonly string[] }) {
 }
 
 /**
- * The rule the selected drafts would make: the account they go to, their
- * descriptions and a note for next time. Adding it puts it with the new
- * rules; the drafts keep no category until the categorizer runs.
+ * The rule the selected drafts would make: the account they go to and a note
+ * for next time; the drafts themselves are listed under it. Adding it puts it
+ * with the new rules; the drafts keep no category until the categorizer runs.
  */
 function DraftRule({
   selected,
@@ -330,14 +427,27 @@ function DraftRule({
   });
 
   if (selected.length === 0) {
-    return (
+    const done =
+      uncategorised === 0
+        ? "Every draft goes to an account"
+        : uncategorised <= inNewRules
+          ? "Every draft is in a new rule"
+          : null;
+    return done !== null ? (
       <p className="rounded-card border border-dashed border-sap-border-strong px-4 py-3 text-meta text-ink-soft">
-        {uncategorised === 0
-          ? "Every draft has a category"
-          : uncategorised <= inNewRules
-            ? "Every draft is in a new rule"
-            : "Select drafts to make a rule"}
+        {done}
       </p>
+    ) : (
+      // A newcomer's first sight of the page: what to do, and what it buys.
+      <div className="rounded-card border border-dashed border-sap-border-strong px-4 py-3">
+        <p className="text-row font-semibold text-foreground">
+          Select transactions that go together
+        </p>
+        <p className="mt-1 text-meta text-ink-soft">
+          Choose the account they go to, and future ones like them will go there
+          too.
+        </p>
+      </div>
     );
   }
 
@@ -361,7 +471,7 @@ function DraftRule({
       aria-label="Draft rule"
       className="space-y-3 rounded-card border border-dashed border-primary/60 bg-card px-4 py-3.5"
     >
-      <div>
+      <Field id="rule-account" label="Account">
         <LookupPicker
           id="rule-account"
           lookup={accountLookup}
@@ -370,30 +480,32 @@ function DraftRule({
             setAccountId(id);
             setMissingAccount(false);
           }}
-          placeholder="Goes to…"
+          placeholder="Choose an account"
           disabled={add.isPending}
           ariaInvalid={missingAccount}
           ariaDescribedBy={missingAccount ? "rule-account-error" : undefined}
           className="w-full"
         />
         {missingAccount && (
-          <p
-            id="rule-account-error"
-            className="mt-1 text-meta text-destructive"
-          >
+          <p id="rule-account-error" className="text-meta text-destructive">
             Choose an account
           </p>
         )}
-        <Descriptions narrations={selected.map((draft) => draft.narration)} />
-      </div>
-      <input
-        type="text"
-        value={note}
-        onChange={(event) => setNote(event.target.value)}
-        placeholder="Note, e.g. a food delivery app"
-        aria-label="Note for next time"
-        className="block h-sap-ctl w-full rounded-control border border-sap-border bg-card px-3 text-meta text-foreground placeholder:text-ink-meta"
-      />
+      </Field>
+      <Field
+        id="rule-note"
+        label="Note"
+        aside="optional · helps spot similar ones"
+      >
+        <textarea
+          id="rule-note"
+          rows={2}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="What these are, e.g. gym membership, paid monthly"
+          className="block w-full resize-none rounded-control border border-sap-border bg-card px-3 py-1.5 text-meta text-foreground placeholder:text-ink-meta"
+        />
+      </Field>
       {add.isError && (
         <p className="text-meta text-destructive [overflow-wrap:anywhere]">
           {apiErrorMessage(add.error)}

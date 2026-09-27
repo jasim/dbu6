@@ -128,7 +128,7 @@ const CLASSIFIED: DraftClassification = {
 
 // What the classify route answers; a test sets it to a failed run.
 let classifyAnswer: DraftClassification;
-// The drafts with no category; a test sets it to none.
+// The drafts with no account; a test sets it to none.
 let draftsAnswer: typeof DRAFTS;
 // The new rules from Improve categorization the agent has yet to add.
 let lessonsAnswer: CategorizationLesson[];
@@ -222,6 +222,9 @@ function Frame() {
       posted: null,
       setPosted: () => {},
       setup: false,
+      imported: null,
+      notice: false,
+      closeNotice: () => {},
     } satisfies ReviewAccountContext,
   });
 }
@@ -297,7 +300,7 @@ const link = (label: string) =>
   [...host.querySelectorAll("a")].find((a) => a.textContent === label);
 
 describe("Run categorizer", () => {
-  it("sends the account's drafts with no category, with the instructions it imports with", async () => {
+  it("sends the account's drafts with no account, with the instructions it imports with", async () => {
     await renderAt(TAB);
 
     expect(
@@ -305,7 +308,7 @@ describe("Run categorizer", () => {
         .find((r) => r.url.pathname.endsWith("/tables/draft_transactions"))
         ?.url.searchParams.get("filter[base_account_id][eq]"),
     ).toBe("5");
-    expect(heading()).toBe("4 drafts need a category");
+    expect(heading()).toBe("4 drafts need an account");
     expect(settings()).toEqual([
       ["Guidance", "Sample Savings · 1 file"],
       ["Google Pay", "Not addedNames payees, from My Activities.html"],
@@ -365,7 +368,7 @@ describe("Run categorizer", () => {
     expect(facts).toEqual([
       ["Groceries", "2"],
       ["Dining", "1"],
-      ["Still need a category", "1"],
+      ["Still need an account", "1"],
     ]);
     expect(link("Improve categorization")?.getAttribute("href")).toBe(
       "/review/5/improve-categorization",
@@ -404,11 +407,11 @@ describe("Run categorizer", () => {
     expect(where()).toBe("/review/5");
   });
 
-  it("says so when every draft already has a category", async () => {
+  it("says so when every draft already goes to an account", async () => {
     draftsAnswer = [];
     await renderAt(TAB);
 
-    expect(text()).toContain("Every draft has a category");
+    expect(text()).toContain("Every draft goes to an account");
     expect(classifyButton()).toBeUndefined();
   });
 

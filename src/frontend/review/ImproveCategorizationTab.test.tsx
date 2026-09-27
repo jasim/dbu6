@@ -21,7 +21,7 @@ import type { ReviewAccountContext } from "./ReviewAccount";
 
 /*
  * Improve categorization's New rules column: it says what to select, or that
- * every draft has a category; the new rules made here wait under it, account
+ * every draft goes to an account; the new rules made here wait under it, account
  * first, each with a way to remove it, above the button that hands them to
  * the coding agent and then goes to Run categorizer. The grid needs the
  * table's schema, which no test here loads.
@@ -140,6 +140,9 @@ async function render(uncategorised = 4) {
     posted: null,
     setPosted: () => {},
     setup: false,
+    imported: null,
+    notice: false,
+    closeNotice: () => {},
   };
   await act(async () => {
     root.render(
@@ -202,7 +205,7 @@ describe("Improve categorization", () => {
   it("says what to select, and lists the new rules account first", async () => {
     await render();
 
-    expect(panel()).toContain("Select drafts to make a rule");
+    expect(panel()).toContain("Select transactions that go together");
     expect(rules()).toEqual([
       {
         account: "Groceries",
@@ -251,11 +254,11 @@ describe("Improve categorization", () => {
     expect(host.textContent).toBe("run categorizer");
   });
 
-  it("says so when every draft has a category", async () => {
+  it("says so when every draft goes to an account", async () => {
     lessons = [];
     await render(0);
 
-    expect(panel()).toContain("Every draft has a category");
-    expect(panel()).not.toContain("Select drafts");
+    expect(panel()).toContain("Every draft goes to an account");
+    expect(panel()).not.toContain("Select transactions");
   });
 });

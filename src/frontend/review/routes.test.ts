@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  draftsHandOffHref,
+  importedHref,
   readReviewRun,
   SETUP_HAND_OFF_HREF,
   withReviewRun,
@@ -11,10 +11,25 @@ describe("what /add hands Review", () => {
     expect(readReviewRun(new URLSearchParams("imported=1&run=setup"))).toEqual({
       imported: true,
       setup: true,
+      counts: null,
     });
     expect(
       readReviewRun(new URLSearchParams("run=later&imported=yes")),
-    ).toEqual({ imported: false, setup: false });
+    ).toEqual({ imported: false, setup: false, counts: null });
+  });
+
+  it("reads what a later add imported, only with the note", () => {
+    expect(
+      readReviewRun(new URLSearchParams("imported=1&drafts=40&categorized=12"))
+        .counts,
+    ).toEqual({ drafts: 40, categorized: 12 });
+    expect(
+      readReviewRun(new URLSearchParams("drafts=40&categorized=12")).counts,
+    ).toBeNull();
+    expect(
+      readReviewRun(new URLSearchParams("imported=1&drafts=40&categorized=x"))
+        .counts,
+    ).toBeNull();
   });
 
   it("appends only what is set", () => {
@@ -25,8 +40,10 @@ describe("what /add hands Review", () => {
     );
   });
 
-  it("hands a later add to the account's drafts, the first run to the picker", () => {
-    expect(draftsHandOffHref(12)).toBe("/review/12/drafts?imported=1");
+  it("hands a later add to the account's Overview, the first run to the picker", () => {
+    expect(importedHref(12, { drafts: 40, categorized: 12 })).toBe(
+      "/review/12?imported=1&drafts=40&categorized=12",
+    );
     expect(SETUP_HAND_OFF_HREF).toBe("/review?imported=1&run=setup");
   });
 });

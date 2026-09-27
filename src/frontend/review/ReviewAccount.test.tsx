@@ -80,11 +80,13 @@ function detail(account: Partial<ReviewAccountDetail["account"]> = {}) {
 }
 
 function Tab({ name }: { name: string }) {
-  const { detail } = useReviewAccount();
+  const { detail, imported, notice } = useReviewAccount();
   return createElement(
     "output",
     { "data-tab": name },
     `${name}: ${detail.account.uncategorised} uncategorised`,
+    imported &&
+      ` · imported ${imported.categorized} of ${imported.drafts}${notice ? " · notice" : ""}`,
   );
 }
 
@@ -218,23 +220,26 @@ describe("what /add hands the account's review", () => {
   const NOTE =
     "Your transactions are imported. Categorize them, then post them to your books.";
 
-  it("shows the hand-off note where the flow landed, until another tab opens", async () => {
+  it("hands the Overview what the add imported, read once", async () => {
     responses = [{ status: 200, body: detail() }];
-    await renderAt("/review/5/drafts?imported=1");
+    await renderAt("/review/5?imported=1&drafts=23&categorized=20");
 
-    expect(text()).toContain(NOTE);
-    expect(text()).toContain("drafts: 3 uncategorised");
-
-    const overview = Array.from(host.querySelectorAll("nav a")).find(
-      (a) => a.textContent === "Overview",
+    expect(text()).toContain(
+      "overview: 3 uncategorised · imported 20 of 23 · notice",
     );
-    // The note is read once: the tabs don't carry it.
-    expect(overview?.getAttribute("href")).toBe("/review/5");
-    await act(async () => (overview as HTMLAnchorElement).click());
-    await settle();
+    const drafts = Array.from(host.querySelectorAll("nav a")).find((a) =>
+      a.textContent?.startsWith("Drafts"),
+    );
+    // The tabs don't carry it.
+    expect(drafts?.getAttribute("href")).toBe("/review/5/drafts");
+  });
 
-    expect(pathname()).toBe("/review/5");
-    expect(text()).not.toContain(NOTE);
+  it("has nothing to tell of a visit no add opened", async () => {
+    responses = [{ status: 200, body: detail() }];
+    await renderAt("/review/5");
+
+    expect(text()).toContain("overview: 3 uncategorised");
+    expect(text()).not.toContain("imported");
   });
 
   it("carries the first run on its tabs and the way back", async () => {

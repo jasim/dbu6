@@ -14,10 +14,17 @@ export interface Step {
   to?: string;
 }
 
+// Side by side from a small screen up; stacked on a phone.
+const COLUMNS = {
+  3: "grid-cols-1 sm:grid-cols-3",
+  4: "grid-cols-2 sm:grid-cols-4",
+} as const;
+
 /**
- * A journey as four equal cards, such as the setup wizard's steps. It says
- * where the user is, not what to do; a step with `to` links there: done is a green tick, current is a blue numeral on a white-blue
- * card, waiting is a dashed marker in muted ink. Never more than one current.
+ * A journey as three or four equal cards, such as a draft's way into the
+ * books. It says where the user is, not what to do; a step with `to` links
+ * there: done is a green tick, current is a blue dot in a ring on a
+ * white-blue card, waiting is a dashed marker in muted ink. Never more than one current.
  */
 export function ProgressSteps({
   steps,
@@ -27,8 +34,14 @@ export function ProgressSteps({
   label?: string;
 }) {
   return (
-    <ol className="grid grid-cols-2 gap-3.5 sm:grid-cols-4" aria-label={label}>
-      {steps.map((step, index) => (
+    <ol
+      className={cn(
+        "grid gap-3.5",
+        steps.length === 3 ? COLUMNS[3] : COLUMNS[4],
+      )}
+      aria-label={label}
+    >
+      {steps.map((step) => (
         <li
           key={step.title}
           aria-current={step.status === "current" ? "step" : undefined}
@@ -50,16 +63,15 @@ export function ProgressSteps({
                   step.status === "done" &&
                     "bg-primary text-primary-foreground",
                   step.status === "current" &&
-                    "tnum bg-attention font-mono text-[11px] font-semibold text-primary-foreground",
+                    "border-[1.5px] border-attention",
                   step.status === "waiting" &&
                     "border-[1.5px] border-dashed border-waiting-marker",
                 )}
               >
-                {step.status === "done"
-                  ? "✓"
-                  : step.status === "current"
-                    ? index + 1
-                    : ""}
+                {step.status === "done" && "✓"}
+                {step.status === "current" && (
+                  <span className="size-2 rounded-full bg-attention" />
+                )}
               </span>
               <span
                 className={cn(

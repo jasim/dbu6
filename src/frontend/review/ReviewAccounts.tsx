@@ -21,10 +21,9 @@ import { readReviewRun, reviewHref, withReviewRun } from "./routes";
 /**
  * `/review` (PLAN.md §11 P3): pick the account whose drafts to check. With
  * one account holding drafts there is nothing to pick, so it goes straight
- * to that account, with what /add handed over: to its Drafts tab after an
- * import, as a later add lands. An account picked here keeps the first run
- * (`?run=setup`); the hand-off note stays here, in place of the picker's
- * own line.
+ * to that account's Overview, with what /add handed over, as a later add
+ * lands. An account picked here keeps the first run (`?run=setup`); the
+ * hand-off note stays here, in place of the picker's own line.
  */
 export function ReviewAccounts() {
   usePageTitle("Review");
@@ -39,8 +38,7 @@ export function ReviewAccounts() {
   const handingOff = run.imported && accounts !== null && accounts.length > 0;
   const only = accounts?.length === 1 ? accounts[0] : undefined;
   if (only) {
-    const to = reviewHref(only.account_id, run.imported ? "drafts" : undefined);
-    return <Navigate to={`${to}${search}`} replace />;
+    return <Navigate to={`${reviewHref(only.account_id)}${search}`} replace />;
   }
 
   return (
@@ -165,7 +163,7 @@ function accountStatus(account: ReviewAccount): {
   if (categories.state === "blocks") {
     return {
       tone: categories.severity,
-      label: `${categories.count} ${agree(categories.count, "needs", "need")} a category`,
+      label: `${categories.count} ${agree(categories.count, "needs", "need")} an account`,
     };
   }
   return { tone: "ok", label: "Ready to add" };

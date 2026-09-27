@@ -3,22 +3,44 @@ import { Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@sapporta/ui/cn";
 import { apiErrorMessage, draftTransactionsApi } from "../api";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@sapporta/ui/dialog";
+import { FactTable } from "../components/fact-table";
+import { ProgressSteps, type Step } from "../components/progress-steps";
 import type { StatusTone } from "../components/status-chip";
 import { Button } from "../components/ui/button";
 import {
+  arrivalNotice,
   overviewView,
   postedView,
+  type ArrivalNotice,
   type CheckRow,
   type Phrase,
 } from "./overview-state";
 import { useReviewAccount } from "./ReviewAccount";
 
 /**
- * An account's Overview (PLAN.md §11 P3): whether its drafts can be added to
- * the books, what blocks them, and the one button that adds them.
+ * An account's Overview (PLAN.md §11 P3): where its drafts are on their way
+ * into the books, whether they can be added, what blocks them, and the one
+ * button that adds them. After an add, a notice says what it imported and
+ * what to do next.
  */
 export function Overview() {
-  const { detail, refresh, posted, setPosted, setup } = useReviewAccount();
+  const {
+    detail,
+    refresh,
+    posted,
+    setPosted,
+    setup,
+    imported,
+    notice,
+    closeNotice,
+  } = useReviewAccount();
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +52,7 @@ export function Overview() {
       setup,
     );
     return (
-      <OverviewColumn verdict={view.verdict}>
+      <OverviewColumn journey={view.journey} verdict={view.verdict}>
         <div className="mt-4 flex items-start gap-3.5 rounded-card border border-sap-border bg-card px-4 py-3 shadow-card">
           <Marker tone="ok" />
           <p className="text-row font-semibold text-foreground">
@@ -55,7 +77,7 @@ export function Overview() {
     );
   }
 
-  const view = overviewView(detail);
+  const view = overviewView(detail, imported);
 
   async function post() {
     setPosting(true);
@@ -75,7 +97,14 @@ export function Overview() {
   }
 
   return (
-    <OverviewColumn verdict={view.verdict}>
+    <OverviewColumn journey={view.journey} verdict={view.verdict}>
+      {imported && (
+        <ImportedNotice
+          notice={arrivalNotice(detail, imported)}
+          open={notice}
+          onClose={closeNotice}
+        />
+      )}
       <ul className="mt-4 overflow-hidden rounded-card border border-sap-border bg-card shadow-card">
         {view.checks.map((row) => (
           <Check key={row.check} row={row} />
@@ -104,20 +133,73 @@ export function Overview() {
   );
 }
 
+/**
+ * The drafts' way into the books over the page, then the verdict on the
+ * step they wait on, and what it holds.
+ */
 function OverviewColumn({
+  journey,
   verdict,
   children,
 }: {
+  journey: readonly Step[];
   verdict: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="px-4 pb-6 pt-5 sm:px-6 lg:px-8">
-      <section className="max-w-[760px]">
-        <h2 className="text-heading text-foreground">{verdict}</h2>
-        {children}
-      </section>
+      <div className="max-w-[760px]">
+        <ProgressSteps steps={journey} label="From statement to books" />
+        <section className="mt-8">
+          <h2 className="text-heading text-foreground">{verdict}</h2>
+          {children}
+        </section>
+      </div>
     </div>
+  );
+}
+
+/**
+ * Said once, over the Overview an add lands on: what it imported, and the
+ * one next step. Closing it leaves the Overview, which says the same at
+ * rest.
+ */
+function ImportedNotice({
+  notice,
+  open,
+  onClose,
+}: {
+  notice: ArrivalNotice;
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            <span aria-hidden="true" className="text-primary">
+              ✓{" "}
+            </span>
+            {notice.title}
+          </DialogTitle>
+        </DialogHeader>
+        <FactTable rows={notice.facts} />
+        <p className="text-body font-semibold text-foreground">{notice.next}</p>
+        <DialogFooter>
+          {notice.action ? (
+            <Button
+              render={<Link to={notice.action.to} />}
+              nativeButton={false}
+            >
+              {notice.action.label}
+            </Button>
+          ) : (
+            <Button onClick={onClose}>OK</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -125,13 +207,18 @@ function Check({ row }: { row: CheckRow }) {
   return (
     <li className="flex flex-wrap items-center gap-x-3.5 gap-y-1 border-t border-line-inner px-4 py-2 first:border-t-0">
       <Marker tone={row.tone} />
-      <span
-        className={cn(
-          "min-w-0 flex-1 basis-[220px] py-1.5 text-row font-semibold",
-          row.tone === "waiting" ? "text-ink-meta" : "text-foreground",
+      <span className="min-w-0 flex-1 basis-[220px] py-1.5">
+        <span
+          className={cn(
+            "block text-row font-semibold",
+            row.tone === "waiting" ? "text-ink-meta" : "text-foreground",
+          )}
+        >
+          {row.text}
+        </span>
+        {row.note && (
+          <span className="block text-meta text-ink-meta">{row.note}</span>
         )}
-      >
-        {row.text}
       </span>
       {row.link && (
         <Button

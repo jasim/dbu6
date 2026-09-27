@@ -90,20 +90,40 @@ export function parseAccountId(value: string | undefined): number | null {
 
 /*
  * What /add hands Review in the URL (PLAN.md "Routes and URL state"):
- * `?imported=1` shows the hand-off note where Review opens, and
- * `?run=setup` marks the first run, whose Review ends with "Your books are
- * set up." once nothing is left to post. Review's own links carry the run,
- * not the note: the note is read once, where the flow landed.
+ * `?imported=1` marks where the flow landed, and `?run=setup` the first
+ * run, whose Review ends with "Your books are set up." once nothing is left
+ * to post. A later add also says what it imported, `&drafts=176&categorized=69`,
+ * for the notice its Overview opens with. Review's own links carry the run,
+ * not the rest: that is read once, where the flow landed.
  */
+
+/** One add's drafts, and how many of them came categorized. */
+export interface ImportCounts {
+  drafts: number;
+  categorized: number;
+}
+
 export interface ReviewRun {
   imported: boolean;
   setup: boolean;
+  counts: ImportCounts | null;
+}
+
+function count(value: string | null): number | null {
+  return value !== null && /^\d+$/.test(value) ? Number(value) : null;
 }
 
 export function readReviewRun(params: URLSearchParams): ReviewRun {
+  const imported = params.get("imported") === "1";
+  const drafts = count(params.get("drafts"));
+  const categorized = count(params.get("categorized"));
   return {
-    imported: params.get("imported") === "1",
+    imported,
     setup: params.get("run") === "setup",
+    counts:
+      imported && drafts !== null && categorized !== null
+        ? { drafts, categorized: Math.min(categorized, drafts) }
+        : null,
   };
 }
 
@@ -111,6 +131,10 @@ export function readReviewRun(params: URLSearchParams): ReviewRun {
 export function withReviewRun(href: string, run: Partial<ReviewRun>): string {
   const params = new URLSearchParams();
   if (run.imported) params.set("imported", "1");
+  if (run.imported && run.counts) {
+    params.set("drafts", String(run.counts.drafts));
+    params.set("categorized", String(run.counts.categorized));
+  }
   if (run.setup) params.set("run", "setup");
   const query = params.toString();
   if (query === "") return href;
@@ -118,17 +142,17 @@ export function withReviewRun(href: string, run: Partial<ReviewRun>): string {
 }
 
 /**
- * Where a later add hands off (card 7): the account's Drafts tab, with the
- * note.
+ * Where a later add hands off (card 7): the account's Overview, with what
+ * the add imported.
  */
-export function draftsHandOffHref(accountId: number): string {
-  return withReviewRun(reviewHref(accountId, "drafts"), { imported: true });
+export function importedHref(accountId: number, counts: ImportCounts): string {
+  return withReviewRun(reviewHref(accountId), { imported: true, counts });
 }
 
 /**
  * Where the first run hands off (card 7): the account picker, with the note
- * and the run. With one account to review, the picker goes on to its Drafts
- * tab, as a later add does.
+ * and the run. With one account to review, the picker goes on to its
+ * Overview, as a later add does.
  */
 export const SETUP_HAND_OFF_HREF = withReviewRun(REVIEW_ROUTE, {
   imported: true,
