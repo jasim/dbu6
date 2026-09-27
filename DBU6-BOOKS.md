@@ -94,14 +94,17 @@ Look up an account's id with
 - **"Show me this account's history."**
   `/api/reports/account-ledger` with `account_id`, `from_date` and `to_date`.
   It includes sub-accounts. Each row is one entry on the account, with
-  `narration`, the account it was `against`, and the balance after it. An
+  `narration` (the entry's comment, else its source narration, else the
+  journal's description), the account it was `against`, and the balance
+  after it. An
   older grouped journal gives one row per statement transaction in it; a
   compound entry, such as a salary, lists every account on its other side.
 - **"Find the transaction …"**
-  For transactions in the books: `sapporta rows list journal_entries --q "<words>"`
-  (the `comment` holds the narration). For drafts waiting in Review:
-  `sapporta rows list draft_transactions --q "<words>"`. For anything fuzzier,
-  use SQL.
+  For transactions in the books: `sapporta rows list journal_entries --q "<words>"`.
+  For drafts waiting in Review:
+  `sapporta rows list draft_transactions --q "<words>"`. Both search the
+  `comment` and the `source_narration` ([Two texts](#two-texts-the-banks-and-the-persons)).
+  For anything fuzzier, use SQL.
 
 ### Transactions waiting in Review
 
@@ -142,7 +145,8 @@ Look up an account's id with
 ### "Always put this under X" — adding a mapping
 
 The most frequent request. Two files, and the choice is whether a literal
-string in the narration settles it:
+string in the narration settles it. Both read the bank's text, a draft's
+`source_narration`, never its comment:
 
 - **Yes** → a rule in `user-config/transaction_mappings.mjs`; the file's
   comments have the shape. Prefer this: free, instant, and it applies to every
@@ -168,8 +172,8 @@ account ("Categorise these" above), and restart a server started with
 `dbu6 start`.
 
 **New rules from Review.** The Improve categorization tab keeps the new rules
-the user made there as lessons, each with its drafts (date, narration,
-direction and amount), the account they go to and a note:
+the user made there as lessons, each with its drafts (date, source
+narration, direction and amount), the account they go to and a note:
 `sapporta api get /api/categorization-lessons --query '{"base_account_id":<id>}'`.
 Their drafts have no account yet; the user runs the categorizer once the
 rules are in. The user picked the drafts, so they may share nothing the
@@ -436,12 +440,12 @@ between two failing days. Replace `<id>`, `<from>` and `<to>`:
 WITH activity AS (
   SELECT j.date, 0 AS src, j.id AS o1, je.id AS o2, 'entry' AS kind, je.id AS row_id,
          je.debit - je.credit AS delta, je.account_balance_assertion AS assertion,
-         je.comment AS text
+         COALESCE(je.source_narration, je.comment) AS text
   FROM journal_entries je JOIN journals j ON j.id = je.journal_id
   WHERE je.account_id = <id>
   UNION ALL
   SELECT d.date, 1, 0, d.id, 'draft', d.id, d.deposit - d.withdrawal,
-         d.balance_assertion_base_account, d.narration
+         d.balance_assertion_base_account, d.source_narration
   FROM draft_transactions d WHERE d.base_account_id = <id>
 ), running AS (
   SELECT *, ROUND(SUM(delta) OVER (ORDER BY date, src, o1, o2
@@ -452,6 +456,42 @@ SELECT date, kind, row_id, delta, assertion, running,
        ROUND(running - assertion, 2) AS diff, text
 FROM running WHERE date BETWEEN '<from>' AND '<to>';
 ```
+
+## Two texts: the bank's and the person's
+
+Every imported row, a draft and the posted entry on its categorized account,
+keeps two texts that never overwrite each other:
+
+- `source_narration`: the statement's text as the import saw it, with the
+  Google Pay recipient in front (`Recipient | …`) when a takeout matched the
+  row. It is written once and never changed, and it keeps the references
+  that map back to the statement. A manual entry has none.
+- `comment`: a short, readable line the person owns. The app's comment
+  writer fills a null one in the background from the source narration,
+  extracting its meaningful words; a Google Pay recipient becomes the
+  comment at import. Until then it is null.
+
+Which to read:
+
+- To show a transaction: `comment`, else `source_narration`. A null comment
+  is not written yet, never blank.
+- For anything that must match the bank's text: `source_narration` only.
+  Mapping rules, the categoriser, lessons, duplicate matching and balance
+  checks all read it.
+- To find a transaction: search both; `--q` does.
+
+Edit `comment` only. Never change an existing row's `source_narration`.
+Recording a statement row by hand, set `source_narration` to the statement's
+text; a note typed by hand goes in `comment`. A journal's `description` is a
+copy of the row's comment, else its source narration, made at posting; the
+comment writer updates it once when it writes a one-row journal's comment,
+and later edits to the comment leave it. The upgrade that brought the two texts
+moved every older entry's comment, typed notes included, to its source
+narration.
+
+`GET /api/comment-writer/status` says whether the writer is running and how
+many texts it has left or gave up on; `POST /api/comment-writer/run` (body
+`{}`) retries those.
 
 ## Import presets
 
@@ -614,23 +654,23 @@ The owner allows reading SQLite directly for diagnosis:
 
 ## The data
 
-| Table                    | Holds                                                                                                                                              | Columns that matter                                                                                                                                                                          |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `accounts`               | The chart of accounts, one tree                                                                                                                    | `name` (unique), `parent_id`, `account_type`: Asset, Liability, Equity, Revenue or Expense                                                                                                   |
-| `draft_transactions`     | Imported rows waiting in Review                                                                                                                    | `base_account_id`, `account_id` (the categorized account; null when uncategorised), `date`, `narration`, `withdrawal`, `deposit`, `balance_assertion_base_account`, `source_transaction_key` |
-| `journals`               | Transactions in the books                                                                                                                          | `date`, `description` (the narration when imported; `Expenses` or `Deposits` on older imports)                                                                                               |
-| `journal_entries`        | A journal's lines                                                                                                                                  | `journal_id`, `account_id`, `debit`, `credit`, `account_balance_assertion`, `comment`, `source_transaction_key`                                                                              |
-| `import_presets`         | The import presets, one institution per row; read only, change them through `/api/import-presets/changes`                                          | `name`, `parsers` and `accounts` (JSON; see [Import presets](#import-presets))                                                                                                               |
-| `categorization_lessons` | What the user taught the categoriser in Review, waiting to become a rule or guidance; read only, change them through `/api/categorization-lessons` | `base_account_id`, `account_id` (where the drafts go), `narrations` (JSON), `note`                                                                                                           |
+| Table                    | Holds                                                                                                                                              | Columns that matter                                                                                                                                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accounts`               | The chart of accounts, one tree                                                                                                                    | `name` (unique), `parent_id`, `account_type`: Asset, Liability, Equity, Revenue or Expense                                                                                                                     |
+| `draft_transactions`     | Imported rows waiting in Review                                                                                                                    | `base_account_id`, `account_id` (the categorized account; null when uncategorised), `date`, `source_narration`, `comment`, `withdrawal`, `deposit`, `balance_assertion_base_account`, `source_transaction_key` |
+| `journals`               | Transactions in the books                                                                                                                          | `date`, `description` (an imported row's comment, else its source narration; `Expenses` or `Deposits` on older imports)                                                                                        |
+| `journal_entries`        | A journal's lines                                                                                                                                  | `journal_id`, `account_id`, `debit`, `credit`, `account_balance_assertion`, `comment`, `source_narration`, `source_transaction_key`                                                                            |
+| `import_presets`         | The import presets, one institution per row; read only, change them through `/api/import-presets/changes`                                          | `name`, `parsers` and `accounts` (JSON; see [Import presets](#import-presets))                                                                                                                                 |
+| `categorization_lessons` | What the user taught the categoriser in Review, waiting to become a rule or guidance; read only, change them through `/api/categorization-lessons` | `base_account_id`, `account_id` (where the drafts go), `transactions` (JSON: each draft's `date`, `source_narration`, `direction`, `amount`), `note`                                                           |
 
 - Amounts are rupees, stored as REAL. In the tables, a balance is
   debit − credit, so money held is positive, and money owed and income are
   negative. A statement balance uses the same sign.
 - A draft's `withdrawal` and `deposit` are both positive.
 - Adding drafts to the books makes one journal per draft, described by its
-  narration:
-  - One entry on its categorized account, carrying the narration and
-    `source_transaction_key`.
+  comment, else its source narration, as they were then:
+  - One entry on its categorized account, carrying the source narration, the
+    comment and `source_transaction_key`.
   - One entry on the statement's account, with no key. The day's last one
     carries the day's closing statement balance.
 - Journals added before 2026-09-24 group a run of same-day, same-direction

@@ -481,9 +481,9 @@ built, tested and understood without anything above it. Lowest first:
 | 0 | `schema/`, `paths.ts`, `data-lock.ts`, `dbu-config.ts`, `modules/ledger-sql/` | schema, paths, data-lock, dbu-config, ledger-sql | Tables; where everything is, in the project and in the package, the database file included; the data folder's lock; what dbu6 keeps about the machine in `dbu_config`; row scoping for raw SQL, built from Sapporta's `rowSecurity`, and the auth type every store takes | Domain queries; a hand-written workspace/user filter |
 | 1 | `modules/values/` | values | Money and its direction, amounts in paise and when two are the same, Account, Chrono, the text normalization transaction identity uses | I/O, statements, ledger tables |
 | 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
-| 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources, chart-of-accounts | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into a ledger account id, the same-account rule included; the Google Pay Takeout index and enrichment; the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan; the starter chart of accounts and the rules a proposed chart keeps | Database access, coding-agent names, route concepts |
-| 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent; import-presets | Accounts as the stores and screens look them up, and the Opening Balances account; posted journals, writing them from a plan, the last reconciled checkpoint, and each account's opening entry, the entries beside it, and rewriting or deleting a standalone one (`opening-entries.ts`); matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter (its checkpoint-day rule and why: `reconciliation/checkpoint-day.md`); draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status, whether a bank or card has transactions of its own (`statement-activity.ts`), where an account's drafts begin (`first-drafts.ts`), and the lessons the user teaches the categoriser from them (`categorization-lessons.ts`). The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on. The import_presets rows, read and written under the request's auth | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
-| 5 | `workflows/` | statement-import, posting, reclassification, opening-balances, import-presets, chart-of-accounts; add-account above opening-balances, import-presets and statement-import | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
+| 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources, chart-of-accounts, comment-writer | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into a ledger account id, the same-account rule included, and whether categorization is running (`categorizing.ts`); the Google Pay Takeout index and enrichment; the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan; the starter chart of accounts and the rules a proposed chart keeps; the comment writer's prompt and the checks its answers pass | Database access, coding-agent names, route concepts |
+| 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent; import-presets | Accounts as the stores and screens look them up, and the Opening Balances account; posted journals, writing them from a plan, the last reconciled checkpoint, the comments the comment writer reads and writes on every user's entries (`entry-comments.ts`), and each account's opening entry, the entries beside it, and rewriting or deleting a standalone one (`opening-entries.ts`); matching against stored drafts and journals, running balances, the balance-check rule, the since-checkpoint filter (its checkpoint-day rule and why: `reconciliation/checkpoint-day.md`); draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status, whether a bank or card has transactions of its own (`statement-activity.ts`), where an account's drafts begin (`first-drafts.ts`), the comments the comment writer reads and writes on every user's drafts (`draft-comments.ts`), and the lessons the user teaches the categoriser from them (`categorization-lessons.ts`). The coding agent: detection, models, handoff, settings, and at its top the engine categorization runs on. The import_presets rows, read and written under the request's auth | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
+| 5 | `workflows/` | statement-import, posting, reclassification, opening-balances, import-presets, chart-of-accounts, comment-writer; add-account above opening-balances, import-presets and statement-import | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
 | 6 | `app/`, `runtime.ts`, `mount.ts`, `open.ts`, `config.ts`, `project-reports.ts`, `route-collisions.ts`, `report-kit.ts`, `index.ts`, `seed/` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Home and Review views, hosting; the project's reports and `dbu6.config.ts`; the promised exports; sample data | Queries or rules another module needs |
 
 - Only tier 4 orders its modules (accounts < journals < reconciliation <
@@ -517,7 +517,8 @@ Every file is in its tier. No test checks it, so a new file gets its place in
 this table when it is added. Each
 module in `modules/<name>/` is imported through its `index.ts`: `ledger-sql`,
 `values`, `statement`; in tier 3 `transaction-identity`, `categorization`,
-`gpay`, `journal-plan`, `statement-sources` and `chart-of-accounts`; and in tier 4 `accounts`,
+`gpay`, `journal-plan`, `statement-sources`, `chart-of-accounts` and
+`comment-writer`; and in tier 4 `accounts`,
 `journals`, `reconciliation`, `drafts`, `coding-agent` and `import-presets`.
 Tests also import
 `ledger-sql/testing.ts`, whose `testLedgerAuth` is a request's auth over the
@@ -532,7 +533,11 @@ posted on its account and its journal opens it alone),
 `workflows/import-presets.ts` (the presets' one writer: a batch of changes
 applied, checked against the whole table, and written in one transaction),
 `workflows/chart-of-accounts.ts` (setup's chart of accounts: the starter
-chart for books with no accounts, and creating the ticked accounts) and
+chart for books with no accounts, and creating the ticked accounts),
+`workflows/comment-writer.ts` (each imported row's comment, written in the
+background from its source narration: one run at a time, started with the
+server and after imports and posting, waiting while categorization runs)
+and
 `workflows/add-account.ts` (/add: reading dropped statements as /import
 does, then setting up the bank or card they belong to, its opening balance
 and its import). A bank or card's ledger account and preset entry, written
@@ -682,6 +687,12 @@ entry in each of those two tables.
   least capable model that answered, billed to your own Claude or ChatGPT plan
   rather than an API key. Nothing is cached, so reclassifying sends every
   description again.
+- **Comments.** Each imported row's comment is written on the same engine
+  and model as categorization, in the background (`workflows/comment-writer.ts`,
+  prompt in `modules/comment-writer/`): 50 distinct statement texts a call,
+  two calls at once, never while an import or Run categorizer is
+  categorizing. It runs at startup, so the first start after migration 0012
+  sends every past narration to the engine, the Nuabase gateway included.
 - **The chart of accounts** a new user describes at `/setup` is one
   more headless call (`Nua.direct`'s `get`, a structured answer checked
   against `chartProposalSchema`), on the most capable model that answered,
