@@ -94,7 +94,7 @@ export function CategorizationFigures({
     <>
       <Figure label="Categorized" value={counts.categorized} />
       <Figure
-        label="Need a category"
+        label="Need an account"
         value={counts.remaining}
         tone="attention"
         action={

@@ -57,8 +57,7 @@ api.register(
         return {
           status: 422,
           body: {
-            error:
-              "A draft's category can't be the account its statement belongs to",
+            error: "A draft can't go to the account its statement belongs to",
           },
         };
       case "not-one-account":

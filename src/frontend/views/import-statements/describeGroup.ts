@@ -51,7 +51,7 @@ export type GroupSummary = {
       categories: CategorizationCounts;
       // Why the LLM left some uncategorized; null when it answered for all.
       problem: CategorizationProblem | null;
-      // Folded under "By category": how many each account was given.
+      // Folded under "By account": how many each account was given.
       byCategory: Stat[];
     }
   | {

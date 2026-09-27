@@ -137,7 +137,7 @@ function AccountResult({
         <ClosingLine closing={summary.closing} />
         <div>
           {summary.kind === "new" && summary.byCategory.length > 0 && (
-            <Disclosure summary={`By category (${summary.byCategory.length})`}>
+            <Disclosure summary={`By account (${summary.byCategory.length})`}>
               <FactTable rows={summary.byCategory} />
             </Disclosure>
           )}

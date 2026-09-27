@@ -63,7 +63,7 @@ export const draftTransactions = sapportaTable({
             kind: "report",
             report: "account-ledger",
             bind: { account_id: "account_id" },
-            label: "Category account ledger",
+            label: "Account ledger",
             icon: "report",
           },
         ],

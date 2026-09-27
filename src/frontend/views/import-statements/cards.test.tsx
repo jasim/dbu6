@@ -12,7 +12,7 @@ import { ResultsCard } from "./cards";
 
 /*
  * An account's row in the import results: the new transactions and whether
- * they still need a category as figures, the closing balance, and the
+ * they still need an account as figures, the closing balance, and the
  * categories folded away. Who categorized them is not the user's concern.
  */
 
@@ -133,7 +133,7 @@ describe("an account's card in the import results", () => {
     ]);
   });
 
-  it("counts what came in and what still needs a category, linked to those drafts", () => {
+  it("counts what came in and what still needs an account, linked to those drafts", () => {
     render(
       group({
         fresh: 40,
@@ -150,17 +150,17 @@ describe("an account's card in the import results", () => {
 
     expect(text()).toContain("New40");
     expect(text()).toContain("Categorized35");
-    expect(text()).toContain("Need a category5");
+    expect(text()).toContain("Need an account5");
     expect(link("Categorize")?.getAttribute("href")).toBe(
       "/review/5/drafts?filter%5Baccount_id%5D%5Bis%5D=null",
     );
     expect(text()).toContain("Closing balance, 31 Aug25,000.00");
-    expect(text()).toContain("By category (2)");
+    expect(text()).toContain("By account (2)");
     expect(text()).not.toContain("All entries categorized");
     expect(text()).not.toMatch(/your rules|Claude Code/);
   });
 
-  it("says all entries are categorized in one box when none need a category", () => {
+  it("says all entries are categorized in one box when none need an account", () => {
     render(
       group({
         fresh: 8,
@@ -177,7 +177,7 @@ describe("an account's card in the import results", () => {
 
     expect(text()).toContain("New8of 12 in the statement");
     expect(text()).toContain("All entries categorized");
-    expect(text()).not.toContain("Need a category");
+    expect(text()).not.toContain("Need an account");
     expect(text()).not.toContain("Categorized8");
   });
 
@@ -228,7 +228,7 @@ describe("an account's card in the import results", () => {
     expect(text()).toContain(
       "Nothing new: 6 transactions already in your books.",
     );
-    expect(text()).not.toContain("Need a category");
-    expect(text()).not.toContain("By category");
+    expect(text()).not.toContain("Need an account");
+    expect(text()).not.toContain("By account");
   });
 });

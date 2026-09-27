@@ -37,7 +37,7 @@ export function AgentUnavailableDialog({
         <DialogHeader>
           <DialogTitle>{problem?.title}</DialogTitle>
           <DialogDescription>
-            The entries were saved without a category. Check the coding agent's
+            The entries were saved without an account. Check the coding agent's
             configuration on Settings, then run the categorization again.
           </DialogDescription>
         </DialogHeader>

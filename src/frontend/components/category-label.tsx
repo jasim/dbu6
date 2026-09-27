@@ -41,7 +41,7 @@ export function CategoryLabel({
  */
 export function NeedsCategory({
   className,
-  children = "Choose a category",
+  children = "Choose an account",
   ...props
 }: ComponentProps<"button">) {
   return (

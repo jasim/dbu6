@@ -87,7 +87,7 @@ export function ImportInstructions() {
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="text-meta text-ink-meta">
                   {plural(improve.uncategorised, "draft")}{" "}
-                  {improve.uncategorised === 1 ? "needs" : "need"} a category
+                  {improve.uncategorised === 1 ? "needs" : "need"} an account
                 </span>
                 <Link to={improve.href} className={buttonVariants()}>
                   Improve categorization

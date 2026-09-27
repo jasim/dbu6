@@ -235,7 +235,7 @@ export function RunCategorizerTab() {
       <ReportTab>
         <EmptyState
           className="max-w-[640px]"
-          title="Every draft has a category"
+          title="Every draft goes to an account"
           body={`None of the drafts for ${accountName} need the categorizer.`}
         />
       </ReportTab>
@@ -274,7 +274,7 @@ export function RunCategorizerTab() {
             >
               {loadingRows
                 ? "Loading drafts…"
-                : `${plural(uncategorized.length, "draft")} ${uncategorized.length === 1 ? "needs" : "need"} a category`}
+                : `${plural(uncategorized.length, "draft")} ${uncategorized.length === 1 ? "needs" : "need"} an account`}
             </h2>
             {rulesAdded.waiting > 0 ? (
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-row text-ink-soft">
@@ -536,7 +536,7 @@ function RunResult({
   }
   if (counts.remaining > 0) {
     figures.push({
-      label: "Still need a category",
+      label: "Still need an account",
       value: String(counts.remaining),
     });
   }

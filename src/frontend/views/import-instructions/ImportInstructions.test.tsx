@@ -443,11 +443,11 @@ describe("Automatic transaction categorization rules", () => {
     );
   });
 
-  it("offers Improve categorization beside the title while drafts need a category", async () => {
+  it("offers Improve categorization beside the title while drafts need an account", async () => {
     await renderAt("/categorization-rules?show=contains");
 
     expect(host.querySelector("header")?.textContent).toContain(
-      "1 draft needs a category",
+      "1 draft needs an account",
     );
     expect(
       [...host.querySelectorAll("header a")]

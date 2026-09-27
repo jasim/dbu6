@@ -6,13 +6,13 @@ import { agree, plural } from "../format";
  * P1, P3): Overview's rows, the Duplicates and Balance checks tabs, the
  * button's waiting reason, Home's card and the agent prompts. A screen that
  * frames a check its own way keeps its sentence: Home's "possible duplicate
- * entries", the picker's "12 need a category", the button's "12 still need a
- * category".
+ * entries", the picker's "12 need an account", the button's "12 still need an
+ * account".
  */
 
-/** "12 transactions need a category" */
+/** "12 transactions need an account" */
 export function uncategorisedText(count: number): string {
-  return `${plural(count, "transaction")} ${agree(count, "needs", "need")} a category`;
+  return `${plural(count, "transaction")} ${agree(count, "needs", "need")} an account`;
 }
 
 /** "2 possible duplicates" */
@@ -31,8 +31,8 @@ export function checkText(check: PostingCheck): string {
     case "categories":
       if (check.state === "blocks") return uncategorisedText(check.count);
       return check.drafts === 1
-        ? "The transaction has a category"
-        : `All ${check.drafts} transactions have a category`;
+        ? "The transaction goes to an account"
+        : `All ${check.drafts} transactions go to an account`;
     case "duplicates":
       return check.state === "blocks"
         ? duplicatesText(check.count)

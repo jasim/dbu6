@@ -28,7 +28,7 @@ ${accountFacts(detail)}
 ${readingTheData(account.account_id)}
 
 Each possible duplicate, one per line: the date, the direction and amount, the
-draft (id, narration, category), what it matched, and how it matched.
+draft (id, narration, account), what it matched, and how it matched.
 
 ${rows(detail.duplicates, duplicateLine)}
 
@@ -131,7 +131,7 @@ function duplicateLine(row: ReviewDuplicate): string {
     row.other_draft_id !== null
       ? `draft ${row.other_draft_id} "${row.other_narration ?? ""}"`
       : `journal ${row.matched_journal_id}, entry ${row.matched_journal_entry_id} "${row.other_narration ?? ""}" (${row.matched_category ?? "no account"})`;
-  return `- ${row.date} · ${row.direction} ${amount(row.amount)} · draft ${row.draft_id} "${row.narration}" (${row.draft_category ?? "no category"}) · matched ${matched} · ${row.match_type}, confidence ${Math.round(row.confidence * 100)}%`;
+  return `- ${row.date} · ${row.direction} ${amount(row.amount)} · draft ${row.draft_id} "${row.narration}" (${row.draft_category ?? "no account"}) · matched ${matched} · ${row.match_type}, confidence ${Math.round(row.confidence * 100)}%`;
 }
 
 function failingLine(row: ReviewFailingCheck): string {

@@ -10,12 +10,12 @@ describe("checkText", () => {
         checkText,
       ),
     ).toEqual([
-      "All 21 transactions have a category",
+      "All 21 transactions go to an account",
       "No possible duplicates",
       "Every balance check passes",
     ]);
     expect(postingChecks({ ...NO_DRAFTS, drafts: 1 }).map(checkText)).toEqual([
-      "The transaction has a category",
+      "The transaction goes to an account",
       "No possible duplicates",
       "These drafts have no balance checks",
     ]);
@@ -31,7 +31,7 @@ describe("checkText", () => {
         failing_checks: 1,
       }).map(checkText),
     ).toEqual([
-      "1 transaction needs a category",
+      "1 transaction needs an account",
       "1 possible duplicate",
       "1 balance check fails",
     ]);
@@ -43,7 +43,7 @@ describe("checkText", () => {
         failing_checks: 2,
       }).map(checkText),
     ).toEqual([
-      "2 transactions need a category",
+      "2 transactions need an account",
       "2 possible duplicates",
       "2 balance checks fail",
     ]);

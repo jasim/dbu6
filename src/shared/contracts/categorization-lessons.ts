@@ -41,7 +41,7 @@ export const categorizationLessonsContract = c.router({
     method: "POST",
     path: "/categorization-lessons",
     summary:
-      "Record that drafts of one statement account go to an account, as a lesson for the coding agent; the drafts keep no category",
+      "Record that drafts of one statement account go to an account, as a lesson for the coding agent; the drafts stay without an account",
     body: z.object({
       draft_ids: z.array(z.number().int().positive()).min(1),
       account_id: z.number().int().positive(),

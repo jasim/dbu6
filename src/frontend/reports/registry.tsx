@@ -82,7 +82,7 @@ export const builtInReportDefinitions = [
   {
     id: "expense-breakdown",
     label: "Expense Breakdown",
-    description: "Spending by category, largest first",
+    description: "Spending by expense account, largest first",
     Component: ExpenseBreakdownReport,
     subgroup: "income-and-spending",
     layout: "row",

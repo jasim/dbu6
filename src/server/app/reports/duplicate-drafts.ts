@@ -105,8 +105,8 @@ function toDuplicateDraftsResult(
             ),
           ],
         }),
-        textColumn("draft_category", "Draft Category", { width: 34 }),
-        textColumn("matched_category", "Matched Category", { width: 34 }),
+        textColumn("draft_category", "Draft Account", { width: 34 }),
+        textColumn("matched_category", "Matched Account", { width: 34 }),
         textColumn("source_reference", "Source Reference", { width: 30 }),
         textColumn("source_transaction_key", "Source Key", { width: 44 }),
         textColumn("other_source_reference", "Matched Reference", {

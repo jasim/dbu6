@@ -8,7 +8,7 @@ import { describeBatch } from "./describeBatch";
 
 /*
  * The headline over a batch that imported: how many new transactions came
- * in, from how many statements, and how many still need a category.
+ * in, from how many statements, and how many still need an account.
  */
 
 function tally(counts: Partial<CategorizationTally>): CategorizationTally {
@@ -84,7 +84,7 @@ function imported(groups: AutoImportGroupResult[]) {
 }
 
 describe("describeBatch after an import", () => {
-  it("heads with the new transactions and says how many need a category", () => {
+  it("heads with the new transactions and says how many need an account", () => {
     expect(
       imported([
         group("sample-aug.xls", 8, tally({ by_rule: 5, uncategorized: 3 })),
