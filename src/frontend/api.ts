@@ -19,6 +19,7 @@ import {
   agentHandoffContract,
   categorizationLessonsContract,
   codingAgentContract,
+  commentWriterContract,
   draftTransactionsContract,
   homeContract,
   importPresetsContract,
@@ -77,6 +78,10 @@ export const codingAgentApi = createApiClient(codingAgentContract, {
 });
 
 export const setupApi = createApiClient(setupContract, {
+  baseUrl: getApiBase,
+});
+
+export const commentWriterApi = createApiClient(commentWriterContract, {
   baseUrl: getApiBase,
 });
 

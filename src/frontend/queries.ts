@@ -11,6 +11,7 @@ import {
   agentHandoffApi,
   categorizationLessonsApi,
   codingAgentApi,
+  commentWriterApi,
   homeApi,
   importPresetsApi,
   openingBalancesApi,
@@ -74,6 +75,16 @@ export function categorizationLessonsQuery(accountId: number) {
     refetchOnWindowFocus: true,
   });
 }
+
+/**
+ * The comment writer's status. It writes in the background, and nothing
+ * polls it: a screen reads it when it mounts.
+ */
+export const commentWriterStatusQuery = queryOptions({
+  queryKey: ["comment-writer"],
+  queryFn: () => commentWriterApi.getCommentWriterStatus(),
+  ...FRESH_QUERY,
+});
 
 /** Every institution's accounts and the instruction files each lists. */
 export const importPresetsQuery = queryOptions({

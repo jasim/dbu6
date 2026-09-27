@@ -3,9 +3,11 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   SchemaTableGridView,
   useSchemaStore,
+  type SchemaTableColumnOptions,
   type SchemaTableGridViewSource,
   type SchemaTableRowsByLevel,
   type TableGridActionsProps,
+  type TGridCellRenderContext,
 } from "@sapporta/frontend";
 import { eqCondition } from "@sapporta/shared/filter";
 import { Button } from "../components/ui/button";
@@ -14,6 +16,7 @@ import {
   findActiveDraftTransactionQuickFilter,
   toggleDraftTransactionQuickFilter,
 } from "./draft-transaction-quick-filter";
+import { CommentWriterNotice } from "./CommentWriterNotice";
 import { useReviewAccount } from "./ReviewAccount";
 import { reviewHref } from "./routes";
 
@@ -26,6 +29,14 @@ const DRAFTS_TAB_HIDDEN_COLUMNS = [
   "created_at",
   "updated_at",
 ];
+// The comment is the person's to write; until someone does, it shows the
+// bank's text, muted. The bank's text stays whole beside it, read-only and
+// wide enough to read: bulk categorizing filters on it, and a filter on the
+// comment would miss the rows the comment writer hasn't reached.
+const DRAFTS_TAB_COLUMNS: Record<string, SchemaTableColumnOptions> = {
+  comment: { minWidth: 24, renderCell: CommentCell },
+  source_narration: { minWidth: 40 },
+};
 
 /**
  * The Drafts tab (PLAN.md §11 P3): the draft table as it has always been,
@@ -70,6 +81,7 @@ export function DraftsTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <CommentWriterNotice />
       {/* The frame's header already clears the sidebar toggle. */}
       <div className="min-h-0 flex-1 [--sap-page-header-inset:0px]">
         {source ? (
@@ -80,6 +92,7 @@ export function DraftsTab() {
             header="toolbar"
             actions={QuickFilterButtons}
             hiddenColumns={DRAFTS_TAB_HIDDEN_COLUMNS}
+            columnOptions={DRAFTS_TAB_COLUMNS}
             rootRows={rootRows}
             viewRelatedRows
           />
@@ -90,6 +103,21 @@ export function DraftsTab() {
         )}
       </div>
     </div>
+  );
+}
+
+/** A draft's comment, else its source narration, muted. */
+function CommentCell({
+  value,
+  row,
+  defaultContent,
+}: TGridCellRenderContext<SchemaTableRowsByLevel, unknown, string>) {
+  if (typeof value === "string" && value.trim() !== "") return defaultContent;
+  const source = row.source_narration;
+  return (
+    <span className="block truncate text-ink-meta">
+      {typeof source === "string" ? source : ""}
+    </span>
   );
 }
 

@@ -8,9 +8,9 @@ export interface Transaction {
   id: string;
   /** Already formatted for people: "13 Sep", never `2026-09-13`. */
   date: string;
-  /** The cleaned name: "Zomato". */
+  /** The row's comment, else its source narration: "UPI Sample Cafe". */
   name: string;
-  /** The bank's own description, kept so the cleaning can be checked. */
+  /** Its source narration, the bank's own text, which rules match. */
   raw: string;
   amount: number;
   direction: Direction;

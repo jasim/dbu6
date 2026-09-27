@@ -76,7 +76,10 @@ const SHOWN_SELECTED = 8;
 interface SelectedDraft {
   id: number;
   date: string;
-  narration: string;
+  /** The bank's text, which rules match. */
+  sourceNarration: string;
+  /** The person's line for it, when someone has written one. */
+  comment: string | null;
   /** Money in is positive, money out negative. */
   amount: number;
 }
@@ -310,10 +313,8 @@ export function ImproveCategorizationTab() {
 /** A loaded grid row as the draft the panel shows, or none. */
 function selectedDraft(row: unknown): SelectedDraft[] {
   if (typeof row !== "object" || row === null) return [];
-  const { id, date, source_narration, withdrawal, deposit } = row as Record<
-    string,
-    unknown
-  >;
+  const { id, date, source_narration, comment, withdrawal, deposit } =
+    row as Record<string, unknown>;
   if (typeof id !== "number" || typeof source_narration !== "string") {
     return [];
   }
@@ -321,15 +322,18 @@ function selectedDraft(row: unknown): SelectedDraft[] {
     {
       id,
       date: typeof date === "string" ? date : "",
-      narration: source_narration,
+      sourceNarration: source_narration,
+      comment:
+        typeof comment === "string" && comment.trim() !== "" ? comment : null,
       amount: (Number(deposit) || 0) - (Number(withdrawal) || 0),
     },
   ];
 }
 
 /**
- * The transactions selected in the grid, as the statement shows them: date,
- * description, amount. The first few, and the rest on demand.
+ * The transactions selected in the grid: date, the comment over the bank's
+ * text, which is what rules match and so what the person writes a rule
+ * from, and amount. The first few, and the rest on demand.
  */
 function SelectedDrafts({ selected }: { selected: readonly SelectedDraft[] }) {
   const [showAll, setShowAll] = useState(false);
@@ -358,11 +362,21 @@ function SelectedDrafts({ selected }: { selected: readonly SelectedDraft[] }) {
             <span className="tnum w-12 shrink-0 text-ink-meta">
               {formatShortDate(draft.date)}
             </span>
-            <span
-              className="min-w-0 flex-1 text-foreground [overflow-wrap:anywhere] line-clamp-2"
-              title={draft.narration}
-            >
-              {draft.narration}
+            <span className="min-w-0 flex-1" title={draft.sourceNarration}>
+              {draft.comment !== null && (
+                <span className="block truncate font-semibold text-foreground">
+                  {draft.comment}
+                </span>
+              )}
+              <span
+                className={
+                  draft.comment === null
+                    ? "text-foreground [overflow-wrap:anywhere] line-clamp-2"
+                    : "text-ink-meta [overflow-wrap:anywhere] line-clamp-2"
+                }
+              >
+                {draft.sourceNarration}
+              </span>
             </span>
             <span className="tnum shrink-0 font-mono text-foreground">
               {draft.amount > 0 ? "+" : ""}
