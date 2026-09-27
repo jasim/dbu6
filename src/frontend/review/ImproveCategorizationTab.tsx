@@ -46,9 +46,11 @@ import {
 
 const DRAFT_TRANSACTIONS_TABLE = "draft_transactions";
 // The fixed filters hold both account columns to one value, and the id and
-// running balance say nothing about where a draft goes.
+// running balance say nothing about where a draft goes. Rules match the
+// bank's text, so the comment shows only in the selected drafts' panel.
 const HIDDEN_COLUMNS = [
   "id",
+  "comment",
   "base_account_id",
   "account_id",
   "balance_assertion_base_account",
