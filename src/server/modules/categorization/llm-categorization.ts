@@ -5,6 +5,7 @@ import type {
 } from "../../../shared/index.js";
 import type { Abacus } from "../statement/index.js";
 import { type Account, parseAccount, isWithdrawal } from "../values/index.js";
+import type { OnCategorizationProgress } from "./categorize.js";
 
 /*
  * What categorization needs of an LLM, and who can answer it: one call that
@@ -261,6 +262,7 @@ export async function categorizeViaLLM(
   transactions: readonly StatementTransaction[],
   unmappedIndices: number[],
   config: LLMCategorizationConfig,
+  onProgress?: OnCategorizationProgress,
 ): Promise<LLMCategorization> {
   const { llm } = config;
   const { prompt, rows, reverseMap } = buildLLMRequest(
@@ -288,14 +290,25 @@ export async function categorizeViaLLM(
   console.log(prompt);
   const calls = splitIntoCalls(rows, llm.caller.maxRowsPerCall);
   const caller = llm.caller;
-  const send = (callRows: ListRow[], index: number) =>
-    callList(
+  // A call that fails counts as answered too: nothing more will come of it.
+  let answeredSoFar = 0;
+  onProgress?.({ stage: "llm", descriptions: rows.length, answered: 0 });
+  const send = async (callRows: ListRow[], index: number) => {
+    const outcome = await callList(
       llm,
       caller,
       prompt,
       callRows,
       calls.length === 1 ? "" : ` (call ${index + 1} of ${calls.length})`,
     );
+    answeredSoFar += callRows.length;
+    onProgress?.({
+      stage: "llm",
+      descriptions: rows.length,
+      answered: answeredSoFar,
+    });
+    return outcome;
+  };
 
   const [firstRows, ...restRows] = calls;
   const first = await send(firstRows, 0);

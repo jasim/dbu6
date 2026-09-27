@@ -63,17 +63,20 @@ export type AddReply =
   | { kind: "refused"; refusal: AddAccountRefusal };
 
 /**
- * Adds the account and imports its files. A refusal the contract names is
+ * Adds the account and imports its files, reporting how far it has got
+ * under `progressId`. A refusal the contract names is
  * returned; anything else throws with the server's words.
  */
 export async function sendAdd(
   files: readonly File[],
   fields: AddAccountFields,
+  progressId: string,
 ): Promise<AddReply> {
   const body = form(files);
   for (const [name, value] of Object.entries(fields)) {
     if (value !== undefined) body.append(name, String(value));
   }
+  body.append("progress_id", progressId);
   const response = await post("/add-account/add", body);
   const reply: unknown = await response.json().catch(() => null);
   if (response.ok) {

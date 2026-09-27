@@ -7,6 +7,8 @@ export {
   tallyCategorization,
   type Categorization,
   type CategorizationOutcome,
+  type CategorizationProgress,
+  type OnCategorizationProgress,
   type CategorizationRow,
   type CategorizedRow,
   type Categorizer,

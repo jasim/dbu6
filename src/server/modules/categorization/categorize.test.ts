@@ -155,6 +155,25 @@ describe("categorize", () => {
     });
   });
 
+  it("says what the rules answered before the LLM is asked", async () => {
+    llmMock.mockResolvedValue(answered({}));
+    const progress: unknown[] = [];
+
+    await categorize(
+      await loadCategorizer(baseConfig(), dir),
+      [withdrawal("STARBUCKS"), withdrawal("MYSTERY")].map((transaction) => ({
+        transaction,
+        baseAccountId: null,
+      })),
+      ACCOUNTS,
+      (event) => progress.push(event),
+    );
+
+    expect(progress).toEqual([{ stage: "rules", transactions: 2, matched: 1 }]);
+    // The LLM reports its own answers, on the same listener.
+    expect(llmMock.mock.calls[0][3]).toEqual(expect.any(Function));
+  });
+
   it("tells the LLM each row's statement account by name", async () => {
     llmMock.mockResolvedValue(answered({}));
     const onTheBank = withdrawal("MYSTERY");

@@ -525,7 +525,12 @@ describe("readStatements", () => {
     // Adding it lists the parser.
     expect(await add(ledger, files)).toEqual({
       ok: true,
-      added: { account_id: 6, account_name: "Sample Wallet", drafts: 2 },
+      added: {
+        account_id: 6,
+        account_name: "Sample Wallet",
+        drafts: 2,
+        categorized: 2,
+      },
     });
     expect(presetOf(ledger, 6)?.institution.parsers).toEqual([
       "other-bank-pdf",
@@ -661,6 +666,7 @@ describe("addAccount", () => {
         account_id: created.id,
         account_name: "Sample Current",
         drafts: 2,
+        categorized: 2,
       },
     });
     // Under the parent Sample Bank's accounts share.
@@ -724,7 +730,12 @@ describe("addAccount", () => {
 
     expect(done).toEqual({
       ok: true,
-      added: { account_id: 6, account_name: "Sample Wallet", drafts: 2 },
+      added: {
+        account_id: 6,
+        account_name: "Sample Wallet",
+        drafts: 2,
+        categorized: 2,
+      },
     });
     expect(presetOf(ledger, 6)?.institution.name).toBe("Other Sample Bank");
     expect(opening(ledger, 6)).toEqual({ date: "2026-08-02", amount: 10000 });
@@ -741,7 +752,12 @@ describe("addAccount", () => {
 
     expect(done).toEqual({
       ok: true,
-      added: { account_id: 2, account_name: "Sample Savings", drafts: 2 },
+      added: {
+        account_id: 2,
+        account_name: "Sample Savings",
+        drafts: 2,
+        categorized: 2,
+      },
     });
     expect(presetOf(ledger, 2)).toMatchObject({
       institution: { name: "Sample Bank" },
@@ -979,6 +995,7 @@ describe("addAccount", () => {
         account_id: created.id,
         account_name: "Sample Current",
         drafts: 2,
+        categorized: 2,
       },
     });
     expect(
@@ -1054,7 +1071,7 @@ describe("addAccount", () => {
     expect(ledgerAccount(ledger, "Sample Current")).toBeUndefined();
   });
 
-  it("asks for the kind, the bank and the group only when it can't tell", async () => {
+  it("asks for the kind, the bank and the parent only when it can't tell", async () => {
     const ledger = books();
     const bare = otherBank("08");
     const unnumbered = () => [
@@ -1080,8 +1097,15 @@ describe("addAccount", () => {
       }),
     ).toEqual({ ok: false, code: "invalid_fields", error: "Name the bank." });
 
-    // No bank or card has a group to share yet.
-    ledger.sqlite.exec("DELETE FROM import_presets");
+    // No bank or card has a parent to share yet, and Asset has two top
+    // accounts to choose from.
+    ledger.sqlite.exec(`
+      DELETE FROM import_presets;
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES
+        (7, 'workspace', 'user', 'Other Assets', NULL, 'Asset', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z');
+    `);
     expect(
       await add(ledger, unnumbered(), {
         kind: "bank",
@@ -1091,7 +1115,7 @@ describe("addAccount", () => {
     ).toEqual({
       ok: false,
       code: "invalid_fields",
-      error: "Pick a group for it.",
+      error: "Pick a parent account for it.",
     });
     expect(
       (
@@ -1100,6 +1124,23 @@ describe("addAccount", () => {
           institution: "Other Sample Bank",
           name: "Sample Current",
           parent_id: 1,
+        })
+      ).ok,
+    ).toBe(true);
+    expect(ledgerAccount(ledger, "Sample Current")).toMatchObject({
+      parent_id: 1,
+      account_type: "Asset",
+    });
+  });
+
+  it("puts the first bank under the type's top account, with no parent picked", async () => {
+    const ledger = books();
+    ledger.sqlite.exec("DELETE FROM import_presets");
+    expect(
+      (
+        await add(ledger, [dropped("NOPII.pdf", otherBank("08"))], {
+          institution: "Other Sample Bank",
+          name: "Sample Current",
         })
       ).ok,
     ).toBe(true);

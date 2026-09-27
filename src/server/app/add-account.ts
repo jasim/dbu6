@@ -3,9 +3,11 @@ import { z } from "zod";
 import {
   addAccountContract,
   addAccountFieldsSchema,
+  addProgressIdSchema,
   promptedFiles,
   type AddAccountReading,
   type AddAccountRefusal,
+  type AddProgress,
 } from "../../shared/index.js";
 import type { LoadCategorizer } from "../modules/categorization/index.js";
 import {
@@ -14,6 +16,7 @@ import {
   type AddAccountOutcome,
   type DroppedStatement,
 } from "../workflows/add-account.js";
+import type { ImportProgress } from "../workflows/statement-import/index.js";
 import { importErrorResponse } from "./import-error-response.js";
 import {
   filesFromField,
@@ -28,12 +31,17 @@ import { requireWorkflowLedger } from "./workflow-auth.js";
  * The read keeps only those its reply's card hands the user a coding-agent
  * prompt for (`promptedFiles`). The browser sends the files again with the
  * add, which reads them afresh and keeps nothing.
+ *
+ * An add sent with a `progress_id` says how far it has got to
+ * `addProgress` while it runs; that is held in memory, and only until the
+ * add answers.
  */
 
 export default function addAccountApi(
   loadCategorizer: LoadCategorizer,
 ): TsRestApi<SapportaEnv> {
   const api = new TsRestApi<SapportaEnv>();
+  const running = new Map<string, AddProgress>();
 
   api.register(
     "readStatements",
@@ -86,20 +94,74 @@ export default function addAccountApi(
           },
         };
       }
-      return withStagedUploads(statements, async (staged) => {
-        const done = await addAccount(
-          ledger,
-          loadCategorizer,
-          dropped(statements, staged),
-          fields.data,
-        );
-        if (done.ok) return { status: 200 as const, body: done.added };
-        return addRefusal(done);
-      });
+      const progressId = addProgressIdSchema.safeParse(
+        formFields(request.body).progress_id,
+      );
+      const id = progressId.success ? progressId.data : null;
+      if (id !== null) running.set(id, STARTED);
+      try {
+        return await withStagedUploads(statements, async (staged) => {
+          const done = await addAccount(
+            ledger,
+            loadCategorizer,
+            dropped(statements, staged),
+            fields.data,
+            id === null
+              ? undefined
+              : (event) =>
+                  running.set(id, nextProgress(running.get(id), event)),
+          );
+          if (done.ok) return { status: 200 as const, body: done.added };
+          return addRefusal(done);
+        });
+      } finally {
+        if (id !== null) running.delete(id);
+      }
+    },
+  );
+
+  api.register(
+    "addProgress",
+    addAccountContract.addProgress,
+    async ({ c, request }) => {
+      requireWorkflowLedger(c);
+      const progress = running.get(request.params.progressId);
+      if (progress === undefined) {
+        return {
+          status: 404 as const,
+          body: { error: "No add is running under that id." },
+        };
+      }
+      return { status: 200 as const, body: progress };
     },
   );
 
   return api;
+}
+
+const STARTED: AddProgress = { stage: "account", rules: null, llm: null };
+
+// Pure: a running add's progress, with the import's latest word on it.
+export function nextProgress(
+  progress: AddProgress = STARTED,
+  event: ImportProgress,
+): AddProgress {
+  switch (event.stage) {
+    case "rules":
+      return {
+        stage: "rules",
+        rules: { transactions: event.transactions, matched: event.matched },
+        llm: null,
+      };
+    case "llm":
+      return {
+        ...progress,
+        stage: "llm",
+        llm: { descriptions: event.descriptions, answered: event.answered },
+      };
+    case "saving":
+      return { ...progress, stage: "saving" };
+  }
 }
 
 function missingFiles() {

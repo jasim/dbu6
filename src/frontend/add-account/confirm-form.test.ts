@@ -64,7 +64,7 @@ const PRINTED: Opening = {
 };
 
 describe("Confirm's form", () => {
-  it("opens with the bank's suggested name and the usual group", () => {
+  it("opens with the bank's suggested name and the default parent", () => {
     const draft = confirmDraft(candidate(), "bank", DATA);
     expect(draft).toMatchObject({
       institution: "Sample Bank",
@@ -73,7 +73,8 @@ describe("Confirm's form", () => {
     });
     expect(confirmLayout(candidate(), "bank", DATA)).toEqual({
       bank: false,
-      groupInView: false,
+      parentInView: true,
+      parentOptional: true,
       canUseExisting: true,
     });
   });
@@ -103,7 +104,7 @@ describe("Confirm's form", () => {
     });
   });
 
-  it("sends the name and group of a new account at a bank dbu6 knows", () => {
+  it("sends the name and parent of a new account at a bank dbu6 knows", () => {
     const draft = confirmDraft(candidate(), "bank", DATA);
     expect(readConfirm(candidate(), "bank", PRINTED, draft, DATA)).toEqual({
       ok: true,
@@ -114,20 +115,53 @@ describe("Confirm's form", () => {
     ).toEqual({ ok: false, problem: "Give the account a name." });
   });
 
-  it("asks for a group on the first card, with none to share", () => {
+  it("asks for a parent account on the first card, with no default", () => {
     const account = candidate({ kind: "card", institution: "Sample Card Co" });
     const draft = confirmDraft(account, "card", DATA);
     expect(draft.parentId).toBeNull();
-    expect(confirmLayout(account, "card", DATA).groupInView).toBe(true);
+    expect(confirmLayout(account, "card", DATA)).toMatchObject({
+      parentInView: true,
+      parentOptional: false,
+    });
     expect(readConfirm(account, "card", PRINTED, draft, DATA)).toEqual({
       ok: false,
-      problem: "Pick a group.",
+      problem: "Pick a parent account.",
     });
     expect(
       readConfirm(account, "card", PRINTED, { ...draft, parentId: 2 }, DATA),
     ).toEqual({
       ok: true,
       fields: { name: "Sample Card Co Credit Card", parent_id: 2 },
+    });
+  });
+
+  it("shows the first bank's parent, filled in and optional", () => {
+    expect(confirmLayout(candidate(), "bank", DATA)).toMatchObject({
+      parentInView: true,
+      parentOptional: true,
+    });
+  });
+
+  it("tucks the parent under More options once banks share one", () => {
+    const withBank: StatementAccounts = {
+      ...DATA,
+      accounts: [
+        {
+          account_id: 9,
+          name: "Sample Savings",
+          kind: "bank",
+          institution: "Sample Bank",
+          account_identifiers: ["050505000099"],
+          parent: { id: 1, name: "Bank Accounts" },
+          in_ledger: true,
+          entries: 0,
+          drafts: 0,
+        },
+      ],
+    };
+    expect(confirmLayout(candidate(), "bank", withBank)).toMatchObject({
+      parentInView: false,
+      parentOptional: true,
     });
   });
 

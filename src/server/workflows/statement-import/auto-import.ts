@@ -18,6 +18,7 @@ import {
   AccountNotFoundError,
   importOptionsFromAccount,
   runStatementImport,
+  type OnImportProgress,
   type StatementImportResult,
 } from "./statement-import.js";
 
@@ -130,6 +131,7 @@ export async function importPlannedGroups(
   gpay: GPayIndex | null,
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
+  onProgress?: OnImportProgress,
 ): Promise<BatchImportOutcome> {
   const imported: ImportedGroup[] = [];
   // One engine for the batch: every group categorizes on the same agent.
@@ -152,13 +154,16 @@ export async function importPlannedGroups(
       }
       const result = await runStatementImport(
         group.statements.map((one) => one.statement),
-        await importOptionsFromAccount(
-          group.account,
-          ledgerName,
-          gpay,
-          llm,
-          loadCategorizer,
-        ),
+        {
+          ...(await importOptionsFromAccount(
+            group.account,
+            ledgerName,
+            gpay,
+            llm,
+            loadCategorizer,
+          )),
+          onProgress,
+        },
         ledger,
         group.statements.map((one) => one.file),
       );

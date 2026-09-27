@@ -63,6 +63,19 @@ export interface CategorizedRow extends CategorizedTransaction {
 
 export type SameAccountSkip = z.infer<typeof sameAccountSkipSchema>;
 
+/**
+ * How far categorization has got, as it goes: what the mapping rules
+ * answered, then the LLM's answers so far, call by call. Descriptions are
+ * the distinct ones the LLM is sent, which may be fewer than the rows.
+ */
+export type CategorizationProgress =
+  | { stage: "rules"; transactions: number; matched: number }
+  | { stage: "llm"; descriptions: number; answered: number };
+
+export type OnCategorizationProgress = (
+  progress: CategorizationProgress,
+) => void;
+
 export interface Categorization {
   // One per row, in order.
   rows: CategorizedRow[];
@@ -80,6 +93,7 @@ export async function categorize(
   categorizer: Categorizer,
   rows: readonly CategorizationRow[],
   accountsByName: AccountsByName,
+  onProgress?: OnCategorizationProgress,
 ): Promise<Categorization> {
   const accountNameById = new Map<number, string>();
   for (const [name, { id }] of accountsByName) accountNameById.set(id, name);
@@ -93,6 +107,7 @@ export async function categorize(
           : (accountNameById.get(baseAccountId) ?? null),
     })),
     accountsByName,
+    onProgress,
   );
   const sameAccountSkips: SameAccountSkip[] = [];
   const categorized = rows.map(
@@ -198,6 +213,7 @@ async function answerAccounts(
   categorizer: Categorizer,
   statementTransactions: StatementTransaction[],
   accountsByName: AccountsByName,
+  onProgress?: OnCategorizationProgress,
 ): Promise<{ answers: Answer[]; report: CategorizationReport }> {
   const transactions = statementTransactions.map(
     ({ transaction }) => transaction,
@@ -215,6 +231,11 @@ async function answerAccounts(
     transactions,
     need(categorizer.classify),
   );
+  onProgress?.({
+    stage: "rules",
+    transactions: transactions.length,
+    matched: transactions.length - unmappedIndices.length,
+  });
 
   // 2. Call LLM for unmapped transactions
   let llmMappings: Record<string, Account> = {};
@@ -229,6 +250,7 @@ async function answerAccounts(
         customMappings: need(categorizer.customMappings),
         llm,
       },
+      onProgress,
     ));
   }
 

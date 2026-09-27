@@ -11,13 +11,13 @@ import {
   balanceTitle,
   bankLine,
   candidateName,
-  categorizerLine,
+  categorizerFact,
   addFrame,
   downloadLine,
   gapTitle,
   howFarBackTitle,
   lateStartTitle,
-  periodLine,
+  periodSpan,
   severalTitle,
   startFromLabel,
 } from "./words";
@@ -214,46 +214,27 @@ describe("the conditional cards", () => {
 });
 
 describe("Confirm's facts", () => {
-  it("puts each in a line", () => {
-    expect(bankLine(candidate(), "bank")).toBe("Sample Bank · ending 0012");
-    expect(bankLine(candidate({ identifier: null }), "bank")).toBe(
-      "Sample Bank",
-    );
-    expect(bankLine(candidate({ institution: "" }), "bank")).toBe(
-      "Account ending 0012",
-    );
+  it("gives the statements' months", () => {
     expect(
-      bankLine(
-        candidate({ institution: "", identifier: "050505XXXXXX0505" }),
-        "card",
-      ),
-    ).toBe("Card ending 0505");
-    expect(
-      bankLine(candidate({ institution: "", identifier: null }), "card"),
-    ).toBe("New card");
-    expect(
-      periodLine(
+      periodSpan(
         candidate({
           period: { first_date: "2025-01-03", last_date: "2026-08-28" },
-          transactions: 600,
         }),
       ),
-    ).toBe("Jan 2025 – Aug 2026 · 600 transactions");
-    expect(periodLine(candidate({ transactions: 1 }))).toBe(
-      "Jan – Feb 2025 · 1 transaction",
-    );
+    ).toBe("Jan 2025 – Aug 2026");
+    expect(periodSpan(candidate({ period: null }))).toBeNull();
   });
 
   it("says who categorizes, or why nobody does", () => {
-    expect(categorizerLine({ ready: true, name: "Sample Agent" })).toBe(
-      "Categorized by Sample Agent",
+    expect(categorizerFact({ ready: true, name: "Sample Agent" })).toBe(
+      "Sample Agent",
     );
     expect(
-      categorizerLine({
+      categorizerFact({
         ready: false,
         name: "no coding agent",
         reason: "No coding agent is installed.",
       }),
-    ).toBe("Not categorized: No coding agent is installed.");
+    ).toBe("No coding agent is installed.");
   });
 });

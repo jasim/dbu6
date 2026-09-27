@@ -33,8 +33,14 @@ type Answer = { status: number; body: unknown };
 
 let host: HTMLDivElement;
 let root: Root;
-let answers: Record<string, (form: FormData | null) => Answer>;
+let answers: Record<
+  string,
+  (form: FormData | null) => Answer | Promise<Answer>
+>;
 let sent: { path: string; files: string[]; fields: Record<string, string> }[];
+// The progress ids adds were sent with, and what their progress says.
+let progressIds: string[];
+let progress: unknown;
 let books: StatementAccounts;
 
 beforeAll(() => {
@@ -48,6 +54,8 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   sent = [];
+  progressIds = [];
+  progress = null;
   books = structuredClone(DATA);
   answers = {
     "GET /agent-handoff": () => ok({ mode: "none" }),
@@ -64,7 +72,8 @@ beforeEach(() => {
       if (form) {
         const fields: Record<string, string> = {};
         for (const [name, value] of form.entries()) {
-          if (typeof value === "string") fields[name] = value;
+          if (name === "progress_id") progressIds.push(String(value));
+          else if (typeof value === "string") fields[name] = value;
         }
         sent.push({
           path,
@@ -72,9 +81,14 @@ beforeEach(() => {
           fields,
         });
       }
+      if (path.startsWith("/add-account/progress/")) {
+        return progress === null
+          ? Response.json({ error: "No add is running." }, { status: 404 })
+          : Response.json(progress);
+      }
       const key = `${method} ${path}`;
       if (!(key in answers)) throw new Error(`No answer for ${key}`);
-      const { status, body } = answers[key](form);
+      const { status, body } = await answers[key](form);
       return Response.json(body, { status });
     }),
   );
@@ -114,7 +128,7 @@ function withAdded(account_id: number, name: string) {
     entries: 0,
     drafts: 40,
   });
-  return ok({ account_id, account_name: name, drafts: 40 });
+  return ok({ account_id, account_name: name, drafts: 40, categorized: 30 });
 }
 
 function candidate(
@@ -284,6 +298,16 @@ function field(label: string): HTMLInputElement | null {
 
 const nameField = () => field("Name")!;
 
+/** The card's facts, by label. */
+function facts(): Record<string, string> {
+  return Object.fromEntries(
+    [...host.querySelectorAll("dl > div")].map((row) => [
+      row.querySelector("dt")?.textContent ?? "",
+      row.querySelector("dd")?.textContent ?? "",
+    ]),
+  );
+}
+
 describe("adding a bank or card", () => {
   it("reads the drop, confirms it as facts, adds it and opens its drafts", async () => {
     answers["POST /add-account/read"] = () => ok(reading([candidate()]));
@@ -296,9 +320,12 @@ describe("adding a bank or card", () => {
     await drop("jan.xls", "feb.xls");
 
     expect(title()).toBe("Sample Bank · ending 0012");
-    expect(text()).toContain("Jan – Feb 2025 · 40 transactions");
-    expect(text()).toContain("✓ Balances add up");
-    expect(text()).toContain("Categorized by Sample Agent");
+    expect(facts()).toEqual({
+      Statements: "Jan – Feb 2025",
+      Transactions: "40",
+      Balances: "✓ Add up",
+      Categorizer: "Sample Agent",
+    });
     // A bank dbu6 knows: no bank field.
     expect(
       [...host.querySelectorAll("label")].map((label) => label.textContent),
@@ -315,7 +342,48 @@ describe("adding a bank or card", () => {
       files: ["jan.xls", "feb.xls"],
       fields: { name: "Sample Savings", parent_id: "1" },
     });
-    expect(where()).toBe("/review/12/drafts?imported=1 files:");
+    expect(progressIds).toHaveLength(1);
+    expect(where()).toBe(
+      "/review/12?imported=1&drafts=40&categorized=30 files:",
+    );
+  });
+
+  it("shows the add's steps while it runs, then hands off", async () => {
+    let finish: (answer: Answer) => void = () => {};
+    answers["POST /add-account/read"] = () => ok(reading([candidate()]));
+    answers["POST /add-account/add"] = () =>
+      new Promise<Answer>((resolve) => (finish = resolve));
+    await render("/add?from=2025-01");
+    await drop("jan.xls", "feb.xls");
+    progress = {
+      stage: "llm",
+      rules: { transactions: 40, matched: 10 },
+      llm: { descriptions: 25, answered: 0 },
+    };
+    await click("Add to books");
+
+    expect(title()).toBe("Adding Sample Savings");
+    expect(facts()).toMatchObject({
+      Bank: "Sample Bank",
+      "Parent account": "Bank Accounts",
+      Transactions: "40",
+    });
+    const steps = () =>
+      [...host.querySelectorAll('ol[aria-label="Progress"] > li')].map(
+        (step) => step.textContent,
+      );
+    expect(steps()).toEqual([
+      "Set up the account (done)",
+      "Apply your rules (done)10 of 40 categorized",
+      "Ask Sample Agent0 of 25 descriptions answered",
+      "Save as drafts",
+    ]);
+
+    await act(async () => finish(withAdded(12, "Sample Savings")));
+    await settle();
+    expect(where()).toBe(
+      "/review/12?imported=1&drafts=40&categorized=30 files:",
+    );
   });
 
   it("shows the add's refusal under the button, and reads the files again", async () => {
@@ -440,7 +508,7 @@ describe("adding a bank or card", () => {
     await type(host.querySelector("input")!, "2,500");
     await click("Continue");
 
-    expect(text()).toContain("Starts at 2,500.00 owed on 31 Dec 2024");
+    expect(facts()["Opening balance"]).toBe("2,500.00 owed on 31 Dec 2024");
     await click("Add to books");
     expect(sent[1].fields).toEqual({
       opening_amount: "-2500",

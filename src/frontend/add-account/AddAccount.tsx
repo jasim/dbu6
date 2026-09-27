@@ -5,7 +5,7 @@ import { usePageTitle } from "@sapporta/frontend/shell";
 import type { AccountKind, AddAccountFields } from "../../shared/index";
 import { apiErrorMessage } from "../api";
 import { refreshSetup, statementAccountsQuery } from "../queries";
-import { draftsHandOffHref } from "../review/routes";
+import { importedHref } from "../review/routes";
 import type { ProblemAction } from "../views/import-statements/describeProblems";
 import {
   IMPORT_ROUTE,
@@ -139,9 +139,12 @@ export function AddAccount() {
     navigate(addHref({ setup: url.setup, from }), { replace });
   }
 
-  async function add(fields: AddAccountFields): Promise<void> {
+  async function add(
+    fields: AddAccountFields,
+    progressId: string,
+  ): Promise<void> {
     setAddRefusal(null);
-    const reply = await sendAdd(files, fields).catch(
+    const reply = await sendAdd(files, fields, progressId).catch(
       (error: unknown) =>
         ({ kind: "failed", message: apiErrorMessage(error) }) as const,
     );
@@ -157,7 +160,7 @@ export function AddAccount() {
       await read(files, { quiet: true });
       return;
     }
-    const { account_id } = reply.added;
+    const { account_id, drafts, categorized } = reply.added;
     readCount.current++;
     setFiles([]);
     setReading(null);
@@ -165,7 +168,7 @@ export function AddAccount() {
       // Card 5 comes from the URL, so a reload shows it again.
       navigate(addHref({ ...url, added: account_id }), { replace: true });
     } else {
-      navigate(draftsHandOffHref(account_id));
+      navigate(importedHref(account_id, { drafts, categorized }));
     }
   }
 

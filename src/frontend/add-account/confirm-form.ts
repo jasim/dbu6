@@ -8,9 +8,9 @@ import type { Opening } from "./state";
 
 /*
  * Card 4's form, for a new account: its name, following the bank until the
- * user types one; its group; or an account from the chart instead; and the
- * bank itself only when no bank the books know lists the parser. No number:
- * the statements supply it. The form says only what the fields in view
+ * user types one; its parent account; or an existing account from the
+ * chart instead; and the bank itself only when no bank the books know
+ * lists the parser. No number: the statements supply it. The form says only what the fields in view
  * lack; everything else is the server's to refuse, in its words.
  */
 
@@ -55,7 +55,7 @@ export function suggestedName(
 /**
  * The form as Confirm opens it: the bank as the read names it (the server
  * has matched it to one the books know), the name that follows from it,
- * and the usual group.
+ * and the usual parent account.
  */
 export function confirmDraft(
   account: AddAccountCandidate,
@@ -106,10 +106,13 @@ export interface ConfirmLayout {
   /** The bank: only when no bank the books know lists the parser. */
   bank: boolean;
   /**
-   * The group: in view when there's no usual one to start from (the first
-   * bank or card), or the kind's sit under several; else under More options.
+   * The parent account: in view when no bank or card of the kind sits
+   * under one yet (the first), or they sit under several; else under More
+   * options.
    */
-  groupInView: boolean;
+  parentInView: boolean;
+  /** Whether the parent may be left as it is: it starts with a default. */
+  parentOptional: boolean;
   /** An account in the chart of the kind's type that no bank or card uses. */
   canUseExisting: boolean;
 }
@@ -119,10 +122,13 @@ export function confirmLayout(
   kind: AccountKind,
   data: StatementAccounts,
 ): ConfirmLayout {
+  const usual = data.accounts.some(
+    (row) => row.kind === kind && row.parent !== null,
+  );
   return {
     bank: !account.institution_listed,
-    groupInView:
-      data.default_parents[kind] === null || data.mixed_parents[kind],
+    parentInView: !usual || data.mixed_parents[kind],
+    parentOptional: data.default_parents[kind] !== null,
     canUseExisting: unlistedOf(data, kind).length > 0,
   };
 }
@@ -163,7 +169,7 @@ export function readConfirm(
   if (draft.parentId !== null) {
     fields.parent_id = draft.parentId;
   } else if (data.default_parents[kind] === null) {
-    return { ok: false, problem: "Pick a group." };
+    return { ok: false, problem: "Pick a parent account." };
   }
   return { ok: true, fields };
 }

@@ -245,16 +245,22 @@ export function FocusLoading({
   );
 }
 
-/** A card's field: its label, a hint under it if any, then the control. */
+/**
+ * A card's field: its label, a few quiet words beside it if any, a hint under
+ * it if any, then the control.
+ */
 export function Field({
   id,
   label,
+  aside,
   hint,
   children,
 }: {
   /** The control the label names. */
   id: string;
   label: string;
+  /** Beside the label, such as "optional". */
+  aside?: string;
   hint?: string;
   children: ReactNode;
 }) {
@@ -265,6 +271,11 @@ export function Field({
         className="block text-row font-semibold text-foreground"
       >
         {label}
+        {aside && (
+          <span className="ml-1.5 text-meta font-normal text-ink-meta">
+            {aside}
+          </span>
+        )}
       </label>
       {hint && <p className="text-meta text-ink-meta">{hint}</p>}
       {children}

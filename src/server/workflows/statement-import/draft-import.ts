@@ -19,6 +19,7 @@ import {
 } from "../../modules/journal-plan/index.js";
 import { loadHledgerAccountNames } from "../../modules/accounts/index.js";
 import { toDraftRows, persistDrafts } from "../../modules/drafts/index.js";
+import type { OnImportProgress } from "./statement-import.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 
 // What an import did, as the contract states it (src/shared). Everything
@@ -39,6 +40,7 @@ export interface DraftImportInput {
   // How many rows the statement had before the reconciliation filter.
   rawTransactionCount: number;
   categorizer: Categorizer;
+  onProgress?: OnImportProgress;
   logPrefix: string;
   db: any;
   auth: LedgerAuth;
@@ -59,6 +61,7 @@ export async function runDraftImport(
     transactions: newTransactions,
     rawTransactionCount: rawCount,
     categorizer,
+    onProgress,
     logPrefix,
     db,
     auth,
@@ -69,7 +72,9 @@ export async function runDraftImport(
     categorizer,
     newTransactions.map((transaction) => ({ transaction, baseAccountId })),
     accountsByName,
+    onProgress,
   );
+  onProgress?.({ stage: "saving" });
   const categorized: Chrono<CategorizedRow> = unsafeAsChrono(
     categorization.rows,
   );

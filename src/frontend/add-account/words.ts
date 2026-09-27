@@ -10,7 +10,6 @@ import {
   joinNames,
   maskIdentifier,
   monthName,
-  plural,
 } from "../format";
 import type { FocusFrame } from "../components/focus-card";
 import { suggestedName } from "./confirm-form";
@@ -167,19 +166,14 @@ export function addMonthsLabel(from: string, starts: string): string {
   return `Add ${twoMonths(from, addMonths(starts, -1), "–", false)}`;
 }
 
-/** Card 4's facts as a line: "Jan 2025 – Aug 2026 · 612 transactions". */
-export function periodLine(account: AddAccountCandidate): string {
-  const parts: string[] = [];
-  if (account.period) {
-    parts.push(
-      formatMonthSpan(
+/** Card 4's statements' months: "Jan 2025 – Aug 2026"; null with no dates. */
+export function periodSpan(account: AddAccountCandidate): string | null {
+  return account.period
+    ? formatMonthSpan(
         monthOf(account.period.first_date),
         monthOf(account.period.last_date),
-      ),
-    );
-  }
-  parts.push(plural(account.transactions, "transaction"));
-  return parts.join(" · ");
+      )
+    : null;
 }
 
 /**
@@ -203,10 +197,8 @@ export function bankLine(
 }
 
 /** Card 4's categorizer fact: who, or why nobody. */
-export function categorizerLine(categorizer: LlmStatus): string {
-  return categorizer.ready
-    ? `Categorized by ${categorizer.name}`
-    : `Not categorized: ${categorizer.reason}`;
+export function categorizerFact(categorizer: LlmStatus): string {
+  return categorizer.ready ? categorizer.name : categorizer.reason;
 }
 
 /** The balance card's question. */

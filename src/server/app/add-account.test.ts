@@ -38,6 +38,7 @@ vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
 }));
 
 import { loadDbu6App } from "../mount.js";
+import { nextProgress } from "./add-account.js";
 import { dbu6MigrationsDir } from "../paths.js";
 
 /*
@@ -294,6 +295,7 @@ describe("POST /add-account/add", () => {
       account_id: body.account_id,
       account_name: "Sample Current",
       drafts: 2,
+      categorized: 2,
     });
     expect(staged()).toEqual([]);
 
@@ -367,5 +369,47 @@ describe("POST /add-account/add", () => {
       code: "statement_unreadable",
     });
     expect(staged()).toEqual([]);
+  });
+});
+
+describe("an add's progress", () => {
+  it("is there only while the add runs", async () => {
+    const response = await addDrop(["other-aug.pdf"], {
+      name: "Sample Current",
+      parent_id: "1",
+      progress_id: "sample-progress-050505",
+    });
+    expect(response.status).toBe(200);
+    const after = await app.request(
+      "/add-account/progress/sample-progress-050505",
+    );
+    expect(after.status).toBe(404);
+  });
+
+  it("follows the import: the rules, the agent's answers, then saving", () => {
+    const rules = nextProgress(undefined, {
+      stage: "rules",
+      transactions: 40,
+      matched: 10,
+    });
+    expect(rules).toEqual({
+      stage: "rules",
+      rules: { transactions: 40, matched: 10 },
+      llm: null,
+    });
+    const asked = nextProgress(rules, {
+      stage: "llm",
+      descriptions: 25,
+      answered: 20,
+    });
+    expect(asked).toEqual({
+      stage: "llm",
+      rules: { transactions: 40, matched: 10 },
+      llm: { descriptions: 25, answered: 20 },
+    });
+    expect(nextProgress(asked, { stage: "saving" })).toEqual({
+      ...asked,
+      stage: "saving",
+    });
   });
 });

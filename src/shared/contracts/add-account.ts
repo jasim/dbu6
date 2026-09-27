@@ -176,10 +176,37 @@ export type AddAccountFields = z.infer<typeof addAccountFieldsSchema>;
 export const addAccountAddedSchema = z.object({
   account_id: z.number().int(),
   account_name: z.string(),
-  // Drafts the import made, for the hand-off.
+  // Drafts the import made, for the hand-off...
   drafts: z.number().int(),
+  // ...and how many of them the rules or the coding agent categorized.
+  categorized: z.number().int(),
 });
 export type AddAccountAdded = z.infer<typeof addAccountAddedSchema>;
+
+/**
+ * An add's own name for itself, sent as the `progress_id` field, by which
+ * the screen asks how far it has got while the add runs.
+ */
+export const addProgressIdSchema = z.string().regex(/^[\w-]{8,64}$/);
+
+/**
+ * How far a running add has got: setting up the account and reading its
+ * files, then categorizing (the rules, then the coding agent's answers so
+ * far, over the distinct descriptions it is sent), then saving the drafts.
+ */
+export const addProgressSchema = z.object({
+  stage: z.enum(["account", "rules", "llm", "saving"]),
+  // Set once the rules have run: the rows categorized, and those the rules
+  // answered.
+  rules: z
+    .object({ transactions: z.number().int(), matched: z.number().int() })
+    .nullable(),
+  // Set once the coding agent is asked; null when the rules left nothing.
+  llm: z
+    .object({ descriptions: z.number().int(), answered: z.number().int() })
+    .nullable(),
+});
+export type AddProgress = z.infer<typeof addProgressSchema>;
 
 export const addAccountRefusalSchema = z.object({
   // In the user's words.
@@ -302,7 +329,7 @@ export const addAccountContract = c.router({
     method: "POST",
     path: "/add-account/add",
     summary:
-      "Add a bank or card from its statements (`files`, all one account's; fields per addAccountFieldsSchema): create the ledger account and its preset entry (or use the one named, or the empty one the files belong to), tie it to the parser and number, record its opening balance the day before the earliest row, then import the files as /import does, categorization included. Everything that doesn't depend on timing is checked before anything is written",
+      "Add a bank or card from its statements (`files`, all one account's; fields per addAccountFieldsSchema, and an optional `progress_id` for addProgress): create the ledger account and its preset entry (or use the one named, or the empty one the files belong to), tie it to the parser and number, record its opening balance the day before the earliest row, then import the files as /import does, categorization included. Everything that doesn't depend on timing is checked before anything is written",
     contentType: "multipart/form-data",
     body: z.any(),
     responses: {
@@ -311,6 +338,19 @@ export const addAccountContract = c.router({
       400: addAccountRefusalSchema,
       403: errorBodySchema,
       422: addAccountRefusalSchema,
+    },
+  }),
+  addProgress: c.query({
+    method: "GET",
+    path: "/add-account/progress/:progressId",
+    summary:
+      "How far the running add sent with this `progress_id` has got. 404 before it starts and once it has answered",
+    pathParams: z.object({ progressId: addProgressIdSchema }),
+    query: z.object({}),
+    responses: {
+      200: addProgressSchema,
+      403: errorBodySchema,
+      404: errorBodySchema,
     },
   }),
 });

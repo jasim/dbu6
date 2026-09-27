@@ -7,6 +7,7 @@ import {
 } from "../../../shared/index.js";
 import type {
   CategorizationLlm,
+  CategorizationProgress,
   Categorizer,
   LoadCategorizer,
 } from "../../modules/categorization/index.js";
@@ -75,7 +76,17 @@ export interface ImportOptions {
   // the GPay recipient before categorization. Applied after transaction keys
   // are assigned, so the takeout never changes transaction identity.
   gpay: GPayIndex | null;
+  // Told how far the import has got, for a screen waiting on it.
+  onProgress?: OnImportProgress;
 }
+
+/**
+ * How far an import has got: categorization's steps, then saving the
+ * drafts.
+ */
+export type ImportProgress = CategorizationProgress | { stage: "saving" };
+
+export type OnImportProgress = (progress: ImportProgress) => void;
 
 export interface StatementImportResult extends ImportSummary {
   gpay_enriched_count: number;
@@ -323,6 +334,7 @@ export async function runStatementImport(
     transactions: importable,
     rawTransactionCount: withBalances.length,
     categorizer: opts.categorizer,
+    onProgress: opts.onProgress,
     logPrefix: "statement-import",
     db: ledger.db,
     auth: ledger.auth,

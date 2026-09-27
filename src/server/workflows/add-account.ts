@@ -63,6 +63,7 @@ import {
   importPlannedGroups,
   isImportRefusal,
   type ImportRefusal,
+  type OnImportProgress,
   type StagedStatement,
 } from "./statement-import/index.js";
 
@@ -602,6 +603,8 @@ export async function addAccount(
   loadCategorizer: LoadCategorizer,
   files: readonly DroppedStatement[],
   fields: AddAccountFields,
+  // Told how far the import has got, once the account is set up.
+  onProgress?: OnImportProgress,
 ): Promise<AddAccountOutcome> {
   const drop = await readDrop(ledger, files);
   const unreadable = drop.files.filter((file) => file.status !== "read");
@@ -686,6 +689,7 @@ export async function addAccount(
         account,
         statements,
         checked.opening,
+        onProgress,
       );
     }
 
@@ -732,7 +736,7 @@ export async function addAccount(
           fields.parent_id ??
           loadStatementAccounts(ledger).default_parents[kind];
         if (parentId === null) {
-          return refused("invalid_fields", "Pick a group for it.");
+          return refused("invalid_fields", "Pick a parent account for it.");
         }
         ledgerChoice = {
           source: "new",
@@ -782,6 +786,7 @@ export async function addAccount(
         { id: created.accountId, name },
         statements,
         checked.opening,
+        onProgress,
       );
     }
   }
@@ -870,6 +875,7 @@ async function importAdded(
   account: { id: number; name: string },
   statements: readonly RecognizedStatement[],
   opening: { date: string; amount: number | null },
+  onProgress: OnImportProgress | undefined,
 ): Promise<AddAccountOutcome> {
   if (opening.amount !== null) {
     const recorded = recordOpeningBalance(ledger, {
@@ -913,6 +919,7 @@ async function importAdded(
     null,
     ledger,
     loadCategorizer,
+    onProgress,
   );
   switch (outcome.kind) {
     case "failed":
@@ -927,6 +934,11 @@ async function importAdded(
           account_name: account.name,
           drafts: outcome.imported.reduce(
             (sum, one) => sum + one.result.draft_transaction_count,
+            0,
+          ),
+          categorized: outcome.imported.reduce(
+            (sum, { result: { categorization_tally: tally } }) =>
+              sum + tally.by_rule + tally.by_llm,
             0,
           ),
         },

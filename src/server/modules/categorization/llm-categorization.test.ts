@@ -439,6 +439,27 @@ describe("categorizeViaLLM", () => {
     });
   });
 
+  it("says how many descriptions are answered after each call", async () => {
+    answerEveryRow();
+    const txns = Array.from({ length: 120 }, (_, i) => withdrawal(`SHOP${i}`));
+    const progress: unknown[] = [];
+
+    await categorizeViaLLM(
+      txns,
+      txns.map((_, i) => i),
+      { ...config, llm: engine({ caller: batchedCaller }) },
+      (event) => progress.push(event),
+    );
+
+    // The first call goes alone; the other two may land in either order.
+    expect(progress).toEqual([
+      { stage: "llm", descriptions: 120, answered: 0 },
+      { stage: "llm", descriptions: 120, answered: 50 },
+      { stage: "llm", descriptions: 120, answered: expect.any(Number) },
+      { stage: "llm", descriptions: 120, answered: 120 },
+    ]);
+  });
+
   it("counts only a failed call's own descriptions and keeps the other calls' answers", async () => {
     answerEveryRow();
     listMock.mockImplementationOnce(

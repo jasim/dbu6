@@ -1,6 +1,5 @@
 import { useId, useState } from "react";
 import { Input } from "@sapporta/ui";
-import { cn } from "@sapporta/ui/cn";
 import type {
   AccountKind,
   AddAccountCandidate,
@@ -9,6 +8,7 @@ import type {
   StatementAccounts,
 } from "../../shared/index";
 import { Disclosure } from "../components/disclosure";
+import { FactTable, type Fact } from "../components/fact-table";
 import { Button } from "../components/ui/button";
 import { formatBalance, formatDate } from "../format";
 import {
@@ -25,13 +25,15 @@ import {
   type ConfirmDraft,
 } from "./confirm-form";
 import { Field, FocusCard, type FocusFrame } from "../components/focus-card";
+import { Importing, newProgressId } from "./Importing";
 import type { Opening } from "./state";
-import { bankLine, categorizerLine, periodLine } from "./words";
+import { bankLine, categorizerFact, periodSpan } from "./words";
 
 /**
  * Card 4: what dbu6 read, as facts, and the account it goes into. The
  * account is written here and nowhere earlier, with its files imported and
- * categorized; a refusal is one line under the button.
+ * categorized; while that runs the card gives way to Importing, and a
+ * refusal brings it back, as it was, with one line under the button.
  */
 export function Confirm({
   frame,
@@ -51,11 +53,12 @@ export function Confirm({
   data: StatementAccounts;
   /** The server's refusal of the last add, in its words. */
   refusal: string | null;
-  onAdd: (fields: AddAccountFields) => Promise<void>;
+  onAdd: (fields: AddAccountFields, progressId: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(() => confirmDraft(account, kind, data));
   const [problem, setProblem] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // The running add's progress id; null when none runs.
+  const [adding, setAdding] = useState<string | null>(null);
   const fixed = account.account;
 
   async function add() {
@@ -65,11 +68,12 @@ export function Confirm({
       return;
     }
     setProblem(null);
-    setBusy(true);
+    const progressId = newProgressId();
+    setAdding(progressId);
     try {
-      await onAdd(read.fields);
+      await onAdd(read.fields, progressId);
     } finally {
-      setBusy(false);
+      setAdding(null);
     }
   }
 
@@ -77,23 +81,32 @@ export function Confirm({
     setDraft(next);
     setProblem(null);
   };
-  const said = busy ? null : (problem ?? refusal);
+  const said = problem ?? refusal;
+  const title = fixed ? fixed.name : bankLine(account, kind);
+
+  if (adding !== null) {
+    return (
+      <Importing
+        frame={frame}
+        progressId={adding}
+        name={fixed?.name ?? accountName(draft, data)}
+        facts={[
+          ...destinationFacts(account, kind, draft, data),
+          ...statementFacts(account),
+        ]}
+        categorizer={categorizer}
+      />
+    );
+  }
 
   return (
     <FocusCard
       {...frame}
-      title={fixed ? fixed.name : bankLine(account, kind)}
+      title={title}
       lead={fixed ? bankLine(account, kind) : undefined}
       actions={
         <div className="flex flex-col items-end gap-2">
-          <Button disabled={busy} onClick={() => void add()}>
-            {busy ? "Adding…" : "Add to books"}
-          </Button>
-          {busy && (
-            <p role="status" className="text-meta text-ink-meta">
-              Importing and categorizing. This can take a minute.
-            </p>
-          )}
+          <Button onClick={() => void add()}>Add to books</Button>
           {said && (
             <p
               role="alert"
@@ -105,11 +118,12 @@ export function Confirm({
         </div>
       }
     >
-      <Facts
-        account={account}
-        kind={kind}
-        opening={opening}
-        categorizer={categorizer}
+      <FactTable
+        rows={[
+          ...statementFacts(account),
+          balanceFact(opening, kind),
+          categorizerRow(categorizer),
+        ]}
       />
       {!fixed && (
         <AccountFields
@@ -124,51 +138,84 @@ export function Confirm({
   );
 }
 
-/** What the statements say, and who categorizes them. */
-function Facts({
-  account,
-  kind,
-  opening,
-  categorizer,
-}: {
-  account: AddAccountCandidate;
-  kind: AccountKind;
-  opening: Opening;
-  categorizer: LlmStatus;
-}) {
-  return (
-    <div className="space-y-1 rounded-control bg-sap-nested px-3.5 py-3 text-row text-foreground">
-      <p className="tnum">{periodLine(account)}</p>
-      {opening.from === "typed" ? (
-        <p className="text-ink-soft">
-          Starts at{" "}
-          <span className="tnum font-mono">
-            {formatBalance(opening.amount, kind)}
-          </span>{" "}
-          on {formatDate(opening.date)}, as you gave it
-        </p>
-      ) : opening.from === "books" ? (
-        <p className="text-ink-soft">Starts from its opening balance</p>
-      ) : (
-        <p className="text-primary">
-          <span aria-hidden="true">✓</span> Balances add up
-        </p>
-      )}
-      <p
-        className={cn(
-          "[overflow-wrap:anywhere]",
-          categorizer.ready ? "text-ink-soft" : "text-attention-ink",
-        )}
-      >
-        {categorizerLine(categorizer)}
-      </p>
-    </div>
-  );
+/** What the statements hold: their months and their rows. */
+function statementFacts(account: AddAccountCandidate): Fact[] {
+  const span = periodSpan(account);
+  return [
+    ...(span === null ? [] : [{ label: "Statements", value: span }]),
+    { label: "Transactions", value: String(account.transactions) },
+  ];
+}
+
+/** Where the balances start, or that the statements' own add up. */
+function balanceFact(opening: Opening, kind: AccountKind): Fact {
+  switch (opening.from) {
+    case "typed":
+      return {
+        label: "Opening balance",
+        value: `${formatBalance(opening.amount, kind)} on ${formatDate(opening.date)}`,
+      };
+    case "books":
+      return {
+        label: "Opening balance",
+        value: "From your books",
+        face: "words",
+      };
+    default:
+      return { label: "Balances", value: "Add up", face: "words", tone: "ok" };
+  }
+}
+
+function categorizerRow(categorizer: LlmStatus): Fact {
+  return {
+    label: "Categorizer",
+    value: categorizerFact(categorizer),
+    face: "words",
+    tone: categorizer.ready ? undefined : "attention",
+  };
+}
+
+/** The account the add writes to, as the importing card recalls it. */
+function destinationFacts(
+  account: AddAccountCandidate,
+  kind: AccountKind,
+  draft: ConfirmDraft,
+  data: StatementAccounts,
+): Fact[] {
+  const bank = account.institution_listed
+    ? account.institution
+    : draft.institution.trim();
+  const facts: Fact[] =
+    bank === ""
+      ? []
+      : [
+          {
+            label: kind === "card" ? "Card issuer" : "Bank",
+            value: bank,
+            face: "words",
+          },
+        ];
+  if (account.account !== null || draft.existingId !== null) return facts;
+  const parent = data.parents[kind].find((one) => one.id === draft.parentId);
+  return parent === undefined
+    ? facts
+    : [
+        ...facts,
+        { label: "Parent account", value: parent.name, face: "words" },
+      ];
+}
+
+/** The name the new account gets, or the existing one it goes into. */
+function accountName(draft: ConfirmDraft, data: StatementAccounts): string {
+  if (draft.existingId === null) return draft.name.trim();
+  const existing = data.unlisted.find((one) => one.id === draft.existingId);
+  return existing?.name ?? draft.name.trim();
 }
 
 /**
- * The new account's bank (when dbu6 hasn't met it) and name; under More
- * options, its group and an account from the chart to use instead.
+ * The new account's bank (when dbu6 hasn't met it), name and parent
+ * account; under More options, an existing account from the chart to use
+ * instead of a new one.
  */
 function AccountFields({
   account,
@@ -186,42 +233,46 @@ function AccountFields({
   const ids = {
     name: useId(),
     bank: useId(),
-    group: useId(),
+    parent: useId(),
     existing: useId(),
   };
   const layout = confirmLayout(account, kind, data);
   const existing = draft.existingId !== null;
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const group = (
-    <Field id={ids.group} label="Group">
+  const parent = (
+    <Field
+      id={ids.parent}
+      label="Parent account"
+      aside={layout.parentOptional ? "optional" : undefined}
+    >
       <AccountCombobox
-        id={ids.group}
+        id={ids.parent}
         choices={data.parents[kind]}
         value={draft.parentId}
         onChange={(parentId) => update({ ...draft, parentId })}
-        placeholder="Pick a group"
+        placeholder="Pick an account"
       />
     </Field>
   );
-  const groupInView = layout.groupInView && !existing;
+  const parentInView = layout.parentInView && !existing;
   const moreOptions = [
-    !groupInView && !existing && group,
+    !parentInView && !existing && parent,
     layout.canUseExisting && (
-      <Field id={ids.existing} label="An account from your chart">
+      <Field id={ids.existing} label="Use an existing account">
         <AccountCombobox
           id={ids.existing}
           choices={unlistedOf(data, kind)}
           value={draft.existingId}
           onChange={(existingId) => update({ ...draft, existingId })}
-          placeholder="None: add a new one"
+          placeholder="No, add a new one"
         />
       </Field>
     ),
   ].filter(Boolean);
 
   return (
-    <div className="mt-5 space-y-4">
+    <div className="mt-6 space-y-4">
       {layout.bank && (
         <Field id={ids.bank} label={kind === "card" ? "Card issuer" : "Bank"}>
           <InstitutionCombobox
@@ -243,7 +294,7 @@ function AccountFields({
           />
         </Field>
       )}
-      {groupInView && group}
+      {parentInView && parent}
       {moreOptions.length > 0 && (
         <Disclosure
           summary="More options"

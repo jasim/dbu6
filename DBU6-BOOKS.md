@@ -241,17 +241,23 @@ you couldn't encode.
     (a preset institution of that name, whatever its case and spacing, is
     the one used); `kind` only when it is `null`; and `opening_amount`,
     signed, only when `needs_opening`. `parent_id` defaults to the parent
-    most banks or cards of the kind share; for the first bank or card of
-    its kind there is none, so send it, picked with the user from
-    `parents.bank` or `parents.card` of
-    `sapporta api get /api/setup/statement-accounts` (else "Pick a group
-    for it."). An `empty` account needs only `opening_amount`, when asked.
+    most banks or cards of the kind share, and for the first of its kind
+    to the type's top account (Assets, Liabilities): `default_parents` of
+    `sapporta api get /api/setup/statement-accounts`. Where that is `null`
+    (the type has several top accounts), send it, picked with the user
+    from `parents.bank` or `parents.card` (else "Pick a parent account for
+    it."). An `empty` account needs only `opening_amount`, when asked.
     In order, each step refusing before the next writes, it checks the
     files as the import would, makes the ledger account and its preset
     entry (for an `empty` one, lists the parser and number it lacks),
     records the opening balance unless the account has one that agrees,
     and imports the files as `/import` does, categorization included. It
-    replies `account_id`, `account_name` and `drafts`. A refusal has a
+    replies `account_id`, `account_name`, `drafts`, and `categorized`, how
+    many of the drafts the rules or the coding agent categorized. Sent
+    with a `progress_id` field, the add answers
+    `GET /api/add-account/progress/<progress_id>` while it runs: its
+    `stage` (`account`, `rules`, `llm`, `saving`), what the rules matched,
+    and the coding agent's answers so far. A refusal has a
     `code` and an `error`; among them `several_accounts` (the files are two
     accounts'; add one at a time), `already_in_books`,
     `opening_balance_needed`, `opening_after_statement_start` (the

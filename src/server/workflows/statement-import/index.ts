@@ -6,6 +6,8 @@ export {
   runStatementImport,
   type CheckedStatement,
   type ImportOptions,
+  type ImportProgress,
+  type OnImportProgress,
   type StatementImportResult,
 } from "./statement-import.js";
 export {

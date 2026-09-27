@@ -15,6 +15,7 @@ import { createApiClient, type ThrowingClient } from "@sapporta/shared/client";
 import type { AppRouter } from "@sapporta/rest-core";
 import { getApiBase } from "@sapporta/frontend/platform";
 import {
+  addAccountContract,
   agentHandoffContract,
   categorizationLessonsContract,
   codingAgentContract,
@@ -76,6 +77,12 @@ export const codingAgentApi = createApiClient(codingAgentContract, {
 });
 
 export const setupApi = createApiClient(setupContract, {
+  baseUrl: getApiBase,
+});
+
+// The add itself is multipart, sent by add-account/upload.ts; this is for
+// its progress.
+export const addAccountApi = createApiClient(addAccountContract, {
   baseUrl: getApiBase,
 });
 
