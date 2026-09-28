@@ -60,7 +60,21 @@ beforeEach(() => {
   answers = {
     "GET /agent-handoff": () => ok({ mode: "none" }),
     "GET /setup/statement-accounts": () => ok(books),
+    "GET /setup/chart-of-accounts": () =>
+      ok({
+        state: "existing",
+        chart: {
+          accounts: [
+            { name: "Rent", account_type: "Expense", parent: null, note: null },
+          ],
+        },
+      }),
   };
+  // No motion: the ledger shows every answer at once.
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("reduce"),
+    media: query,
+  }));
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -356,26 +370,55 @@ describe("adding a bank or card", () => {
     await render("/add?from=2025-01");
     await drop("jan.xls", "feb.xls");
     progress = {
-      stage: "llm",
-      rules: { transactions: 40, matched: 10 },
-      llm: { descriptions: 25, answered: 0 },
+      stage: "account",
+      rows: [],
     };
     await click("Add to books");
 
+    // Until the rows are read, what it is adding.
     expect(title()).toBe("Adding Sample Savings");
     expect(facts()).toMatchObject({
       Bank: "Sample Bank",
       "Parent account": "Bank Accounts",
       Transactions: "40",
     });
+
+    // Then the rows, each with its account once someone has answered.
+    const row = (narration: string, account: string | null) => ({
+      date: "2026-01-05",
+      narration,
+      amount: 1000,
+      direction: "out",
+      account,
+      by: account === null ? null : "rule",
+    });
+    progress = {
+      stage: "llm",
+      rows: [
+        row("NOPII SAMPLE RENT", "Rent"),
+        row("UPI-sample-payee-050505", null),
+      ],
+    };
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    });
+    await settle();
+    expect(
+      [...host.querySelectorAll('ol[aria-label="Transactions"] > li')].map(
+        (one) => one.textContent,
+      ),
+    ).toEqual([
+      "5 JanNOPII SAMPLE RENTRent−1,000.00",
+      "5 JanUPI-sample-payee-050505−1,000.00",
+    ]);
     const steps = () =>
       [...host.querySelectorAll('ol[aria-label="Progress"] > li')].map(
         (step) => step.textContent,
       );
     expect(steps()).toEqual([
       "Set up the account (done)",
-      "Apply your rules (done)10 of 40 categorized",
-      "Ask Sample Agent0 of 25 descriptions answered",
+      "Apply your rules (done)1 of 2 categorized",
+      "Ask Sample Agent",
       "Save as drafts",
     ]);
 

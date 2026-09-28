@@ -297,9 +297,6 @@ export async function categorizeViaLLM(
   console.log(prompt);
   const calls = splitIntoCalls(rows, llm.caller.maxRowsPerCall);
   const caller = llm.caller;
-  // A call that fails counts as answered too: nothing more will come of it.
-  let answeredSoFar = 0;
-  onProgress?.({ stage: "llm", descriptions: rows.length, answered: 0 });
   const send = async (callRows: ListRow[], index: number) => {
     const outcome = await callList(
       llm,
@@ -308,12 +305,12 @@ export async function categorizeViaLLM(
       callRows,
       calls.length === 1 ? "" : ` (call ${index + 1} of ${calls.length})`,
     );
-    answeredSoFar += callRows.length;
-    onProgress?.({
-      stage: "llm",
-      descriptions: rows.length,
-      answered: answeredSoFar,
-    });
+    if (outcome.ok) {
+      onProgress?.({
+        stage: "llm",
+        answers: parseLLMResponse(outcome.rows, reverseMap),
+      });
+    }
     return outcome;
   };
 

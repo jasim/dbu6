@@ -25,6 +25,7 @@ import {
   Teach,
 } from "./conditions";
 import { Confirm } from "./Confirm";
+import type { Finale } from "../import-progress/LiveImport";
 import { Drop, ReadFailed, Reading as ReadingCard } from "./Drop";
 import { FocusLoading } from "../components/focus-card";
 import { HowFarBack } from "./HowFarBack";
@@ -142,6 +143,7 @@ export function AddAccount() {
   async function add(
     fields: AddAccountFields,
     progressId: string,
+    finale: Finale,
   ): Promise<void> {
     setAddRefusal(null);
     const reply = await sendAdd(files, fields, progressId).catch(
@@ -161,6 +163,7 @@ export function AddAccount() {
       return;
     }
     const { account_id, drafts, categorized } = reply.added;
+    await finale();
     readCount.current++;
     setFiles([]);
     setReading(null);

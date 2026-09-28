@@ -1,9 +1,9 @@
-import type { AddProgress, LlmStatus } from "../../shared/index";
+import type { ImportProgressReport, LlmStatus } from "../../shared/index";
 
 /*
- * What the importing card lists while an add runs, from the server's latest
- * word on it (`addProgress`): the steps in the order they happen, each
- * done, running or still to come, with its figures once it has them.
+ * What the importing screen lists while an import runs, from the server's
+ * latest word on it: the steps in the order they happen, each done,
+ * running or still to come, with its figures once it has them.
  */
 
 export type ImportingStepState = "done" | "running" | "waiting";
@@ -19,36 +19,48 @@ export interface ImportingStep {
 type StepKey = "account" | "rules" | "ask" | "save";
 
 /**
- * The steps, given the progress (null before the server has any: the add
- * is still setting the account up) and who categorizes.
+ * The steps, given the progress (null before the server has any: the
+ * import is still on its first step, `firstStep`) and who categorizes.
  */
 export function importingSteps(
-  progress: AddProgress | null,
+  progress: ImportProgressReport | null,
   categorizer: LlmStatus,
+  firstStep = "Set up the account",
 ): ImportingStep[] {
   const stage = progress?.stage ?? "account";
-  const rules = progress?.rules ?? null;
-  const llm = progress?.llm ?? null;
+  const rows = progress?.rows ?? [];
+  // What the rules answered, once they have run: they run on every row the
+  // import has.
+  const rules =
+    rows.length === 0
+      ? null
+      : {
+          transactions: rows.length,
+          matched: rows.filter((row) => row.by === "rule").length,
+        };
   // The rules left nothing for the agent: nothing to ask.
-  const nothingToAsk =
-    rules !== null && rules.matched === rules.transactions && llm === null;
+  const nothingToAsk = rules !== null && rules.matched === rules.transactions;
 
-  const reached: Record<StepKey, number> = {
+  const reached: Record<StepKey | "done", number> = {
     account: 0,
     rules: 1,
     ask: 2,
     save: 3,
+    done: 4,
   };
   // The step running now; the rules run in an instant, so once they have
-  // answered the agent is being asked, or the drafts saved.
-  const at: StepKey =
-    stage === "account"
-      ? "account"
-      : stage === "saving"
-        ? "save"
-        : categorizer.ready && !nothingToAsk
-          ? "ask"
-          : "save";
+  // answered the agent is being asked, or the drafts saved. None once the
+  // add has answered.
+  const at: StepKey | "done" =
+    stage === "done"
+      ? "done"
+      : stage === "account"
+        ? "account"
+        : stage === "saving"
+          ? "save"
+          : categorizer.ready && !nothingToAsk
+            ? "ask"
+            : "save";
   const state = (key: StepKey): ImportingStepState =>
     reached[key] < reached[at]
       ? "done"
@@ -57,7 +69,7 @@ export function importingSteps(
         : "waiting";
 
   const steps: ImportingStep[] = [
-    { label: "Set up the account", state: state("account") },
+    { label: firstStep, state: state("account") },
     {
       label: "Apply your rules",
       state: state("rules"),
@@ -71,11 +83,7 @@ export function importingSteps(
     steps.push({
       label: `Ask ${categorizer.name}`,
       state: state("ask"),
-      detail: nothingToAsk
-        ? "Nothing left to ask"
-        : llm === null
-          ? undefined
-          : `${llm.answered} of ${llm.descriptions} descriptions answered`,
+      detail: nothingToAsk ? "Nothing left to ask" : undefined,
     });
   }
   steps.push({ label: "Save as drafts", state: state("save") });

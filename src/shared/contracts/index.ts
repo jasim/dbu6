@@ -231,8 +231,6 @@ export {
   addAccountFieldsSchema,
   addAccountAddedSchema,
   addAccountRefusalSchema,
-  addProgressIdSchema,
-  addProgressSchema,
   refusalPromptsAgent,
   promptedFiles,
   readsNoTransactions,
@@ -245,10 +243,16 @@ export {
   type AddAccountFields,
   type AddAccountAdded,
   type AddAccountRefusal,
-  type AddProgress,
 } from "./add-account.js";
 export {
   commentWriterContract,
   commentWriterStatusSchema,
   type CommentWriterStatus,
 } from "./comment-writer.js";
+export {
+  importProgressIdSchema,
+  importProgressRowSchema,
+  importProgressSchema,
+  type ImportProgressReport,
+  type ImportProgressRow,
+} from "./import-progress.js";

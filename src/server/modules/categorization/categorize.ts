@@ -65,13 +65,17 @@ export interface CategorizedRow extends CategorizedTransaction {
 export type SameAccountSkip = z.infer<typeof sameAccountSkipSchema>;
 
 /**
- * How far categorization has got, as it goes: what the mapping rules
- * answered, then the LLM's answers so far, call by call. Descriptions are
- * the distinct ones the LLM is sent, which may be fewer than the rows.
+ * How far categorization has got, as it goes: the rows and what the mapping
+ * rules answered, then the LLM's answers, call by call. Answers name rows
+ * by their index, and may be UNCATEGORIZED.
  */
 export type CategorizationProgress =
-  | { stage: "rules"; transactions: number; matched: number }
-  | { stage: "llm"; descriptions: number; answered: number };
+  | {
+      stage: "rules";
+      transactions: readonly Abacus[];
+      answers: ReadonlyMap<number, Account>;
+    }
+  | { stage: "llm"; answers: ReadonlyMap<number, Account> };
 
 export type OnCategorizationProgress = (
   progress: CategorizationProgress,
@@ -245,8 +249,8 @@ async function answerAccounts(
   );
   onProgress?.({
     stage: "rules",
-    transactions: transactions.length,
-    matched: transactions.length - unmappedIndices.length,
+    transactions,
+    answers: mapped,
   });
 
   // 2. Call LLM for unmapped transactions

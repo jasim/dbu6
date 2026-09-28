@@ -77,6 +77,8 @@ export async function importStatementBatch(
   batch: StatementBatch,
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
+  // Told how far the import has got, account after account.
+  onProgress?: OnImportProgress,
 ): Promise<BatchImportOutcome> {
   const recognitions = await recognizeStatements(batch.statements);
   const plan = planAutoImport(recognitions, batch.institutions);
@@ -98,6 +100,7 @@ export async function importStatementBatch(
     gpay,
     ledger,
     loadCategorizer,
+    onProgress,
   );
 }
 

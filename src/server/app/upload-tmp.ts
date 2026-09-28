@@ -18,6 +18,17 @@ export function filesFromField(files: unknown, key: string): File[] {
   return candidates.filter((f): f is File => f instanceof File && f.size > 0);
 }
 
+// The multipart body's text fields. One left empty is one not sent.
+export function formFields(body: unknown): Record<string, string> {
+  if (body === null || typeof body !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(body).filter(
+      (entry): entry is [string, string] =>
+        typeof entry[1] === "string" && entry[1] !== "",
+    ),
+  );
+}
+
 export async function withTempUpload<T>(
   file: File,
   prefix: string,

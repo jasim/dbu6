@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Input } from "@sapporta/ui";
 import type {
   AccountKind,
@@ -25,7 +25,8 @@ import {
   type ConfirmDraft,
 } from "./confirm-form";
 import { Field, FocusCard, type FocusFrame } from "../components/focus-card";
-import { Importing, newProgressId } from "./Importing";
+import { Importing } from "./Importing";
+import { newProgressId, type Finale } from "../import-progress/LiveImport";
 import type { Opening } from "./state";
 import { bankLine, categorizerFact, periodSpan } from "./words";
 
@@ -53,12 +54,21 @@ export function Confirm({
   data: StatementAccounts;
   /** The server's refusal of the last add, in its words. */
   refusal: string | null;
-  onAdd: (fields: AddAccountFields, progressId: string) => Promise<void>;
+  /**
+   * Adds the account; once it has, and before handing off, it waits on
+   * `finale`, the importing card's last word.
+   */
+  onAdd: (
+    fields: AddAccountFields,
+    progressId: string,
+    finale: Finale,
+  ) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(() => confirmDraft(account, kind, data));
   const [problem, setProblem] = useState<string | null>(null);
   // The running add's progress id; null when none runs.
   const [adding, setAdding] = useState<string | null>(null);
+  const finale = useRef<Finale | null>(null);
   const fixed = account.account;
 
   async function add() {
@@ -71,7 +81,9 @@ export function Confirm({
     const progressId = newProgressId();
     setAdding(progressId);
     try {
-      await onAdd(read.fields, progressId);
+      await onAdd(read.fields, progressId, () =>
+        finale.current === null ? Promise.resolve() : finale.current(),
+      );
     } finally {
       setAdding(null);
     }
@@ -95,6 +107,7 @@ export function Confirm({
           ...statementFacts(account),
         ]}
         categorizer={categorizer}
+        finale={finale}
       />
     );
   }

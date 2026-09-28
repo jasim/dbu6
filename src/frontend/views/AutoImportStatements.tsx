@@ -1,11 +1,19 @@
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
+import type { LlmStatus } from "../../shared/index";
 import { Screen, ScreenTitle } from "../components/screen";
 import { Button } from "../components/ui/button";
 import { plural } from "../format";
+import { importDraftsApi } from "../api";
+import {
+  LiveImport,
+  newProgressId,
+  type Finale,
+} from "../import-progress/LiveImport";
+import { chartSuggesterQuery } from "../queries";
 import { REVIEW_ROUTE } from "../review/routes";
 import { AgentUnavailableDialog } from "./categorization/AgentUnavailableDialog";
 import { agentUnavailable } from "./categorization/describeCategorization";
@@ -49,15 +57,17 @@ function fileKey(file: File): string {
 /** Where the screen is: choosing files, importing them, or showing how it went. */
 type ImportRun =
   | { phase: "choosing" }
-  | { phase: "importing" }
+  // Its progress asked by `progressId`.
+  | { phase: "importing"; progressId: string }
   | { phase: "finished"; outcome: ImportOutcome };
 
 const CHOOSING: ImportRun = { phase: "choosing" };
 
 /**
  * Import statements (PLAN.md §11 P2): drop the files, press one button, and
- * the server imports them in one request. Afterwards the page says what came
- * in, or what stopped it and how to fix that.
+ * the server imports them in one request, its rows landing in a live ledger
+ * as they are categorized. Afterwards the page says what came in, or what
+ * stopped it and how to fix that.
  */
 export function AutoImportStatements() {
   usePageTitle("Import statements");
@@ -68,6 +78,9 @@ export function AutoImportStatements() {
   // Any change to the batch sets the run back to choosing, so a shown outcome
   // always describes the files as they were sent.
   const [run, setRun] = useState<ImportRun>(CHOOSING);
+  const finale = useRef<Finale | null>(null);
+  // Who categorizes, for the progress's steps; asked before the import.
+  const categorizer = useQuery(chartSuggesterQuery).data ?? NO_CATEGORIZER;
 
   function addFiles(incoming: File[]) {
     setFiles((prev) => {
@@ -112,8 +125,11 @@ export function AutoImportStatements() {
 
   async function handleSubmit() {
     if (files.length === 0 || run.phase === "importing") return;
-    setRun({ phase: "importing" });
-    const outcome = await sendStatements(files, gpayFile);
+    const progressId = newProgressId();
+    setRun({ phase: "importing", progressId });
+    const outcome = await sendStatements(files, gpayFile, progressId);
+    // The rows' last answers, before the page says how it went.
+    if (outcome.kind === "imported") await finale.current?.();
     if (outcome.kind === "failed") {
       // Accounts that imported before the failure are done: their files
       // leave the batch so a retry sends only what is left.
@@ -167,7 +183,7 @@ export function AutoImportStatements() {
         </ScreenTitle>
       }
     >
-      {!imported && (
+      {!imported && !loading && (
         <div className="mt-5">
           <Dropzone disabled={loading} onFiles={addFiles} />
           <p className="mt-3 text-meta text-ink-meta">
@@ -264,14 +280,28 @@ export function AutoImportStatements() {
         </section>
       )}
 
-      {!imported && (
-        <div className="mt-4">
-          <ImportButton
-            statements={files.length}
-            loading={loading}
-            onImport={() => void handleSubmit()}
+      {run.phase === "importing" ? (
+        <section
+          aria-label="Importing"
+          className="mt-5 rounded-card border border-sap-border bg-card px-5 py-6 shadow-card sm:px-7"
+        >
+          <LiveImport
+            progressId={run.progressId}
+            readProgress={readUploadProgress}
+            firstStep="Read the statements"
+            categorizer={categorizer}
+            finale={finale}
           />
-        </div>
+        </section>
+      ) : (
+        !imported && (
+          <div className="mt-4">
+            <ImportButton
+              statements={files.length}
+              onImport={() => void handleSubmit()}
+            />
+          </div>
+        )
       )}
 
       {outcome && imported && (
@@ -305,28 +335,23 @@ export function AutoImportStatements() {
   );
 }
 
+// Until the agent check answers, the steps leave the agent out.
+const NO_CATEGORIZER: LlmStatus = { ready: false, name: "", reason: "" };
+
+function readUploadProgress(progressId: string) {
+  return importDraftsApi.statementsAutoProgress({
+    params: { progressId },
+    query: {},
+  });
+}
+
 function ImportButton({
   statements,
-  loading,
   onImport,
 }: {
   statements: number;
-  loading: boolean;
   onImport: () => void;
 }) {
-  if (loading) {
-    return (
-      <div className="flex flex-col items-start gap-1.5">
-        <Button disabled>
-          <Loader2 className="animate-spin" />
-          Importing…
-        </Button>
-        <p role="status" className="text-meta text-ink-meta">
-          Reading, checking and categorising. This can take a minute.
-        </p>
-      </div>
-    );
-  }
   return (
     <Button
       onClick={onImport}

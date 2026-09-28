@@ -389,3 +389,89 @@ body {
 .report-result-body .sapporta-report-grid-dataset {
   padding-bottom: 8rem;
 }
+
+/* ── 7. The importing screen's live ledger (import-progress/LiveLedger.tsx)
+   Rows slide in a few at a time (--ledger-i is a row's place, capped), the
+   rules' accounts land in a sweep just after them, and each of the coding
+   agent's answers flashes its rows in their account's hue (--ledger-hue). A row still waiting
+   for an answer shimmers. The tally bar's segments grow from nothing
+   (@starting-style) and follow the counts (--seg). With reduced motion,
+   everything is simply there. */
+.ledger-seg {
+  flex-grow: var(--seg);
+  flex-basis: 0;
+}
+
+.ledger-wait {
+  background: var(--tile-bg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ledger-row-in {
+    animation: ledger-row-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: calc(var(--ledger-i, 0) * 22ms);
+  }
+
+  .ledger-chip-in {
+    animation: ledger-chip-in 280ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  }
+
+  .ledger-chip-in[data-by="rule"] {
+    animation-delay: calc(var(--ledger-i, 0) * 22ms + 280ms);
+  }
+
+  .ledger-flash {
+    animation: ledger-flash 1200ms ease-out;
+  }
+
+  .ledger-wait {
+    background: linear-gradient(
+      90deg,
+      var(--tile-bg) 20%,
+      var(--line-inner) 50%,
+      var(--tile-bg) 80%
+    );
+    background-size: 250% 100%;
+    animation: ledger-shimmer 1.6s linear infinite;
+  }
+
+  .ledger-seg {
+    transition: flex-grow 800ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  @starting-style {
+    .ledger-seg {
+      flex-grow: 0;
+    }
+  }
+}
+
+@keyframes ledger-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes ledger-chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes ledger-flash {
+  from {
+    background-color: color-mix(in srgb, var(--ledger-hue) 12%, transparent);
+    box-shadow: inset 3px 0 0 var(--ledger-hue);
+  }
+}
+
+@keyframes ledger-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}

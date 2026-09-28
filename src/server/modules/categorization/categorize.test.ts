@@ -170,17 +170,21 @@ describe("categorize", () => {
     llmMock.mockImplementation(answered({}));
     const progress: unknown[] = [];
 
+    const txns = [withdrawal("STARBUCKS"), withdrawal("MYSTERY")];
     await categorize(
       await loadCategorizer(baseConfig(), dir),
-      [withdrawal("STARBUCKS"), withdrawal("MYSTERY")].map((transaction) => ({
-        transaction,
-        baseAccountId: null,
-      })),
+      txns.map((transaction) => ({ transaction, baseAccountId: null })),
       ACCOUNTS,
       (event) => progress.push(event),
     );
 
-    expect(progress).toEqual([{ stage: "rules", transactions: 2, matched: 1 }]);
+    expect(progress).toEqual([
+      {
+        stage: "rules",
+        transactions: txns,
+        answers: new Map([[0, "Food"]]),
+      },
+    ]);
     // The LLM reports its own answers, on the same listener.
     expect(llmMock.mock.calls[0][3]).toEqual(expect.any(Function));
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AddProgress, LlmStatus } from "../../shared/index";
+import type { ImportProgressReport, LlmStatus } from "../../shared/index";
 import { elapsed, importingSteps } from "./importing-steps";
 
 const AGENT: LlmStatus = { ready: true, name: "Sample Agent" };
@@ -9,12 +9,26 @@ const NO_AGENT: LlmStatus = {
   reason: "No coding agent is installed.",
 };
 
-const steps = (progress: AddProgress | null, categorizer: LlmStatus = AGENT) =>
+// Rows the rules answered, then rows they left.
+const rows = (transactions: number, matched: number) =>
+  Array.from({ length: transactions }, (_, index) => ({
+    date: "2026-08-01",
+    narration: "SAMPLE PAYEE",
+    amount: 100,
+    direction: "out" as const,
+    account: index < matched ? "Food" : null,
+    by: index < matched ? ("rule" as const) : null,
+  }));
+
+const steps = (
+  progress: ImportProgressReport | null,
+  categorizer: LlmStatus = AGENT,
+) =>
   importingSteps(progress, categorizer).map((step) =>
     [step.label, step.state, step.detail].filter(Boolean).join(" · "),
   );
 
-describe("the importing card's steps", () => {
+describe("the importing steps", () => {
   it("sets the account up before the server says more", () => {
     expect(steps(null)).toEqual([
       "Set up the account · running",
@@ -24,17 +38,16 @@ describe("the importing card's steps", () => {
     ]);
   });
 
-  it("asks the agent about what the rules left, answer by answer", () => {
+  it("asks the agent about what the rules left", () => {
     expect(
       steps({
         stage: "llm",
-        rules: { transactions: 40, matched: 10 },
-        llm: { descriptions: 25, answered: 20 },
+        rows: rows(40, 10),
       }),
     ).toEqual([
       "Set up the account · done",
       "Apply your rules · done · 10 of 40 categorized",
-      "Ask Sample Agent · running · 20 of 25 descriptions answered",
+      "Ask Sample Agent · running",
       "Save as drafts · waiting",
     ]);
   });
@@ -43,8 +56,7 @@ describe("the importing card's steps", () => {
     expect(
       steps({
         stage: "rules",
-        rules: { transactions: 40, matched: 40 },
-        llm: null,
+        rows: rows(40, 40),
       }),
     ).toEqual([
       "Set up the account · done",
@@ -57,13 +69,30 @@ describe("the importing card's steps", () => {
   it("leaves the agent out when there is none", () => {
     expect(
       steps(
-        { stage: "saving", rules: { transactions: 4, matched: 1 }, llm: null },
+        {
+          stage: "saving",
+          rows: rows(4, 1),
+        },
         NO_AGENT,
       ),
     ).toEqual([
       "Set up the account · done",
       "Apply your rules · done · 1 of 4 categorized",
       "Save as drafts · running",
+    ]);
+  });
+
+  it("ticks every step once the add has answered", () => {
+    expect(
+      steps({
+        stage: "done",
+        rows: rows(4, 1),
+      }),
+    ).toEqual([
+      "Set up the account · done",
+      "Apply your rules · done · 1 of 4 categorized",
+      "Ask Sample Agent · done",
+      "Save as drafts · done",
     ]);
   });
 

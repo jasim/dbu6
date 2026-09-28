@@ -10,6 +10,7 @@ import {
   type LLMCategorizationConfig,
   type StatementTransaction,
 } from "./llm-categorization.js";
+import type { CategorizationProgress } from "./categorize.js";
 
 const listMock = vi.fn();
 // Whether the engine can be used, asked after a failed call; it answers by
@@ -461,10 +462,10 @@ describe("categorizeViaLLM", () => {
     });
   });
 
-  it("says how many descriptions are answered after each call", async () => {
+  it("tells each call's answers as it lands", async () => {
     answerEveryRow();
     const txns = Array.from({ length: 120 }, (_, i) => withdrawal(`SHOP${i}`));
-    const progress: unknown[] = [];
+    const progress: CategorizationProgress[] = [];
 
     await categorizeViaLLM(
       txns,
@@ -474,12 +475,38 @@ describe("categorizeViaLLM", () => {
     );
 
     // The first call goes alone; the other two may land in either order.
-    expect(progress).toEqual([
-      { stage: "llm", descriptions: 120, answered: 0 },
-      { stage: "llm", descriptions: 120, answered: 50 },
-      { stage: "llm", descriptions: 120, answered: expect.any(Number) },
-      { stage: "llm", descriptions: 120, answered: 120 },
-    ]);
+    const sizes = progress.map((event) => event.answers.size);
+    expect(sizes[0]).toBe(50);
+    expect(sizes.slice(1).sort()).toEqual([20, 50]);
+  });
+
+  it("says which rows each call answered", async () => {
+    listMock.mockResolvedValueOnce({
+      ok: true,
+      rows: [
+        { id: "txn-0", account: "Food" },
+        { id: "txn-1", account: "UNCATEGORIZED" },
+      ],
+    });
+    const txns = [
+      withdrawal("CAFE"),
+      withdrawal("MYSTERY"),
+      withdrawal("CAFE"),
+    ];
+    const progress: CategorizationProgress[] = [];
+
+    await categorizeViaLLM(txns, [0, 1, 2], config, (event) =>
+      progress.push(event),
+    );
+
+    // One description, two rows: both are answered.
+    expect(progress.at(-1)?.answers).toEqual(
+      new Map([
+        [0, "Food"],
+        [1, "UNCATEGORIZED"],
+        [2, "Food"],
+      ]),
+    );
   });
 
   it("counts only a failed call's own descriptions and keeps the other calls' answers", async () => {

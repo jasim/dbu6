@@ -369,6 +369,30 @@ describe("automatic statement import", () => {
     });
   }, 120_000);
 
+  it("tells each account's import how to report its progress", async () => {
+    runStatementImport.mockResolvedValue(importedNothing());
+    const onProgress = vi.fn();
+
+    await importStatementsAutomatically(
+      {
+        statements: [
+          await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
+          await fixtureFile("hdfc-cc-xls", "card-jan.xls"),
+        ],
+        gpay: null,
+      },
+      [cardPreset, bankPreset],
+      ledger,
+      loadCategorizer,
+      onProgress,
+    );
+
+    expect(runStatementImport).toHaveBeenCalledTimes(2);
+    for (const [, options] of runStatementImport.mock.calls) {
+      expect(options.onProgress).toBe(onProgress);
+    }
+  });
+
   it("imports nothing when no institution lists a recognised file's parser, and explains every file", async () => {
     const response = await importStatementsAutomatically(
       {

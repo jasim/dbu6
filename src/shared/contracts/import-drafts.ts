@@ -7,6 +7,10 @@ import { codingAgentSchema } from "./coding-agent.js";
 import { dateSpanSchema } from "./date-span.js";
 import { datedBalanceSchema } from "./dated-balance.js";
 import { statementImportErrorSchema } from "./import-errors.js";
+import {
+  importProgressIdSchema,
+  importProgressSchema,
+} from "./import-progress.js";
 import { statementAccountSchema } from "./statement-account.js";
 
 const c = initContract();
@@ -266,7 +270,7 @@ export const importDraftsContract = c.router({
     method: "POST",
     path: "/import-draft/statements/auto",
     summary:
-      "Upload statement files as `files`, and optionally a Google Pay Takeout HTML as `gpay` to name UPI recipients; each file is recognised by a saved parser, its preset account is resolved from the institution listing that parser and the account the statement reports, and one statement import runs per account",
+      "Upload statement files as `files`, and optionally a Google Pay Takeout HTML as `gpay` to name UPI recipients, and a `progress_id` for statementsAutoProgress; each file is recognised by a saved parser, its preset account is resolved from the institution listing that parser and the account the statement reports, and one statement import runs per account",
     contentType: "multipart/form-data",
     body: z.any(),
     responses: {
@@ -274,6 +278,19 @@ export const importDraftsContract = c.router({
       400: autoImportErrorSchema,
       403: errorBodySchema,
       422: autoImportErrorSchema,
+    },
+  }),
+  statementsAutoProgress: c.query({
+    method: "GET",
+    path: "/import-draft/statements/auto/progress/:progressId",
+    summary:
+      "How far the running upload sent with this `progress_id` has got, its rows and their accounts so far, over every account it imports. Stage `done` for a minute after it has answered; 404 before it starts and after that minute",
+    pathParams: z.object({ progressId: importProgressIdSchema }),
+    query: z.object({}),
+    responses: {
+      200: importProgressSchema,
+      403: errorBodySchema,
+      404: errorBodySchema,
     },
   }),
   importAbacusStatement: c.mutation({

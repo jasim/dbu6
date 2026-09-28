@@ -20,10 +20,13 @@ import {
   importStatementBatch,
   type BatchImportOutcome,
   type ImportedGroup,
+  type OnImportProgress,
 } from "../workflows/statement-import/index.js";
 import { importErrorResponse } from "./import-error-response.js";
+import { NOT_RUNNING, progressBoard } from "./import-progress.js";
 import {
   filesFromField,
+  formFields,
   uploadedFile,
   withStagedUploads,
   withTempUpload,
@@ -41,6 +44,9 @@ import { writeCommentsSoon } from "../workflows/comment-writer.js";
 //
 // Everything the account resolution decided is reported back, whether or not
 // anything was imported, so the user can fix the presets and retry.
+//
+// An upload sent with a `progress_id` says how far it has got to
+// `statementsAutoProgress` while it runs (import-progress.ts).
 //
 // The uploads are staged inside the project (tmp/statement-uploads/), and a
 // batch that did not import keeps them: every file the reply reports says
@@ -197,6 +203,7 @@ export async function importStatementsAutomatically(
   institutions: readonly ImportInstitution[],
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
+  onProgress?: OnImportProgress,
 ): Promise<AutoImportRouteResponse> {
   const { statements, gpay } = uploads;
   const received = statements
@@ -216,6 +223,7 @@ export async function importStatementsAutomatically(
       institutions,
       ledger,
       loadCategorizer,
+      onProgress,
     );
   if (gpay === null) return importWith(null);
   return withTempUpload(
@@ -232,6 +240,7 @@ async function importStaged(
   institutions: readonly ImportInstitution[],
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
+  onProgress: OnImportProgress | undefined,
 ): Promise<AutoImportRouteResponse> {
   return withStagedUploads(statements, async (staged) => {
     const outcome = await importStatementBatch(
@@ -245,6 +254,7 @@ async function importStaged(
       },
       ledger,
       loadCategorizer,
+      onProgress,
     );
     // The new drafts' comments, in the background.
     writeCommentsSoon();
@@ -284,11 +294,12 @@ export default function importDraftStatementsAutoApi(
   loadCategorizer: LoadCategorizer,
 ): TsRestApi<SapportaEnv> {
   const api = new TsRestApi<SapportaEnv>();
+  const running = progressBoard();
 
   api.register(
     "uploadStatementsAuto",
     importDraftsContract.uploadStatementsAuto,
-    async ({ c, files: uploadedFiles }) => {
+    async ({ c, request, files: uploadedFiles }) => {
       const ledger = requireWorkflowLedger(c);
 
       const statements = filesFromField(uploadedFiles, "files");
@@ -302,12 +313,29 @@ export default function importDraftStatementsAutoApi(
         };
       }
 
-      return importStatementsAutomatically(
-        { statements, gpay: uploadedFile(uploadedFiles, "gpay") },
-        loadImportPresets(ledger.db, ledger.auth),
-        ledger,
-        loadCategorizer,
-      );
+      const tracked = running.start(formFields(request.body).progress_id);
+      try {
+        return await importStatementsAutomatically(
+          { statements, gpay: uploadedFile(uploadedFiles, "gpay") },
+          loadImportPresets(ledger.db, ledger.auth),
+          ledger,
+          loadCategorizer,
+          tracked?.onProgress,
+        );
+      } finally {
+        tracked?.finish();
+      }
+    },
+  );
+
+  api.register(
+    "statementsAutoProgress",
+    importDraftsContract.statementsAutoProgress,
+    async ({ c, request }) => {
+      requireWorkflowLedger(c);
+      const progress = running.read(request.params.progressId);
+      if (progress === undefined) return NOT_RUNNING;
+      return { status: 200 as const, body: progress };
     },
   );
 

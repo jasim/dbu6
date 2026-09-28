@@ -22,6 +22,7 @@ import {
   commentWriterContract,
   draftTransactionsContract,
   homeContract,
+  importDraftsContract,
   importPresetsContract,
   journalsContract,
   openingBalancesContract,
@@ -88,6 +89,12 @@ export const commentWriterApi = createApiClient(commentWriterContract, {
 // The add itself is multipart, sent by add-account/upload.ts; this is for
 // its progress.
 export const addAccountApi = createApiClient(addAccountContract, {
+  baseUrl: getApiBase,
+});
+
+// The upload itself is multipart, sent by import-statements/outcome.ts;
+// this is for its progress.
+export const importDraftsApi = createApiClient(importDraftsContract, {
   baseUrl: getApiBase,
 });
 

@@ -272,8 +272,11 @@ you couldn't encode.
     many of the drafts the rules or the coding agent categorized. Sent
     with a `progress_id` field, the add answers
     `GET /api/add-account/progress/<progress_id>` while it runs: its
-    `stage` (`account`, `rules`, `llm`, `saving`), what the rules matched,
-    and the coding agent's answers so far. A refusal has a
+    `stage` (`account`, `rules`, `llm`, `saving`) and its `rows`, each
+    with the account answered so far and whether the rules or the coding
+    agent answered it. It stays readable, at stage `done`, for a minute
+    after the add answers.
+    A refusal has a
     `code` and an `error`; among them `several_accounts` (the files are two
     accounts'; add one at a time), `already_in_books`,
     `opening_balance_needed`, `opening_after_statement_start` (the

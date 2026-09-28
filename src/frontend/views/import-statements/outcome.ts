@@ -50,15 +50,20 @@ export type ImportOutcome =
   | { kind: "imported"; result: AutoImportResult }
   | { kind: "failed"; failure: ImportFailure };
 
-/** Sends the batch in one request and reads what came back. */
+/**
+ * Sends the batch in one request and reads what came back; its progress is
+ * asked by `progressId` while it runs.
+ */
 export async function sendStatements(
   files: readonly File[],
   gpay: File | null,
+  progressId: string,
 ): Promise<ImportOutcome> {
   // A plain fetch: the typed client sends JSON headers, and this is multipart.
   const form = new FormData();
   for (const file of files) form.append("files", file);
   if (gpay) form.append("gpay", gpay);
+  form.append("progress_id", progressId);
 
   let response: Response;
   try {

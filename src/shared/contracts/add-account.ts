@@ -5,6 +5,10 @@ import { accountKindSchema } from "./account-kind.js";
 import { llmStatusSchema } from "./coding-agent.js";
 import { dateSpanSchema } from "./date-span.js";
 import {
+  importProgressIdSchema,
+  importProgressSchema,
+} from "./import-progress.js";
+import {
   statementImportErrorSchema,
   type StatementImportError,
 } from "./import-errors.js";
@@ -183,31 +187,6 @@ export const addAccountAddedSchema = z.object({
 });
 export type AddAccountAdded = z.infer<typeof addAccountAddedSchema>;
 
-/**
- * An add's own name for itself, sent as the `progress_id` field, by which
- * the screen asks how far it has got while the add runs.
- */
-export const addProgressIdSchema = z.string().regex(/^[\w-]{8,64}$/);
-
-/**
- * How far a running add has got: setting up the account and reading its
- * files, then categorizing (the rules, then the coding agent's answers so
- * far, over the distinct descriptions it is sent), then saving the drafts.
- */
-export const addProgressSchema = z.object({
-  stage: z.enum(["account", "rules", "llm", "saving"]),
-  // Set once the rules have run: the rows categorized, and those the rules
-  // answered.
-  rules: z
-    .object({ transactions: z.number().int(), matched: z.number().int() })
-    .nullable(),
-  // Set once the coding agent is asked; null when the rules left nothing.
-  llm: z
-    .object({ descriptions: z.number().int(), answered: z.number().int() })
-    .nullable(),
-});
-export type AddProgress = z.infer<typeof addProgressSchema>;
-
 export const addAccountRefusalSchema = z.object({
   // In the user's words.
   error: z.string(),
@@ -344,11 +323,11 @@ export const addAccountContract = c.router({
     method: "GET",
     path: "/add-account/progress/:progressId",
     summary:
-      "How far the running add sent with this `progress_id` has got. 404 before it starts and once it has answered",
-    pathParams: z.object({ progressId: addProgressIdSchema }),
+      "How far the running add sent with this `progress_id` has got, its rows and their accounts so far. Stage `done` for a minute after it has answered; 404 before it starts and after that minute",
+    pathParams: z.object({ progressId: importProgressIdSchema }),
     query: z.object({}),
     responses: {
-      200: addProgressSchema,
+      200: importProgressSchema,
       403: errorBodySchema,
       404: errorBodySchema,
     },
