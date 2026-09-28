@@ -30,7 +30,7 @@ export function BalanceChecksTab() {
       <ReportTab>
         <CheckPasses
           title={checkText(check)}
-          body="Your statement shows a balance after each day's transactions. We worked that balance out ourselves from your transactions, including these drafts, and every one matches."
+          body="Balances here match the ones on your statement. We compare its opening balance, closing balance and per-transaction running balance against the balances we compute for your drafts — every one lines up. These entries are safe to import."
         />
       </ReportTab>
     );
