@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Copy, Sparkles, SquareTerminal } from "lucide-react";
+import { cn } from "@sapporta/ui/cn";
 import { CODING_AGENTS, type AgentHandoff } from "../../shared/index";
 import { planFirst } from "../agent-prompt-rules";
 import { agentHandoffApi, apiRefusalMessage } from "../api";
@@ -70,6 +71,12 @@ export function AgentPrompt({
  * is for and a violet box would be one box too many: the violet button takes
  * the panel's sparkle, and Copy prompt goes quiet beside it. The prompt
  * itself is then shown elsewhere, with `PromptText`.
+ *
+ * `commit`, they are the one action a region ends on rather than a row of
+ * equal controls: the button takes the region's whole width and a size above
+ * an in-row one, and Copy prompt drops to a quiet line under it beside
+ * `beside`. That is the shape a reader takes for "this is the last step",
+ * where a button sharing a row with Copy prompt reads as one way among two.
  */
 export function AgentActions({
   prompt,
@@ -77,6 +84,8 @@ export function AgentActions({
   onActed,
   goal,
   standalone = false,
+  commit = false,
+  beside,
 }: {
   prompt: string;
   /** What the user does once the agent has the prompt. */
@@ -93,6 +102,10 @@ export function AgentActions({
    */
   goal?: string;
   standalone?: boolean;
+  /** The region's commit: the button whole-width, Copy prompt under it. */
+  commit?: boolean;
+  /** On a commit's quiet line, beside Copy prompt: the prompt itself. */
+  beside?: ReactNode;
 }) {
   const availability = useQuery(agentHandoffAvailabilityQuery).data;
   // The button shows only where the server can start an agent; copying is
@@ -111,6 +124,18 @@ export function AgentActions({
   const agent = handsOff ? CODING_AGENTS[availability.agent].label : "";
   const terminal = handsOff && availability.mode === "terminal";
 
+  const copy = (quiet: boolean) => (
+    <CopyButton
+      text={text}
+      label="Copy prompt"
+      quiet={quiet}
+      onCopied={(copiedText) => {
+        setCopied(copiedText);
+        onActed?.("copied");
+      }}
+    />
+  );
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
@@ -119,11 +144,12 @@ export function AgentActions({
             type="button"
             variant="assist"
             size="sm"
-            className={
+            className={cn(
               goal === undefined
                 ? undefined
-                : "h-auto min-h-sap-ctl px-4 py-2.5 text-left"
-            }
+                : "h-auto min-h-sap-ctl px-4 py-2.5 text-left",
+              commit && "w-full py-3 text-row",
+            )}
             disabled={handoff.isPending}
             onClick={() =>
               handoff.mutate(text, {
@@ -150,22 +176,20 @@ export function AgentActions({
             )}
           </Button>
         )}
-        <CopyButton
-          text={text}
-          label="Copy prompt"
-          // Beside the violet button, copying is the lesser way; alone, it
-          // keeps its outline.
-          quiet={standalone && handsOff}
-          onCopied={(copiedText) => {
-            setCopied(copiedText);
-            onActed?.("copied");
-          }}
-        />
+        {/* Beside the violet button, copying is the lesser way; alone, it
+            keeps its outline. */}
+        {!commit && copy(handsOff && standalone)}
       </div>
       {!handsOff && (
         <p className="mt-2 text-meta text-ink-meta">
           Run your agent in this app's repo.
         </p>
+      )}
+      {commit && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-2">
+          {copy(handsOff)}
+          {beside !== undefined && <div className="min-w-0 grow">{beside}</div>}
+        </div>
       )}
       <div aria-live="polite">
         {asked && handoff.isSuccess && <HandoffResult handoff={handoff.data} />}

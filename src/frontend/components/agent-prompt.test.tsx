@@ -213,6 +213,39 @@ describe("AgentPrompt", () => {
     expect(buttons()).toEqual(["Command for Codex", "Copy prompt"]);
   });
 
+  it("gives a commit the whole width, with Copy prompt and the prompt under it", async () => {
+    offers({ mode: "terminal", agent: "claude-code" });
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await act(async () => {
+      root.render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(AgentActions, {
+            prompt: PROMPT,
+            goal: "Add 3 to categorization rules",
+            standalone: true,
+            commit: true,
+            beside: createElement("span", null, "Preview the prompt"),
+          }),
+        ),
+      );
+    });
+    await settle();
+
+    // The button takes the region's width, and Copy prompt is no longer
+    // beside it: it shares the commit's own line, with what the region puts
+    // there.
+    const button = [...host.querySelectorAll("button")][0];
+    expect(button?.className).toContain("w-full");
+    expect(button?.parentElement?.textContent).toBe(
+      "Add 3 to categorization rules. Opens in Claude Code",
+    );
+    expect(button?.parentElement?.nextElementSibling?.textContent).toBe(
+      "Copy promptPreview the prompt",
+    );
+  });
+
   it("offers only Copy prompt when the server hands nothing off, or can't be asked", async () => {
     offers({ mode: "none" });
     await render();

@@ -20,11 +20,13 @@ import { ImproveCategorizationTab } from "./ImproveCategorizationTab";
 import type { ReviewAccountContext } from "./ReviewAccount";
 
 /*
- * Improve categorization's New rules column: it says what to select, or that
- * every draft goes to an account; the new rules made here wait under it, account
- * first, each with a way to remove it, above the button that hands them to
- * the coding agent and then goes to Run categorizer. The grid needs the
- * table's schema, which no test here loads.
+ * Improve categorization's two-region left column. The rule being made comes
+ * first: it says what to select, or that every draft goes to an account. The
+ * new rules it makes come under their own heading, which names and counts
+ * them, above the one button that hands them to the coding agent and then
+ * goes to Run categorizer. The grid needs the table's schema, which no test
+ * here loads, so a rule is never being made in these tests: the compose card
+ * itself is checked in the preview harness.
  */
 
 let host: HTMLDivElement;
@@ -207,6 +209,10 @@ async function settle() {
 }
 
 const panel = () => host.querySelector("aside")?.textContent ?? "";
+// The region the "New rules" heading names: it holds the rules and the one
+// action on them, never the rule being made.
+const region = () =>
+  host.querySelector("#new-rules-heading")?.closest("section") ?? null;
 const rules = () =>
   [...host.querySelectorAll("aside ol > li")].map((li) => ({
     account: li.querySelector("p")?.firstChild?.textContent,
@@ -251,6 +257,37 @@ describe("Improve categorization", () => {
         .querySelector('aside a[href^="/categorization-rules"]')
         ?.getAttribute("href"),
     ).toBe("/categorization-rules?show=ai&account=5");
+  });
+
+  it("heads the new rules with their own heading, apart from the rule being made", async () => {
+    await render();
+
+    // The heading names and counts the list under it, so "Add 2 to
+    // categorization rules" is visibly about these and not about the rule
+    // being made at the top of the column.
+    expect(region()?.textContent).toContain("New rules");
+    expect(region()?.querySelectorAll("ol > li")).toHaveLength(2);
+    expect(region()?.textContent).not.toContain(
+      "Select transactions that go together",
+    );
+    expect(host.querySelector("aside")?.getAttribute("aria-label")).toBe(
+      "New rules",
+    );
+  });
+
+  it("says the rules aren't added yet, over the action that adds them", async () => {
+    await render();
+
+    // The column's last step is the one that finishes the job, and the line
+    // over it says what state the rules are in until it runs.
+    const state = [...(region()?.querySelectorAll("p") ?? [])].find(
+      (p) => p.textContent === "Not added yet",
+    );
+    expect(state).toBeDefined();
+    const add = button("Add 2 to categorization rules");
+    expect(
+      state!.compareDocumentPosition(add!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("removes a rule, and offers nothing to add once none is left", async () => {

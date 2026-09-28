@@ -26,12 +26,7 @@ import { AgentActions, PromptText } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
 import { Field } from "../components/focus-card";
 import { Button } from "../components/ui/button";
-import {
-  formatAmountRange,
-  formatMoney,
-  formatShortDate,
-  plural,
-} from "../format";
+import { formatAmountRange, formatMoney, formatShortDate } from "../format";
 import { categorizationLessonsQuery } from "../queries";
 import { Chip } from "../views/import-instructions/rule-parts";
 import { categorizationRulesHref } from "../views/import-instructions/routes";
@@ -77,8 +72,10 @@ const SELECT_ROWS = {
 } satisfies GridInteractionConfig;
 // Descriptions shown on a rule before the rest are counted.
 const SHOWN_DESCRIPTIONS = 3;
-// Selected transactions listed before the rest open on demand.
-const SHOWN_SELECTED = 8;
+// Selected transactions listed inside the rule being made before the rest
+// open on demand: the card holds its own account, note and button, so the
+// contents stay short enough to keep the button in sight.
+const SHOWN_SELECTED = 4;
 
 /** A draft the user selected in the grid. */
 interface SelectedDraft {
@@ -93,14 +90,16 @@ interface SelectedDraft {
 }
 
 /**
- * Improve categorization: new rules on the left, the account's drafts with
- * no account on the right, by narration. The user selects drafts that go
- * together, which makes a draft rule, with the selected transactions under
- * it; choosing its account adds it to the new rules, kept in the books as
- * lessons, and takes its drafts off the list.
- * Nothing is categorised here: the user hands the new rules to their coding
- * agent, which turns each into a rule or guidance and takes it off the list,
- * and then runs the categorizer, where this sends them.
+ * Improve categorization: the rule being made and the new rules on the left,
+ * the account's drafts with no account on the right, by narration.
+ *
+ * The left column is the two steps of one job, top to bottom: the user
+ * selects drafts that go together, which makes a draft rule holding them;
+ * choosing its account puts it with the new rules below, kept in the books
+ * as lessons, and takes its drafts off the list; and the one action on those
+ * new rules hands them to the coding agent. Nothing is categorised here: the
+ * agent turns each new rule into a rule or guidance and takes it off the
+ * list, and the user then runs the categorizer, where this sends them.
  */
 export function ImproveCategorizationTab() {
   const { detail, setup } = useReviewAccount();
@@ -240,29 +239,13 @@ export function ImproveCategorizationTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      {/* Two regions, in the order the work happens: the rule being made at
+          the top, then the new rules it joins, which is where the one action
+          on them lives. */}
       <aside
-        aria-labelledby="new-rules-heading"
-        className="shrink-0 space-y-4 overflow-y-auto border-sap-border px-4 py-4 max-md:order-last max-md:border-t md:w-[380px] md:border-r"
+        aria-label="New rules"
+        className="shrink-0 space-y-5 overflow-y-auto border-sap-border px-4 py-4 max-md:order-last max-md:border-t md:w-[380px] md:border-r"
       >
-        <div className="flex items-baseline justify-between gap-3">
-          <h2
-            id="new-rules-heading"
-            className="text-subheading text-foreground"
-          >
-            New rules
-            {lessons.data && lessons.data.length > 0 && (
-              <span className="tnum ml-2 text-meta font-medium text-ink-meta">
-                {lessons.data.length}
-              </span>
-            )}
-          </h2>
-          <Link
-            to={categorizationRulesHref("ai", accountId)}
-            className="text-meta text-ink-meta hover:text-foreground hover:underline"
-          >
-            All rules
-          </Link>
-        </div>
         <DraftRule
           selected={selected}
           uncategorised={detail.account.uncategorised}
@@ -274,7 +257,6 @@ export function ImproveCategorizationTab() {
           }
           onAdded={refreshLessons}
         />
-        {selected.length > 0 && <SelectedDrafts selected={selected} />}
         {lessons.isError ? (
           <p className="text-meta text-destructive [overflow-wrap:anywhere]">
             {apiErrorMessage(lessons.error)}
@@ -284,6 +266,7 @@ export function ImproveCategorizationTab() {
           lessons.data.length > 0 && (
             <NewRules
               lessons={lessons.data}
+              allRulesHref={categorizationRulesHref("ai", accountId)}
               onChanged={refreshLessons}
               prompt={lessonsPrompt(detail, lessons.data)}
               runCategorizerHref={runCategorizerHref}
@@ -354,24 +337,30 @@ function selectedDraft(row: unknown): SelectedDraft[] {
 /**
  * The transactions selected in the grid: date, the comment over the bank's
  * text, which is what rules match and so what the person writes a rule
- * from, and amount. The first few, and the rest on demand.
+ * from, and amount. They are the contents of the rule being made, so they
+ * sit inside it rather than as a section of their own. The bank's text
+ * wraps whole, up to two lines, since it is what a rule matches; the first
+ * few show, and the rest on demand.
  */
 function SelectedDrafts({ selected }: { selected: readonly SelectedDraft[] }) {
   const [showAll, setShowAll] = useState(false);
   const shown = showAll ? selected : selected.slice(0, SHOWN_SELECTED);
   const rest = selected.length - shown.length;
   return (
-    <section aria-labelledby="selected-heading" className="space-y-2">
+    <div className="space-y-2">
       <h3
         id="selected-heading"
         className="text-row font-semibold text-foreground"
       >
-        Selected
-        <span className="tnum ml-2 text-meta font-medium text-ink-meta">
+        Selected drafts
+        <span className="tnum ml-1.5 text-meta font-medium text-ink-meta">
           {selected.length}
         </span>
       </h3>
-      <ul className="rounded-card border border-sap-border bg-card text-meta">
+      <ul
+        aria-labelledby="selected-heading"
+        className="rounded-card border border-sap-border bg-card text-meta"
+      >
         {shown.map((draft, index) => (
           <li
             key={draft.id}
@@ -389,6 +378,9 @@ function SelectedDrafts({ selected }: { selected: readonly SelectedDraft[] }) {
                   {draft.comment}
                 </span>
               )}
+              {/* The bank's text whole, since it is what a rule matches and
+                  so what the user judges "these go together" by: two lines,
+                  as tall as a draft gets. */}
               <span
                 className={
                   draft.comment === null
@@ -417,7 +409,7 @@ function SelectedDrafts({ selected }: { selected: readonly SelectedDraft[] }) {
           </li>
         )}
       </ul>
-    </section>
+    </div>
   );
 }
 
@@ -459,9 +451,10 @@ function Descriptions({ narrations: all }: { narrations: readonly string[] }) {
 }
 
 /**
- * The rule the selected drafts would make: the account they go to and a note
- * for next time; the drafts themselves are listed under it. Adding it puts it
- * with the new rules; the drafts keep no account until the categorizer runs.
+ * The rule the selected drafts would make: the account they go to, a note
+ * for next time, and the selected drafts themselves, which are its contents.
+ * "Add to new rules" puts it with the new rules below, which is what the
+ * button names; the drafts keep no account until the categorizer runs.
  */
 function DraftRule({
   selected,
@@ -571,31 +564,40 @@ function DraftRule({
           className="block w-full resize-none rounded-control border border-sap-border bg-card px-3 py-1.5 text-meta text-foreground placeholder:text-ink-meta"
         />
       </Field>
+      <SelectedDrafts selected={selected} />
       {add.isError && (
         <p className="text-meta text-destructive [overflow-wrap:anywhere]">
           {apiErrorMessage(add.error)}
         </p>
       )}
+      {/* Not "Add rule": this only puts the rule with the new rules below,
+          where the agent is asked for it. The destination is named so the
+          two Adds can't be read as the same one. */}
       <Button type="button" size="sm" disabled={add.isPending} onClick={submit}>
-        Add rule for {plural(selected.length, "draft")}
+        Add to new rules
       </Button>
     </section>
   );
 }
 
 /**
- * The new rules, as the rules page shows rules: the account, then its
- * descriptions. Under them, the one way on: hand them to the coding agent,
- * which adds them to the categorization rules and takes each off this list.
+ * The new rules the drafts made, as the rules page shows rules: the account,
+ * then its descriptions. The heading names them and counts them, so what
+ * "Add to new rules" put on the list is the thing under it. At the foot, the
+ * one way on: hand them to the coding agent, which adds them to the
+ * categorization rules and takes each off this list.
  */
 function NewRules({
   lessons,
+  allRulesHref,
   onChanged,
   prompt,
   runCategorizerHref,
   onHandedOver,
 }: {
   lessons: readonly CategorizationLesson[];
+  /** Every rule the books have, for whoever wants to see them all. */
+  allRulesHref: string;
   onChanged: () => void;
   prompt: string;
   runCategorizerHref: string;
@@ -612,7 +614,21 @@ function NewRules({
   });
 
   return (
-    <>
+    <section aria-labelledby="new-rules-heading" className="space-y-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="new-rules-heading" className="text-subheading text-foreground">
+          New rules
+          <span className="tnum ml-2 text-meta font-medium text-ink-meta">
+            {lessons.length}
+          </span>
+        </h2>
+        <Link
+          to={allRulesHref}
+          className="text-meta text-ink-meta hover:text-foreground hover:underline"
+        >
+          All rules
+        </Link>
+      </div>
       <ol className="rounded-card border border-sap-border bg-card shadow-card">
         {lessons.map((lesson, index) => (
           <li
@@ -657,29 +673,37 @@ function NewRules({
           {apiErrorMessage(remove.error)}
         </p>
       )}
-      <div>
-        <AgentActions
-          standalone
-          prompt={prompt}
-          goal={`Add ${lessons.length} to categorization rules`}
-          onActed={(how) => {
-            if (how !== "command") onHandedOver();
-          }}
-          afterwards={
-            <Link
-              to={runCategorizerHref}
-              className="font-semibold text-primary hover:underline"
-            >
-              Then run the categorizer
-            </Link>
-          }
-        />
-        <div className="mt-2">
-          <Disclosure tone="assist" summary="Preview the prompt">
-            <PromptText prompt={prompt} />
-          </Disclosure>
+      {/* The commit: the state these rules are in until the agent writes
+          each into the categorization rules, and the one action that ends
+          it. Whole width and ruled off, so it reads as the column's last
+          step and not as one more control beside Copy prompt. */}
+      <div className="border-t border-line-inner pt-3">
+        <p className="text-meta text-ink-soft">Not added yet</p>
+        <div className="mt-2.5">
+          <AgentActions
+            standalone
+            commit
+            prompt={prompt}
+            goal={`Add ${lessons.length} to categorization rules`}
+            onActed={(how) => {
+              if (how !== "command") onHandedOver();
+            }}
+            afterwards={
+              <Link
+                to={runCategorizerHref}
+                className="font-semibold text-primary hover:underline"
+              >
+                Then run the categorizer
+              </Link>
+            }
+            beside={
+              <Disclosure tone="assist" summary="Preview the prompt">
+                <PromptText prompt={prompt} />
+              </Disclosure>
+            }
+          />
         </div>
       </div>
-    </>
+    </section>
   );
 }
