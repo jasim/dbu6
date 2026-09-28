@@ -89,6 +89,11 @@ describe("duplicatesPrompt", () => {
     expect(prompt).toContain("shows up as a failing balance check instead");
     expect(prompt).toContain("without first telling me exactly");
     expect(prompt).toContain("050505 / NOPII / sample");
+    // The token story: the project's own file and the command that writes it,
+    // never "ask me for a token".
+    expect(prompt).toContain("npx dbu6 agent env");
+    expect(prompt).toContain(".env.agent");
+    expect(prompt).not.toContain("account page");
   });
 
   it("lists at most 50 duplicates and points at the API for the rest", () => {

@@ -43,8 +43,12 @@ project's custom-built-parsers/, or else the one bundled with dbu6, which
 function rerunBlock(paths: readonly string[]): string {
   const uploads = paths.map((path) => `    -F "files=@${path}"`).join(" \\\n");
   return `Re-running the import yourself: with the dev server running, POST the statement
-file(s) to the same endpoint the screen uses. You need an agent access token,
-which I can create from my account page in the app, in SAPPORTA_API_TOKEN.
+file(s) to the same endpoint the screen uses. The upload is multipart, which the
+Sapporta command cannot send, so use curl with the agent token this project
+already has in the gitignored \`.env.agent\` (\`npx dbu6 agent env\` writes one if
+the project has none) put into the shell first:
+
+  set -a; . ./.env.agent; set +a
 
   curl -sS -X POST "$SAPPORTA_API_URL/api/import-draft/statements/auto" \\
     -H "Authorization: Bearer $SAPPORTA_API_TOKEN" \\

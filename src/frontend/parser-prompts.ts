@@ -16,11 +16,11 @@ export const PRESET_CHANGES_NOTE = `The import presets are in the app, one insti
 saved parsers that read its statements and the accounts they import into.
 Change them only through the app, never by editing a file:
 
-  sapporta api get /api/import-presets
-  sapporta api post /api/import-presets/changes --body '{"changes":[...]}'
+  npx sapporta api get /api/import-presets
+  npx sapporta api post /api/import-presets/changes --body '{"changes":[...]}'
 
 An account names its ledger account by id; find it with
-\`sapporta rows list accounts --where '{"name":{"eq":"<name>"}}'\`.
+\`npx sapporta rows list accounts --where '{"name":{"eq":"<name>"}}'\`.
 Run \`${BOOKS_GUIDE}\` for these calls and each change's fields.`;
 
 /** Which saved parsers turned a file down, for a prompt to say. */

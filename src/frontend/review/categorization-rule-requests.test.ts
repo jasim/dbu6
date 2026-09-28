@@ -133,7 +133,7 @@ describe("ruleRequestsPrompt", () => {
     expect(prompt).toContain("user-config/transaction_mappings.mjs");
     expect(prompt).toContain("Don't categorise the drafts yourself");
     expect(prompt).toContain(
-      "`sapporta api delete /api/categorization-rule-requests/<rule request id>`",
+      "`npx sapporta api delete /api/categorization-rule-requests/<rule request id>`",
     );
     expect(prompt).not.toContain("My note");
   });
@@ -152,7 +152,7 @@ describe("ruleRequestsPrompt", () => {
       `NOPII SAMPLE 050505${RULE_REQUEST_TRANSACTION_LIMIT}\n`,
     );
     expect(prompt).toContain(
-      "   - and 3 more: `sapporta api get /api/categorization-rule-requests --query '{\"base_account_id\":7}'`",
+      "   - and 3 more: `npx sapporta api get /api/categorization-rule-requests --query '{\"base_account_id\":7}'`",
     );
   });
 });

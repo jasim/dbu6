@@ -11,7 +11,7 @@ import { requireWorkflowLedger } from "./workflow-auth.js";
 /*
  * Rule requests for the categoriser, from Review's Improve categorization
  * tab. The user's coding agent deletes each once it has encoded it, with
- * `sapporta api delete /api/categorization-rule-requests/<id>`.
+ * `npx sapporta api delete /api/categorization-rule-requests/<id>`.
  */
 const api = new TsRestApi<SapportaEnv>();
 

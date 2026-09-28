@@ -20,7 +20,7 @@ import { ACCOUNTS_ROUTE, NEW_ACCOUNT_ROUTE, editAccountHref } from "./routes";
  * takes the account's whole branch with it, so the grid may not save one cell
  * at a time.
  *
- * The generated table API is untouched: `sapporta rows update accounts …`
+ * The generated table API is untouched: `npx sapporta rows update accounts …`
  * still writes one cell at a time, which is what an agent wants.
  *
  * Which form is open is the URL's, not this page's: `/accounts/new` and

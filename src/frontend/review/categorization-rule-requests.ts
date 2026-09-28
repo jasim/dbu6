@@ -109,7 +109,7 @@ Don't categorise the drafts yourself: once the rules are in, I run the
 categoriser from the app.
 
 When a rule request is encoded, delete it from my list with
-\`sapporta api delete /api/categorization-rule-requests/<rule request id>\`, and do
+\`npx sapporta api delete /api/categorization-rule-requests/<rule request id>\`, and do
 the same for a rule request I tell you to drop. Leave any other rule request
 on the list.
 
@@ -135,7 +135,7 @@ function ruleRequestText(
     ),
     ...(rest > 0
       ? [
-          `   - and ${rest} more: \`sapporta api get /api/categorization-rule-requests --query '{"base_account_id":${accountId}}'\``,
+          `   - and ${rest} more: \`npx sapporta api get /api/categorization-rule-requests --query '{"base_account_id":${accountId}}'\``,
         ]
       : []),
     ...(ruleRequest.note === "" ? [] : [`   My note: ${ruleRequest.note}`]),

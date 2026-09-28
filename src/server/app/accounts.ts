@@ -9,7 +9,7 @@ import { requireWorkflowLedger } from "./workflow-auth.js";
 /*
  * One account's name, type and parent, changed together, and an empty
  * account deleted. The Accounts page's edit form is the only caller in the
- * app; coding agents use `sapporta api put/delete /api/accounts/<id>`, which
+ * app; coding agents use `npx sapporta api put/delete /api/accounts/<id>`, which
  * is why the rules live in the workflow rather than in the form.
  *
  * Creating an account stays on the generated table API

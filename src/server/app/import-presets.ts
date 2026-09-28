@@ -22,7 +22,7 @@ import { requireOwner, requireWorkflowLedger } from "./workflow-auth.js";
 
 /*
  * The import presets: reading them, and the one route that changes them.
- * Coding agents change them with `sapporta api post /api/import-presets/changes`.
+ * Coding agents change them with `npx sapporta api post /api/import-presets/changes`.
  */
 
 const api = new TsRestApi<SapportaEnv>();

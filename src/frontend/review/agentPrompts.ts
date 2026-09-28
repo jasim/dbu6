@@ -103,8 +103,12 @@ ${account.account_id}. It has ${plural(account.drafts, "draft")}${dates} waiting
 
 function readingTheData(accountId: number): string {
   const api = "$SAPPORTA_API_URL/api";
-  return `To read the data, with the dev server running, send an agent access token
-(I can create one from my account page in the app) as
+  return `To read the data, with the dev server running, use the Sapporta command this
+project already has: it finds the app's address and the agent token in the
+gitignored \`.env.agent\` by itself, and \`npx dbu6 agent env\` writes one if the
+project has none. \`npx sapporta api get <path>\` and \`npx sapporta rows list
+<table>\` send those requests. A plain HTTP client does not read the file, so
+load it first with \`set -a; . ./.env.agent; set +a\` and send
 "Authorization: Bearer $SAPPORTA_API_TOKEN" to:
 
   GET ${api}/review/accounts/${accountId}
