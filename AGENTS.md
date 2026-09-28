@@ -18,17 +18,23 @@ Load it for any change to the schema, API, auth, or UI.
 
 The `sapporta` command is part of this package: `bin/sapporta.mjs` is declared
 as a bin, beside `dbu6`, and forwards to the `@sapporta/server` CLI this dbu6
-depends on. It resolves the project's root, loads `.env` and `.env.agent`, and
-derives `SAPPORTA_API_URL` from `SAPPORTA_API_PORT`, so every Sapporta command
-in this repository — `pnpm exec sapporta …` — and in a project that installed
-dbu6 — `npx sapporta …` — reaches a running app without being told where it is.
-`bin/sapporta-env.mjs` holds that resolution, with its types beside it and its
-tests in `bin/sapporta-env.test.mjs` (`pnpm run test:scripts`).
+depends on. In a project that installed dbu6, run it as `npx sapporta …`, which
+runs that bin. Here, where dbu6 is the root package and a package manager links
+a package's dependencies into it but never its own bins, `npx sapporta` reaches
+`@sapporta/server`'s own bin instead, so run the wrapper by path:
+`node bin/sapporta.mjs …`. Either way it resolves the project's root, loads
+`.env` and `.env.agent`, and derives `SAPPORTA_API_URL` from
+`SAPPORTA_API_PORT`, so the command reaches a running app without being told
+where it is. `bin/sapporta-env.mjs` holds that resolution, with its types beside
+it and its tests in `bin/sapporta-env.test.mjs` (`pnpm run test:scripts`).
 
 The project's own token comes from `dbu6 agent env`, which writes the
-gitignored `.env.agent` (`src/cli/agent.ts`). A prompt dbu6 hands to a person's
-agent never carries installation steps for either the skill or the CLI: both
-are already in place, which is what `dbu6 check` verifies.
+gitignored `.env.agent` (`src/cli/agent.ts`); the prompts dbu6 hands a person's
+agent name that command and the CLI rather than installation steps, and
+`dbu6 check` reports the bin, the project's link to it, and whether
+`.env.agent` is there. The Sapporta skill is the agent's own and lives on the
+machine, not in the project: the agent installs it when it is missing, as
+`template/AGENTS.md` tells it to. `dbu6 check` does not look for it.
 
 ## This repository is the package
 

@@ -294,14 +294,21 @@ server's process, and the server has no business holding an agent's credential.
 `dbu6 agent env` (`src/cli/agent.ts`) mints that token — the same
 `createAuthToken` the app's token screen calls — writes `.env.agent` mode `0600`
 and gitignored, and revokes the token its previous run wrote, matched by name so
-a token made in the app is left alone. It refuses to mint one for the sample
-account `dbu6 seed` makes, because seeding replaces that account's books. Which
-account it uses is `chooseAgentAccount` in `src/cli/agent-env.ts`: the single
-non-sample account, or `--user <email>` when a project holds more.
+a token made in the app is left alone. The file itself is `src/cli/agent-file.ts`,
+which chmods it as well as writing it: `mode` on a write applies only to a file
+it creates, and the file is a credential however it got there. `agent env`
+refuses to mint one for the sample account `dbu6 seed` makes — even when
+`--user` names it — because seeding replaces that account's books. Which account
+it uses is `chooseAgentAccount` in `src/cli/agent-env.ts`: the single non-sample
+account, or `--user <email>` — or `<user id>`, when one email is in more than one
+workspace — when a project holds more. `--print` exports the pair the project's
+file already holds, so `eval "$(dbu6 agent env --print)"` mints nothing.
 
-`dbu6 check`'s Tools section runs the shipped wrapper's `--version` and reports
-whether `.env.agent` exists, so a broken or missing CLI cannot reach a person's
-agent unnoticed.
+`dbu6 check`'s Tools section runs the shipped wrapper's `--version`, resolves the
+project's own `node_modules/.bin/sapporta` — the entry `npx sapporta …` runs —
+to that wrapper rather than `@sapporta/server`'s bin, and reports whether
+`.env.agent` exists, so a broken, missing or impersonated CLI cannot reach a
+person's agent unnoticed.
 
 ## Project layout
 
@@ -479,7 +486,9 @@ dependency, which is why no script passes `--import` any more.
 migration result prints), `project.ts` (the project folder: `DBU6_ROOT`, else
 the nearest `package.json` at or above the working directory; and its `.env`),
 `dev.ts`, `setup.ts`, `init.ts`, `upgrade.ts`, `check.ts`, `parser.ts`, `docs.ts`,
-and `frontend.ts`, the command's only contact with the frontend host. `src/cli`
+`agent.ts` (the `agent env` command), `agent-env.ts` (who the token is for, and
+what the file says), `agent-file.ts` (the one file it writes, and its mode), and
+`frontend.ts`, the command's only contact with the frontend host. `src/cli`
 sits above the rest of the Node side: it alone may import both `src/server` and
 `src/frontend-host` (`scripts/import-boundaries.test.mjs`). `seed` is
 `src/server/seed/`.
@@ -497,6 +506,7 @@ sits above the rest of the Node side: it alone may import both `src/server` and
 | `seed [date] [--statements <dir>]` | sample data for the demo account |
 | `parser test [name]`, `parser run <name> <input>` | a parser's tests, or a parser on a file, with `shared` on `PYTHONPATH` |
 | `docs [name]` | print a packaged guide (`GUIDES` in `src/shared/guides.ts`); lists them with no name |
+| `agent env [--print] [--user <email>]` | mint the project's coding agent a Sapporta token: `.env.agent` (mode `0600`, gitignored), revoking the one its previous run wrote; `--print` exports the pair the file already holds instead |
 | `init <directory> [--dbu6 <spec>]` | a new project: `template/` rendered (the name from the directory, dbu6 pinned to this package's exact version, `gitignore` written as `.gitignore`), `npm install`, then the installed package's `setup` and `migrate`, and a first commit when git is installed. Refuses a directory with anything in it. `--dbu6` installs another spec, such as a tarball, for an unpublished build |
 
 A scratch project, say to try a report, is made like

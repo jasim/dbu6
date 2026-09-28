@@ -116,7 +116,8 @@ In the folder, `npm run dev`, `npm start`, `npm run check` and
 
 dbu6 hands prompts to a coding agent — to categorize what your rules did not,
 to propose a chart of accounts, or to write a parser for a statement it cannot
-read. Two things make such a prompt work, and both live in this folder.
+read. Two things make such a prompt work: the skill below, installed once for
+the agents on this machine, and the CLI, which arrives in the folder with dbu6.
 
 **The Sapporta skill.** dbu6 applications are built on
 [Sapporta](https://sapporta.com), and the skill teaches an agent how to work in
@@ -129,7 +130,7 @@ npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --globa
 **The Sapporta CLI**, which the agent uses to read and change your books
 through dbu6's HTTP API. Nothing to install: dbu6 ships it, so in this folder
 `npx sapporta …` works, and it finds the app's address and the agent's token by
-itself. Mint that token after your first sign-up, with dbu6 running:
+itself. Mint that token after your first sign-up:
 
 ```sh
 npx dbu6 agent env
@@ -138,8 +139,9 @@ npx sapporta api get /api/auth-context
 
 `agent env` writes `.env.agent` (gitignored; never commit it) with a token for
 the account you signed up with, and revokes the token its previous run wrote.
-The second command proves it works by naming the user and workspace it acts as.
-If the project holds more than one account, say which one:
+It reads the project's database directly, so it needs no server; the second
+command does, and proves the token works by naming the user and workspace it
+acts as. If the project holds more than one account, say which one:
 `npx dbu6 agent env --user you@example.com`.
 
 An agent given a prompt does this for itself; the two commands are here so that

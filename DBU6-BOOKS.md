@@ -68,17 +68,19 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
 
 ## Everyday requests
 
-Commands are shortened as described under [Reaching the app](#reaching-the-app).
+Run every command here from the project root
+([Reaching the app](#reaching-the-app) has the `npx sapporta …` rule, and the
+table and endpoint subcommands).
 Look up an account's id with
-`sapporta rows list accounts --where '{"name":{"eq":"<name>"}}'`.
+`npx sapporta rows list accounts --where '{"name":{"eq":"<name>"}}'`.
 
 ### Questions about money
 
 - **"Where do my books stand? What's waiting?"**
-  `sapporta api get /api/home` lists each import account with its last
+  `npx sapporta api get /api/home` lists each import account with its last
   statement balance in the books and what is waiting in Review.
 - **"How much did I spend on X?", or "…in this period?"**
-  `sapporta api get /api/reports/income-expenses --query '{"from_date":"…","to_date":"…"}'`
+  `npx sapporta api get /api/reports/income-expenses --query '{"from_date":"…","to_date":"…"}'`
   returns income and spending as account trees: each `total` includes the
   account's sub-accounts and is positive. It also returns monthly totals. Only
   income and expense accounts count, so transfers between the user's own
@@ -100,37 +102,37 @@ Look up an account's id with
   older grouped journal gives one row per statement transaction in it; a
   compound entry, such as a salary, lists every account on its other side.
 - **"Find the transaction …"**
-  For transactions in the books: `sapporta rows list journal_entries --q "<words>"`.
+  For transactions in the books: `npx sapporta rows list journal_entries --q "<words>"`.
   For drafts waiting in Review:
-  `sapporta rows list draft_transactions --q "<words>"`. Both search the
+  `npx sapporta rows list draft_transactions --q "<words>"`. Both search the
   `comment` and the `source_narration` ([Two texts](#two-texts-the-banks-and-the-persons)).
   For anything fuzzier, use SQL.
 
 ### Transactions waiting in Review
 
 - **"Why won't these go into my books?"**
-  `sapporta api get /api/review/accounts/<id>`. Drafts are added only when three
+  `npx sapporta api get /api/review/accounts/<id>`. Drafts are added only when three
   checks pass, in this order: every draft goes to an account; there are no
   possible duplicates; every balance check passes.
 - **"Categorise these."**
   - List the drafts with no account:
-    `sapporta rows list draft_transactions --where '{"base_account_id":{"eq":<id>},"account_id":{"is":"null"}}'`.
+    `npx sapporta rows list draft_transactions --where '{"base_account_id":{"eq":<id>},"account_id":{"is":"null"}}'`.
   - Set one by hand:
-    `sapporta rows update draft_transactions <draft> --values '{"account_id":<account>}'`.
+    `npx sapporta rows update draft_transactions <draft> --values '{"account_id":<account>}'`.
     Never send a draft to its own base account. For many drafts at
     once, all or none:
-    `sapporta api post /api/draft-transactions/set-account --body '{"ids":[…],"account_id":<account>}'`.
+    `npx sapporta api post /api/draft-transactions/set-account --body '{"ids":[…],"account_id":<account>}'`.
   - Or run the categoriser again:
-    `sapporta api post /api/draft-transactions/classify --body '{"ids":[…],"custom_mappings_filenames":[…]}'`.
+    `npx sapporta api post /api/draft-transactions/classify --body '{"ids":[…],"custom_mappings_filenames":[…]}'`.
     It overwrites every draft you pass, and leaves blank any it is unsure of.
     So pass only drafts with no account. Pass the account's own instruction
     files, in order: `custom_mappings_filenames` of the account in
-    `sapporta api get /api/import-presets` whose `account_id` is this account
+    `npx sapporta api get /api/import-presets` whose `account_id` is this account
     (see [Import presets](#import-presets)).
   - Setting a draft by hand teaches the categoriser nothing. To make it stick,
     add a mapping (next section).
 - **"Is this a duplicate?"**
-  `sapporta api get /api/reports/duplicate-drafts --query '{"base_account_id":<id>}'`.
+  `npx sapporta api get /api/reports/duplicate-drafts --query '{"base_account_id":<id>}'`.
   A draft is compared with other drafts on the same account, and with
   transactions in the books on that account that don't say which statement row
   they came from (entered by hand, or an older import), or that came from this
@@ -138,9 +140,9 @@ Look up an account's id with
   the other account's statement usually shows up as a failing balance check
   instead (see below).
 - **"Add them to my books."**
-  `sapporta api post /api/draft-transactions/post-to-journal --body '{"base_account_id":<id>}'`.
+  `npx sapporta api post /api/draft-transactions/post-to-journal --body '{"base_account_id":<id>}'`.
   A 422 names the first check that still blocks.
-- **"Remove this one."** `sapporta rows delete draft_transactions <id>`.
+- **"Remove this one."** `npx sapporta rows delete draft_transactions <id>`.
 
 ### "Always put this under X" — adding a mapping
 
@@ -174,13 +176,13 @@ account ("Categorise these" above), and restart a server started with
 **Rule requests from Review.** The Improve categorization tab keeps the rule
 requests the user made there, each with its drafts (date, source narration,
 direction and amount), the account they go to and a note:
-`sapporta api get /api/categorization-rule-requests --query '{"base_account_id":<id>}'`.
+`npx sapporta api get /api/categorization-rule-requests --query '{"base_account_id":<id>}'`.
 Their drafts have no account yet; the user runs the categorizer once the
 rules are in. The user picked the drafts, so they may share nothing the
 categorizer can see; propose each change, and say so when they don't, before
 writing anything. Once a rule request is a rule or guidance, delete it, which
 takes it off the user's list:
-`sapporta api delete /api/categorization-rule-requests/<rule request id>`.
+`npx sapporta api delete /api/categorization-rule-requests/<rule request id>`.
 Leave a rule request you couldn't encode.
 
 ### Fixing the books
@@ -188,7 +190,8 @@ Leave a rule request you couldn't encode.
 - **"All my X payments are in the wrong account."**
   1. Preview with SQL: how many transactions, their total, and a few examples.
      A loose pattern catches the wrong ones.
-  2. Update each entry's `account_id`, one `rows update journal_entries` per
+  2. Update each entry's `account_id`, one `npx sapporta rows update
+     journal_entries <entry id> --values '{"account_id":<account>}'` per
      entry.
   3. Update the matching drafts too.
   4. Add a mapping so future imports get it right (above).
@@ -198,7 +201,7 @@ Leave a rule request you couldn't encode.
   card account, as in a transfer or card payment, the change moves that
   account's balance checks. Check `balance-assertions` afterwards.
 - **"Add a transaction by hand."**
-  `sapporta rows create journals --values '{"date":"…","description":"…","$details":{"table":"journal_entries","fk":"journal_id","rows":[{"account_id":<a>,"debit":500,"comment":"…"},{"account_id":<b>,"credit":500}]}}'`.
+  `npx sapporta rows create journals --values '{"date":"…","description":"…","$details":{"table":"journal_entries","fk":"journal_id","rows":[{"account_id":<a>,"debit":500,"comment":"…"},{"account_id":<b>,"credit":500}]}}'`.
   Debits must equal credits.
 - **"Undo that."**
   There is no undo. An imported journal holds one statement transaction;
@@ -259,7 +262,7 @@ Leave a rule request you couldn't encode.
     signed, only when `needs_opening`. `parent_id` defaults to the parent
     most banks or cards of the kind share, and for the first of its kind
     to the type's top account (Assets, Liabilities): `default_parents` of
-    `sapporta api get /api/setup/statement-accounts`. Where that is `null`
+    `npx sapporta api get /api/setup/statement-accounts`. Where that is `null`
     (the type has several top accounts), send it, picked with the user
     from `parents.bank` or `parents.card` (else "Pick a parent account for
     it."). An `empty` account needs only `opening_amount`, when asked.
@@ -288,16 +291,16 @@ Leave a rule request you couldn't encode.
     (duplicates, the categorizer failing) can leave an account set up with
     no transactions; dropping its files again finishes it, as `empty`.
   - For example, read a drop, then add it as a new account:
-    `mise exec -- sh -c 'curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/add-account/read" -F "files=@<path>" -F "files=@<path>"'`,
+    `curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/add-account/read" -F "files=@<path>" -F "files=@<path>"`,
     then
-    `mise exec -- sh -c 'curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/add-account/add" -F "files=@<path>" -F "files=@<path>" -F "name=<account name>" -F "parent_id=<id>" -F "opening_amount=<signed>"'`,
+    `curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/add-account/add" -F "files=@<path>" -F "files=@<path>" -F "name=<account name>" -F "parent_id=<id>" -F "opening_amount=<signed>"`,
     leaving out `opening_amount` unless the read said `needs_opening`.
 
   To set a bank or card up without its statements, the endpoint behind
   Settings › Banks & cards makes the ledger account and its preset entry in
   one transaction, adding the institution when it is new; a refusal leaves
   neither:
-  `sapporta api post /api/setup/statement-accounts --body '{"action":"create","kind":"bank","institution":"…","identifier":"<number or null>","ledger":{"source":"new","name":"…","parent_id":<id>}}'`.
+  `npx sapporta api post /api/setup/statement-accounts --body '{"action":"create","kind":"bank","institution":"…","identifier":"<number or null>","ledger":{"source":"new","name":"…","parent_id":<id>}}'`.
   Its statements, dropped at `/add` later, find it (`empty`).
   - `kind` is `bank` (an Asset) or `card` (a Liability, `is_credit_card`),
     and the parent must be of that type; pick it with the user, never from a
@@ -315,7 +318,7 @@ Leave a rule request you couldn't encode.
     `delete_account` is refused while other statements' transactions are
     on it. With only drafts, deleting them frees it; after an entry, use
     the Accounts page and [Import presets](#import-presets).
-  - `sapporta api get /api/setup/statement-accounts` lists them, each with
+  - `npx sapporta api get /api/setup/statement-accounts` lists them, each with
     its count of its own `entries` and `drafts`.
 
 - **Setting up the books.** The first run is a run of cards, one question
@@ -326,7 +329,7 @@ Leave a rule request you couldn't encode.
   `/add?run=setup`. A bank or card counts as imported once it has entries
   (its opening entry aside) or drafts from its own statements; a card
   payment another account's import posted to it doesn't count.
-  - `sapporta api get /api/setup/chart-of-accounts` gives books with no
+  - `npx sapporta api get /api/setup/chart-of-accounts` gives books with no
     accounts a starter chart, and `POST` with `{"accounts":[…]}` creates one,
     each account naming its parent by name. It refuses books that have any
     account.
@@ -341,10 +344,10 @@ Leave a rule request you couldn't encode.
   missing one; `/opening-balances` redirects there, keeping its
   `?account=`, which names an account by name or path and opens its row.
   Send the user to one of those. Their endpoints do the same:
-  `sapporta api get /api/opening-balances` lists every asset and liability
+  `npx sapporta api get /api/opening-balances` lists every asset and liability
   account with its `section`, first transaction, a default date, a
   suggested amount and its `opening` entry, and
-  `sapporta api post /api/opening-balances --body '{"account_id":<id>,"date":"YYYY-MM-DD","amount":<signed>}'`
+  `npx sapporta api post /api/opening-balances --body '{"account_id":<id>,"date":"YYYY-MM-DD","amount":<signed>}'`
   posts one. `"description":"…"` names its journal; left out, it is
   "Opening balance".
   - `section` is where the Opening balances page lists the account: `own`
@@ -367,9 +370,9 @@ Leave a rule request you couldn't encode.
   - An account has an opening entry when one of its lines sits in a journal
     with a line on an Equity account. The endpoint refuses a second one
     (`already_recorded`).
-  - `sapporta api put /api/opening-balances/<account id> --body '{"date":"YYYY-MM-DD","amount":<signed>}'`
+  - `npx sapporta api put /api/opening-balances/<account id> --body '{"date":"YYYY-MM-DD","amount":<signed>}'`
     changes it in place, and
-    `sapporta api delete /api/opening-balances/<account id>` removes it
+    `npx sapporta api delete /api/opening-balances/<account id>` removes it
     (Opening Balances stays). Both work while `opening.locked` is `null`:
     the opening entry is the only posted entry on the account, and its
     journal holds just the account's line and one Equity line. Drafts don't
@@ -382,7 +385,7 @@ Leave a rule request you couldn't encode.
   Without an opening balance, every balance check fails by the same amount.
 
 - **"Rename or move an account."**
-  `sapporta rows update accounts <id> --values '{…}'`, with the name, type and
+  `npx sapporta rows update accounts <id> --values '{…}'`, with the name, type and
   parent in the one update: a trigger refuses a cell saved alone when it
   disagrees with the rest of the tree. Rules and prompt files name accounts by
   name, so make the same rename in `user-config/`: `transaction_mappings.mjs`
@@ -390,7 +393,7 @@ Leave a rule request you couldn't encode.
   account by its id and need no change.
 
   Changing the type of an account that has sub-accounts is
-  `sapporta api put /api/accounts/<id> --body '{"name":"…","account_type":"…","parent_id":<id or null>}'`:
+  `npx sapporta api put /api/accounts/<id> --body '{"name":"…","account_type":"…","parent_id":<id or null>}'`:
   one transaction moves the account and its whole branch, which no single
   `rows update` can do (the trigger refuses a parent and child of different
   types). It answers `{account, moved}`, and refuses a 422 with a `code` and
@@ -403,7 +406,7 @@ Leave a rule request you couldn't encode.
   changes.
 
   Deleting an account is
-  `sapporta api delete /api/accounts/<id>`, which refuses a 422 and names what
+  `npx sapporta api delete /api/accounts/<id>`, which refuses a 422 and names what
   is in the way: `has_sub_accounts`, `bank_or_card` (remove it in Settings ›
   Banks & cards, so its preset goes too), `has_entries` and `has_drafts`.
   Deleting through the generated table API skips those rules, and an import
@@ -554,18 +557,18 @@ endpoint. There is no file to edit.
 - `custom_mappings_filenames` are files directly in `user-config/`, joined in
   this order for the AI. Many accounts may list the same file.
 
-**Reading them:** `sapporta api get /api/import-presets`. Each account also
+**Reading them:** `npx sapporta api get /api/import-presets`. Each account also
 carries `ledger_account_name`, which is null when its ledger account was
-deleted. `sapporta api get /api/import-presets/accounts/<account_id>/instructions`
+deleted. `npx sapporta api get /api/import-presets/accounts/<account_id>/instructions`
 returns one account's files, each with its content (null when missing), and
 `text`, what the AI gets from them. Settings → Automatic transaction
 categorization rules (`/categorization-rules`) shows the same to the user.
 
 **Finding an account's id:**
-`sapporta rows list accounts --where '{"name":{"eq":"…"}}'`.
+`npx sapporta rows list accounts --where '{"name":{"eq":"…"}}'`.
 
 **Changing them:**
-`sapporta api post /api/import-presets/changes --body '{"changes":[…]}'`.
+`npx sapporta api post /api/import-presets/changes --body '{"changes":[…]}'`.
 The changes are applied in order, and the batch is written whole or not at
 all: after it, the whole table must keep the rules below. Institutions are
 named by `name`, accounts by `account_id`. The reply is the presets, as the
@@ -621,7 +624,7 @@ disagreeing on `is_credit_card`, a parser that isn't saved, more than one user
 it could belong to), it keeps the file, `dbu6 migrate` prints why, and
 `npx dbu6 check` fails on the file. Fix what it named in the file, then:
 
-1. `sapporta api post /api/import-presets/import-json --body '{"apply":false}'`
+1. `npx sapporta api post /api/import-presets/import-json --body '{"apply":false}'`
    proposes the institutions and changes nothing. Show the user the proposal
    and its `warnings`.
 2. With their yes, `--body '{"apply":true}'` writes them, reads them back and
@@ -636,16 +639,32 @@ it could belong to), it keeps the file, `dbu6 migrate` prints why, and
 
 - **The CLI is already here.** dbu6 ships the `sapporta` command (its own bin
   forwards to `@sapporta/server`, which dbu6 depends on), so run it as
-  `npx sapporta …` from the project and install nothing — it is written
-  `sapporta …` above. It loads `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` from
-  the shell, then `.env`, then `.env.agent`, and derives the URL from
-  `SAPPORTA_API_PORT` when nothing names it, so nothing has to be prefixed onto
-  a command.
+  `npx sapporta …` from the project and install nothing. Every command in this
+  file is spelled that way: `npx` runs this project's own
+  `node_modules/.bin/sapporta`, which is dbu6's bin. That bin loads
+  `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` from the shell, then `.env`, then
+  `.env.agent`, and derives the URL from `SAPPORTA_API_PORT` when nothing names
+  it, so nothing has to be prefixed onto a command and no environment needs
+  setting by hand.
+  - If `npx` says the package was not found and will be installed, stop: this
+    project has no link to dbu6's bin, and what would run instead is the
+    standalone `sapporta` CLI from npm, which reads no `.env.agent` and calls
+    port 3000. `npx dbu6 check` names the missing link; upgrading or
+    reinstalling dbu6 (`npx dbu6 upgrade`) restores it.
+  - A `sapporta` installed globally is not what `npx sapporta` runs — `npx`
+    looks only at the project — but a bare `sapporta` reaches that one, which
+    is a different program, so never write these commands without `npx`.
 - **The token** must be in the environment as `SAPPORTA_API_TOKEN`.
   - `npx dbu6 agent env` gives this project one: it mints a token, writes it to
     the gitignored `.env.agent`, and revokes the one its previous run wrote.
     It names the account it used, and refuses a project that holds only the
     sample account `dbu6 seed` makes.
+  - The CLI reads that file by itself. A command that is not the CLI — the
+    `curl` uploads below — does not, so put the two values in its environment
+    first: `set -a; . ./.env.agent; set +a`.
+  - `.env.agent` also records the `SAPPORTA_API_URL` it was made for, and that
+    value wins over the port in `.env`. If the app's port changes afterwards,
+    run `npx dbu6 agent env` again, or the stale URL is what the CLI calls.
   - A person can instead create one in the app, at
     `<app URL>/account/profile?token=new`, and choose **Copy prompt**.
   - Never put the token in a tracked file or show it in the chat.
@@ -662,15 +681,16 @@ dev` in the project), or offer to.
     user for a token (`<app URL>/account/profile?token=new`); when they paste
     the prompt that carries it, store only its token, as above. The CLI is
     already installed and this file records the command, so skip the prompt's
-    install and AGENTS.md steps.
-- **Tables:**
-  `rows list <table> --where '{"col":{"eq":1}}' --sort date,id --limit 1000 --q <words>`.
-  Other commands are `rows count`, `rows get`, `rows create`,
-  `rows update <table> <id> --values '{…}'` and `rows delete`. Add
-  `--output json` to parse the output.
-- **Endpoints:** `api get <path> --query '{…}'`, `api post <path> --body '{…}'`.
-- **Uploads** need curl:
-  `mise exec -- sh -c 'curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/import-draft/statements/auto" -F "files=@<path>"'`.
+    install steps — but not its skill step: if it asks for the Sapporta skill
+    and you do not have it, install it as the project's `AGENTS.md` says.
+- **Tables:** `npx sapporta rows list <table> --where '{"col":{"eq":1}}' --sort date,id --limit 1000 --q <words>`.
+  The other commands are `npx sapporta rows count`, `npx sapporta rows get`,
+  `npx sapporta rows create`, `npx sapporta rows update <table> <id> --values '{…}'`
+  and `npx sapporta rows delete`. Add `--output json` to parse the output.
+- **Endpoints:** `npx sapporta api get <path> --query '{…}'`,
+  `npx sapporta api post <path> --body '{…}'`.
+- **Uploads** need curl, with the token in the environment as above:
+  `curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/import-draft/statements/auto" -F "files=@<path>"`.
 
 ### Reading the database
 

@@ -217,7 +217,11 @@ it. Carry over only these, if the clone set them in `.env.development`,
 
 Everything else, `SAPPORTA_DATA_DIR` and the clone's ports and URLs included,
 stays behind. The new `BETTER_AUTH_SECRET` only means you sign in again, with
-the same email and password. Put secrets in `.env`, which is gitignored.
+the same email and password. Put secrets in `.env`, which is gitignored — but
+not the agent access token: the clone's `SAPPORTA_API_TOKEN` stays behind, and
+`npx dbu6 agent env` mints a fresh one into the gitignored `.env.agent`, which
+the `sapporta` command reads by itself (`npx dbu6 docs books`, "Reaching the
+app").
 
 ## 6. Move your parsers
 

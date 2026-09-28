@@ -19,11 +19,12 @@ checked against the balances your books compute before anything is posted.
 
 Node.js 22.18 or newer, with `npm`. Statement imports also need `uv` and
 `pdftotext` (from poppler). git and a coding agent (Claude Code, Codex or Pi)
-are optional. Neither needs anything installed for it: dbu6 ships the
-`sapporta` command its agents use, and the one thing that is not a package,
-the [Sapporta](https://github.com/jasim/sapporta) agent skill, is installed by
-the `npx skills add` line in [Getting
-started](https://github.com/jasim/dbu6/blob/main/docs/getting-started.md).
+are optional. A coding agent needs the
+[Sapporta](https://github.com/jasim/sapporta) agent skill, installed once per
+machine by the `npx skills add` line in [Getting
+started](https://github.com/jasim/dbu6/blob/main/docs/getting-started.md); the
+`sapporta` command that skill's work runs through comes in the project with
+dbu6, and `npx dbu6 check` confirms it is wired up.
 
 ## Quick start
 
