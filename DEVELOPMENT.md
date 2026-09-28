@@ -281,7 +281,7 @@ src/shared/              ts-rest contracts + types shared by backend and fronten
 src/frontend-host/       Vite run programmatically: serves and builds the app (see The package)
 migrations/              Drizzle migrations, shipped in the package
 custom-built-parsers/    saved Python parsers for known statement layouts
-docs/                    the guides `dbu6 docs` prints, their worked examples, upgrade-notes/
+docs/                    user guides, the guides `dbu6 docs` prints, worked examples, upgrade-notes/
 template/                a user project's starting files, rendered by `dbu6 init`
 user-config.example/     the example config `dbu6 setup` fills user-config/ from
 src/cli/                 the `dbu6` command's commands; bin/dbu6.mjs loads them from dist/cli
@@ -304,6 +304,16 @@ never holds a copy of code that is typechecked where it lives
 (`docs/examples/`, under `tsc -p docs/examples` in `pnpm typecheck`). The
 prompts name guides through `guideCommand`, never by path, because in a
 user's project the files sit under `node_modules`.
+
+### The README and the docs
+
+[README.md](./README.md) is the package's npm homepage and the front door:
+what dbu6 is, how to start, and a link to each user guide. It carries no
+detail of its own; the detail is in `docs/`, where a user guide is a plain
+`.md` named without `-guide`, and a guide `dbu6 docs` prints for a coding
+agent ends in `-guide` and is declared in `GUIDES`. Links out of the README
+are absolute GitHub URLs, so that they resolve on npmjs.com as well as on
+GitHub. `DEPLOYMENT.md` is the one user document outside `docs/`.
 
 ### The package
 

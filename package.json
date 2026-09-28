@@ -1,6 +1,29 @@
 {
   "name": "dbu6",
   "version": "0.1.0",
+  "description": "Self-hosted double-entry bookkeeping for personal finances: bank and credit card statements in, balanced journal entries out, categorized by an LLM on your own machine.",
+  "keywords": [
+    "bookkeeping",
+    "double-entry",
+    "accounting",
+    "personal-finance",
+    "ledger",
+    "bank-statements",
+    "hledger",
+    "self-hosted",
+    "sqlite",
+    "llm"
+  ],
+  "homepage": "https://github.com/jasim/dbu6#readme",
+  "bugs": {
+    "url": "https://github.com/jasim/dbu6/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jasim/dbu6.git"
+  },
+  "license": "MIT",
+  "author": "Jasim A Basheer",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.1.1",
