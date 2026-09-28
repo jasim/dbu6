@@ -10,17 +10,11 @@ import { checkText, failingChecksText } from "./posting-checks";
 import {
   AccountReport,
   AskYourAgent,
+  CheckPasses,
   ReportSummary,
   ReportTab,
 } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
-
-// Why the tab is empty, under the check's own line.
-const EMPTY_BODY = {
-  none: "Drafts from a statement carry the statement's balances. These don't, so there's nothing to compare.",
-  passes:
-    "On every day the statement printed a balance, the drafts add up to it.",
-};
 
 /**
  * The Balance checks tab (PLAN.md §11 P3): the days the drafts' running
@@ -31,13 +25,24 @@ export function BalanceChecksTab() {
   const { account, failing } = detail;
   const check = postingCheck(account, "balance-checks");
 
-  if (check.state !== "blocks") {
+  if (check.state === "passes") {
+    return (
+      <ReportTab>
+        <CheckPasses
+          title={checkText(check)}
+          body="Your statement shows a balance after each day's transactions. We worked that balance out ourselves from your transactions, including these drafts, and every one matches."
+        />
+      </ReportTab>
+    );
+  }
+
+  if (check.state === "none") {
     return (
       <ReportTab>
         <EmptyState
           className="max-w-[760px]"
           title={checkText(check)}
-          body={EMPTY_BODY[check.state]}
+          body="Drafts from a statement carry the statement's balances. These don't, so there's nothing to compare."
         />
       </ReportTab>
     );

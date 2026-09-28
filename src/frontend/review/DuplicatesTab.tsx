@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
 import { postingCheck } from "../../shared/index";
 import { reportsApi } from "../reports/client";
-import { EmptyState } from "../components/empty-state";
 import { duplicatesPrompt } from "./agentPrompts";
 import { checkText, duplicatesText } from "./posting-checks";
 import {
   AccountReport,
   AskYourAgent,
+  CheckPasses,
   ReportSummary,
   ReportTab,
 } from "./report-tab";
@@ -25,8 +25,7 @@ export function DuplicatesTab() {
   if (check.state === "passes") {
     return (
       <ReportTab>
-        <EmptyState
-          className="max-w-[760px]"
+        <CheckPasses
           title={checkText(check)}
           body={`None of the drafts for ${account.name} match another draft or anything already in your books.`}
         />

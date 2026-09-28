@@ -7,6 +7,7 @@ import {
   type PostingCheckKind,
   type ReviewAccountDetail,
 } from "../../shared/index";
+import type { Fact } from "../components/fact-table";
 import type { Step } from "../components/progress-steps";
 import type { StatusTone } from "../components/status-chip";
 import {
@@ -63,8 +64,8 @@ export interface OverviewView {
   checks: readonly CheckRow[];
   /** The unmet checks, for under the waiting button; absent when ready. */
   waiting?: string;
-  /** What posting does; only when nothing blocks it. */
-  posting?: Phrase;
+  /** What posting adds, as labelled facts; only when nothing blocks it. */
+  posting?: readonly Fact[];
   button: string;
 }
 
@@ -107,8 +108,8 @@ export function overviewView(
       checkRow(check, detail, imported),
     ),
     waiting: ready ? undefined : blocks.map(waitingReason).join(" · "),
-    posting: ready ? postingPhrase(detail) : undefined,
-    button: `Add ${account.drafts} to my books`,
+    posting: ready ? postingFacts(detail) : undefined,
+    button: "Add to my books",
   };
 }
 
@@ -321,14 +322,23 @@ function checkRow(
   }
 }
 
-function postingPhrase(detail: ReviewAccountDetail): Phrase {
-  const { account } = detail;
-  const span = account.draft_span
-    ? ` from ${formatDaySpan(account.draft_span)}`
-    : "";
+// What posting adds: how many, over which days, and the balance the drafts'
+// last assertion leaves the account at, when they carry one.
+function postingFacts(detail: ReviewAccountDetail): Fact[] {
+  const { account, closing } = detail;
   return [
-    `Adds ${plural(account.drafts, "transaction")}${span}.`,
-    ...lastAssertion(detail, "will then be"),
+    { label: "Transactions", value: String(account.drafts) },
+    ...(account.draft_span
+      ? [{ label: "Dates", value: formatDaySpan(account.draft_span) }]
+      : []),
+    ...(closing
+      ? [
+          {
+            label: `Balance on ${formatShortDate(closing.date)}`,
+            value: formatBalance(closing.balance, account.kind),
+          },
+        ]
+      : []),
   ];
 }
 

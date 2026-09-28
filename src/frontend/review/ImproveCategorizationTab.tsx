@@ -36,6 +36,7 @@ import { Chip } from "../views/import-instructions/rule-parts";
 import { categorizationRulesHref } from "../views/import-instructions/routes";
 import type { CategorizationLesson } from "../../shared/index";
 import { amountsSeen, lessonsPrompt } from "./categorization-lessons";
+import { CheckPasses, ReportTab } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 import {
   IMPROVE_CATEGORIZATION_TAB,
@@ -218,6 +219,19 @@ export function ImproveCategorizationTab() {
     reviewHref(accountId, RUN_CATEGORIZER_TAB),
     { setup },
   );
+
+  // Every draft has an account and no new rule waits for the agent: there is
+  // nothing to make a rule from.
+  if (detail.account.uncategorised === 0 && lessons.data?.length === 0) {
+    return (
+      <ReportTab>
+        <CheckPasses
+          title="Every draft goes to an account"
+          body={`Every draft for ${detail.account.name} already has an account, so there is nothing to make a rule from.`}
+        />
+      </ReportTab>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col md:flex-row">

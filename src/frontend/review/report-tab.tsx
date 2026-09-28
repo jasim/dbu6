@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
+import { Check } from "lucide-react";
 import { AgentPrompt } from "../components/agent-prompt";
 import { LoadError } from "../components/load-error";
 import { ReportResultBody, useReportResult } from "../reports/shared";
 
 /*
- * The parts the Duplicates and Balance checks tabs share (PLAN.md §11 P3):
- * a summary, the draft report narrowed to the account, and a prompt for the
- * user's coding agent.
+ * The parts the Review tabs share (PLAN.md §11 P3): a summary, the draft
+ * report narrowed to the account, a prompt for the user's coding agent, and
+ * the card that says a check passes.
  */
 
 /** The tab's content, clear of the frame's edges. */
@@ -17,6 +18,35 @@ export function ReportTab({ children }: { children: ReactNode }) {
 
 export function ReportSummary({ children }: { children: ReactNode }) {
   return <p className="max-w-[760px] text-body text-ink-soft">{children}</p>;
+}
+
+/**
+ * A passing check: a solid green card with the ✓ Overview gives it, so it
+ * reads as done at a glance, with nothing to act on. Not an EmptyState,
+ * whose dashed box is a space waiting to be filled.
+ */
+export function CheckPasses({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="flex max-w-[760px] items-start gap-3.5 rounded-card border border-primary/25 bg-sap-brand-soft px-4 py-4">
+      <PassMark />
+      <div className="min-w-0 pt-0.5">
+        <div className="text-row font-semibold text-foreground">{title}</div>
+        <p className="mt-0.5 text-body text-ink-soft">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+/** The ✓ of a passing check, as Overview draws it. */
+export function PassMark() {
+  return (
+    <span
+      aria-hidden="true"
+      className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+    >
+      <Check className="size-4" strokeWidth={3} />
+    </span>
+  );
 }
 
 /** The report's grid, fetched when the tab opens. */

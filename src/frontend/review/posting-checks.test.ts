@@ -12,7 +12,7 @@ describe("checkText", () => {
     ).toEqual([
       "All 21 transactions go to an account",
       "No possible duplicates",
-      "Every balance check passes",
+      "Your books agree with the bank",
     ]);
     expect(postingChecks({ ...NO_DRAFTS, drafts: 1 }).map(checkText)).toEqual([
       "The transaction goes to an account",

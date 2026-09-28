@@ -111,9 +111,9 @@ export function Overview() {
         ))}
       </ul>
       {view.posting && (
-        <p className="mt-4 text-body text-ink-soft">
-          <PhraseText phrase={view.posting} />
-        </p>
+        <div className="mt-6 max-w-sm">
+          <FactTable heading="Adding to your books" rows={view.posting} />
+        </div>
       )}
       {error && (
         <p
@@ -123,8 +123,13 @@ export function Overview() {
           {error}
         </p>
       )}
-      <div className="mt-4">
-        <Button onClick={post} waiting={view.waiting} disabled={posting}>
+      <div className="mt-5">
+        <Button
+          onClick={post}
+          waiting={view.waiting}
+          disabled={posting}
+          size="lg"
+        >
           {posting && <Loader2 className="animate-spin" />}
           {posting ? "Adding…" : view.button}
         </Button>

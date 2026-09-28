@@ -11,7 +11,6 @@ import {
   type DraftClassification,
 } from "../../shared/index";
 import { draftTransactionsApi, importPresetsApi } from "../api";
-import { EmptyState } from "../components/empty-state";
 import { FactTable, type Fact } from "../components/fact-table";
 import { Button, buttonVariants } from "../components/ui/button";
 import { plural } from "../format";
@@ -31,7 +30,7 @@ import {
   describeCategorizationProblem,
 } from "../views/categorization/describeCategorization";
 import { categorizationRulesHref } from "../views/import-instructions/routes";
-import { ReportTab } from "./report-tab";
+import { CheckPasses, PassMark, ReportTab } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 import {
   IMPROVE_CATEGORIZATION_TAB,
@@ -233,8 +232,7 @@ export function RunCategorizerTab() {
   if (!loadingRows && rows.length === 0 && error === null) {
     return (
       <ReportTab>
-        <EmptyState
-          className="max-w-[640px]"
+        <CheckPasses
           title="Every draft goes to an account"
           body={`None of the drafts for ${accountName} need the categorizer.`}
         />
@@ -540,19 +538,28 @@ function RunResult({
       value: String(counts.remaining),
     });
   }
+  // Every draft placed is a passing check, drawn as one.
+  const done = counts.remaining === 0;
   return (
     <section
       aria-labelledby="categorizer-run-heading"
-      className="space-y-4 rounded-card border bg-card p-5"
+      className={cn(
+        "space-y-4 rounded-card border p-5",
+        done ? "border-primary/25 bg-sap-brand-soft" : "bg-card",
+      )}
     >
       <h2
         id="categorizer-run-heading"
-        className="flex items-center gap-2 text-heading text-foreground"
+        className="flex items-center gap-2.5 text-heading text-foreground"
       >
-        {counts.categorized > 0 && (
-          <CircleCheck aria-hidden="true" className="size-5 text-primary" />
+        {done ? (
+          <PassMark />
+        ) : (
+          counts.categorized > 0 && (
+            <CircleCheck aria-hidden="true" className="size-5 text-primary" />
+          )
         )}
-        {counts.remaining === 0
+        {done
           ? `All ${plural(sent, "draft")} categorized`
           : `${counts.categorized} of ${plural(sent, "draft")} categorized`}
       </h2>
@@ -571,7 +578,7 @@ function RunResult({
         </CategorizationNote>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {counts.remaining > 0 ? (
+        {!done ? (
           <>
             <Link to={draftsHref} className={buttonVariants()}>
               Categorize the {counts.remaining} by hand

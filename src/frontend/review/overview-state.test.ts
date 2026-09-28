@@ -49,17 +49,18 @@ describe("overviewView", () => {
 
     expect(view.verdict).toBe("Ready to add to your books");
     expect(view.waiting).toBeUndefined();
-    expect(view.button).toBe("Add 21 to my books");
+    expect(view.button).toBe("Add to my books");
     expect(view.checks.map((row) => [row.tone, row.text])).toEqual([
       ["ok", "All 21 transactions go to an account"],
       ["ok", "No possible duplicates"],
-      ["ok", "Every balance check passes"],
+      ["ok", "Your books agree with the bank"],
     ]);
     expect(view.checks.every((row) => row.link === undefined)).toBe(true);
-    expect(phraseText(view.posting!)).toBe(
-      "Adds 21 transactions from 1–13 Sep. The last balance assertion for Sample Savings will then be 3,30,000.00 on 13 Sep.",
-    );
-    expect(view.posting).toContainEqual({ figure: "3,30,000.00" });
+    expect(view.posting).toEqual([
+      { label: "Transactions", value: "21" },
+      { label: "Dates", value: "1–13 Sep" },
+      { label: "Balance on 13 Sep", value: "3,30,000.00" },
+    ]);
   });
 
   it("is not ready while a check fails, and waits for the one reason", () => {
@@ -131,7 +132,10 @@ describe("overviewView", () => {
       ["ok", "No possible duplicates"],
       ["waiting", "These drafts have no balance checks"],
     ]);
-    expect(phraseText(view.posting!)).toBe("Adds 1 transaction from 13 Sep.");
+    expect(view.posting).toEqual([
+      { label: "Transactions", value: "1" },
+      { label: "Dates", value: "13 Sep" },
+    ]);
   });
 });
 

@@ -42,7 +42,7 @@ export function checkText(check: PostingCheck): string {
         case "none":
           return "These drafts have no balance checks";
         case "passes":
-          return "Every balance check passes";
+          return "Your books agree with the bank";
         case "blocks":
           return failingChecksText(check.count);
       }

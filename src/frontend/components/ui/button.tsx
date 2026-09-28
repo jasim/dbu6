@@ -52,7 +52,7 @@ export const buttonVariants = cva(
 );
 
 /**
- * The waiting state: an action that can't run yet ("Add 21 to my books"
+ * The waiting state: an action that can't run yet ("Add to my books"
  * before the review is finished). Not dimmed, which fails contrast; a quiet
  * fill, and always a reason underneath.
  */

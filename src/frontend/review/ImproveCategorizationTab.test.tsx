@@ -280,11 +280,12 @@ describe("Improve categorization", () => {
     expect(host.textContent).toBe("run categorizer");
   });
 
-  it("says so when every draft goes to an account", async () => {
+  it("says so, in place of the rules and the list, when every draft goes to an account", async () => {
     lessons = [];
     await render(0);
 
-    expect(panel()).toContain("Every draft goes to an account");
-    expect(panel()).not.toContain("Select transactions");
+    expect(host.textContent).toContain("Every draft goes to an account");
+    expect(host.querySelector("aside")).toBeNull();
+    expect(host.textContent).not.toContain("Couldn't categorize");
   });
 });
