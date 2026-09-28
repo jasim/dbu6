@@ -23,14 +23,14 @@
 //   scan of what is actually in the tarball; `pii-scan --pack` scans the
 //   repository's view of it.
 //
-// A Sapporta package linked from a local checkout (`link:/...`, written by
+// A package linked from a local checkout (`link:/...`, written by
 // `pnpm package-sources:use-local`) is refused: the checkout has changes the
 // registry lacks, so a tarball naming the registry's versions would install
-// something dbu6 was not built against. Publish Sapporta and switch the
-// sources back to npm (`pnpm package-sources:use-npm`) first.
+// something dbu6 was not built against. Publish the linked packages and switch
+// the sources back to npm (`pnpm package-sources:use-npm`) first.
 //
-// `--local-sapporta` is the one exception, for verifying a tarball while
-// Sapporta is unpublished: each linked package becomes the version its
+// `--local-sapporta` is the one exception, for verifying a tarball while a
+// linked package is unpublished: each linked package becomes the version its
 // checkout states, the linked packages are packed too (`pnpm pack` in each,
 // which writes nothing into that checkout and rewrites its `workspace:*`
 // dependencies), and the out directory gets an `overrides.json` that points
@@ -106,10 +106,10 @@ try {
   }
   if (linked.size > 0 && !localSapporta) {
     fail(
-      `Sapporta is linked from a local checkout (${[...linked.keys()].join(", ")}).\n` +
+      `Packages are linked from a local checkout (${[...linked.keys()].join(", ")}).\n` +
         "A tarball packed now would name registry versions that lack the checkout's changes.\n" +
-        "Publish Sapporta and run `pnpm package-sources:use-npm` first; to verify a tarball\n" +
-        "against the checkout instead, pass --local-sapporta (never published).",
+        "Publish the linked packages and run `pnpm package-sources:use-npm` first; to verify\n" +
+        "a tarball against the checkouts instead, pass --local-sapporta (never published).",
     );
   }
 

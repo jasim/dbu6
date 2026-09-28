@@ -57,7 +57,8 @@ With the [prerequisites](#prerequisites) installed:
    in as `demo@example.com` / `demo-password`.
 
 `pnpm install` needs the Sapporta packages to resolve; see
-[Sapporta packages](#sapporta-packages) for the state this checkout is in.
+[Sapporta and nuabase packages](#sapporta-and-nuabase-packages) for the state
+this checkout is in.
 
 ## Prerequisites
 
@@ -72,7 +73,7 @@ With the [prerequisites](#prerequisites) installed:
 - `pdftotext` (poppler) for PDF imports.
 - `uv`, which runs the saved statement parsers.
 
-### Sapporta packages
+### Sapporta and nuabase packages
 
 The `@sapporta/*` packages and `nuabase` come from the npm registry at the
 versions pinned in `package.json`, so `pnpm install` needs nothing beside
@@ -85,10 +86,21 @@ there, and point this project at it with
 `link:` specs into `package.json` and `pnpm-workspace.yaml`; `pnpm
 package-sources use:npm` switches back and `pnpm package-sources status` says
 which is active. While linked, rebuild Sapporta's `dist` after changing it
-and before typechecking dbu6, or you will see stale type errors. `nuabase` is
-linked the same way but by hand — `package-sources` manages only the
-`@sapporta/*` packages — and is switched back the same way: publish it, then
-pin the registry version in `package.json` and `pnpm-workspace.yaml`.
+and before typechecking dbu6, or you will see stale type errors.
+
+`nuabase` is managed the same way, from its own checkout, so one command moves
+all seven packages:
+
+```bash
+pnpm package-sources use:local /absolute/path/to/sapporta \
+  --nuabase /absolute/path/to/nuabase
+```
+
+Each checkout also has an environment variable — `SAPPORTA_PACKAGE_ROOT`, the
+one the Sapporta CLI already reads, and `NUABASE_PACKAGE_ROOT` — and a checkout
+already linked in `package.json` is remembered, so a later `use:local` needs no
+paths. `pnpm package-sources status` lists every managed package and where it
+resolves.
 
 While the branch depends on framework changes that are not published yet, the
 links are committed, and three things are gated on them:
@@ -103,7 +115,7 @@ links are committed, and three things are gated on them:
 - `pnpm release` refuses; `pnpm release --dry-run` runs the whole path with
   `--local-sapporta` and says a release would be stopped.
 
-Publishing Sapporta, then `pnpm package-sources:update-npm` and
+Publishing Sapporta and nuabase, then `pnpm package-sources:update-npm` and
 `pnpm package-sources:use-npm`, lifts all three.
 
 ## Commands

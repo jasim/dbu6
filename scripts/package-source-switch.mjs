@@ -1,87 +1,178 @@
 #!/usr/bin/env node
+
+// Switches every managed dependency between a local checkout and its npm
+// release, so a branch can depend on framework changes that are not published
+// yet and still be packed and published later.
+//
+//   pnpm package-sources status
+//   pnpm package-sources update-npm
+//   pnpm package-sources use:npm
+//   pnpm package-sources use:local [workspace] [--nuabase <path>]
+//   pnpm package-sources verify
+//
+// "Local" writes `link:` specs into package.json and matching `pnpm.overrides`
+// into pnpm-workspace.yaml, so the linked packages' own `workspace:*`
+// dependencies resolve from the same checkouts. "npm" writes the versions
+// recorded in the gitignored .package-source-switch.json and removes those
+// overrides. Both are all-or-nothing: every managed package moves together,
+// and `verify` refuses a tree that mixes the two.
 import { existsSync } from "node:fs";
 import { readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { parseArgs } from "node:util";
 
 const CONFIG_FILE = ".package-source-switch.json";
 const WORKSPACE_FILE = "pnpm-workspace.yaml";
-const SAPPORTA_ROOT_ENV = "SAPPORTA_PACKAGE_ROOT";
 const DEPENDENCY_KEYS = new Set([
   "dependencies",
   "devDependencies",
   "optionalDependencies",
   "peerDependencies",
 ]);
-// dbu6 is one package, so the root manifest is the only one that names
-// Sapporta. template/package.json is not ours to rewrite: it is the user's
+
+/**
+ * Every dependency dbu6 links to a checkout. `root` names the checkout (see
+ * ROOTS) and `path` is the package's directory inside it, because the two
+ * checkouts keep their packages differently: Sapporta's under packages/,
+ * nuabase's client under nua-llm/.
+ *
+ * Linked Sapporta packages run from their TypeScript sources, which needs
+ * Sapporta's resolution hook; npm ones do not. No script is rewritten for it:
+ * bin/dbu6.mjs registers the hook itself when @sapporta/server is a `link:`.
+ */
+const LINKED_PACKAGES = [
+  { name: "@sapporta/server", root: "sapporta", path: "packages/core" },
+  { name: "@sapporta/honest", root: "sapporta", path: "packages/honest" },
+  { name: "@sapporta/shared", root: "sapporta", path: "packages/shared" },
+  { name: "@sapporta/ui", root: "sapporta", path: "packages/ui" },
+  { name: "@sapporta/grid", root: "sapporta", path: "packages/grid" },
+  { name: "@sapporta/frontend", root: "sapporta", path: "packages/frontend" },
+  { name: "nuabase", root: "nuabase", path: "nua-llm/nua-client" },
+];
+const PACKAGE_BY_NAME = new Map(
+  LINKED_PACKAGES.map((entry) => [entry.name, entry]),
+);
+
+/**
+ * The checkouts dbu6 links from. Each has an environment variable so a root
+ * can be named without editing the gitignored config file;
+ * `SAPPORTA_PACKAGE_ROOT` is the variable the Sapporta CLI already reads when
+ * it scaffolds source-linked projects, so one setting drives both.
+ */
+const ROOTS = [
+  { name: "sapporta", env: "SAPPORTA_PACKAGE_ROOT" },
+  { name: "nuabase", env: "NUABASE_PACKAGE_ROOT" },
+];
+const ROOT_BY_NAME = new Map(ROOTS.map((root) => [root.name, root]));
+
+// dbu6 is one package, so the root manifest is the only one that names any of
+// them. template/package.json is not ours to rewrite: it is the user's
 // starting manifest and pins dbu6 alone.
 const MANIFEST_FILES = ["package.json"];
-// Linked Sapporta packages run from their TypeScript sources, which needs
-// Sapporta's resolution hook; npm ones do not. No script is rewritten for it:
-// bin/dbu6.mjs registers the hook itself when @sapporta/server is a `link:`.
-const SAPPORTA_PACKAGE_DIRS = new Map([
-  ["@sapporta/server", "core"],
-  ["@sapporta/honest", "honest"],
-  ["@sapporta/shared", "shared"],
-  ["@sapporta/ui", "ui"],
-  ["@sapporta/grid", "grid"],
-  ["@sapporta/frontend", "frontend"],
-]);
 
 const rootDir = process.cwd();
-const command = process.argv[2] ?? "help";
+// Assigned inside the try below so a mistyped option is reported like any
+// other refusal instead of as a stack trace.
+let options = {};
+let command = "help";
+let commandArgs = [];
 
-switch (command) {
-  case "status":
-    await showStatus();
-    break;
-  case "update-npm":
-    await updateNpmVersions();
-    break;
-  case "use:npm":
-    await switchSources("npm");
-    break;
-  case "use:local":
-    await switchSources("local", process.argv[3]);
-    break;
-  case "verify":
-    await verifyCurrentMode();
-    break;
-  case "help":
-  case "--help":
-  case "-h":
-    printHelp();
-    break;
-  default:
-    throw new Error(`Unknown command "${command}". Run with --help.`);
+try {
+  const parsed = parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      sapporta: { type: "string" },
+      nuabase: { type: "string" },
+      help: { type: "boolean", short: "h", default: false },
+    },
+    allowPositionals: true,
+  });
+  options = parsed.values;
+  command = parsed.positionals[0] ?? "help";
+  commandArgs = parsed.positionals.slice(1);
+
+  switch (command) {
+    case "status":
+      expectNoArguments();
+      await showStatus();
+      break;
+    case "update-npm":
+      expectNoArguments();
+      await updateNpmVersions();
+      break;
+    case "use:npm":
+      expectNoArguments();
+      await switchSources("npm", new Map());
+      break;
+    case "use:local":
+      await switchSources("local", rootOverrides());
+      break;
+    case "verify":
+      expectNoArguments();
+      await verifyCurrentMode();
+      break;
+    case "help":
+    case "--help":
+    case "-h":
+      printHelp();
+      break;
+    default:
+      throw new Error(`Unknown command "${command}". Run with --help.`);
+  }
+} catch (error) {
+  console.error(
+    `package-sources: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exitCode = 1;
+}
+
+/** The checkouts named on a `use:local` command line, if any. */
+function rootOverrides() {
+  const overrides = new Map();
+  if (commandArgs.length > 1) {
+    throw new Error(
+      `use:local takes at most one workspace path: ${commandArgs.join(" ")}`,
+    );
+  }
+  if (commandArgs[0] && options.sapporta) {
+    throw new Error(
+      "Name the Sapporta checkout once: either the workspace path or --sapporta.",
+    );
+  }
+  const sapporta = options.sapporta ?? commandArgs[0];
+  if (sapporta) overrides.set("sapporta", sapporta);
+  if (options.nuabase) overrides.set("nuabase", options.nuabase);
+  return overrides;
+}
+
+function expectNoArguments() {
+  if (commandArgs.length > 0) {
+    throw new Error(`"${command}" takes no arguments: ${commandArgs.join(" ")}`);
+  }
 }
 
 async function showStatus() {
   const config = await readConfigIfPresent();
   const manifests = await readManifestFiles();
-  const locations = findSapportaLocations(manifests);
+  const locations = findLinkedLocations(manifests);
   const workspaceOverrides = await readWorkspaceOverrides();
   const counts = { local: 0, npm: 0, other: 0 };
 
   for (const location of locations) {
-    const value = getPath(
-      manifests.find((manifest) => manifest.file === location.file)?.json,
-      location.path,
-    );
-    counts[classifySource(value)] += 1;
+    counts[classifySource(location.spec)] += 1;
   }
 
   console.log(`Config: ${CONFIG_FILE} ${config ? "present" : "missing"}`);
   console.log(`Configured mode: ${config?.mode ?? "unknown"}`);
-  console.log(`Sapporta workspace: ${describeSapportaRoot(config)}`);
+  for (const line of describeRoots(config)) console.log(`Checkout ${line}`);
   console.log(
-    `Direct entries: ${locations.length} ` +
-      `(local ${counts.local}, npm ${counts.npm}, other ${counts.other})`,
+    `Direct entries: ${locations.length} of ${LINKED_PACKAGES.length} managed ` +
+      `packages (local ${counts.local}, npm ${counts.npm}, other ${counts.other})`,
   );
 
   const overrideCounts = { local: 0, npm: 0, other: 0, missing: 0 };
-  for (const packageName of SAPPORTA_PACKAGE_DIRS.keys()) {
-    const value = workspaceOverrides.get(packageName);
+  for (const { name } of LINKED_PACKAGES) {
+    const value = workspaceOverrides.get(name);
     if (value === undefined) overrideCounts.missing += 1;
     else overrideCounts[classifySource(value)] += 1;
   }
@@ -90,18 +181,28 @@ async function showStatus() {
       `npm ${overrideCounts.npm}, other ${overrideCounts.other}, ` +
       `missing ${overrideCounts.missing}`,
   );
+
+  // Per package, because the summary above cannot say which one disagrees.
+  for (const { name } of LINKED_PACKAGES) {
+    const location = locations.find((item) => item.packageName === name);
+    const override = workspaceOverrides.get(name);
+    const source = location
+      ? `${location.spec}${override === undefined ? "" : `  [override: ${override}]`}`
+      : "(not in package.json)";
+    console.log(`  ${name.padEnd(22)} ${source}`);
+  }
 }
 
 async function updateNpmVersions() {
   const config = await readConfig();
   const manifests = await readManifestFiles();
   const packageNames = new Set([
-    ...findSapportaLocations(manifests).map((location) => location.packageName),
+    ...findLinkedLocations(manifests).map((location) => location.packageName),
     ...Object.keys(config.npm),
   ]);
 
   if (packageNames.size === 0) {
-    throw new Error("No Sapporta package dependencies were found.");
+    throw new Error("No linked package dependencies were found.");
   }
 
   for (const packageName of [...packageNames].sort()) {
@@ -115,21 +216,24 @@ async function updateNpmVersions() {
   console.log(`Wrote ${CONFIG_FILE}`);
 }
 
-async function switchSources(target, requestedSapportaRoot) {
+async function switchSources(target, requestedRoots) {
   const config = await readConfig();
-  if (requestedSapportaRoot) {
-    config.sapportaRoot = path.resolve(rootDir, requestedSapportaRoot);
+  for (const [name, value] of requestedRoots) {
+    if (!ROOT_BY_NAME.has(name)) {
+      throw new Error(`Unknown checkout "${name}".`);
+    }
+    config.roots[name] = path.resolve(rootDir, value);
   }
 
   const manifests = await readManifestFiles();
-  const locations = findSapportaLocations(manifests);
+  const locations = findLinkedLocations(manifests);
   if (locations.length === 0) {
-    throw new Error("No Sapporta package dependencies were found.");
+    throw new Error("No linked package dependencies were found.");
   }
 
   const sourceByPackage =
     target === "local"
-      ? await localSources(config)
+      ? await localSources(config, manifests)
       : npmSources(config, locations);
 
   const changedFiles = new Set();
@@ -155,7 +259,7 @@ async function switchSources(target, requestedSapportaRoot) {
 
   await updateWorkspaceOverrides({
     migratedOverrides,
-    sapportaSources: target === "local" ? sourceByPackage : new Map(),
+    linkedSources: target === "local" ? sourceByPackage : new Map(),
   });
 
   config.mode = target;
@@ -173,7 +277,7 @@ async function verifyCurrentMode() {
   const config = await readConfig();
   await verifyManifestState(config.mode, config);
   await verifyLockfile(config.mode);
-  console.log(`Verified ${config.mode} Sapporta dependency graph.`);
+  console.log(`Verified the ${config.mode} dependency graph.`);
 }
 
 async function verifyManifestState(mode, config) {
@@ -182,10 +286,10 @@ async function verifyManifestState(mode, config) {
   }
 
   const manifests = await readManifestFiles();
-  const locations = findSapportaLocations(manifests);
+  const locations = findLinkedLocations(manifests);
   const expectedSources =
     mode === "local"
-      ? await localSources(config)
+      ? await localSources(config, manifests)
       : npmSources(config, locations);
   const errors = [];
 
@@ -201,26 +305,34 @@ async function verifyManifestState(mode, config) {
     }
   }
 
+  // Every managed package, not just the declared ones, so a link override
+  // left over from a checkout that is no longer a dependency still fails.
   const workspaceOverrides = await readWorkspaceOverrides();
-  for (const packageName of SAPPORTA_PACKAGE_DIRS.keys()) {
-    const actual = workspaceOverrides.get(packageName);
-    if (mode === "local") {
-      const expected = expectedSources.get(packageName);
-      if (actual !== expected) {
+  for (const { name } of LINKED_PACKAGES) {
+    const actual = workspaceOverrides.get(name);
+    const expected = expectedSources.get(name);
+    if (mode === "npm") {
+      if (actual !== undefined) {
+        errors.push(`${WORKSPACE_FILE} still overrides ${name} in npm mode`);
+      }
+    } else if (expected === undefined) {
+      if (actual !== undefined) {
         errors.push(
-          `${WORKSPACE_FILE} override ${packageName} is ${JSON.stringify(actual)}; ` +
-            `expected ${JSON.stringify(expected)}`,
+          `${WORKSPACE_FILE} overrides ${name}, which package.json does not declare`,
         );
       }
-    } else if (actual !== undefined) {
+    } else if (actual !== expected) {
       errors.push(
-        `${WORKSPACE_FILE} still overrides ${packageName} in npm mode`,
+        `${WORKSPACE_FILE} override ${name} is ${JSON.stringify(actual)}; ` +
+          `expected ${JSON.stringify(expected)}`,
       );
     }
   }
 
   if (errors.length > 0) {
-    throw new Error(`Sapporta source verification failed:\n- ${errors.join("\n- ")}`);
+    throw new Error(
+      `${mode} source verification failed:\n- ${errors.join("\n- ")}`,
+    );
   }
 }
 
@@ -230,64 +342,131 @@ async function verifyLockfile(mode) {
     throw new Error("pnpm-lock.yaml is missing. Run pnpm install first.");
   }
   const lockfile = await readFile(lockfilePath, "utf8");
-  const firstPartyNames = [...SAPPORTA_PACKAGE_DIRS.keys()];
 
   if (mode === "local") {
-    const registryEntries = firstPartyNames.flatMap((packageName) => {
-      const escaped = escapeRegExp(packageName);
-      return (
-        lockfile.match(new RegExp(`^ {2}'?${escaped}@(?!link:)`, "gm")) ?? []
-      );
-    });
-    const packedEntries =
-      lockfile.match(/(?:file:)[^\n]*sapporta[^\n]*\.tgz/gi) ?? [];
+    // A package entry at the top level of the lockfile, `name@version`, is the
+    // registry's; `name@link:` is the checkout's.
+    const registryEntries = LINKED_PACKAGES.flatMap(({ name }) =>
+      lockfile.match(
+        new RegExp(`^ {2}'?${escapeRegExp(name)}@(?!link:)`, "gm"),
+      ) ?? [],
+    );
+    const packedEntries = LINKED_PACKAGES.flatMap(({ name }) =>
+      lockfile.match(
+        new RegExp(
+          `file:[^\\n]*${escapeRegExp(tarballStem(name))}[^\\n]*\\.tgz`,
+          "gi",
+        ),
+      ) ?? [],
+    );
     if (registryEntries.length > 0 || packedEntries.length > 0) {
       throw new Error(
         [
-          "Local mode lockfile contains non-linked Sapporta packages.",
+          "Local mode lockfile contains non-linked managed packages.",
           ...registryEntries,
           ...packedEntries,
         ].join("\n"),
       );
     }
-  } else if (/\blink:[^\n]*\/sapporta\/packages\//.test(lockfile)) {
-    throw new Error("npm mode lockfile still contains Sapporta workspace links.");
+  } else {
+    // A link is named either by the package it belongs to, in an override or a
+    // specifier, or only by the directory it points into when pnpm rewrites an
+    // absolute link relative to the importer.
+    const links = lockfile
+      .split("\n")
+      .filter((line) => line.includes("link:"))
+      .filter((line) =>
+        LINKED_PACKAGES.some(
+          ({ name, path: subpath }) =>
+            line.includes(name) || line.includes(subpath),
+        ),
+      );
+    if (links.length > 0) {
+      throw new Error(
+        ["npm mode lockfile still contains links to a checkout.", ...links].join(
+          "\n",
+        ),
+      );
+    }
   }
 }
 
-async function localSources(config) {
-  const sapportaRoot = config.sapportaRoot;
-  if (!sapportaRoot) {
-    throw new Error(
-      `No Sapporta workspace configured. Set ${SAPPORTA_ROOT_ENV} or run ` +
-        `"pnpm package-sources use:local /absolute/path/to/sapporta".`,
-    );
-  }
+/** How npm names a package's tarball: `@scope/name` becomes `scope-name`. */
+function tarballStem(packageName) {
+  return packageName.replace(/^@/, "").replace("/", "-");
+}
 
-  const canonicalRoot = await realpath(sapportaRoot).catch(() => undefined);
-  if (!canonicalRoot) {
-    throw new Error(`Sapporta workspace does not exist: ${sapportaRoot}`);
-  }
-
+async function localSources(config, manifests) {
+  const specs = new Map(
+    findLinkedLocations(manifests).map((location) => [
+      location.packageName,
+      location.spec,
+    ]),
+  );
   const sources = new Map();
-  for (const [packageName, packageDir] of SAPPORTA_PACKAGE_DIRS) {
-    const packageRoot = path.join(canonicalRoot, "packages", packageDir);
+
+  for (const { name, root, path: packagePath } of LINKED_PACKAGES) {
+    // Only what package.json declares: a managed package someone removed must
+    // not drag its checkout back in.
+    if (!specs.has(name)) continue;
+
+    // A root that is not configured yet can be read off the link already in
+    // the manifest, so a checkout that was linked before the roots became two
+    // keeps working, and `use:local` needs no paths to stay where it is.
+    const configured = config.roots[root] ?? rootFromLink(specs.get(name), name);
+    if (!configured) {
+      throw new Error(
+        `No ${root} checkout is configured for ${name}. Set ` +
+          `${ROOT_BY_NAME.get(root).env}, or run "pnpm package-sources ` +
+          `use:local ${exampleUseLocal(root)}".`,
+      );
+    }
+
+    const canonicalRoot = await canonicalCheckout(configured, root);
+    const packageRoot = path.join(canonicalRoot, packagePath);
     const packageJsonPath = path.join(packageRoot, "package.json");
     if (!existsSync(packageJsonPath)) {
       throw new Error(`Missing ${packageJsonPath}`);
     }
     const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
-    if (packageJson.name !== packageName) {
+    if (packageJson.name !== name) {
       throw new Error(
         `${packageJsonPath} is ${JSON.stringify(packageJson.name)}, ` +
-          `expected ${JSON.stringify(packageName)}`,
+          `expected ${JSON.stringify(name)}`,
       );
     }
-    sources.set(packageName, `link:${packageRoot}`);
+    config.roots[root] = canonicalRoot;
+    sources.set(name, `link:${packageRoot}`);
   }
 
-  config.sapportaRoot = canonicalRoot;
   return sources;
+}
+
+function exampleUseLocal(root) {
+  return root === "sapporta"
+    ? "/absolute/path/to/sapporta"
+    : `--${root} /absolute/path/to/${root}`;
+}
+
+async function canonicalCheckout(directory, rootName) {
+  const canonical = await realpath(directory).catch(() => undefined);
+  if (!canonical) {
+    throw new Error(`The ${rootName} checkout does not exist: ${directory}`);
+  }
+  return canonical;
+}
+
+/** The checkout a `link:` spec points into, or undefined when it is not one. */
+function rootFromLink(spec, packageName) {
+  const linked = PACKAGE_BY_NAME.get(packageName);
+  if (!linked || typeof spec !== "string" || !spec.startsWith("link:")) {
+    return undefined;
+  }
+  const packageRoot = path.resolve(rootDir, spec.slice("link:".length));
+  const suffix = path.join(path.sep, linked.path);
+  return packageRoot.endsWith(suffix)
+    ? packageRoot.slice(0, -suffix.length)
+    : undefined;
 }
 
 function npmSources(config, locations) {
@@ -329,10 +508,10 @@ async function readManifestFiles() {
   return files;
 }
 
-function findSapportaLocations(manifests) {
+function findLinkedLocations(manifests) {
   const locations = [];
   for (const manifest of manifests) {
-    collectSapportaLocations(manifest.json, [], manifest.file, locations);
+    collectLinkedLocations(manifest.json, [], manifest.file, locations);
   }
   return locations.sort((a, b) =>
     `${a.file}:${a.path.join(".")}`.localeCompare(
@@ -341,7 +520,7 @@ function findSapportaLocations(manifests) {
   );
 }
 
-function collectSapportaLocations(value, segments, file, locations) {
+function collectLinkedLocations(value, segments, file, locations) {
   if (!isRecord(value)) return;
 
   for (const [key, child] of Object.entries(value)) {
@@ -349,16 +528,17 @@ function collectSapportaLocations(value, segments, file, locations) {
     if (
       typeof child === "string" &&
       DEPENDENCY_KEYS.has(parentKey) &&
-      SAPPORTA_PACKAGE_DIRS.has(key)
+      PACKAGE_BY_NAME.has(key)
     ) {
       locations.push({
         file,
         path: [...segments, key],
         packageName: key,
+        spec: child,
       });
       continue;
     }
-    collectSapportaLocations(child, [...segments, key], file, locations);
+    collectLinkedLocations(child, [...segments, key], file, locations);
   }
 }
 
@@ -368,10 +548,7 @@ async function readWorkspaceOverrides() {
   return parseTopLevelStringMap(source, "overrides").values;
 }
 
-async function updateWorkspaceOverrides({
-  migratedOverrides,
-  sapportaSources,
-}) {
+async function updateWorkspaceOverrides({ migratedOverrides, linkedSources }) {
   const workspacePath = path.join(rootDir, WORKSPACE_FILE);
   const source = await readFile(workspacePath, "utf8");
   const parsed = parseTopLevelStringMap(source, "overrides");
@@ -380,10 +557,11 @@ async function updateWorkspaceOverrides({
   for (const [key, value] of migratedOverrides) {
     if (!values.has(key)) values.set(key, String(value));
   }
-  for (const packageName of SAPPORTA_PACKAGE_DIRS.keys()) {
-    values.delete(packageName);
+  // Every managed package, so a link override never survives a switch to npm.
+  for (const { name } of LINKED_PACKAGES) {
+    values.delete(name);
   }
-  for (const [packageName, spec] of sapportaSources) {
+  for (const [packageName, spec] of linkedSources) {
     values.set(packageName, spec);
   }
 
@@ -466,66 +644,73 @@ async function readConfigIfPresent() {
 }
 
 async function readConfig() {
-  const config = (await readConfigIfPresent()) ?? {
-    version: 2,
-    mode: "npm",
-    sapportaRoot: undefined,
-    npm: {},
-    updatedAt: null,
-  };
-  // SAPPORTA_PACKAGE_ROOT is the variable the Sapporta CLI already reads when
-  // it scaffolds source-linked projects, so one setting drives both. An
-  // explicit "use:local <workspace>" argument still wins: switchSources
-  // applies it after this.
-  const fromEnv = envSapportaRoot();
-  if (fromEnv) config.sapportaRoot = fromEnv;
+  const config = (await readConfigIfPresent()) ?? emptyConfig();
+  for (const { name, env } of ROOTS) {
+    const fromEnv = envRoot(env);
+    if (fromEnv) config.roots[name] = fromEnv;
+  }
   return config;
 }
 
-function envSapportaRoot() {
-  const value = process.env[SAPPORTA_ROOT_ENV]?.trim();
+function emptyConfig() {
+  return { version: 3, mode: "npm", roots: {}, npm: {}, updatedAt: null };
+}
+
+function envRoot(env) {
+  const value = process.env[env]?.trim();
   return value ? path.resolve(rootDir, value) : undefined;
 }
 
-function describeSapportaRoot(config) {
-  const fromEnv = envSapportaRoot();
-  if (fromEnv) return `${fromEnv} (from ${SAPPORTA_ROOT_ENV})`;
-  if (config?.sapportaRoot) {
-    return `${config.sapportaRoot} (from ${CONFIG_FILE})`;
-  }
-  return "not configured";
+function describeRoots(config) {
+  return ROOTS.map(({ name, env }) => {
+    const fromEnv = envRoot(env);
+    if (fromEnv) return `${name}: ${fromEnv} (from ${env})`;
+    const fromConfig = config?.roots?.[name];
+    if (fromConfig) return `${name}: ${fromConfig} (from ${CONFIG_FILE})`;
+    return `${name}: not configured`;
+  });
 }
 
 function normalizeConfig(config) {
-  if (config.version === 2) return config;
+  if (config.version === 3) {
+    return {
+      ...config,
+      roots: isRecord(config.roots) ? config.roots : {},
+      npm: isRecord(config.npm) ? config.npm : {},
+    };
+  }
+
+  if (config.version === 2) {
+    // A v2 config named one checkout: Sapporta's.
+    return {
+      version: 3,
+      mode: config.mode === "local" ? "local" : "npm",
+      roots: config.sapportaRoot ? { sapporta: config.sapportaRoot } : {},
+      npm: isRecord(config.npm) ? config.npm : {},
+      updatedAt: config.updatedAt ?? null,
+    };
+  }
+
   if (config.version !== 1) {
     throw new Error(`Unsupported ${CONFIG_FILE} version ${config.version}.`);
   }
 
-  const sapportaRoot = Object.values(config.packages ?? {})
-    .map((source) => source?.local)
-    .filter((source) => typeof source === "string" && source.startsWith("link:"))
-    .map(sapportaRootFromLink)
-    .find(Boolean);
-
+  // v1 recorded a local and an npm source per package, so each checkout is
+  // recovered by stripping that package's known directory from its link.
+  const roots = {};
+  const npm = {};
+  for (const [packageName, source] of Object.entries(config.packages ?? {})) {
+    if (typeof source?.npm === "string") npm[packageName] = source.npm;
+    const root = rootFromLink(source?.local, packageName);
+    if (root) roots[PACKAGE_BY_NAME.get(packageName).root] ??= root;
+  }
   return {
-    version: 2,
+    version: 3,
     mode: config.mode === "local" ? "local" : "npm",
-    sapportaRoot,
-    npm: Object.fromEntries(
-      Object.entries(config.packages ?? {}).flatMap(([packageName, source]) =>
-        typeof source?.npm === "string" ? [[packageName, source.npm]] : [],
-      ),
-    ),
+    roots,
+    npm,
     updatedAt: config.updatedAt ?? null,
   };
-}
-
-function sapportaRootFromLink(spec) {
-  const packagePath = spec.slice("link:".length);
-  const marker = `${path.sep}packages${path.sep}`;
-  const markerIndex = packagePath.lastIndexOf(marker);
-  return markerIndex === -1 ? undefined : packagePath.slice(0, markerIndex);
 }
 
 async function writeConfig(config) {
@@ -576,22 +761,33 @@ function printHelp() {
   console.log(`Usage: pnpm package-sources <command>
 
 Commands:
-  status                  Show the configured workspace and current sources.
+  status                  Show the configured checkouts and current sources.
   update-npm              Refresh stored npm release versions.
-  use:npm                 Switch all Sapporta dependencies to npm releases.
-  use:local [workspace]   Link all Sapporta dependencies to one checkout.
+  use:npm                 Switch all managed dependencies to npm releases.
+  use:local [workspace] [--nuabase <path>]
+                          Link all managed dependencies to local checkouts.
   verify                  Verify manifests, overrides, and the lockfile.
 
+Managed packages:
+  @sapporta/*   from the Sapporta checkout, under packages/
+  nuabase       from the nuabase checkout, under nua-llm/nua-client
+
 Local mode:
-  The Sapporta checkout path comes from ${SAPPORTA_ROOT_ENV}, the same
-  variable the Sapporta CLI reads for source-linked scaffolds:
-    export ${SAPPORTA_ROOT_ENV}=/absolute/path/to/sapporta
+  Each checkout comes from its environment variable, the same way the Sapporta
+  CLI names a source-linked workspace:
+    export SAPPORTA_PACKAGE_ROOT=/absolute/path/to/sapporta
+    export NUABASE_PACKAGE_ROOT=/absolute/path/to/nuabase
 
   An explicit argument overrides it for a single run:
     pnpm package-sources use:local /absolute/path/to/sapporta
+    pnpm package-sources use:local --nuabase /absolute/path/to/nuabase
+    pnpm package-sources use:local /path/to/sapporta --nuabase /path/to/nuabase
 
-  Either way the resolved path is stored in the gitignored ${CONFIG_FILE}
-  and reused whenever ${SAPPORTA_ROOT_ENV} is unset. Local mode writes
+  A checkout already linked in package.json is remembered, so returning to
+  local mode needs no paths once the config records it.
+
+  Either way the resolved paths are stored in the gitignored ${CONFIG_FILE}
+  and reused whenever the environment variables are unset. Local mode writes
   direct link: dependencies and transitive overrides in ${WORKSPACE_FILE}.
 
 After switching:

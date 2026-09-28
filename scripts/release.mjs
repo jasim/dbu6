@@ -103,8 +103,8 @@ const linked = Object.entries(manifest.dependencies ?? {})
 if (linked.length > 0) {
   refuse(
     "dependencies",
-    `${linked.join(", ")} come from a local checkout. Publish Sapporta and run ` +
-      "`pnpm package-sources:use-npm` first.",
+    `${linked.join(", ")} come from a local checkout. Publish the linked ` +
+      "packages and run `pnpm package-sources:use-npm` first.",
   );
 }
 
