@@ -382,10 +382,33 @@ you couldn't encode.
   Without an opening balance, every balance check fails by the same amount.
 
 - **"Rename or move an account."**
-  `sapporta rows update accounts <id> --values '{…}'`. Rules and prompt files
-  name accounts by name, so make the same rename in `user-config/`:
-  `transaction_mappings.mjs` and the `custom_mappings_*.prompt` files. The
-  import presets name the account by its id and need no change.
+  `sapporta rows update accounts <id> --values '{…}'`, with the name, type and
+  parent in the one update: a trigger refuses a cell saved alone when it
+  disagrees with the rest of the tree. Rules and prompt files name accounts by
+  name, so make the same rename in `user-config/`: `transaction_mappings.mjs`
+  and the `custom_mappings_*.prompt` files. The import presets name the
+  account by its id and need no change.
+
+  Changing the type of an account that has sub-accounts is
+  `sapporta api put /api/accounts/<id> --body '{"name":"…","account_type":"…","parent_id":<id or null>}'`:
+  one transaction moves the account and its whole branch, which no single
+  `rows update` can do (the trigger refuses a parent and child of different
+  types). It answers `{account, moved}`, and refuses a 422 with a `code` and
+  the `field` it is about: `unknown_account`, `name_required`,
+  `ledger_name_taken`, `parent_not_suitable`, `opening_balances_fixed`
+  (Opening Balances keeps its name and stays Equity) and
+  `bank_or_card_type_fixed` (a bank's or card's type follows its import
+  preset; change it in Settings › Banks & cards). Posted entries don't stop a
+  retype: every amount carries its own sign, so only the report it lands in
+  changes.
+
+  Deleting an account is
+  `sapporta api delete /api/accounts/<id>`, which refuses a 422 and names what
+  is in the way: `has_sub_accounts`, `bank_or_card` (remove it in Settings ›
+  Banks & cards, so its preset goes too), `has_entries` and `has_drafts`.
+  Deleting through the generated table API skips those rules, and an import
+  preset names an account by id inside JSON with no foreign key, so a raw
+  `rows delete` can leave a preset pointing at an account that is gone.
 - **"This statement won't import."**
   The Import screen gives a prompt for each problem. Parser work follows
   the parsers guide (`dbu6 docs parsers`), and failed uploads are kept in

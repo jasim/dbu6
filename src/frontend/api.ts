@@ -13,8 +13,9 @@
 
 import { createApiClient, type ThrowingClient } from "@sapporta/shared/client";
 import type { AppRouter } from "@sapporta/rest-core";
-import { getApiBase } from "@sapporta/frontend/platform";
+import { getApiBase, fetchApi } from "@sapporta/frontend/platform";
 import {
+  accountsContract,
   addAccountContract,
   agentHandoffContract,
   categorizationLessonsContract,
@@ -44,6 +45,25 @@ export function reportClient<TContract extends AppRouter>(
 export const importPresetsApi = createApiClient(importPresetsContract, {
   baseUrl: getApiBase,
 });
+
+// One account's name, type and parent, written together. Creating one is the
+// table API's (`createTableRow`); deleting one is `removeAccount` below.
+export const accountsApi = createApiClient(accountsContract, {
+  baseUrl: getApiBase,
+});
+
+/**
+ * Deletes one account: no sub-accounts, entries or drafts, and not a bank or
+ * card. The contract's own route, called without the typed client because
+ * that client parses every response body as JSON and this route answers 204
+ * with nothing — the framework labels the empty body `application/json`, so
+ * the parse throws. Sapporta's own frontend calls its 204 route the same way.
+ * The contract still declares the route, so the OpenAPI document and the CLI
+ * have it.
+ */
+export async function removeAccount(id: number): Promise<void> {
+  await fetchApi(`/accounts/${id}`, { method: "DELETE" });
+}
 
 export const draftTransactionsApi = createApiClient(draftTransactionsContract, {
   baseUrl: getApiBase,

@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { Temporal } from "@sapporta/shared/temporal";
 import {
   accounts,
@@ -143,6 +143,66 @@ export type ChartedAccount = {
   account_type: AccountType;
 };
 
+/** Whether the books have no other account of this name (`self` aside). */
+export function isAccountNameFree(
+  chart: readonly ChartedAccount[],
+  name: string,
+  self: number | null,
+): boolean {
+  return chart.every((account) => account.name !== name || account.id === self);
+}
+
+/**
+ * Whether `id` is `accountId` itself or an account under it, following
+ * parents up. The tree triggers prevent a loop; one left in the data ends
+ * the walk rather than spinning.
+ */
+export function isInAccountBranch(
+  chart: readonly ChartedAccount[],
+  accountId: number,
+  id: number,
+): boolean {
+  const parentOf = new Map(
+    chart.map((account) => [account.id, account.parent_id]),
+  );
+  const walked = new Set<number>();
+  for (let at: number | null = id; at !== null; at = parentOf.get(at) ?? null) {
+    if (walked.has(at)) return false;
+    walked.add(at);
+    if (at === accountId) return true;
+  }
+  return false;
+}
+
+/** The account and every account under it, by id. */
+export function accountBranchIds(
+  chart: readonly ChartedAccount[],
+  id: number,
+): Set<number> {
+  return new Set(
+    chart
+      .filter((account) => isInAccountBranch(chart, id, account.id))
+      .map((account) => account.id),
+  );
+}
+
+/**
+ * Whether `parentId` can be the parent of an account of `type` that is
+ * `self`: null, a type's own top account, or an account of that type that
+ * isn't `self` or an account under it.
+ */
+export function isSuitableAccountParent(
+  chart: readonly ChartedAccount[],
+  parentId: number | null,
+  type: AccountType,
+  self: number | null,
+): boolean {
+  if (parentId === null) return true;
+  const parent = chart.find((account) => account.id === parentId);
+  if (parent === undefined || parent.account_type !== type) return false;
+  return self === null || !isInAccountBranch(chart, self, parent.id);
+}
+
 /** Every account in scope with its parent, in the order they were made. */
 export function loadAccountChart(db: any, auth: LedgerAuth): ChartedAccount[] {
   const access = auth.rowSecurity.forTable(accounts);
@@ -218,7 +278,8 @@ export function insertAccount(
 /**
  * Renames, retypes and moves one account in a single statement, so the tree
  * triggers see its new type and parent together. In the caller's
- * transaction; an account with sub-accounts can't change type.
+ * transaction; an account with sub-accounts can't change type this way —
+ * `placeAccount` is what moves a whole branch.
  */
 export function updateAccount(
   tx: any,
@@ -231,6 +292,62 @@ export function updateAccount(
     .set({ ...placement, updated_at: Temporal.Now.instant() })
     .where(access.ownedRows(eq(accountsTable.id, id)))
     .run();
+}
+
+/**
+ * Places one account — its name, type and parent — with its branch, in the
+ * caller's transaction, and says how many sub-accounts changed type with it.
+ *
+ * A type change with sub-accounts has no single statement: SQLite checks
+ * each written row, and the update trigger refuses a child whose type
+ * differs from its parent's. So the branch comes off, changes type, and goes
+ * back on (migrations/0004_account_tree_rules.sql).
+ */
+export function placeAccount(
+  tx: any,
+  auth: LedgerAuth,
+  id: number,
+  placement: AccountPlacement,
+): number {
+  const access = auth.rowSecurity.forTable(accounts);
+  const chart = loadAccountChart(tx, auth);
+  const account = chart.find((one) => one.id === id);
+  if (account === undefined) throw new Error(`No account ${id} to place.`);
+  const descendants =
+    account.account_type === placement.account_type
+      ? []
+      : chart.filter(
+          (one) => one.id !== id && isInAccountBranch(chart, id, one.id),
+        );
+  if (descendants.length === 0) {
+    updateAccount(tx, auth, id, placement);
+    return 0;
+  }
+
+  const ids = descendants.map((one) => one.id);
+  // Every descendant, not only the direct children: a middle account still
+  // held by its own children would fire the trigger's type check while they
+  // carry the old type.
+  tx.update(accountsTable)
+    .set({ parent_id: null, updated_at: Temporal.Now.instant() })
+    .where(access.ownedRows(inArray(accountsTable.id, ids)))
+    .run();
+  tx.update(accountsTable)
+    .set({
+      account_type: placement.account_type,
+      updated_at: Temporal.Now.instant(),
+    })
+    .where(access.ownedRows(inArray(accountsTable.id, ids)))
+    .run();
+  updateAccount(tx, auth, id, placement);
+  for (const descendant of descendants) {
+    updateAccount(tx, auth, descendant.id, {
+      name: descendant.name,
+      account_type: placement.account_type,
+      parent_id: descendant.parent_id,
+    });
+  }
+  return descendants.length;
 }
 
 /**

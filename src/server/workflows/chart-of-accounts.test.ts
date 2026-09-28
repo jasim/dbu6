@@ -8,11 +8,14 @@ import {
   type ChartLlm,
   type GetClient,
 } from "../modules/chart-of-accounts/index.js";
+import { insertJournalPlan } from "../modules/journals/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 import { packageDir } from "../paths.js";
 import {
+  changeAccount,
   createChart,
+  deleteChartAccount,
   loadChartOfAccounts,
   suggestChart,
 } from "./chart-of-accounts.js";
@@ -26,13 +29,16 @@ function books(sql = ""): Ledger {
   return { db, sqlite, auth: testLedgerAuth() } as Ledger;
 }
 
-function rows(ledger: Ledger) {
+// Every account by its name and type, with its parent's name, in id order.
+function rows(
+  ledger: Ledger,
+): { name: string; account_type: string; parent: string | null }[] {
   return ledger.sqlite
     .prepare(
       `SELECT a.name, a.account_type, p.name AS parent
        FROM accounts a LEFT JOIN accounts p ON p.id = a.parent_id ORDER BY a.id`,
     )
-    .all();
+    .all() as { name: string; account_type: string; parent: string | null }[];
 }
 
 const account = (
@@ -193,6 +199,339 @@ describe("suggestChart", () => {
       ok: false,
       code: "llm_failed",
       error: "Sample Agent couldn't propose accounts: timed out",
+    });
+  });
+});
+
+/*
+ * One account at a time. Assets (1) holds Bank Accounts (2), which holds
+ * Sample Savings (3) and Sample Wallet (4); Expenses (5) holds Groceries
+ * (6); Equity (7) holds Opening Balances (8).
+ */
+const HOUSEHOLD_CHART = `
+  INSERT INTO accounts
+    (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+  VALUES
+    (1, 'workspace', 'user', 'Assets', NULL, 'Asset', '', ''),
+    (2, 'workspace', 'user', 'Bank Accounts', 1, 'Asset', '', ''),
+    (3, 'workspace', 'user', 'Sample Savings', 2, 'Asset', '', ''),
+    (4, 'workspace', 'user', 'Sample Wallet', 2, 'Asset', '', ''),
+    (5, 'workspace', 'user', 'Expenses', NULL, 'Expense', '', ''),
+    (6, 'workspace', 'user', 'Groceries', 5, 'Expense', '', ''),
+    (7, 'workspace', 'user', 'Equity', NULL, 'Equity', '', ''),
+    (8, 'workspace', 'user', 'Opening Balances', 7, 'Equity', '', '');
+`;
+
+// One bank: Sample Savings (3) is a preset account, so its type follows the
+// preset's `is_credit_card`.
+const SAMPLE_BANK_PRESET = `
+  INSERT INTO import_presets
+    (id, workspace_id, scoped_to_user_id, name, parsers, accounts, updated_at)
+  VALUES
+    (1, 'workspace', 'user', 'Sample Bank', '[]',
+     '[{"account_id":3,"name":"Sample Savings","is_credit_card":false,"account_identifiers":[],"custom_mappings_filenames":[]}]',
+     '2026-02-03T00:00:00Z');
+`;
+
+const household = () => books(HOUSEHOLD_CHART);
+
+// One posted 1000 on `accountId`, against Assets (1) unless that is it.
+function posted(ledger: Ledger, accountId: number) {
+  const against = accountId === 1 ? 5 : 1;
+  const line = {
+    assertion: null,
+    sourceReference: null,
+    comment: null,
+    sourceNarration: null,
+  };
+  insertJournalPlan(
+    ledger.db,
+    [
+      {
+        date: "2026-02-03",
+        description: "NOPII TRANSFER",
+        entries: [
+          {
+            ...line,
+            account: accountId,
+            amount: -1000,
+            sourceTransactionKey: null,
+          },
+          {
+            ...line,
+            account: against,
+            amount: 1000,
+            sourceTransactionKey: null,
+          },
+        ],
+      },
+    ],
+    ledger.auth,
+  );
+}
+
+function drafted(ledger: Ledger, accountId: number) {
+  ledger.sqlite
+    .prepare(
+      `INSERT INTO draft_transactions
+         (workspace_id, scoped_to_user_id, date, source_narration, withdrawal,
+          deposit, base_account_id, created_at, updated_at)
+       VALUES ('workspace', 'user', '2026-02-03', 'NOPII TRANSFER', 0, 1000, ?, '2026-02-03T00:00:00Z', '2026-02-03T00:00:00Z')`,
+    )
+    .run(accountId);
+}
+
+describe("changeAccount", () => {
+  const change = (
+    ledger: Ledger,
+    id: number,
+    name: string,
+    account_type: ChartAccount["account_type"],
+    parent_id: number | null,
+  ) => changeAccount(ledger, id, { name, account_type, parent_id });
+
+  it("retypes a whole branch, keeping every account where it sat", () => {
+    const ledger = household();
+
+    const outcome = change(ledger, 2, "Current Accounts", "Expense", 5);
+
+    expect(outcome).toMatchObject({ ok: true, moved: 2 });
+    expect(outcome.ok && outcome.account).toMatchObject({
+      id: 2,
+      name: "Current Accounts",
+      account_type: "Expense",
+      parent_id: 5,
+    });
+    expect(rows(ledger)).toEqual([
+      { name: "Assets", account_type: "Asset", parent: null },
+      { name: "Current Accounts", account_type: "Expense", parent: "Expenses" },
+      {
+        name: "Sample Savings",
+        account_type: "Expense",
+        parent: "Current Accounts",
+      },
+      {
+        name: "Sample Wallet",
+        account_type: "Expense",
+        parent: "Current Accounts",
+      },
+      { name: "Expenses", account_type: "Expense", parent: null },
+      { name: "Groceries", account_type: "Expense", parent: "Expenses" },
+      { name: "Equity", account_type: "Equity", parent: null },
+      { name: "Opening Balances", account_type: "Equity", parent: "Equity" },
+    ]);
+  });
+
+  it("retypes with entries posted on the branch", () => {
+    const ledger = household();
+    posted(ledger, 3);
+
+    expect(change(ledger, 2, "Bank Accounts", "Expense", 5)).toMatchObject({
+      ok: true,
+      moved: 2,
+    });
+
+    expect(rows(ledger).slice(1, 4)).toEqual([
+      { name: "Bank Accounts", account_type: "Expense", parent: "Expenses" },
+      {
+        name: "Sample Savings",
+        account_type: "Expense",
+        parent: "Bank Accounts",
+      },
+      {
+        name: "Sample Wallet",
+        account_type: "Expense",
+        parent: "Bank Accounts",
+      },
+    ]);
+    // The posted entry is still on Sample Savings, its amount untouched.
+    expect(
+      ledger.sqlite
+        .prepare(
+          "SELECT account_id, credit FROM journal_entries WHERE account_id = 3",
+        )
+        .all(),
+    ).toEqual([{ account_id: 3, credit: 1000 }]);
+  });
+
+  it("changes one account with no sub-accounts", () => {
+    const ledger = household();
+
+    expect(change(ledger, 6, "Eating Out", "Revenue", null)).toMatchObject({
+      ok: true,
+      moved: 0,
+    });
+    expect(rows(ledger)[5]).toEqual({
+      name: "Eating Out",
+      account_type: "Revenue",
+      parent: null,
+    });
+  });
+
+  it("moves an account within its type", () => {
+    const ledger = household();
+
+    expect(change(ledger, 3, "Sample Savings", "Asset", 4)).toMatchObject({
+      ok: true,
+      moved: 0,
+    });
+    expect(rows(ledger)[2]).toEqual({
+      name: "Sample Savings",
+      account_type: "Asset",
+      parent: "Sample Wallet",
+    });
+  });
+
+  it("lets Opening Balances move within Equity", () => {
+    const ledger = household();
+
+    expect(change(ledger, 8, "Opening Balances", "Equity", null)).toMatchObject(
+      { ok: true, moved: 0 },
+    );
+    expect(rows(ledger)[7]).toEqual({
+      name: "Opening Balances",
+      account_type: "Equity",
+      parent: null,
+    });
+  });
+
+  it("refuses each rule, and writes nothing", () => {
+    const ledger = books(HOUSEHOLD_CHART + SAMPLE_BANK_PRESET);
+    const before = rows(ledger);
+
+    expect(change(ledger, 99, "Sample", "Asset", null)).toMatchObject({
+      ok: false,
+      problem: { code: "unknown_account", field: null },
+    });
+    expect(change(ledger, 3, "   ", "Asset", 2)).toMatchObject({
+      ok: false,
+      problem: { code: "name_required", field: "name" },
+    });
+    expect(change(ledger, 3, "Groceries", "Asset", 2)).toMatchObject({
+      ok: false,
+      problem: { code: "ledger_name_taken", field: "name" },
+    });
+    expect(change(ledger, 3, "Sample Savings", "Asset", 5)).toMatchObject({
+      ok: false,
+      problem: { code: "parent_not_suitable", field: "parent_id" },
+    });
+    expect(change(ledger, 3, "Sample Savings", "Asset", 99)).toMatchObject({
+      ok: false,
+      problem: { code: "parent_not_suitable", field: "parent_id" },
+    });
+    expect(change(ledger, 2, "Bank Accounts", "Asset", 3)).toMatchObject({
+      ok: false,
+      problem: { code: "parent_not_suitable", field: "parent_id" },
+    });
+
+    // Opening Balances keeps its name and stays Equity.
+    expect(change(ledger, 8, "Opening Balance", "Equity", 7)).toMatchObject({
+      ok: false,
+      problem: { code: "opening_balances_fixed", field: "name" },
+    });
+    expect(change(ledger, 8, "Opening Balances", "Asset", 1)).toMatchObject({
+      ok: false,
+      problem: { code: "opening_balances_fixed", field: "account_type" },
+    });
+
+    // Sample Savings (3) is a preset account, so the branch holding it can't
+    // change type; its name still can.
+    expect(change(ledger, 2, "Bank Accounts", "Expense", 5)).toMatchObject({
+      ok: false,
+      problem: {
+        code: "bank_or_card_type_fixed",
+        field: "account_type",
+        message:
+          "Bank Accounts holds a bank or card, so its type follows theirs. Change them in Settings › Banks & cards.",
+      },
+    });
+    expect(change(ledger, 3, "Sample Savings", "Revenue", null)).toMatchObject({
+      ok: false,
+      problem: {
+        code: "bank_or_card_type_fixed",
+        field: "account_type",
+        message:
+          "Sample Savings is a bank or card, so its type follows its statements. Change it in Settings › Banks & cards.",
+      },
+    });
+    expect(rows(ledger)).toEqual(before);
+  });
+
+  it("allows renaming a branch that holds a bank account", () => {
+    const ledger = books(HOUSEHOLD_CHART + SAMPLE_BANK_PRESET);
+
+    expect(change(ledger, 2, "Current Accounts", "Asset", 1)).toMatchObject({
+      ok: true,
+      moved: 0,
+    });
+    expect(rows(ledger)[1]).toEqual({
+      name: "Current Accounts",
+      account_type: "Asset",
+      parent: "Assets",
+    });
+  });
+});
+
+describe("deleteChartAccount", () => {
+  it("deletes an account with nothing on it and nothing under it", () => {
+    const ledger = household();
+
+    expect(deleteChartAccount(ledger, 4)).toEqual({ ok: true });
+    expect(rows(ledger).map((row) => row.name)).not.toContain("Sample Wallet");
+  });
+
+  it("refuses each blocker, naming what is in the way", () => {
+    const ledger = books(HOUSEHOLD_CHART + SAMPLE_BANK_PRESET);
+
+    expect(deleteChartAccount(ledger, 99)).toMatchObject({
+      ok: false,
+      problem: { code: "unknown_account" },
+    });
+    expect(deleteChartAccount(ledger, 2)).toMatchObject({
+      ok: false,
+      problem: {
+        code: "has_sub_accounts",
+        message:
+          "Bank Accounts has 2 sub-accounts under it; delete them first.",
+      },
+    });
+    expect(deleteChartAccount(ledger, 3)).toMatchObject({
+      ok: false,
+      problem: {
+        code: "bank_or_card",
+        message:
+          "Sample Savings is a bank or card. Remove it in Settings › Banks & cards.",
+      },
+    });
+
+    posted(ledger, 4);
+    expect(deleteChartAccount(ledger, 4)).toMatchObject({
+      ok: false,
+      problem: {
+        code: "has_entries",
+        message: "Sample Wallet has 1 entry in your books.",
+      },
+    });
+    drafted(ledger, 4);
+    expect(deleteChartAccount(ledger, 4)).toMatchObject({
+      ok: false,
+      problem: { code: "has_entries" },
+    });
+
+    // Nothing was deleted.
+    expect(rows(ledger)).toHaveLength(8);
+  });
+
+  it("refuses on drafts alone, after the entries are gone", () => {
+    const ledger = household();
+    drafted(ledger, 4);
+
+    expect(deleteChartAccount(ledger, 4)).toMatchObject({
+      ok: false,
+      problem: {
+        code: "has_drafts",
+        message: "Sample Wallet has 1 draft to review.",
+      },
     });
   });
 });

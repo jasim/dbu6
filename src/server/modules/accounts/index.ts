@@ -3,16 +3,21 @@
 // Balances account opening entries post against. Import from here
 // rather than from the file.
 export {
+  accountBranchIds,
   createOpeningBalancesAccount,
   deleteAccount,
   findOpeningBalancesAccount,
   insertAccount,
   insertChartAccounts,
+  isAccountNameFree,
+  isInAccountBranch,
+  isSuitableAccountParent,
   loadAccountChart,
   loadAccountsByName,
   loadHledgerAccountNames,
   loadLedgerAccounts,
   OPENING_BALANCES_ACCOUNT,
+  placeAccount,
   updateAccount,
   type AccountPlacement,
   type ChartedAccount,

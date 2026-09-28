@@ -533,7 +533,13 @@ posted on its account and its journal opens it alone),
 `workflows/import-presets.ts` (the presets' one writer: a batch of changes
 applied, checked against the whole table, and written in one transaction),
 `workflows/chart-of-accounts.ts` (setup's chart of accounts: the starter
-chart for books with no accounts, and creating the ticked accounts),
+chart for books with no accounts, creating the ticked accounts, and the
+Accounts page's one account at a time — `changeAccount`, which writes its
+name, type and parent together and takes its whole branch along when the
+type changes, and `deleteChartAccount`, which refuses unless nothing is on
+the account or under it; both check the rules the tree triggers can't see,
+Opening Balances and a bank's or card's preset, and throw inside the
+transaction so a refusal writes nothing),
 `workflows/comment-writer.ts` (each imported row's comment, written in the
 background from its source narration: one run at a time, started with the
 server and after imports and posting, waiting while categorization runs)

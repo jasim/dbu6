@@ -17,6 +17,8 @@ import {
 import {
   deleteAccount,
   insertAccount,
+  isAccountNameFree,
+  isInAccountBranch,
   loadAccountChart,
   loadHledgerAccountNames,
   loadLedgerAccounts,
@@ -759,7 +761,7 @@ function checkNameFree(
   name: string,
   self: number | null,
 ): void {
-  if (chart.some((account) => account.name === name && account.id !== self)) {
+  if (!isAccountNameFree(chart, name, self)) {
     refuse(
       "ledger_name_taken",
       `Your books already have an account named ${name}.`,
@@ -781,19 +783,14 @@ function checkParent(
       `A ${kind === "card" ? "card" : "bank account"} sits under ${type === "Asset" ? "an Asset" : "a Liability"} account.`,
     );
   }
-  if (account === undefined) return;
-  const parentOf = new Map(chart.map((one) => [one.id, one.parent_id]));
-  for (
-    let at: number | null = parent.id;
-    at !== null;
-    at = parentOf.get(at) ?? null
-  ) {
-    if (at === account.id) {
-      refuse(
-        "parent_not_suitable",
-        `${account.name} can't sit under itself or an account under it.`,
-      );
-    }
+  // The kind's accounts always have a parent; `checkParent` without one is
+  // the accounts workflow's, which allows a top account.
+  if (account === undefined || parent === undefined) return;
+  if (isInAccountBranch(chart, account.id, parent.id)) {
+    refuse(
+      "parent_not_suitable",
+      `${account.name} can't sit under itself or an account under it.`,
+    );
   }
 }
 

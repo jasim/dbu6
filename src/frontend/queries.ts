@@ -7,6 +7,13 @@ import {
 } from "@tanstack/react-query";
 import type { DateSpan } from "../shared/index";
 import { ApiError } from "@sapporta/shared/client";
+import { MAX_PAGE_SIZE } from "@sapporta/shared/contracts";
+import { mintFilterId } from "@sapporta/shared/filter";
+import { fetchTableRows, reloadTGridRows } from "@sapporta/frontend";
+// `tableQueryKeys` is not reachable through the package's `.` entry: its
+// `export * from './table'` meets the build's `table/query.js` stub, which
+// has no declarations beside it. The package publishes this subpath for it.
+import { tableQueryKeys } from "@sapporta/frontend/table/query";
 import {
   agentHandoffApi,
   categorizationLessonsApi,
@@ -206,6 +213,69 @@ export function refreshSetup(client: QueryClient): Promise<void> {
 /** Refreshes Home, the Review picker and every account's summary. */
 export function refreshDraftStatus(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: DRAFT_STATUS_KEY });
+}
+
+/**
+ * Every account in the books, which the edit form's parent choices are made
+ * from. One page is not enough — the parent wanted may be the last account
+ * in the books — so it asks for the table API's largest page.
+ */
+export const accountChartQuery = queryOptions({
+  queryKey: [...tableQueryKeys.table("accounts"), "chart"],
+  queryFn: async () =>
+    (
+      await fetchTableRows({
+        tableName: "accounts",
+        limit: MAX_PAGE_SIZE,
+        sort: [{ colId: "name", direction: "asc" }],
+      })
+    ).data,
+  ...FRESH_QUERY,
+});
+
+/**
+ * Whether anything is posted on one account. The form's "they'll show under
+ * X in reports" line is only worth saying when the account has entries or
+ * sub-accounts, and this is the one fact the chart doesn't carry.
+ *
+ * `fixed` wants typed conditions; the page has no schema for this table at
+ * hand, and `journal_entries.account_id` is an integer, which Sapporta's
+ * `resolveColumnKind` calls the "number" kind.
+ */
+export function accountHasEntriesQuery(accountId: number) {
+  return queryOptions({
+    queryKey: [...tableQueryKeys.table("journal_entries"), "any", accountId],
+    queryFn: async () =>
+      (
+        await fetchTableRows({
+          tableName: "journal_entries",
+          limit: 1,
+          fixed: [
+            {
+              id: mintFilterId("account_id", "eq"),
+              column: "account_id",
+              op: "eq",
+              kind: "number",
+              value: accountId,
+            },
+          ],
+        })
+      ).data.length > 0,
+    ...FRESH_QUERY,
+  });
+}
+
+/**
+ * Refreshes everything an account's name, type, parent or existence changes:
+ * the Accounts grid (its page queries and the form's chart), the setup reads,
+ * Home and Review. Then the mounted grid fetches its rows again.
+ */
+export async function refreshAccounts(client: QueryClient): Promise<void> {
+  await Promise.all([
+    client.invalidateQueries({ queryKey: tableQueryKeys.table("accounts") }),
+    refreshSetup(client),
+  ]);
+  reloadTGridRows("accounts");
 }
 
 /**

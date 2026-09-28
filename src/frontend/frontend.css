@@ -379,16 +379,54 @@ body {
 }
 
 /* The Accounts page's grid (App.tsx). Each depth of the account tree steps in
-   further than the preset's 18px, and the rows sit closer than the row tier,
-   at the control tier (a click target's floor), with no rule between them.
-   The header keeps its rule. */
+   further than the preset's 18px, and the rows sit at the control tier plus
+   8px, with no rule between them: the Edit button inside a row is itself a
+   control-tier target, and the extra height keeps it clear of the row's edges
+   rather than filling the row. The header keeps its own height and its rule. */
 .accounts-grid {
   --sap-grid-tree-indent: 18px;
-  --grid-cell-min-height: var(--height-sap-ctl);
+  --grid-cell-min-height: calc(var(--height-sap-ctl) + 8px);
 }
 
 .accounts-grid [data-grid-part="row"] {
   border-bottom: 0;
+}
+
+/* The Accounts grid's Edit cell (views/accounts/AccountsPage.tsx): the pencil
+   and its word in one chip. It reads as a button, not a link: a hairline
+   border and a control-tier box at rest, and on hover or keyboard focus a
+   raised card surface, a stronger border and a pill shadow, so it lifts off
+   the row's own hover wash (`--sap-row-hover`, which is `--muted`'s colour, so
+   a muted fill alone would be invisible). A press darkens it. The whole cell
+   is the target the column's activation runs on; the column is read-only. */
+.accounts-grid .account-edit-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: var(--height-sap-ctl);
+  padding: 0 8px;
+  border: 1px solid var(--sap-border);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-size: var(--text-sap-data);
+  /* Tailwind v4 leaves a button with the arrow cursor, which reads as text. */
+  cursor: pointer;
+}
+
+.accounts-grid .account-edit-cell:hover,
+.accounts-grid .account-edit-cell:focus-visible {
+  background: var(--color-card);
+  border-color: var(--sap-border-strong);
+  color: var(--color-foreground);
+  box-shadow: var(--shadow-pill);
+}
+
+.accounts-grid .account-edit-cell:active {
+  background: var(--color-muted);
+  box-shadow: none;
 }
 
 /* A report's last rows, usually its net totals, can scroll up off the

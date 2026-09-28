@@ -16,7 +16,6 @@ import {
   Settings,
   Settings2,
 } from "lucide-react";
-import { TablePage } from "@sapporta/frontend";
 import { Advanced } from "./Advanced";
 import { Home as HomePage } from "./home/Home";
 import { ImportInstructions } from "./views/import-instructions/ImportInstructions";
@@ -33,6 +32,7 @@ import { DraftsTab } from "./review/DraftsTab";
 import { DuplicatesTab } from "./review/DuplicatesTab";
 import { ImproveCategorizationTab } from "./review/ImproveCategorizationTab";
 import { Overview } from "./review/Overview";
+import { AccountsPage } from "./views/accounts/AccountsPage";
 import { ReviewAccount } from "./review/ReviewAccount";
 import { ReviewAccounts } from "./review/ReviewAccounts";
 import {
@@ -123,15 +123,7 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
     <>
       {/* The everyday screens. Until Step 6 rebuilds each one, its route shows
         today's screen, so the sidebar already points where it will. */}
-      <Route
-        path="accounts"
-        element={
-          <TablePage
-            tableName="accounts"
-            gridOptions={{ gridClassName: "accounts-grid" }}
-          />
-        }
-      />
+      <Route path="accounts" element={<AccountsPage />} />
       <Route path="import" element={<AutoImportStatements />} />
       <Route path="review" element={<ReviewAccounts />} />
       <Route path="review/:accountId" element={<ReviewAccount />}>

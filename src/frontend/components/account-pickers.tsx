@@ -71,7 +71,13 @@ function Field({
   );
 }
 
-/** One account from `choices`, by id, shown with its path in the tree. */
+/**
+ * One account from `choices`, by id, shown with its path in the tree. With
+ * `topLevel`, a row above them clears the parent: account ids are positive,
+ * so 0 stands for "none".
+ */
+const TOP_LEVEL_ID = 0;
+
 export function AccountCombobox({
   id,
   choices,
@@ -79,6 +85,7 @@ export function AccountCombobox({
   onChange,
   placeholder,
   invalid,
+  topLevel,
 }: {
   id: string;
   choices: readonly ChartChoice[];
@@ -86,13 +93,30 @@ export function AccountCombobox({
   onChange: (id: number | null) => void;
   placeholder: string;
   invalid?: boolean;
+  /** Add a row named this that means "no parent"; omitted, one is required. */
+  topLevel?: string;
 }) {
-  const selected = choices.find((choice) => choice.id === value) ?? null;
+  const noParent: ChartChoice | null =
+    topLevel === undefined
+      ? null
+      : { id: TOP_LEVEL_ID, name: topLevel, path: topLevel };
+  const items: ChartChoice[] =
+    noParent === null ? [...choices] : [noParent, ...choices];
+  const selected =
+    value === null
+      ? noParent
+      : (items.find((choice) => choice.id === value) ?? null);
   return (
     <Combobox.Root<ChartChoice>
-      items={choices}
+      items={items}
       value={selected}
-      onValueChange={(next) => onChange(next?.id ?? null)}
+      onValueChange={(next) =>
+        onChange(
+          next === undefined || next === null || next.id === TOP_LEVEL_ID
+            ? null
+            : next.id,
+        )
+      }
       itemToStringLabel={(choice) => choice.name}
       isItemEqualToValue={(a, b) => a.id === b.id}
     >
