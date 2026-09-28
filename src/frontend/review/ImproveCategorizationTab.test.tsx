@@ -22,11 +22,11 @@ import type { ReviewAccountContext } from "./ReviewAccount";
 /*
  * Improve categorization's two-region left column. The rule request being
  * made comes first: it says what to select, or that every draft goes to an
- * account. The rule requests it makes come under their own heading, which
- * names and counts them, above the one button that hands them to the coding
- * agent and then goes to Run categorizer. The grid needs the table's schema,
- * which no test here loads, so a rule request is never being made in these
- * tests: the compose card itself is checked in the preview harness.
+ * account. The rules it makes come under their own heading, "Rules to add",
+ * which names and counts them, above the one button that hands them to the
+ * coding agent and then goes to Run categorizer. The grid needs the table's
+ * schema, which no test here loads, so a rule request is never being made in
+ * these tests: the compose card itself is checked in the preview harness.
  */
 
 let host: HTMLDivElement;
@@ -211,18 +211,25 @@ async function settle() {
 }
 
 const panel = () => host.querySelector("aside")?.textContent ?? "";
-// The region the "Rule requests" heading names: it holds the rules and the one
+// The region the "Rules to add" heading names: it holds the rules and the one
 // action on them, never the rule request being made.
 const region = () =>
-  host.querySelector("#rule-requests-heading")?.closest("section") ?? null;
+  host.querySelector("#rules-to-add-heading")?.closest("section") ?? null;
+// Each rule as its labelled facts (account, drafts) and its description chips.
 const rules = () =>
-  [...host.querySelectorAll("aside ol > li")].map((li) => ({
-    account: li.querySelector("p")?.firstChild?.textContent,
-    amounts: li.querySelector("p > span")?.textContent,
-    descriptions: [...li.querySelectorAll("ul > li")].map(
-      (chip) => chip.textContent,
-    ),
-  }));
+  [...host.querySelectorAll("aside ol > li")].map((li) => {
+    const fact = (label: string) =>
+      [...li.querySelectorAll("dl > div")]
+        .find((row) => row.querySelector("dt")?.textContent === label)
+        ?.querySelector("dd")?.textContent;
+    return {
+      account: fact("Account"),
+      drafts: fact("Drafts"),
+      descriptions: [...li.querySelectorAll("ul > li")].map(
+        (chip) => chip.textContent,
+      ),
+    };
+  });
 const button = (label: string) =>
   [...host.querySelectorAll("button")].find(
     (b) =>
@@ -231,19 +238,20 @@ const button = (label: string) =>
   );
 
 describe("Improve categorization", () => {
-  it("says what to select, and lists the rule requests account first, with their amounts", async () => {
+  it("says what to select, and lists the rules to add with their account and drafts", async () => {
     await render();
 
-    expect(panel()).toContain("Select transactions that go together");
+    expect(panel()).toContain("Select drafts to categorize");
+    expect(panel()).toContain("Choose the account they should go to");
     expect(rules()).toEqual([
       {
         account: "Groceries",
-        amounts: "money out · 120 – 450.50",
+        drafts: "2",
         descriptions: ["NOPII SHOP ONE", "NOPII SHOP ONE AGAIN"],
       },
       {
         account: "Dining",
-        amounts: "money out · 300",
+        drafts: "1",
         descriptions: ["NOPII CAFE"],
       },
     ]);
@@ -261,19 +269,17 @@ describe("Improve categorization", () => {
     ).toBe("/categorization-rules?show=ai&account=5");
   });
 
-  it("heads the rule requests with their own heading, apart from the rule request being made", async () => {
+  it("heads the rules to add with their own heading, apart from the rule request being made", async () => {
     await render();
 
     // The heading names and counts the list under it, so "Turn 2 rule
     // requests into rules" is visibly about these and not about the rule
     // request being made at the top of the column.
-    expect(region()?.textContent).toContain("Rule requests");
+    expect(region()?.textContent).toContain("Rules to add");
     expect(region()?.querySelectorAll("ol > li")).toHaveLength(2);
-    expect(region()?.textContent).not.toContain(
-      "Select transactions that go together",
-    );
+    expect(region()?.textContent).not.toContain("Select drafts to categorize");
     expect(host.querySelector("aside")?.getAttribute("aria-label")).toBe(
-      "Rule requests",
+      "Improve categorization",
     );
   });
 

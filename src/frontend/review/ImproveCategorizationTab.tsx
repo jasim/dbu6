@@ -26,20 +26,12 @@ import { AgentActions, PromptText } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
 import { Field } from "../components/focus-card";
 import { Button } from "../components/ui/button";
-import {
-  formatAmountRange,
-  formatMoney,
-  formatShortDate,
-  plural,
-} from "../format";
+import { formatMoney, formatShortDate, plural } from "../format";
 import { categorizationRuleRequestsQuery } from "../queries";
 import { Chip } from "../views/import-instructions/rule-parts";
 import { categorizationRulesHref } from "../views/import-instructions/routes";
 import type { CategorizationRuleRequest } from "../../shared/index";
-import {
-  amountsSeen,
-  ruleRequestsPrompt,
-} from "./categorization-rule-requests";
+import { ruleRequestsPrompt } from "./categorization-rule-requests";
 import { CheckPasses, ReportTab } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 import {
@@ -255,7 +247,7 @@ export function ImproveCategorizationTab() {
           made at the top, then the rule requests it joins, which is where the
           one action on them lives. */}
       <aside
-        aria-label="Rule requests"
+        aria-label="Improve categorization"
         className="shrink-0 space-y-5 overflow-y-auto border-sap-border px-4 py-4 max-md:order-last max-md:border-t md:w-[380px] md:border-r"
       >
         <DraftRule
@@ -427,16 +419,31 @@ function SelectedDrafts({ selected }: { selected: readonly SelectedDraft[] }) {
 }
 
 /**
- * The amounts a rule request's drafts moved, which the agent turns into a
- * range for the rule: "money out · 60 – 480".
+ * What a rule request holds: the account its drafts go to, and how many of
+ * them, as labelled facts. The amounts are left to the rule the agent writes,
+ * so the sidebar stays about where the drafts go.
  */
-function amountsLine(ruleRequest: CategorizationRuleRequest): string {
-  return amountsSeen(ruleRequest.transactions)
-    .map(
-      (seen) =>
-        `money ${seen.direction === "withdrawal" ? "out" : "in"} · ${formatAmountRange(seen)}`,
-    )
-    .join(", ");
+function RuleRequestFacts({
+  account,
+  drafts,
+}: {
+  account: string;
+  drafts: number;
+}) {
+  return (
+    <dl className="min-w-0 flex-1 text-row">
+      <div className="flex items-baseline gap-2">
+        <dt className="w-16 shrink-0 text-ink-soft">Account</dt>
+        <dd className="min-w-0 font-semibold text-foreground [overflow-wrap:anywhere]">
+          {account}
+        </dd>
+      </div>
+      <div className="mt-0.5 flex items-baseline gap-2">
+        <dt className="w-16 shrink-0 text-ink-soft">Drafts</dt>
+        <dd className="tnum font-mono font-medium text-foreground">{drafts}</dd>
+      </div>
+    </dl>
+  );
 }
 
 /**
@@ -513,11 +520,10 @@ function DraftRule({
       // A newcomer's first sight of the page: what to do, and what it buys.
       <div className="rounded-card border border-dashed border-sap-border-strong px-4 py-3">
         <p className="text-row font-semibold text-foreground">
-          Select transactions that go together
+          Select drafts to categorize
         </p>
         <p className="mt-1 text-meta text-ink-soft">
-          Choose the account they go to, and future ones like them will go there
-          too.
+          Choose the account they should go to.
         </p>
       </div>
     );
@@ -540,9 +546,15 @@ function DraftRule({
 
   return (
     <section
-      aria-label="New rule request"
+      aria-labelledby="new-rule-heading"
       className="space-y-3 rounded-card border border-dashed border-primary/60 bg-card px-4 py-3.5"
     >
+      <h2
+        id="new-rule-heading"
+        className="text-row font-semibold text-foreground"
+      >
+        Which account should these go to?
+      </h2>
       <Field id="rule-account" label="Account">
         <LookupPicker
           id="rule-account"
@@ -596,9 +608,10 @@ function DraftRule({
 
 /**
  * The rule requests the drafts made, as the rules page shows rules: the
- * account, then its descriptions. The heading names them and counts them, so
- * what "Add to rule requests" put on the list is the thing under it. At the
- * foot, the one way on: hand them to the coding agent, which adds them to the
+ * account each goes to and how many drafts, then their descriptions. The
+ * heading names what they become — rules to add — and counts them, so what
+ * "Add to rule requests" put on the list is the thing under it. At the foot,
+ * the one way on: hand them to the coding agent, which adds them to the
  * categorization rules and takes each off this list.
  */
 function NewRules({
@@ -628,63 +641,67 @@ function NewRules({
   });
 
   return (
-    <section aria-labelledby="rule-requests-heading" className="space-y-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2
-          id="rule-requests-heading"
-          className="text-subheading text-foreground"
-        >
-          Rule requests
-          <span className="tnum ml-2 text-meta font-medium text-ink-meta">
-            {ruleRequests.length}
-          </span>
-        </h2>
-        <Link
-          to={allRulesHref}
-          className="text-meta text-ink-meta hover:text-foreground hover:underline"
-        >
-          All rules
-        </Link>
-      </div>
-      <ol className="rounded-card border border-sap-border bg-card shadow-card">
-        {ruleRequests.map((ruleRequest, index) => (
-          <li
-            key={ruleRequest.id}
-            className={
-              index === 0 ? "px-4 py-3" : "border-t border-line-inner px-4 py-3"
-            }
-          >
-            <div className="flex items-start gap-2">
-              <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 text-row font-semibold text-foreground">
-                {ruleRequest.account.name}
-                <span className="tnum text-meta font-normal text-ink-soft">
-                  {amountsLine(ruleRequest)}
-                </span>
-              </p>
-              <button
-                type="button"
-                onClick={() => remove.mutate(ruleRequest.id)}
-                disabled={remove.isPending}
-                title="Remove this rule request. Its drafts go back on the list."
-                aria-label={`Remove the rule request for ${ruleRequest.account.name}`}
-                className="-mr-1 rounded-control p-1 text-ink-meta hover:bg-sap-row-hover hover:text-foreground disabled:opacity-50"
-              >
-                <X aria-hidden="true" className="size-3.5" />
-              </button>
-            </div>
-            <Descriptions
-              narrations={ruleRequest.transactions.map(
-                (transaction) => transaction.source_narration,
+    <section aria-labelledby="rules-to-add-heading" className="space-y-3">
+      <h2 id="rules-to-add-heading" className="text-subheading text-foreground">
+        Rules to add
+        <span className="tnum ml-2 text-meta font-medium text-ink-meta">
+          {ruleRequests.length}
+        </span>
+      </h2>
+      <div className="rounded-card border border-sap-border bg-card shadow-card">
+        <ol>
+          {ruleRequests.map((ruleRequest, index) => (
+            <li
+              key={ruleRequest.id}
+              className={
+                index === 0
+                  ? "px-4 py-3"
+                  : "border-t border-line-inner px-4 py-3"
+              }
+            >
+              <div className="flex items-start gap-2">
+                <RuleRequestFacts
+                  account={ruleRequest.account.name}
+                  drafts={ruleRequest.transactions.length}
+                />
+                <button
+                  type="button"
+                  onClick={() => remove.mutate(ruleRequest.id)}
+                  disabled={remove.isPending}
+                  title="Remove this rule request. Its drafts go back on the list."
+                  aria-label={`Remove the rule request for ${ruleRequest.account.name}`}
+                  className="-mr-1 rounded-control p-1 text-ink-meta hover:bg-sap-row-hover hover:text-foreground disabled:opacity-50"
+                >
+                  <X aria-hidden="true" className="size-3.5" />
+                </button>
+              </div>
+              <Descriptions
+                narrations={ruleRequest.transactions.map(
+                  (transaction) => transaction.source_narration,
+                )}
+              />
+              {ruleRequest.note !== "" && (
+                <p className="mt-1.5 text-meta text-ink-soft [overflow-wrap:anywhere]">
+                  {ruleRequest.note}
+                </p>
               )}
-            />
-            {ruleRequest.note !== "" && (
-              <p className="mt-1.5 text-meta text-ink-soft [overflow-wrap:anywhere]">
-                {ruleRequest.note}
-              </p>
-            )}
-          </li>
-        ))}
-      </ol>
+            </li>
+          ))}
+        </ol>
+        {/* The full collection these join, at the foot of the list: the
+            reader who has scanned what is not in effect yet asks what is.
+            Not beside the heading, whose "Rules to add" names only the
+            pending queue, and not in the commit below, whose one action is
+            taking these to the agent. */}
+        <div className="border-t border-line-inner px-4 py-2">
+          <Link
+            to={allRulesHref}
+            className="text-meta font-medium text-sap-link hover:underline"
+          >
+            See all the current rules
+          </Link>
+        </div>
+      </div>
       {remove.isError && (
         <p className="text-meta text-destructive [overflow-wrap:anywhere]">
           {apiErrorMessage(remove.error)}
