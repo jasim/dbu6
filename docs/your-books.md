@@ -16,6 +16,7 @@ my-books/
   sapporta.json           the project's name
   .env.example            the defaults `dbu6 setup` copies to .env
   .env                    ports, mail, the auth secret; gitignored
+  .env.agent              the agent's token; gitignored, written by `dbu6 agent env`
   user-config/            mapping rules and categorization prompts
   data/sqlite.db          the books; gitignored, back it up yourself
 ```
@@ -83,6 +84,19 @@ ships. The skill is installed once:
 ```sh
 npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --global --yes
 ```
+
+The `sapporta` command the agent uses for your books comes with dbu6, so there
+is nothing else to install. It needs a token, and one command mints it for the
+folder:
+
+```sh
+npx dbu6 agent env
+npx sapporta api get /api/auth-context
+```
+
+The first writes `.env.agent` — a credential, gitignored, one token per folder —
+and the second names the user and workspace it acts as. An agent given a prompt
+runs the first itself when it has to.
 
 `npx dbu6 docs` lists the guides, and each one is written for the version you
 have installed. The import screens and the Reports page hand your agent a

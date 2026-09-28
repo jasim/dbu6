@@ -18,7 +18,7 @@ describe("freeformTransactionsPrompt", () => {
     );
     // The guide is inside the installed package: the prompt names the
     // command that prints it, not a file.
-    expect(FREEFORM_TRANSACTIONS_GUIDE).toBe("dbu6 docs freeform-guide");
+    expect(FREEFORM_TRANSACTIONS_GUIDE).toBe("npx dbu6 docs freeform-guide");
     expect(prompt).toContain(`\`${FREEFORM_TRANSACTIONS_GUIDE}\``);
     expect(prompt).not.toContain(".md");
 

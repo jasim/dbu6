@@ -809,7 +809,7 @@ describe("problem tones", () => {
 
   // In a user's project dbu6 is an installed package: its guides, its
   // parsers and its source are under node_modules, where a path from the
-  // project root finds nothing. A prompt reaches a guide through `dbu6 docs`
+  // project root finds nothing. A prompt reaches a guide through `npx dbu6 docs`
   // and sends the agent's own work to the project's directories.
   it("never points a prompt at a file inside the package", () => {
     const refusals = (Object.keys(PAYLOADS) as StatementImportErrorCode[]).map(

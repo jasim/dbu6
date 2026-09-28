@@ -39,7 +39,12 @@ import {
 import { resolveApiPort } from "../project-auth/index.js";
 import { openDbu6Runtime } from "../runtime.js";
 
-const DEMO_ACCOUNT = {
+/**
+ * The sample account `dbu6 seed` makes. Exported because it is also the one
+ * account an agent access token must never be minted for: seeding it again
+ * replaces its books (`dbu6 agent env`, src/cli/agent-env.ts).
+ */
+export const DEMO_ACCOUNT = {
   name: "Demo User",
   email: "demo@example.com",
   password: "demo-password",

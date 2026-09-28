@@ -535,7 +535,7 @@ describe("automatic statement import", () => {
     const body = groupFailure(response);
     expect(body.error).toBe("import_account_not_found");
     expect(body.message).toContain("ledger account 9");
-    expect("hint" in body && body.hint).toContain("dbu6 docs books");
+    expect("hint" in body && body.hint).toContain("npx dbu6 docs books");
     expect(body.failed_group).toEqual({
       account_id: 9,
       account_name: "Sample Card",

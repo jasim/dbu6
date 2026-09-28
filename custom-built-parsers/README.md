@@ -15,9 +15,9 @@ Parsers are found in two places, in this order: the project's own
 index below). A parser is known by its directory name, which is what an
 institution in the import presets lists among its `parsers`, and a project
 parser shadows a bundled one of the same name. New parsers, and changed copies of bundled ones, always go in the project's
-`custom-built-parsers/`; never edit anything under `node_modules`. `dbu6 docs`
-prints the bundled guides: `dbu6 docs parsers` is this file, `dbu6 docs
-parser-guide` and `dbu6 docs freeform-guide` the two beside it.
+`custom-built-parsers/`; never edit anything under `node_modules`. `npx dbu6 docs`
+prints the bundled guides: `npx dbu6 docs parsers` is this file, `npx dbu6 docs
+parser-guide` and `npx dbu6 docs freeform-guide` the two beside it.
 
 The Import statements screen recognises uploads with these parsers. A directory
 becomes a recognition candidate only when it contains `parser.py` and a non-empty
@@ -50,7 +50,7 @@ values, and whether a saved parser was reused or a new parser was added. A new
 parser's statements import nowhere until an institution in the import presets
 lists it and has the account they go to, which lists the identifier the parser
 emits when the institution has more than one account (`add_parser`, or
-`add_institution` and `add_account`; `dbu6 docs books` gives the calls). Then
+`add_institution` and `add_account`; `npx dbu6 docs books` gives the calls). Then
 let the user retry from the Import statements screen. When you are
 troubleshooting a failed import instead, you may re-run it yourself by posting
 the statement files to `POST /api/import-draft/statements/auto` with an agent

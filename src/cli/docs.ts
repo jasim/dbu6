@@ -1,11 +1,11 @@
-/** `dbu6 docs [name]`: the guides dbu6 ships for coding agents (`GUIDES`). */
+/** `npx dbu6 docs [name]`: the guides dbu6 ships for coding agents (`GUIDES`). */
 import { readFileSync } from "node:fs";
 import { GUIDES, type GuideName } from "../shared/guides.js";
 import { packageDir } from "../server/paths.js";
 
 export function printDocs(name: string | undefined): number {
   if (name === undefined) {
-    console.log("Guides (dbu6 docs <name>):\n");
+    console.log("Guides (npx dbu6 docs <name>):\n");
     const width = Math.max(...Object.keys(GUIDES).map((key) => key.length));
     for (const [key, guide] of Object.entries(GUIDES)) {
       console.log(`  ${key.padEnd(width)}  ${guide.title}`);

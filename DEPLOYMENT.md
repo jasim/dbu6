@@ -158,7 +158,7 @@ docker run -d --name my-books -p 3000:3000 \
 | `SAPPORTA_MAIL_FROM` | The sender of verification and reset mail, on a domain your SMTP provider will send for. |
 | `SMTP_URL`, or `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | The SMTP connection, when the transport is `smtp`. `SMTP_URL` wins when both are given. |
 | `LLM_ENGINE`, `NUABASE_API_KEY` | Deprecated: categorize on the Nuabase gateway instead of a coding agent on the machine. |
-| `SAPPORTA_API_URL`, `SAPPORTA_API_TOKEN` | Not read by the server: they point the `sapporta` CLI and a coding agent at a running dbu6 (`npx dbu6 docs books`). |
+| `SAPPORTA_API_URL`, `SAPPORTA_API_TOKEN` | Not read by the server: they point the `sapporta` CLI and a coding agent at a running dbu6 (`npx dbu6 docs books`). `npx dbu6 agent env` mints the token into the gitignored `.env.agent`, and the CLI dbu6 ships reads both by itself. |
 
 ## A reverse proxy
 

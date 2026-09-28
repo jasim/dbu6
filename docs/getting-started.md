@@ -33,8 +33,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # a distribution's own nodejs package is usually older than that.
 ```
 
-None of it is needed to make the folder or keep books by hand, and
-`npx dbu6 check` reports whichever are missing.
+None of it is needed to make the folder or keep books by hand. Once you have a
+folder, `npx dbu6 check` reports whichever are missing.
 
 ## Make the folder
 
@@ -112,6 +112,41 @@ npx dbu6 docs          # list the guides that ship with this version
 In the folder, `npm run dev`, `npm start`, `npm run check` and
 `npm run upgrade` do the same.
 
+## Coding agents
+
+dbu6 hands prompts to a coding agent — to categorize what your rules did not,
+to propose a chart of accounts, or to write a parser for a statement it cannot
+read. Two things make such a prompt work, and both live in this folder.
+
+**The Sapporta skill.** dbu6 applications are built on
+[Sapporta](https://sapporta.com), and the skill teaches an agent how to work in
+one. Install it once, for the agents on this machine:
+
+```sh
+npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --global --yes
+```
+
+**The Sapporta CLI**, which the agent uses to read and change your books
+through dbu6's HTTP API. Nothing to install: dbu6 ships it, so in this folder
+`npx sapporta …` works, and it finds the app's address and the agent's token by
+itself. Mint that token after your first sign-up, with dbu6 running:
+
+```sh
+npx dbu6 agent env
+npx sapporta api get /api/auth-context
+```
+
+`agent env` writes `.env.agent` (gitignored; never commit it) with a token for
+the account you signed up with, and revokes the token its previous run wrote.
+The second command proves it works by naming the user and workspace it acts as.
+If the project holds more than one account, say which one:
+`npx dbu6 agent env --user you@example.com`.
+
+An agent given a prompt does this for itself; the two commands are here so that
+you can check its access before it starts, and
+[DBU6-BOOKS.md](https://github.com/jasim/dbu6/blob/main/DBU6-BOOKS.md) is the
+guide it reads next.
+
 ## Back up your books
 
 `data/` holds your books. dbu6 keeps no other copy and makes no backup. Stop
@@ -127,5 +162,7 @@ belongs in git.
 * [Importing statements](statements.md) — parsers, and statements dbu6 cannot read.
 * [Categorization](categorization.md) — mapping rules, and the LLM.
 * [Reports](reports.md) — what ships, and reports of your own.
+* [DBU6-BOOKS.md](https://github.com/jasim/dbu6/blob/main/DBU6-BOOKS.md) —
+  the guide a coding agent reads: every common job and the call that does it.
 * [DEPLOYMENT.md](https://github.com/jasim/dbu6/blob/main/DEPLOYMENT.md) —
   running your books on a server.

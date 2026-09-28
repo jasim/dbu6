@@ -228,7 +228,7 @@ Leave a rule request you couldn't encode.
   them, sets the account up with its opening balance, and imports them, in
   one go. Nothing is written until the statements are read and checked. A
   bank dbu6 can't read yet leaves nothing in the books; once its parser
-  exists (`dbu6 docs parsers`), the user drops the files again. Its two
+  exists (`npx dbu6 docs parsers`), the user drops the files again. Its two
   endpoints take the files as multipart `files`, repeated (curl, as under
   [Reaching the app](#reaching-the-app)):
   - `POST /api/add-account/read` writes nothing to the books. Each file has
@@ -411,7 +411,7 @@ Leave a rule request you couldn't encode.
   `rows delete` can leave a preset pointing at an account that is gone.
 - **"This statement won't import."**
   The Import screen gives a prompt for each problem. Parser work follows
-  the parsers guide (`dbu6 docs parsers`), and failed uploads are kept in
+  the parsers guide (`npx dbu6 docs parsers`), and failed uploads are kept in
   `tmp/statement-uploads/`. The common refusals:
   - `opening_balance_unavailable`: the account has no balance in the books
     yet. Record the opening balance (above), then import again.
@@ -603,7 +603,7 @@ refusal is about (null when it is the table the whole batch leaves):
 | `account_identifier_required`                                 | An institution with more than one account needs every account's identifier, so a statement can be told apart. Add them in the same batch. |
 | `mapping_file_listed_twice`                                   | List each instruction file once per account.                                                                                              |
 | `unknown_ledger_account`                                      | No ledger account has that id. Look it up again, or create the account first.                                                             |
-| `unknown_parser`                                              | No saved parser has that name, in the project's `custom-built-parsers/` or dbu6's (`dbu6 docs parsers`).                                  |
+| `unknown_parser`                                              | No saved parser has that name, in the project's `custom-built-parsers/` or dbu6's (`npx dbu6 docs parsers`).                       |
 
 An instruction file may be listed before it exists; `npx dbu6 check` names
 the missing ones, and the ones a deleted account leaves behind.
@@ -634,28 +634,35 @@ it could belong to), it keeps the file, `dbu6 migrate` prints why, and
 
 ## Reaching the app
 
-- **The CLI** comes with `@sapporta/server`, which dbu6 depends on, so run
-  it as `npx sapporta …` in the project (`pnpm exec sapporta …` in dbu6's own
-  repository); it is written `sapporta …` above. It finds the API port in the
-  project's env file.
+- **The CLI is already here.** dbu6 ships the `sapporta` command (its own bin
+  forwards to `@sapporta/server`, which dbu6 depends on), so run it as
+  `npx sapporta …` from the project and install nothing — it is written
+  `sapporta …` above. It loads `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` from
+  the shell, then `.env`, then `.env.agent`, and derives the URL from
+  `SAPPORTA_API_PORT` when nothing names it, so nothing has to be prefixed onto
+  a command.
 - **The token** must be in the environment as `SAPPORTA_API_TOKEN`.
-  - Keep `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` in a gitignored
-    `.env.agent`, and put `env $(cat .env.agent)` in front of each command;
-    where the project uses mise for them, `mise exec --` instead.
+  - `npx dbu6 agent env` gives this project one: it mints a token, writes it to
+    the gitignored `.env.agent`, and revokes the one its previous run wrote.
+    It names the account it used, and refuses a project that holds only the
+    sample account `dbu6 seed` makes.
+  - A person can instead create one in the app, at
+    `<app URL>/account/profile?token=new`, and choose **Copy prompt**.
   - Never put the token in a tracked file or show it in the chat.
-- **Check access** with `sapporta api get /api/auth-context`, which names the
-  user.
+- **Check access** with `npx sapporta api get /api/auth-context`, which names
+  the user and workspace the token acts as.
 - **If you are blocked,** say so in one plain sentence. Meanwhile, answer what
   you can from SQLite.
   - `APP_SERVER_UNREACHABLE`: look at `target.apiUrl` in the error. If the
     port is right, dbu6 isn't running: ask the user to start it (`npx dbu6
 dev` in the project), or offer to.
     In a sandbox, ask for network access.
-  - `unauthenticated`, `token_expired` or `token_revoked`: ask the user to
-    open `<app URL>/account/profile?token=new`, create a token and choose
-    **Copy prompt**. If they paste that prompt, only store its token as
-    described above. The CLI is already installed and this file records the
-    command, so skip the prompt's install and AGENTS.md steps.
+  - `unauthenticated`, `token_expired` or `token_revoked`: run
+    `npx dbu6 agent env`, then check again. If that is not yours to run, ask the
+    user for a token (`<app URL>/account/profile?token=new`); when they paste
+    the prompt that carries it, store only its token, as above. The CLI is
+    already installed and this file records the command, so skip the prompt's
+    install and AGENTS.md steps.
 - **Tables:**
   `rows list <table> --where '{"col":{"eq":1}}' --sort date,id --limit 1000 --q <words>`.
   Other commands are `rows count`, `rows get`, `rows create`,

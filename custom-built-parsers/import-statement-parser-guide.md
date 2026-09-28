@@ -1,6 +1,6 @@
 # Deterministic statement parsers
 
-The Import statements screen imports a statement only when a deterministic parser recognises it: one in the project's `custom-built-parsers/`, or one bundled with dbu6 (`dbu6 docs parsers` lists those and gives the full conventions). For a statement format no parser reads yet, ask a coding agent to create one. The agent should inspect the real source file, identify a stable fingerprint, write a standalone `parser.py`, and validate row counts, totals, opening and closing balances, and every running balance it can check.
+The Import statements screen imports a statement only when a deterministic parser recognises it: one in the project's `custom-built-parsers/`, or one bundled with dbu6 (`npx dbu6 docs parsers` lists those and gives the full conventions). For a statement format no parser reads yet, ask a coding agent to create one. The agent should inspect the real source file, identify a stable fingerprint, write a standalone `parser.py`, and validate row counts, totals, opening and closing balances, and every running balance it can check.
 
 - Check the existing parser fingerprints first, the project's and the bundled ones.
 - Create or update `custom-built-parsers/<parser-name>/fingerprint.md` in the project. Never write under `node_modules`.
@@ -38,7 +38,7 @@ Alongside `account`, a parser emits the bank or card issuer's name as a top-leve
 
 The import presets group accounts by institution: each institution lists the `parsers` that read its statements and its `accounts`, and each account lists the identifiers its statements print in `account_identifiers`, in this same canonical form. A statement goes to the institution that lists its parser, then to the account there that lists the identifier it reported. When an institution has several accounts, for example two cards from the same bank, every account needs its identifiers so the importer can tell the statements apart; an institution with one account and no identifiers takes every statement its parsers read. A statement whose identifier no account of its institution lists is rejected.
 
-After the parser works, tie it to its account in the import presets (`dbu6 docs books` gives the calls, under "Import presets"):
+After the parser works, tie it to its account in the import presets (`npx dbu6 docs books` gives the calls, under "Import presets"):
 
 - Add the parser's directory name alone, such as `stanc-bank-pdf-table`, to the institution with `add_parser`, or create the institution with `add_institution` and its account with `add_account`. The project's `custom-built-parsers/` is searched before the parsers bundled with dbu6.
 - Put the identifier the parser emits in the account's `account_identifiers`, with `update_account` (sending the whole list) when the account is already there.

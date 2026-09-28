@@ -47,6 +47,7 @@ import {
   userConfigDir,
 } from "../server/paths.js";
 import { tryBuildingFrontend } from "./frontend.js";
+import { AGENT_ENV_FILE } from "./agent-env.js";
 import {
   projectParserTests,
   runParserTest,
@@ -92,7 +93,7 @@ const info = (name: string, detail: string): CheckLine => ({
 
 // --- Tools ---
 
-export async function checkTools(): Promise<CheckLine[]> {
+export async function checkTools(root?: string): Promise<CheckLine[]> {
   return [
     checkNodeVersion(),
     await checkBetterSqlite(),
@@ -102,7 +103,62 @@ export async function checkTools(): Promise<CheckLine[]> {
       ["-v"],
       "pdftotext reads PDF statements. Install poppler: `brew install poppler` or `apt install poppler-utils`.",
     ),
+    ...(await checkSapportaCli(root)),
   ];
+}
+
+/**
+ * The `sapporta` command agents are told to use, and the token it needs.
+ *
+ * dbu6 ships that command (`bin/sapporta.mjs`, declared as a bin of this
+ * package), so a project needs nothing installed for it — under npm it also
+ * has `node_modules/.bin/sapporta` from the copy of Sapporta dbu6 depends on,
+ * and under pnpm only dbu6's own bin is linked. Either is enough, which is why
+ * both are tried before it is called a failure.
+ *
+ * The token is the one thing dbu6 cannot provision for the agent itself without
+ * being asked, so a missing `.env.agent` is information, not a failure: the
+ * agent runs `dbu6 agent env`, and `dbu6 docs books` says so.
+ */
+async function checkSapportaCli(root?: string): Promise<CheckLine[]> {
+  const wrapper = packageDir("bin", "sapporta.mjs");
+  const lines: CheckLine[] = [];
+  if (!existsSync(wrapper)) {
+    lines.push(
+      fail(
+        "sapporta",
+        `the command dbu6 ships is missing at ${wrapper}. Reinstall dbu6: \`npm install @dbu6/app\`.`,
+      ),
+    );
+  } else {
+    const run = spawnSync(process.execPath, [wrapper, "--version"], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    const reported = `${run.stdout}${run.stderr}`.trim().split("\n").pop() ?? "";
+    lines.push(
+      run.status === 0
+        ? ok("sapporta", `the CLI dbu6 ships answers ${reported || "ok"}`)
+        : fail(
+            "sapporta",
+            `\`sapporta --version\` failed (exit ${String(run.status)}): ${reported}\n` +
+              "It forwards to @sapporta/server, which dbu6 depends on: reinstall dbu6, then run this again.",
+          ),
+    );
+  }
+  if (root !== undefined) {
+    const agentEnv = join(root, AGENT_ENV_FILE);
+    lines.push(
+      existsSync(agentEnv)
+        ? ok("Agent token", `${AGENT_ENV_FILE} exists; \`sapporta\` loads it by itself`)
+        : info(
+            "Agent token",
+            `no ${AGENT_ENV_FILE}; run \`dbu6 agent env\` to give this project's coding agents one`,
+          ),
+    );
+  }
+  return lines;
 }
 
 function checkNodeVersion(): CheckLine {

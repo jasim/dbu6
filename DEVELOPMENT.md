@@ -1,7 +1,7 @@
 # Development
 
 Technical reference for working on dbu6. This repository is the source of one
-npm package, `dbu6`, and nothing else: it is not a project and holds no books.
+npm package, `@dbu6/app`, and nothing else: it is not a project and holds no books.
 `pnpm dev` here only keeps `dist/` compiled. The app runs in a project folder
 beside the checkout, such as `../demo-dbu6`, whose `node_modules/@dbu6/app` links
 to this checkout (see [A project linked to this checkout](#a-project-linked-to-this-checkout)).
@@ -272,6 +272,37 @@ Managed hosting platforms may set the conventional `PORT` variable instead of
 `SAPPORTA_API_PORT`. The API accepts that fallback. If both variables are set,
 they must contain the same port.
 
+### The Sapporta CLI and agent access
+
+`bin/sapporta.mjs` is a second bin of this package, beside `dbu6`: it forwards
+to the CLI inside `@sapporta/server`, resolved from dbu6's own package so a
+project that installed another version beside it cannot change which one runs.
+It exists because the real binary belongs to a *dependency*, and a package
+manager links only a package's direct dependencies into the folder that holds
+it — under pnpm's isolated layout a project gets no `sapporta` at all, and an
+agent told to run one would find nothing.
+
+Before the CLI starts, the wrapper resolves the project's environment with
+`bin/sapporta-env.mjs`: `.env` first, then `.env.agent`, with anything already
+exported in the shell winning over both, and `SAPPORTA_API_URL` derived from
+`SAPPORTA_API_PORT` when neither file names the URL. That is a deliberate
+second read of `.env` — the CLI's own project lookup reads `.env.development`,
+which Sapporta's scaffold writes and dbu6 does not. Keeping the token in
+`.env.agent` rather than `.env` matters: `dbu6 dev` loads `.env` into the
+server's process, and the server has no business holding an agent's credential.
+
+`dbu6 agent env` (`src/cli/agent.ts`) mints that token — the same
+`createAuthToken` the app's token screen calls — writes `.env.agent` mode `0600`
+and gitignored, and revokes the token its previous run wrote, matched by name so
+a token made in the app is left alone. It refuses to mint one for the sample
+account `dbu6 seed` makes, because seeding replaces that account's books. Which
+account it uses is `chooseAgentAccount` in `src/cli/agent-env.ts`: the single
+non-sample account, or `--user <email>` when a project holds more.
+
+`dbu6 check`'s Tools section runs the shipped wrapper's `--version` and reports
+whether `.env.agent` exists, so a broken or missing CLI cannot reach a person's
+agent unnoticed.
+
 ## Project layout
 
 ```
@@ -281,7 +312,7 @@ src/shared/              ts-rest contracts + types shared by backend and fronten
 src/frontend-host/       Vite run programmatically: serves and builds the app (see The package)
 migrations/              Drizzle migrations, shipped in the package
 custom-built-parsers/    saved Python parsers for known statement layouts
-docs/                    user guides, the guides `dbu6 docs` prints, worked examples, upgrade-notes/
+docs/                    user guides, the guides `npx dbu6 docs` prints, worked examples, upgrade-notes/
 template/                a user project's starting files, rendered by `dbu6 init`
 user-config.example/     the example config `dbu6 setup` fills user-config/ from
 src/cli/                 the `dbu6` command's commands; bin/dbu6.mjs loads them from dist/cli
@@ -298,7 +329,7 @@ and the `Dockerfile` with its `.dockerignore`. `user-config/` is filled by
 `dbu6.config.ts` or `frontend.tsx` in the template; the guides show them.
 
 The guides are listed in `src/shared/guides.ts` (`GUIDES`), which is the one
-place a guide's name, file and worked examples are declared: `dbu6 docs
+place a guide's name, file and worked examples are declared: `npx dbu6 docs
 <name>` prints the file and then each example under its path, so a guide
 never holds a copy of code that is typechecked where it lives
 (`docs/examples/`, under `tsc -p docs/examples` in `pnpm typecheck`). The
@@ -310,7 +341,7 @@ user's project the files sit under `node_modules`.
 [README.md](./README.md) is the package's npm homepage and the front door:
 what dbu6 is, how to start, and a link to each user guide. It carries no
 detail of its own; the detail is in `docs/`, where a user guide is a plain
-`.md` named without `-guide`, and a guide `dbu6 docs` prints for a coding
+`.md` named without `-guide`, and a guide `npx dbu6 docs` prints for a coding
 agent ends in `-guide` and is declared in `GUIDES`. Links out of the README
 are absolute GitHub URLs, so that they resolve on npmjs.com as well as on
 GitHub. `DEPLOYMENT.md` is the one user document outside `docs/`.
@@ -636,7 +667,7 @@ other file joins a path onto a root. What is the user's comes from the project
 root (`userConfigDir()`, `userConfigPath()`, `dataDir()`, `databaseFile()`,
 `reportsDir()`, `uploadStagingDir()`); what is ours comes from the package directory
 (`packageDir(...)`), found by walking up from `paths.ts` to the `package.json`
-named `dbu6`, never from the project root. `parserRoots()` is the user's
+named `@dbu6/app`, never from the project root. `parserRoots()` is the user's
 `custom-built-parsers/` and then ours. In a user's project the package is
 under `node_modules`, and in a linked project that is a symlink to this
 repository; only `dbu6 parser`, run here, has the two the same. `DBU6_ROOT` overrides the project root, which is how a

@@ -96,7 +96,7 @@ test("an import of src/server from src/frontend is reported", () => {
 // The report half of each is a module of its own (report-kit), which the
 // index re-exports whole. A report of ours imports its side's kit, its own
 // contract in src/shared, the files beside it, and nothing else: no other
-// module of src/, and no package, since a project depends on dbu6 alone. If
+// module of src/, and no package, since a project depends on @dbu6/app alone. If
 // one of ours needs something, a project's will, and it becomes an export of
 // the kit.
 

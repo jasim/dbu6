@@ -19,8 +19,11 @@ checked against the balances your books compute before anything is posted.
 
 Node.js 22.18 or newer, with `npm`. Statement imports also need `uv` and
 `pdftotext` (from poppler). git and a coding agent (Claude Code, Codex or Pi)
-are optional. [Getting started](https://github.com/jasim/dbu6/blob/main/docs/getting-started.md)
-has the install commands for each.
+are optional. Neither needs anything installed for it: dbu6 ships the
+`sapporta` command its agents use, and the one thing that is not a package,
+the [Sapporta](https://github.com/jasim/sapporta) agent skill, is installed by
+the `npx skills add` line in [Getting
+started](https://github.com/jasim/dbu6/blob/main/docs/getting-started.md).
 
 ## Quick start
 
@@ -34,6 +37,18 @@ npx dbu6 dev
 database. `dev` serves the app: open <http://localhost:2345> and sign up. Home then takes you
 through your chart of accounts, a bank or card, a recent statement for it, your
 opening balances, and reviewing what dbu6 categorized.
+
+A coding agent works in the folder when it is asked to. Give it access before
+handing it a prompt:
+
+```sh
+npx dbu6 agent env
+npx sapporta api get /api/auth-context
+```
+
+`agent env` mints a token into the gitignored `.env.agent`, and the second
+command answers with the user and workspace it acts as. `npx sapporta …` is
+dbu6's own copy of the Sapporta CLI — there is nothing else to install.
 
 [Getting started](https://github.com/jasim/dbu6/blob/main/docs/getting-started.md)
 has each step in full, the sample data, everyday commands and backups.
@@ -62,6 +77,8 @@ dbu6 is published on npm by the [`dbu6` organization](https://www.npmjs.com/org/
   your mapping rules and the LLM that handles the rest.
 * [Reports](https://github.com/jasim/dbu6/blob/main/docs/reports.md) — the
   reports that ship, reports of your own, and the hledger export.
+* [DBU6-BOOKS.md](https://github.com/jasim/dbu6/blob/main/DBU6-BOOKS.md) —
+  the guide a coding agent reads, and the commands it runs.
 * [DEPLOYMENT.md](https://github.com/jasim/dbu6/blob/main/DEPLOYMENT.md) —
   running your books on a server.
 * [DEVELOPMENT.md](https://github.com/jasim/dbu6/blob/main/DEVELOPMENT.md) —

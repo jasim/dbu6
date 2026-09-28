@@ -6,6 +6,8 @@ dist/
 # Statements that did not import, kept for a coding agent to read
 tmp/
 .env
+# The agent access token, written by `npx dbu6 agent env`. A credential.
+.env.agent
 *.log
 .DS_Store
 __pycache__/

@@ -10,6 +10,7 @@ import { migrateSafely, type MigrateSafelyResult } from "../server/migrate-safel
 import { serveDbu6 } from "../server/mount.js";
 import { openDbu6 } from "../server/open.js";
 import { databaseFile } from "../server/paths.js";
+import { agentCommand } from "./agent.js";
 import { runCheck } from "./check.js";
 import { runDev } from "./dev.js";
 import { printDocs } from "./docs.js";
@@ -33,6 +34,7 @@ const USAGE = `dbu6 <command>
   parser test [name]           run a parser's tests, or all of the project's
   parser run <name> <input>    run a parser on a statement file
   docs [name]                  print a guide for coding agents; lists them with no name
+  agent env                    give this project's coding agents a Sapporta token (.env.agent)
   init <directory>             create a project: the template, npm install, setup, migrate, first commit
 
 The project is the folder with package.json at or above the working
@@ -90,6 +92,8 @@ export async function main(args: string[]): Promise<number> {
       return reportMigration(await migrateSafely(root)) ? 0 : 1;
     case "check":
       return (await runCheck(root)) ? 0 : 1;
+    case "agent":
+      return agentCommand(rest, root);
     case "upgrade": {
       const result = await upgradeProject({
         root,

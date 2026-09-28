@@ -16,6 +16,7 @@ import {
   checkMigrations,
   checkParsers,
   checkReports,
+  checkTools,
   checkTypes,
   runCheck,
   type CheckLine,
@@ -88,6 +89,36 @@ const uvInstalled = spawnSync("uv", ["--version"]).status === 0;
 
 const byName = (lines: CheckLine[], name: string) =>
   lines.find((line) => line.name === name);
+
+describe("checkTools", () => {
+  it("reports the sapporta command dbu6 ships as working", async () => {
+    const lines = await checkTools(root);
+
+    const line = lines.find((entry) => entry.name === "sapporta");
+    expect(line).toMatchObject({ status: "ok" });
+    expect(line!.detail).toContain("the CLI dbu6 ships");
+  });
+
+  it("says which command gives the project an agent token when it has none", async () => {
+    const [line] = (await checkTools(root)).filter(
+      (entry) => entry.name === "Agent token",
+    );
+
+    expect(line).toMatchObject({ status: "info" });
+    expect(line!.detail).toContain("dbu6 agent env");
+  });
+
+  it("takes a project that has one as ready for an agent", async () => {
+    write(".env.agent", "SAPPORTA_API_TOKEN=spat_05050500_050505\n");
+
+    const [line] = (await checkTools(root)).filter(
+      (entry) => entry.name === "Agent token",
+    );
+
+    expect(line).toMatchObject({ status: "ok" });
+    expect(line!.detail).toContain(".env.agent");
+  }, 30_000);
+});
 
 describe("runCheck", () => {
   it.skipIf(!uvInstalled)(

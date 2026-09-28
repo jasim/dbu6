@@ -28,7 +28,7 @@ this guide. Copy its shape.
 - A report reads the books and never changes them. Read only through
   `reportLedger(c)`; do not open `data/sqlite.db` yourself.
 - No real names, account numbers or amounts in tests. Use round amounts and
-  `sample` / `NOPII` text (`dbu6 docs parsers`, "No Real Data In Fixtures And
+  `sample` / `NOPII` text (`npx dbu6 docs parsers`, "No Real Data In Fixtures And
   Tests").
 - Import sibling files by their real name, extension included
   (`"./contract.ts"`, `"./Screen.tsx"`), and mark type-only imports with
@@ -82,7 +82,7 @@ reports, and returns a `ReportLedger`:
   from request values.
 - A statement that writes is refused before it runs.
 
-The ledger, briefly (`dbu6 docs books` has the rest): an account has `id`,
+The ledger, briefly (`npx dbu6 docs books` has the rest): an account has `id`,
 `name`, `parent_id` and `account_type` (`Asset`, `Liability`, `Equity`,
 `Revenue`, `Expense`). A journal has `id`, `date` (`YYYY-MM-DD`) and
 `description`. A journal entry has `journal_id`, `account_id`, `debit` and
@@ -165,6 +165,6 @@ at `/reports/<id>`.
    naming the file. Screens hot-update under `dbu6 dev` without a restart.
 3. Open Reports. The route is also in the app's OpenAPI document, and can be
    called as `GET /api/reports/<id>` with an agent access token
-   (`dbu6 docs books`).
+   (`npx dbu6 docs books`).
 
 ## The worked report

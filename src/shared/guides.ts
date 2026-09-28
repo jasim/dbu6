@@ -1,4 +1,4 @@
-// The guides dbu6 ships for coding agents, by the name `dbu6 docs <name>`
+// The guides dbu6 ships for coding agents, by the name `npx dbu6 docs <name>`
 // prints them under. A prompt or a contract description names a guide through
 // `guideCommand`, never by its file: in a user's project the files are inside
 // the installed package, under a node_modules that agent search tools skip.
@@ -60,5 +60,5 @@ export type GuideName = keyof typeof GUIDES;
 
 /** The command that prints a guide, as a prompt tells the agent to run it. */
 export function guideCommand(name: GuideName): string {
-  return `dbu6 docs ${name}`;
+  return `npx dbu6 docs ${name}`;
 }

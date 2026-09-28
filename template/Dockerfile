@@ -36,7 +36,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 # Builds dist/app when the project has reports or a frontend.tsx. A project
-# without them is served the web app prebuilt in the dbu6 package, and this
+# without them is served the web app prebuilt in the `@dbu6/app` package, and this
 # only says so.
 RUN node node_modules/@dbu6/app/bin/dbu6.mjs build
 

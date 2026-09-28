@@ -14,6 +14,24 @@ theirs: `user-config/`, `custom-built-parsers/`, `reports/`, and the ledger in
   npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --global --yes
   ```
 
+- The `sapporta` command is already here: dbu6 ships it, so run it as
+  `npx sapporta …` from this folder and install nothing. It reads
+  `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` from the environment and from
+  `.env`/`.env.agent` by itself.
+
+- If it answers `Authentication required`, this folder has no agent token yet.
+  Make one and check it:
+
+  ```bash
+  npx dbu6 agent env
+  npx sapporta api get /api/auth-context
+  ```
+
+  `agent env` writes the token to `.env.agent` (gitignored) and revokes the
+  one its previous run wrote. The second command names the user and workspace
+  the token acts as. With dbu6 running and both commands right, you are done:
+  use `npx sapporta rows …` and `npx sapporta api …` as the guides say.
+
 - Read `npx dbu6 docs books` before you read or change the ledger. It maps each
   common job to its endpoint. `npx dbu6 docs` lists every guide; each is the
   one written for the installed version.

@@ -129,7 +129,7 @@ describe("ruleRequestsPrompt", () => {
       ruleRequest([draft("NOPII SAMPLE 050505")]),
     ]);
 
-    expect(prompt).toContain("`dbu6 docs books`");
+    expect(prompt).toContain("`npx dbu6 docs books`");
     expect(prompt).toContain("user-config/transaction_mappings.mjs");
     expect(prompt).toContain("Don't categorise the drafts yourself");
     expect(prompt).toContain(

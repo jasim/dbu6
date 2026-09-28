@@ -45,7 +45,8 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      # vitest (server and frontend projects), then scripts/*.test.mjs.
+      # vitest (server and frontend projects), then the script tests in
+      # scripts/ and bin/.
       - run: pnpm test
       - run: pnpm test:parsers
 

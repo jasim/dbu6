@@ -1,8 +1,8 @@
 # Customizing dbu6: `dbu6.config.ts` and `frontend.tsx`
 
 For a coding agent changing what dbu6 does in a project, beyond configuring
-it (`user-config/`), writing a parser (`dbu6 docs parser-guide`) or writing a
-report (`dbu6 docs reports`). Try those first: they need no wiring, and a
+it (`user-config/`), writing a parser (`npx dbu6 docs parser-guide`) or writing a
+report (`npx dbu6 docs reports`). Try those first: they need no wiring, and a
 project that owns less code has less an upgrade can break.
 
 Two optional files in the project root are found by name, the way Vite finds
@@ -31,7 +31,7 @@ my-books/
   namespaces or constructor parameter properties.
 - The books are read through `reportLedger(c, "<name>")` and never written
   from a route. There is no export that writes the ledger; changes to the
-  books go through dbu6's own API (`dbu6 docs books`).
+  books go through dbu6's own API (`npx dbu6 docs books`).
 - No real names, account numbers or amounts in any file of the project.
 
 ## `dbu6.config.ts`
@@ -58,7 +58,7 @@ before the OpenAPI document is generated, with:
 In a handler, `reportLedger(c, "<name>")` answers 403 unless the signed-in
 user may read reports, and returns the read-only ledger a report gets:
 `all<Row>(sql, params?)` and `one<Row>(sql, params?)` over the `scoped_*`
-relations, which hold only that user's rows. `dbu6 docs reports` describes
+relations, which hold only that user's rows. `npx dbu6 docs reports` describes
 the relations and the ledger's tables.
 
 `extend` may be `async`. A route that collides with one dbu6 or a report
@@ -112,7 +112,7 @@ The file may be `frontend.ts` when it has no JSX.
 2. Restart `dbu6 dev` (or `dbu6 start`) for a change to `dbu6.config.ts`:
    routes are mounted at startup. Pages hot-update under `dbu6 dev`.
 3. A route added under `app.api` appears in the OpenAPI document and can be
-   called with an agent access token (`dbu6 docs books`, "Reaching the app").
+   called with an agent access token (`npx dbu6 docs books`, "Reaching the app").
 
 After `dbu6 upgrade`, `dbu6 check` is where an export these files use and
 that has moved shows up, as a type error naming the file.

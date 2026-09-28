@@ -14,7 +14,7 @@ describe("the Create a report prompt", () => {
   });
 
   it("names the guide by its command and keeps the work in the project", () => {
-    expect(prompt).toContain("`dbu6 docs reports`");
+    expect(prompt).toContain("`npx dbu6 docs reports`");
     expect(prompt).toContain("reports/<id>/");
     expect(prompt).toContain("never edit anything under node_modules");
     expect(prompt).toContain("reportLedger");

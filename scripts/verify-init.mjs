@@ -24,7 +24,8 @@
 // It checks that:
 //   - the project has every template file, with no token left in any of them,
 //     `.gitignore` under its real name, package.json pinned to the tarball,
-//     and the installed dbu6 is the tarball's version
+//     the installed dbu6 is the tarball's version, and the `sapporta` bin dbu6
+//     ships runs
 //   - `setup` and `migrate` ran: .env has a secret, user-config/ is filled,
 //     data/sqlite.db exists
 //   - the first commit holds the project and nothing that is gitignored
@@ -146,6 +147,23 @@ const installed = JSON.parse(
   readFileSync(path.join(projectDir, "node_modules/@dbu6/app/package.json"), "utf8"),
 );
 assert.equal(installed.version, tarballVersion, "not the tarball's version");
+// The CLI every prompt tells an agent to run. It comes from dbu6 itself, not
+// from the copy of Sapporta underneath it, so it must be here under npm too.
+const sapportaBin = path.join(
+  projectDir,
+  "node_modules/@dbu6/app/bin/sapporta.mjs",
+);
+assert(existsSync(sapportaBin), "the sapporta bin dbu6 ships is missing");
+const sapportaVersion = await run(
+  process.execPath,
+  [sapportaBin, "--version"],
+  { cwd: projectDir, capture: true },
+);
+assert.equal(
+  sapportaVersion.status,
+  0,
+  `\`sapporta --version\` failed: ${sapportaVersion.stdout}`,
+);
 assert(
   /^BETTER_AUTH_SECRET=\S+$/m.test(readFileSync(path.join(projectDir, ".env"), "utf8")),
   "setup did not fill in BETTER_AUTH_SECRET",
@@ -169,7 +187,7 @@ assert.equal(
 const tracked = (
   await run("git", ["ls-files"], { cwd: projectDir, capture: true })
 ).stdout.split("\n");
-for (const secret of [".env", "data/sqlite.db"]) {
+for (const secret of [".env", ".env.agent", "data/sqlite.db"]) {
   assert(!tracked.includes(secret), `${secret} was committed`);
 }
 
@@ -177,6 +195,24 @@ const dbu6 = path.join(projectDir, "node_modules/@dbu6/app/bin/dbu6.mjs");
 console.log("\n> dbu6 check");
 const check = await run(process.execPath, [dbu6, "check"], { cwd: projectDir });
 assert.equal(check.status, 0, "dbu6 check failed in a fresh project");
+
+// A fresh project has no account yet, so this must say so rather than mint a
+// token for nobody — or write a file the first commit would miss.
+console.log("\n> dbu6 agent env (no account yet)");
+const noAccount = await run(process.execPath, [dbu6, "agent", "env"], {
+  cwd: projectDir,
+  capture: true,
+});
+assert.equal(noAccount.status, 1, "agent env did not refuse a project with no account");
+const refusal = `${noAccount.stdout}${noAccount.stderr}`;
+assert(
+  refusal.includes("sign up"),
+  `agent env did not say to sign up: ${refusal}`,
+);
+assert(
+  !existsSync(path.join(projectDir, ".env.agent")),
+  "agent env wrote .env.agent for a project with no account",
+);
 
 // The env wins over .env, so the ports are given without editing the file.
 const env = {
@@ -263,11 +299,13 @@ function run(command, args, { cwd, capture = false }) {
     const child = spawn(command, args, {
       cwd,
       env: process.env,
-      stdio: ["inherit", capture ? "pipe" : "inherit", "inherit"],
+      stdio: ["inherit", capture ? "pipe" : "inherit", capture ? "pipe" : "inherit"],
     });
     let stdout = "";
+    let stderr = "";
     child.stdout?.on("data", (chunk) => (stdout += String(chunk)));
+    child.stderr?.on("data", (chunk) => (stderr += String(chunk)));
     child.once("error", reject);
-    child.once("close", (status) => resolve({ status: status ?? 1, stdout }));
+    child.once("close", (status) => resolve({ status: status ?? 1, stdout, stderr }));
   });
 }

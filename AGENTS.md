@@ -4,7 +4,7 @@ Guidance for AI agents and contributors. See also
 [CODING-PRINCIPLES.md](CODING-PRINCIPLES.md), [DEVELOPMENT.md](DEVELOPMENT.md),
 [custom-built-parsers/README.md](custom-built-parsers/README.md).
 
-## Sapporta skill
+## Sapporta skill and CLI
 
 dbu6 is a [Sapporta](https://github.com/jasim/sapporta) application. Work on it
 needs the `sapporta` agent skill. If it is not available to you, install it (or
@@ -16,6 +16,20 @@ npx skills add https://github.com/jasim/sapporta-skills --skill sapporta --globa
 
 Load it for any change to the schema, API, auth, or UI.
 
+The `sapporta` command is part of this package: `bin/sapporta.mjs` is declared
+as a bin, beside `dbu6`, and forwards to the `@sapporta/server` CLI this dbu6
+depends on. It resolves the project's root, loads `.env` and `.env.agent`, and
+derives `SAPPORTA_API_URL` from `SAPPORTA_API_PORT`, so every Sapporta command
+in this repository — `pnpm exec sapporta …` — and in a project that installed
+dbu6 — `npx sapporta …` — reaches a running app without being told where it is.
+`bin/sapporta-env.mjs` holds that resolution, with its types beside it and its
+tests in `bin/sapporta-env.test.mjs` (`pnpm run test:scripts`).
+
+The project's own token comes from `dbu6 agent env`, which writes the
+gitignored `.env.agent` (`src/cli/agent.ts`). A prompt dbu6 hands to a person's
+agent never carries installation steps for either the skill or the CLI: both
+are already in place, which is what `dbu6 check` verifies.
+
 ## This repository is the package
 
 The tracked tree is the source of the `@dbu6/app` npm package; a person's books
@@ -26,7 +40,7 @@ checkout is not such a folder and holds no books: `pnpm dev` here only keeps
 ([DEVELOPMENT.md](DEVELOPMENT.md)). What a project may import is
 `src/server/index.ts` and `src/frontend/index.ts`, and nothing is added to
 either by accident. Guides, prompts and `template/AGENTS.md` are read from an
-installed package, so they name guides by `dbu6 docs <name>`, never by a
+installed package, so they name guides by `npx dbu6 docs <name>`, never by a
 path in this repository.
 
 ## Working with the books

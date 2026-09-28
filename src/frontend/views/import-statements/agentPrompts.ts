@@ -9,7 +9,7 @@
 // project the agent starts in and never asks the user to find it again.
 //
 // The guides ship inside dbu6, which in a user's project is an installed
-// package: a prompt names the command that prints a guide (\`dbu6 docs\`),
+// package: a prompt names the command that prints a guide (\`npx dbu6 docs\`),
 // never a file of ours, and says that what the agent writes goes in the
 // project's own directories.
 //

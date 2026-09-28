@@ -58,7 +58,7 @@ agree.
 
 ## 3. Write the request
 
-Follow the "Abacus JSON Contract" in the parsers guide (`dbu6 docs parsers`). For
+Follow the "Abacus JSON Contract" in the parsers guide (`npx dbu6 docs parsers`). For
 freeform transactions specifically:
 
 - `opening` and `closing` are required: the two balances from step 2, in
@@ -68,7 +68,7 @@ freeform transactions specifically:
 - `rows`: one per transaction you kept.
   - `date`: `YYYY-MM-DD`. When the content shows both a transaction date and a
     posting date, use the one the bank's statements for this account use. If
-    the import presets (`GET /api/import-presets`, `dbu6 docs books`) hold an
+    the import presets (`GET /api/import-presets`, `npx dbu6 docs books`) hold an
     account with this ledger account's `account_id`, the `parsers` of its
     institution show which date and narration form the statements carry;
     match them where the content gives you the same information.
@@ -86,7 +86,7 @@ freeform transactions specifically:
   content prints none.
 - `account`: only when the content prints the account or card number, in the
   canonical form described under "Emitted account identifier" in
-  the parser guide (`dbu6 docs parser-guide`). Otherwise omit it;
+  the parser guide (`npx dbu6 docs parser-guide`). Otherwise omit it;
   never guess.
 
 Write the request body to
@@ -124,7 +124,7 @@ a short label that appears in the result and in error messages.
 ## 4. Import
 
 With the dev server running, post the request. `SAPPORTA_API_URL` and
-`SAPPORTA_API_TOKEN` come from the environment (`dbu6 docs books`, "Reaching
+`SAPPORTA_API_TOKEN` come from the environment (`npx dbu6 docs books`, "Reaching
 the app", says where a project keeps them). If the token is empty, ask the
 user to create an agent access token from their account page in the app.
 
