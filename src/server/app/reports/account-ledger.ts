@@ -46,17 +46,7 @@ api.register(
     WHERE a.id = @accountId`,
       treeParams(query),
     );
-    const journals = ledger.all<AccountLedgerJournalRow>(
-      `${accountTreeCte}
-    SELECT DISTINCT j.id AS journal_id, j.date, j.description
-    FROM scoped_journal_entries je
-    JOIN scoped_journals j ON j.id = je.journal_id
-    WHERE je.account_id IN (SELECT id FROM account_tree)
-      AND (@fromDate IS NULL OR j.date >= @fromDate)
-      AND (@toDate IS NULL OR j.date <= @toDate)
-    ORDER BY j.date, j.id`,
-      treeParams(query),
-    );
+    const journals = loadLedgerJournals(ledger, query);
     const journalEntries = loadAccountLedgerJournalEntries(ledger, query);
 
     return {
@@ -78,13 +68,13 @@ type AccountInfoRow = {
   opening_balance: number;
 };
 
-type AccountLedgerJournalRow = {
+export type AccountLedgerJournalRow = {
   journal_id: number;
   date: string;
   description: string;
 };
 
-type AccountLedgerJournalEntryRow = {
+export type AccountLedgerJournalEntryRow = {
   entry_id: number;
   journal_id: number;
   account_id: number;
@@ -95,8 +85,10 @@ type AccountLedgerJournalEntryRow = {
   source_narration: string | null;
 };
 
-type AccountLedgerQuery = {
-  accountId: number;
+type AccountLedgerQuery = LedgerAccountsQuery & { accountId: number };
+
+/** The accounts a ledger reads, and its dates. */
+export type LedgerAccountsQuery = {
   /** The account and every account under it (`ledgerAccountIds`). */
   accountIds: readonly number[];
   fromDate: string | null;
@@ -123,13 +115,32 @@ const accountTreeCte = `
       SELECT value AS id FROM json_each(@accountTree)
     )`;
 
-function treeParams(query: AccountLedgerQuery) {
+function treeParams<T extends LedgerAccountsQuery>(query: T) {
   return { ...query, accountTree: JSON.stringify(query.accountIds) };
 }
 
+/** The journals in the period with a line on one of the accounts, oldest first. */
+export function loadLedgerJournals(
+  ledger: ReportLedger,
+  query: LedgerAccountsQuery,
+): AccountLedgerJournalRow[] {
+  return ledger.all<AccountLedgerJournalRow>(
+    `${accountTreeCte}
+    SELECT DISTINCT j.id AS journal_id, j.date, j.description
+    FROM scoped_journal_entries je
+    JOIN scoped_journals j ON j.id = je.journal_id
+    WHERE je.account_id IN (SELECT id FROM account_tree)
+      AND (@fromDate IS NULL OR j.date >= @fromDate)
+      AND (@toDate IS NULL OR j.date <= @toDate)
+    ORDER BY j.date, j.id`,
+    treeParams(query),
+  );
+}
+
+/** Every line of those journals, in journal and line order. */
 export function loadAccountLedgerJournalEntries(
   ledger: ReportLedger,
-  query: AccountLedgerQuery,
+  query: LedgerAccountsQuery,
 ): AccountLedgerJournalEntryRow[] {
   return ledger.all<AccountLedgerJournalEntryRow>(
     `${accountTreeCte},
@@ -414,7 +425,7 @@ function narrate(...texts: (string | null)[]): string {
   return texts.find((text) => text !== null && text.trim() !== "") ?? "";
 }
 
-function groupJournalEntries(
+export function groupJournalEntries(
   rows: AccountLedgerJournalEntryRow[],
 ): Map<number, AccountLedgerJournalEntryRow[]> {
   const entriesByJournal = new Map<number, AccountLedgerJournalEntryRow[]>();

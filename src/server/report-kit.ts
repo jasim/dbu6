@@ -40,8 +40,10 @@ export {
 // Income and spending per account, and the account tree with totals.
 export {
   loadAccountAmounts,
+  loadAccountMonthlyAmounts,
   loadMonthlyAmounts,
   type AccountAmount,
+  type AccountMonthAmount,
   type IncomeSpendingType,
   type MonthlyAmount,
 } from "./app/reports/account-amounts.js";

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { MINUS } from "../../components/amount";
-import { barHeight, chartBars, chartScale } from "./chart";
+import {
+  barByKey,
+  barHeight,
+  barSeries,
+  chartBars,
+  chartScale,
+  inBar,
+} from "./chart";
 
 const dates = (first_date: string, last_date: string) => ({
   first_date,
@@ -53,7 +60,7 @@ describe("month bars", () => {
     expect(soFar("2026-09-10")).toEqual([]);
   });
 
-  it("narrow to the month clicked, never past today", () => {
+  it("cover their month, never past today", () => {
     const bars = chartBars(
       months("2026-07", 3),
       dates("2026-07-05", today),
@@ -110,7 +117,7 @@ describe("financial year bars", () => {
     ]);
   });
 
-  it("narrow to the financial year clicked, never past today", () => {
+  it("cover their financial year, never past today", () => {
     const bars = chartBars(
       months("2024-09", 25),
       dates("2024-09-01", today),
@@ -125,6 +132,42 @@ describe("financial year bars", () => {
     expect(bars[1]?.description).toBe(
       `FY 2025–26 · Income +1,200.00 · Spending ${MINUS}1,200.00`,
     );
+  });
+});
+
+describe("an account's bars", () => {
+  const today = "2026-09-16";
+
+  it("fall into the chart's months, or its financial years", () => {
+    const monthly = chartBars(
+      months("2026-07", 3),
+      dates("2026-07-01", today),
+      today,
+    );
+    expect(barSeries(monthly, [10, 20, 30])).toEqual([10, 20, 30]);
+
+    const yearly = chartBars(
+      months("2024-09", 25),
+      dates("2024-09-01", today),
+      today,
+    );
+    const values = Array.from({ length: 25 }, () => 1);
+    expect(barSeries(yearly, values)).toEqual([7, 12, 6]);
+  });
+
+  it("are found by key, and hold the days they cover", () => {
+    const bars = chartBars(
+      months("2026-07", 3),
+      dates("2026-07-01", today),
+      today,
+    );
+    const august = barByKey(bars, "2026-08");
+
+    expect(august?.name).toBe("August 2026");
+    expect(barByKey(bars, "2025-01")).toBeNull();
+    expect(barByKey(bars, null)).toBeNull();
+    expect(inBar(august!, "2026-08-31")).toBe(true);
+    expect(inBar(august!, "2026-09-01")).toBe(false);
   });
 });
 

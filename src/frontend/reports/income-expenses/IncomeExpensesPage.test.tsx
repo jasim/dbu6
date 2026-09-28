@@ -15,14 +15,16 @@ import {
 import type {
   IncomeExpenses,
   IncomeExpensesAccount,
+  IncomeExpensesEntry,
 } from "../../../shared/index";
 import { IncomeExpensesPage } from "./IncomeExpensesPage";
 
 /*
  * The page's own behaviour (PLAN.md §11 P4): the period it asks the server
- * for and writes to the URL, the top rows open and the rows below opening
- * level by level with the parent's own entries as a row of their own, and
- * the empty state.
+ * for and writes to the URL; a bar or a row brings its month or account
+ * into focus, and the figures, the chart and the entries follow; rows open
+ * level by level with the parent's own entries as a row of their own; Esc
+ * steps back out; and the empty state.
  */
 
 vi.mock("@sapporta/frontend", () => ({ appTimeZone: () => "Asia/Kolkata" }));
@@ -30,6 +32,7 @@ vi.mock("@sapporta/frontend", () => ({ appTimeZone: () => "Asia/Kolkata" }));
 let host: HTMLDivElement;
 let root: Root;
 let responses: unknown[];
+let entries: IncomeExpensesEntry[];
 let requests: URL[];
 
 beforeAll(() => {
@@ -47,11 +50,22 @@ beforeEach(() => {
   root = createRoot(host);
   requests = [];
   responses = [];
+  entries = [
+    entry(1, "2026-08-10", 3, 1500, "SAMPLE GROCER"),
+    entry(2, "2026-08-01", 4, 10000, "Rent August"),
+    entry(3, "2026-09-01", 4, 10000, "Rent September"),
+    entry(4, "2026-09-05", 2, 500, "Sample snacks"),
+    entry(5, "2026-09-12", 3, 1500, "SAMPLE GROCER"),
+  ];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input instanceof Request ? input.url : input);
-      requests.push(new URL(url, "http://localhost"));
+      const request = new URL(url, "http://localhost");
+      if (request.pathname.endsWith("/entries")) {
+        return Response.json({ entries });
+      }
+      requests.push(request);
       const next = responses.length > 1 ? responses.shift() : responses[0];
       return Response.json(next);
     }),
@@ -65,34 +79,63 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/** An account over August and September 2026, with its own months. */
 function account(
   account_id: number,
   name: string,
-  own: number,
+  own: [number, number],
   children: IncomeExpensesAccount[] = [],
 ): IncomeExpensesAccount {
+  const months = children.reduce(
+    (sums, child) => sums.map((sum, index) => sum + child.months[index]),
+    [...own],
+  );
   return {
     account_id,
     name,
-    own,
-    total: own + children.reduce((sum, child) => sum + child.total, 0),
+    own: own[0] + own[1],
+    total: months[0] + months[1],
+    months,
     children,
   };
 }
 
+function entry(
+  id: number,
+  date: string,
+  account_id: number,
+  amount: number,
+  narration: string,
+): IncomeExpensesEntry {
+  return {
+    key: `entry:${id}`,
+    journal_id: 100 + id,
+    date,
+    narration,
+    against: "Sample Savings",
+    account_id,
+    amount,
+  };
+}
+
 const spending = [
-  // Ranked by total, as the server sends them.
-  account(1, "Expenses", 0, [
-    account(4, "Rent", 20000),
-    account(2, "Food", 500, [account(3, "Groceries", 3000)]),
-  ]),
+  // Ranked by total, as the server sends them; one account above them all.
+  account(
+    1,
+    "Expenses",
+    [0, 0],
+    [
+      account(4, "Rent", [10000, 10000]),
+      account(2, "Food", [0, 500], [account(3, "Groceries", [1500, 1500])]),
+    ],
+  ),
 ];
 
 function report(overrides: Partial<IncomeExpenses> = {}): IncomeExpenses {
   return {
     income: {
       total: 50000,
-      accounts: [account(10, "Salary", 50000)],
+      accounts: [account(10, "Salary", [25000, 25000])],
     },
     spending: { total: 23500, accounts: spending },
     months: [
@@ -148,7 +191,8 @@ const asked = (index: number) =>
   `${requests[index]?.searchParams.get("from_date")} – ${requests[index]?.searchParams.get("to_date")}`;
 
 function button(name: string): HTMLButtonElement {
-  const found = Array.from(host.querySelectorAll("button")).find(
+  // Popovers render outside the page's root.
+  const found = Array.from(document.body.querySelectorAll("button")).find(
     (candidate) =>
       candidate.textContent?.trim() === name ||
       candidate.getAttribute("aria-label") === name,
@@ -157,13 +201,38 @@ function button(name: string): HTMLButtonElement {
   return found;
 }
 
-/** The toggle of an account's row, by the account's name. */
-function row(name: string): HTMLButtonElement {
+/** An account's row in the table, by the account's name. */
+function row(name: string): HTMLElement {
   const found = Array.from(
-    host.querySelectorAll<HTMLButtonElement>("button[aria-expanded]"),
-  ).find((candidate) => candidate.textContent?.startsWith(name));
+    host.querySelectorAll<HTMLElement>('[role="row"]'),
+  ).find((candidate) =>
+    candidate
+      .querySelector('[role="rowheader"]')
+      ?.textContent?.startsWith(name),
+  );
   if (!found) throw new Error(`No row "${name}" in: ${text()}`);
   return found;
+}
+
+/** The rows as they read: name, amount, share. */
+function rows(): string[] {
+  return Array.from(host.querySelectorAll('[role="row"]')).map((candidate) =>
+    Array.from(candidate.children)
+      .map((cell) => cell.textContent)
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+/** The entries panel's rows, as their narrations. */
+function panelEntries(): string[] {
+  return Array.from(host.querySelectorAll("aside li a")).map(
+    (link) => link.querySelector("span + span span")?.textContent ?? "",
+  );
+}
+
+function press(key: string) {
+  window.dispatchEvent(new KeyboardEvent("keydown", { key }));
 }
 
 describe("Income and Expenses", () => {
@@ -173,11 +242,11 @@ describe("Income and Expenses", () => {
 
     expect(asked(0)).toBe("2025-10-01 – 2026-09-16");
     expect(text()).toContain("1 October 2025 – 16 September 2026");
-    expect(button("Last 12 months").getAttribute("aria-pressed")).toBe("true");
-    expect(text()).toContain("From 1 account");
-    expect(text()).toContain("Across 3 accounts");
-    expect(text()).toContain("53% of income");
+    expect(text()).toContain("+50,000.00");
+    expect(text()).toContain("53%");
 
+    await act(async () => button("Period: Last 12 months").click());
+    await settle();
     await act(async () => button("Last financial year").click());
     await settle();
 
@@ -187,15 +256,14 @@ describe("Income and Expenses", () => {
     expect(asked(1)).toBe("2025-04-01 – 2026-03-31");
   });
 
-  it("lights the preset picked dates match, and narrows to a month's bar", async () => {
+  it("names picked dates, and selects a month's bar without leaving the period", async () => {
     responses = [report()];
     await renderAt(
       "/reports/income-expenses?from_date=2026-08-01&to_date=2026-09-16",
     );
 
     expect(asked(0)).toBe("2026-08-01 – 2026-09-16");
-    expect(host.querySelector('[aria-pressed="true"]')).toBeNull();
-    expect(text()).toContain("Aug – Sep 2026");
+    expect(button("Period: Aug – Sep 2026")).toBeTruthy();
     expect(text()).toContain("so far");
 
     await act(async () =>
@@ -204,46 +272,89 @@ describe("Income and Expenses", () => {
     await settle();
 
     expect(location()).toBe(
-      "/reports/income-expenses?from_date=2026-08-01&to_date=2026-08-31",
+      "/reports/income-expenses?from_date=2026-08-01&to_date=2026-09-16&month=2026-08",
     );
-    expect(button("Last month").getAttribute("aria-pressed")).toBe("true");
+    expect(requests).toHaveLength(1);
+    // The figures, the rows and the entries are August's.
+    expect(text()).toContain("−11,500.00");
+    expect(rows()).toContain("Rent −10,000.00 87%");
+    expect(panelEntries()).toEqual(["Rent August", "SAMPLE GROCER"]);
+
+    await act(async () => press("Escape"));
+    expect(location()).toBe(
+      "/reports/income-expenses?from_date=2026-08-01&to_date=2026-09-16",
+    );
   });
 
-  it("opens the top rows, then rows level by level, with a parent's own entries last", async () => {
+  it("starts below a single top account, and opens rows level by level", async () => {
     responses = [report()];
     await renderAt("/reports/income-expenses");
 
-    expect(row("Expenses").getAttribute("aria-expanded")).toBe("true");
-    expect(text()).toContain("Rent");
-    expect(text()).toContain("Food");
-    expect(text()).toContain("Collapse all");
-    expect(text()).not.toContain("Groceries");
+    expect(rows().slice(0, 3)).toEqual([
+      "Spending −23,500.00",
+      "Rent −20,000.00 85%",
+      "Food −3,500.00 15%",
+    ]);
+    expect(rows().join()).not.toContain("Groceries");
+
+    await act(async () => button("Open Food").click());
+    expect(rows().slice(3, 5)).toEqual([
+      "Groceries −3,000.00 13%",
+      "Food, not in a sub-account −500.00 2%",
+    ]);
+    // Opening a row doesn't focus it.
+    expect(location()).toBe("/reports/income-expenses");
+
+    await act(async () => button("Close Food").click());
+    expect(rows().join()).not.toContain("Groceries");
+  });
+
+  it("focuses an account on its row, and the entries follow", async () => {
+    responses = [report()];
+    await renderAt("/reports/income-expenses");
+    await settle();
+
+    // At rest, the panel lists all spending, largest first.
+    expect(panelEntries()).toEqual([
+      "Rent August",
+      "Rent September",
+      "SAMPLE GROCER",
+      "SAMPLE GROCER",
+      "Sample snacks",
+    ]);
 
     await act(async () => row("Food").click());
-    const rows = Array.from(host.querySelectorAll("li"))
-      .map((li) => li.firstElementChild?.textContent ?? "")
-      .filter((row) => /\d\.\d\d/.test(row));
-    expect(rows.slice(0, 5)).toEqual([
-      "Expenses100%−23,500.00›",
-      "Rent85%−20,000.00›",
-      "Food15%−3,500.00›",
-      "Groceries13%−3,000.00›",
-      "Food, not in a sub-account2%−500.00",
+    await settle();
+
+    expect(location()).toBe("/reports/income-expenses?account=2");
+    expect(row("Food").getAttribute("aria-selected")).toBe("true");
+    expect(panelEntries()).toEqual([
+      "SAMPLE GROCER",
+      "SAMPLE GROCER",
+      "Sample snacks",
     ]);
-    const history = host.querySelector<HTMLAnchorElement>(
-      'a[aria-label="Account ledger for Groceries"]',
+    expect(text()).toContain("Food by month");
+    const ledger = Array.from(host.querySelectorAll("aside a")).find(
+      (link) => link.textContent === "Open ledger ›",
     );
-    expect(history?.getAttribute("href")).toBe(
-      "/reports/account-ledger?account_id=3&from_date=2025-10-01&to_date=2026-09-16",
+    expect(ledger?.getAttribute("href")).toBe(
+      "/reports/account-ledger?account_id=2&from_date=2025-10-01&to_date=2026-09-16",
+    );
+    expect(host.querySelector("aside li a")?.getAttribute("href")).toBe(
+      "/tables/journals?filter[id][eq]=101",
     );
 
-    await act(async () => button("Collapse all").click());
-    expect(text()).not.toContain("Rent");
-    expect(text()).not.toContain("Collapse all");
+    await act(async () => press("Escape"));
+    expect(location()).toBe("/reports/income-expenses");
+  });
 
-    await act(async () => row("Expenses").click());
-    expect(text()).toContain("Rent");
-    expect(text()).not.toContain("Groceries");
+  it("opens the rows above an account a link focuses", async () => {
+    responses = [report()];
+    await renderAt("/reports/income-expenses?account=3");
+    await settle();
+
+    expect(row("Groceries").getAttribute("aria-selected")).toBe("true");
+    expect(panelEntries()).toEqual(["SAMPLE GROCER", "SAMPLE GROCER"]);
   });
 
   it("links the accountant's view with the same dates", async () => {
@@ -276,14 +387,14 @@ describe("Income and Expenses", () => {
     expect(text()).toContain(
       "Nothing in your books falls between 1 Jan and 31 Jan 2025.",
     );
-    expect(text()).not.toContain("Remaining");
+    expect(text()).not.toContain("Kept");
   });
 
   it("shows spending higher than income in ink, not as an error", async () => {
     responses = [report({ income: { total: 0, accounts: [] } })];
     await renderAt("/reports/income-expenses");
 
-    expect(text()).toContain("−23,500.00");
-    expect(text()).toContain("23,500.00 more spent than came in");
+    expect(text()).toContain("Overspent");
+    expect(text()).toContain("23,500.00");
   });
 });

@@ -22,6 +22,11 @@ export function accountLedgerHref(
   });
 }
 
+/** A journal in the Journals table, with its lines. */
+export function journalHref(journalId: number): string {
+  return `/tables/journals?filter[id][eq]=${journalId}`;
+}
+
 /** Every posted balance check the books miss (Reconciliation Differences). */
 export const RECONCILIATION_DIFFERENCES_HREF = "/reports/balance-assertions";
 

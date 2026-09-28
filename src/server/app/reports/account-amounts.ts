@@ -97,3 +97,44 @@ export function loadMonthlyAmounts(
     { fromDate: query.fromDate, toDate: query.toDate },
   );
 }
+
+/** One account's own amount in one month. `month` is `YYYY-MM`. */
+export type AccountMonthAmount = {
+  account_id: number;
+  month: string;
+  amount: number;
+};
+
+/**
+ * Each account's own amount in each month of the period, for accounts of
+ * the given types, signed as `loadAccountAmounts` signs them. Months without
+ * an entry on the account are left out.
+ */
+export function loadAccountMonthlyAmounts(
+  ledger: ReportLedger,
+  query: Period & { types: readonly IncomeSpendingType[] },
+): AccountMonthAmount[] {
+  return ledger.all<AccountMonthAmount>(
+    `
+      SELECT
+        a.id AS account_id,
+        strftime('%Y-%m', j.date) AS month,
+        CASE WHEN a.account_type = 'Revenue'
+             THEN SUM(je.credit) - SUM(je.debit)
+             ELSE SUM(je.debit) - SUM(je.credit)
+        END AS amount
+      FROM scoped_journal_entries je
+      JOIN scoped_journals j ON j.id = je.journal_id
+      JOIN scoped_accounts a ON a.id = je.account_id
+      WHERE a.account_type IN (SELECT value FROM json_each(@types))
+        AND (@fromDate IS NULL OR j.date >= @fromDate)
+        AND (@toDate IS NULL OR j.date <= @toDate)
+      GROUP BY a.id, strftime('%Y-%m', j.date)
+      ORDER BY a.id, strftime('%Y-%m', j.date)`,
+    {
+      fromDate: query.fromDate,
+      toDate: query.toDate,
+      types: JSON.stringify(query.types),
+    },
+  );
+}

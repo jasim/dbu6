@@ -20,6 +20,7 @@ export {
   useRef,
   useState,
   type ComponentType,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
 export {
@@ -93,6 +94,7 @@ export {
   accountLedgerHref,
   accountLedgerRow,
   incomeStatementHref,
+  journalHref,
   type LedgerLinkInput,
 } from "./reports/links";
 
@@ -136,7 +138,7 @@ export {
 export { cn } from "@sapporta/ui/cn";
 export { Popover, PopoverContent, PopoverTrigger } from "@sapporta/ui/popover";
 export { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";
-export { ChevronRight } from "lucide-react";
+export { ChevronDown, ChevronRight, X } from "lucide-react";
 
 // --- What report.ts and frontend.tsx default-export ---
 export type { ReportDefinition } from "./reports/registry";

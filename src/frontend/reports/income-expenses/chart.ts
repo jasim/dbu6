@@ -10,8 +10,10 @@ import { signedAmount } from "./figures";
 
 /*
  * The month-by-month chart's bars (PLAN.md §11 P4): a pair per month, or per
- * financial year once the period runs past 24 months. Each pair knows the
- * dates a click narrows the page to.
+ * financial year once the period runs past 24 months. Each bar knows the
+ * report months it adds up and the dates it covers, so selecting it narrows
+ * the accounts and the entries to them, and an account's months fall into
+ * the same bars (`barSeries`).
  */
 
 export const MOST_MONTHLY_BARS = 24;
@@ -20,6 +22,8 @@ export type ChartBar = {
   key: string;
   /** Under the pair: "Mar", or "FY 2024–25". */
   label: string;
+  /** In full: "March 2026", or "FY 2024–25". */
+  name: string;
   /** Under the label, on the first month and each January. */
   year: string | null;
   /** The bar holding today, while the period ends today. */
@@ -28,8 +32,10 @@ export type ChartBar = {
   spending: number;
   /** "March 2026 · Income +1,20,000.00 · Spending −84,500.00". */
   description: string;
-  /** What clicking the pair narrows the page to, never past today. */
+  /** The dates it covers, never past today. */
   dates: DateSpan;
+  /** Its months, as indexes into the report's `months`. */
+  months: number[];
 };
 
 export function chartBars(
@@ -51,6 +57,7 @@ export function chartBars(
         soFar: endsToday && row.month === thisMonth,
         income: row.income,
         spending: row.spending,
+        months: [index],
         dates: upToToday(
           {
             first_date: first.toString(),
@@ -62,14 +69,18 @@ export function chartBars(
     });
   }
 
-  const years = new Map<number, { income: number; spending: number }>();
-  for (const row of months) {
+  const years = new Map<
+    number,
+    { income: number; spending: number; months: number[] }
+  >();
+  months.forEach((row, index) => {
     const year = financialYearOf(row.month);
-    const sums = years.get(year) ?? { income: 0, spending: 0 };
+    const sums = years.get(year) ?? { income: 0, spending: 0, months: [] };
     sums.income += row.income;
     sums.spending += row.spending;
+    sums.months.push(index);
     years.set(year, sums);
-  }
+  });
   const todaysYear = financialYearOf(thisMonth);
   return Array.from(years, ([year, sums]) => {
     const label = `FY ${year}–${String((year + 1) % 100).padStart(2, "0")}`;
@@ -85,6 +96,29 @@ export function chartBars(
   });
 }
 
+/** Monthly amounts, aligned with the report's months, summed into the bars. */
+export function barSeries(
+  bars: readonly ChartBar[],
+  monthly: readonly number[],
+): number[] {
+  return bars.map((bar) =>
+    bar.months.reduce((sum, index) => sum + (monthly[index] ?? 0), 0),
+  );
+}
+
+/** The bar with this key, if the chart has one. */
+export function barByKey(
+  bars: readonly ChartBar[],
+  key: string | null,
+): ChartBar | null {
+  return key === null ? null : (bars.find((bar) => bar.key === key) ?? null);
+}
+
+/** Whether a day falls in the bar. */
+export function inBar(bar: ChartBar, date: string): boolean {
+  return date >= bar.dates.first_date && date <= bar.dates.last_date;
+}
+
 /** The height every bar shares: the largest income or spending, at least 0. */
 export function chartScale(bars: readonly ChartBar[]): number {
   return bars.reduce(
@@ -98,12 +132,10 @@ export function barHeight(value: number, scale: number): number {
   return scale > 0 && value > 0 ? value / scale : 0;
 }
 
-function bar(
-  input: Omit<ChartBar, "description"> & { name: string },
-): ChartBar {
-  const { name, ...rest } = input;
+function bar(input: Omit<ChartBar, "description">): ChartBar {
+  const { name } = input;
   return {
-    ...rest,
+    ...input,
     description: `${name} · Income ${signedAmount("income", input.income)} · Spending ${signedAmount("spending", input.spending)}`,
   };
 }

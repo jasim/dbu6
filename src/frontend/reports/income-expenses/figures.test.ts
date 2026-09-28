@@ -5,7 +5,6 @@ import type {
 } from "../../../shared/index";
 import { MINUS } from "../../components/amount";
 import {
-  accountsWithAmounts,
   amountDirection,
   figures,
   formatShare,
@@ -24,6 +23,7 @@ function account(
     name,
     own,
     total: own + children.reduce((total, child) => total + child.total, 0),
+    months: [],
     children,
   };
 }
@@ -43,81 +43,43 @@ function report(
 }
 
 describe("figures", () => {
-  it("count the accounts with amounts and what was kept", () => {
-    const result = figures(
-      report(
-        [account("salary", 90000, [account("bonus", 10000)])],
-        [
-          account("expenses", 0, [
-            account("food", 500, [account("groceries", 20500)]),
-            account("rent", 58000),
-          ]),
-        ],
-      ),
-    );
-
-    expect(result).toEqual({
-      income: {
-        figure: "+1,00,000.00",
-        direction: "in",
-        line: "From 2 accounts",
-      },
-      spending: {
-        figure: `${MINUS}79,000.00`,
-        direction: "out",
-        line: "Across 3 accounts",
-      },
-      remaining: {
-        tone: "kept",
-        figure: "21,000.00",
-        line: "21% of income",
-      },
+  it("sign income and spending and say what was kept", () => {
+    expect(figures({ income: 100000, spending: 79000 })).toEqual({
+      income: { figure: "+1,00,000.00", direction: "in" },
+      spending: { figure: `${MINUS}79,000.00`, direction: "out" },
+      remaining: { tone: "kept", figure: "21,000.00", share: "21%" },
     });
   });
 
   it("say how much more was spent, in ink, when spending is higher", () => {
-    expect(
-      figures(report([account("salary", 50000)], [account("rent", 62500)]))
-        .remaining,
-    ).toEqual({
+    expect(figures({ income: 50000, spending: 62500 }).remaining).toEqual({
       tone: "overspent",
-      figure: `${MINUS}12,500.00`,
-      line: "12,500.00 more spent than came in",
+      figure: "12,500.00",
+      share: null,
     });
   });
 
   it("leave the share out when there is no income", () => {
-    expect(figures(report([], [])).remaining).toEqual({
+    expect(figures({ income: 0, spending: 0 }).remaining).toEqual({
       tone: "kept",
       figure: "0.00",
-      line: null,
+      share: null,
     });
-    expect(figures(report([], [account("rent", 100)])).remaining.tone).toBe(
+    expect(figures({ income: 0, spending: 100 }).remaining.tone).toBe(
       "overspent",
-    );
-    expect(figures(report([], [])).income.line).toBe("From 0 accounts");
-    expect(figures(report([account("salary", 100)], [])).income.line).toBe(
-      "From 1 account",
     );
   });
 
   it("sign a section running the other way the other way", () => {
-    expect(figures(report([], [account("shopping", -500)])).spending).toEqual({
+    expect(figures({ income: 0, spending: -500 }).spending).toEqual({
       figure: "+500.00",
       direction: "in",
-      line: "Across 1 account",
     });
   });
 
   it("know an empty period", () => {
     expect(isEmptyPeriod(report([], []))).toBe(true);
     expect(isEmptyPeriod(report([], [account("rent", 100)]))).toBe(false);
-  });
-
-  it("don't count a parent without an amount of its own", () => {
-    expect(
-      accountsWithAmounts([account("expenses", 0, [account("rent", 100)])]),
-    ).toBe(1);
   });
 });
 

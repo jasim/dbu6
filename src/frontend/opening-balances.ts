@@ -173,10 +173,8 @@ export function lockText(lock: OpeningLock): string {
   }
 }
 
-/** Where an opening entry is changed by hand: its journal, in the tables. */
-export function journalHref(journalId: number): string {
-  return `/tables/journals?filter[id][eq]=${journalId}`;
-}
+// Where an opening entry is changed by hand: its journal, in the tables.
+export { journalHref } from "./reports/links";
 
 /**
  * The journal a change or removal was refused for, when the server says the

@@ -133,6 +133,14 @@
   --money-in-border: #bfd8c9;
   --money-in-ink: #1f4c38;
 
+  /* How much, in charts: a light step for the least and a deep one for the
+     most, per section (`shade` in reports/income-expenses). Spending runs
+     warm, to burnt orange; never --sap-negative's red, which means failed. */
+  --spend-least: #e2ad7c;
+  --spend-most: #c2410c;
+  --income-least: #9fcab1;
+  --income-most: #1f4c38;
+
   /* Attention: blue, only for "this needs you" */
   --attention: #2563a8;
   --attention-bg: #eef3fa;

@@ -5,7 +5,11 @@ import {
   type IncomeExpensesAccount,
 } from "../../../shared/index.js";
 import { describe, expect, it } from "vitest";
-import { incomeExpensesReport, monthsBetween } from "./income-expenses.js";
+import {
+  incomeExpensesEntries,
+  incomeExpensesReport,
+  monthsBetween,
+} from "./income-expenses.js";
 import { incomeStatementReport } from "./income-statement.js";
 import { sectionTotal } from "./section-account-grid.js";
 import { readOnlyLedger } from "../../modules/ledger-sql/index.js";
@@ -217,6 +221,54 @@ describe("Income and Expenses", () => {
         },
       ).first_month,
     ).toBeNull();
+  });
+
+  it("gives each account its total month by month, children included", () => {
+    const report = incomeExpensesReport(
+      readOnlyLedger(ledger(), auth),
+      firstQuarter,
+    );
+    const [rent, food] = report.spending.accounts;
+
+    expect(rent.months).toEqual([0, 0, 20000]);
+    expect(food.months).toEqual([6000, 0, 0]);
+    expect(food.children.map((child) => child.months)).toEqual([
+      [3000, 0, 0],
+      [2500, 0, 0],
+    ]);
+    expect(report.income.accounts[0].months).toEqual([100000, 0, 0]);
+  });
+
+  it("lists a section's entries, positive, against the other side", () => {
+    const sqlite = ledger();
+    const spending = incomeExpensesEntries(readOnlyLedger(sqlite, auth), {
+      ...firstQuarter,
+      type: "Expense",
+    });
+
+    expect(
+      spending.entries.map((entry) => [
+        entry.date,
+        entry.account_id,
+        entry.amount,
+        entry.against,
+      ]),
+    ).toEqual([
+      ["2026-01-05", 2, 3000, "Sample Savings"],
+      ["2026-01-05", 1, 500, "Sample Savings"],
+      ["2026-01-05", 3, 1000, "Sample Savings"],
+      ["2026-01-05", 4, 1500, "Sample Savings"],
+      ["2026-03-05", 5, 20000, "Sample Savings"],
+    ]);
+    expect(
+      incomeExpensesEntries(readOnlyLedger(sqlite, auth), {
+        ...firstQuarter,
+        type: "Revenue",
+      }).entries.map((entry) => [entry.account_id, entry.amount]),
+    ).toEqual([
+      [6, 90000],
+      [7, 10000],
+    ]);
   });
 
   it("counts months across a new year", () => {

@@ -1,9 +1,4 @@
-import {
-  type Direction,
-  formatAmount,
-  formatMoney,
-  plural,
-} from "../../report-kit";
+import { type Direction, formatAmount, formatMoney } from "../../report-kit";
 import type {
   IncomeExpenses,
   IncomeExpensesAccount,
@@ -32,15 +27,15 @@ export function signedAmount(section: Section, value: number): string {
   return formatAmount(value, amountDirection(section, value));
 }
 
+/** What the income and spending left: kept, or overspent by. */
 export type Remaining =
-  | { tone: "kept"; figure: string; line: string | null }
-  | { tone: "overspent"; figure: string; line: string };
+  | { tone: "kept"; figure: string; share: string | null }
+  | { tone: "overspent"; figure: string; share: null };
 
 /** A section's figure: signed, and green when the money came in. */
 export type SectionFigure = {
   figure: string;
   direction: Direction;
-  line: string;
 };
 
 export type Figures = {
@@ -49,36 +44,28 @@ export type Figures = {
   remaining: Remaining;
 };
 
-export function figures(report: IncomeExpenses): Figures {
-  const income = report.income.total;
-  const spending = report.spending.total;
+/** The header's figures for income and spending over what is in view. */
+export function figures(totals: { income: number; spending: number }): Figures {
+  const { income, spending } = totals;
   const remaining = income - spending;
   return {
     income: {
       figure: signedAmount("income", income),
       direction: amountDirection("income", income),
-      line: `From ${plural(accountsWithAmounts(report.income.accounts), "account")}`,
     },
     spending: {
       figure: signedAmount("spending", spending),
       direction: amountDirection("spending", spending),
-      line: `Across ${plural(accountsWithAmounts(report.spending.accounts), "account")}`,
     },
     remaining:
       remaining < 0
-        ? {
-            // Overspending isn't an error: ink on a neutral panel, never red.
-            tone: "overspent",
-            figure: formatAmount(remaining, "out"),
-            line: `${formatMoney(-remaining)} more spent than came in`,
-          }
+        ? // Overspending isn't an error: ink, never red.
+          { tone: "overspent", figure: formatMoney(-remaining), share: null }
         : {
             tone: "kept",
             figure: formatMoney(remaining),
-            line:
-              income > 0
-                ? `${Math.round((remaining / income) * 100)}% of income`
-                : null,
+            share:
+              income > 0 ? `${Math.round((remaining / income) * 100)}%` : null,
           },
   };
 }
@@ -87,19 +74,6 @@ export function figures(report: IncomeExpenses): Figures {
 export function isEmptyPeriod(report: IncomeExpenses): boolean {
   return (
     report.income.accounts.length === 0 && report.spending.accounts.length === 0
-  );
-}
-
-/** The accounts in a tree with an amount of their own. */
-export function accountsWithAmounts(
-  accounts: readonly IncomeExpensesAccount[],
-): number {
-  return accounts.reduce(
-    (count, account) =>
-      count +
-      (account.own !== 0 ? 1 : 0) +
-      accountsWithAmounts(account.children),
-    0,
   );
 }
 

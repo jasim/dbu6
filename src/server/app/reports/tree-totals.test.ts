@@ -458,7 +458,6 @@ describe("reports over an account tree", () => {
       readOnlyLedger(sqlite, auth),
       {
         ...january,
-        accountId: 3,
         accountIds: ledgerAccountIds(readOnlyLedger(sqlite, auth), 3),
       },
     );

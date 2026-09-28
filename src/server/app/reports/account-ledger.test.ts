@@ -68,7 +68,6 @@ describe("Account Ledger journal entry query", () => {
 
     const auth = testLedgerAuth();
     const rows = loadAccountLedgerJournalEntries(readOnlyLedger(sqlite, auth), {
-      accountId: 1,
       accountIds: ledgerAccountIds(readOnlyLedger(sqlite, auth), 1),
       fromDate: "2026-01-01",
       toDate: "2026-01-31",

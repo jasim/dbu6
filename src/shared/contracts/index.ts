@@ -8,6 +8,8 @@ export {
   incomeExpensesSchema,
   type IncomeExpenses,
   type IncomeExpensesAccount,
+  type IncomeExpensesEntry,
+  type IncomeExpensesEntries,
 } from "./reports.js";
 export {
   importDraftsContract,

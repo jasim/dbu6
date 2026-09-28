@@ -41,6 +41,7 @@ export type IncomeExpensesAccountShape = {
   name: string;
   own: number;
   total: number;
+  months: number[];
   children: IncomeExpensesAccountShape[];
 };
 
@@ -56,6 +57,8 @@ export const incomeExpensesAccountSchema: z.ZodType<IncomeExpensesAccountShape> 
     name: z.string(),
     own: z.number(),
     total: z.number(),
+    // `total` month by month, aligned with the report's `months`.
+    months: z.array(z.number()),
     // Ranked by total, largest first, then by name. Subtrees without
     // amounts in the period are left out.
     get children() {
@@ -85,6 +88,40 @@ export const incomeExpensesSchema = z.object({
   first_month: z.string().nullable(),
 });
 export type IncomeExpenses = z.infer<typeof incomeExpensesSchema>;
+
+const incomeExpensesEntriesQuery = z
+  .object({
+    from_date: isoDate,
+    to_date: isoDate,
+    section: z.enum(["income", "spending"]),
+  })
+  .refine((query) => query.from_date <= query.to_date, {
+    message: "from_date must not be after to_date",
+    path: ["from_date"],
+  });
+
+/**
+ * What one income or spending account moved in one journal, as Income and
+ * Expenses lists it beside its accounts. `amount` is positive for income
+ * and for spending; a refund is negative. `against` names the account on
+ * the other side, such as the bank.
+ */
+export const incomeExpensesEntrySchema = z.object({
+  key: z.string(),
+  journal_id: z.number(),
+  date: z.string(),
+  narration: z.string(),
+  against: z.string().nullable(),
+  account_id: z.number(),
+  amount: z.number(),
+});
+export type IncomeExpensesEntry = z.infer<typeof incomeExpensesEntrySchema>;
+
+export const incomeExpensesEntriesSchema = z.object({
+  // Oldest first, as the journals were written.
+  entries: z.array(incomeExpensesEntrySchema),
+});
+export type IncomeExpensesEntries = z.infer<typeof incomeExpensesEntriesSchema>;
 
 // The draft reports narrow to one base account for Review's tabs; without
 // it they list every account.
@@ -149,6 +186,18 @@ export const reportsContract = c.router({
     query: incomeExpensesQuery,
     responses: {
       200: incomeExpensesSchema,
+      400: errorBodySchema,
+      403: errorBodySchema,
+    },
+  }),
+  incomeExpensesEntries: c.query({
+    method: "GET",
+    path: "/reports/income-expenses/entries",
+    summary: "Income and Expenses entries",
+    metadata: { tags: ["reports"] },
+    query: incomeExpensesEntriesQuery,
+    responses: {
+      200: incomeExpensesEntriesSchema,
       400: errorBodySchema,
       403: errorBodySchema,
     },
