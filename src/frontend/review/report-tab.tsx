@@ -37,7 +37,11 @@ export function CheckPasses({ title, body }: { title: string; body: string }) {
   );
 }
 
-/** The ✓ of a passing check, as Overview draws it. */
+/**
+ * The ✓ a check carries when it passes on its own: the card's whole subject,
+ * so it is filled. In Overview's list the same check is one note among a few,
+ * and gets the smaller tinted mark there.
+ */
 export function PassMark() {
   return (
     <span

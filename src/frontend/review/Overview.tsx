@@ -105,25 +105,25 @@ export function Overview() {
           onClose={closeNotice}
         />
       )}
-      <ul className="mt-4 overflow-hidden rounded-card border border-sap-border bg-card shadow-card">
+      <ul className="mt-7 space-y-4">
         {view.checks.map((row) => (
           <Check key={row.check} row={row} />
         ))}
       </ul>
       {view.posting && (
-        <div className="mt-6 max-w-sm">
+        <div className="mt-8 max-w-sm">
           <FactTable heading="Adding to your books" rows={view.posting} />
         </div>
       )}
       {error && (
         <p
           role="alert"
-          className="mt-4 text-body text-destructive [overflow-wrap:anywhere]"
+          className="mt-5 text-body text-destructive [overflow-wrap:anywhere]"
         >
           {error}
         </p>
       )}
-      <div className="mt-5">
+      <div className="mt-10">
         <Button
           onClick={post}
           waiting={view.waiting}
@@ -155,7 +155,7 @@ function OverviewColumn({
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
       <div className="max-w-[760px]">
         <ProgressSteps steps={journey} label="From statement to books" />
-        <section className="mt-9">
+        <section className="mt-12">
           <h2 className="text-heading text-foreground">{verdict}</h2>
           {children}
         </section>
@@ -208,41 +208,55 @@ function ImportedNotice({
   );
 }
 
+/**
+ * One check, as a note in the list: a small mark, the state in words, and
+ * the tab that fixes it, in the same line, so the note and its way on read
+ * together rather than as a row with a column of actions beside it. A check
+ * the user must act on keeps the plain ink and a medium weight; one that
+ * passes, or has nothing to check, steps back to the meta ink, so what is
+ * left to do is what stands out.
+ */
 function Check({ row }: { row: CheckRow }) {
+  const toFix = row.tone === "attention" || row.tone === "problem";
   return (
-    <li className="flex flex-wrap items-center gap-x-3.5 gap-y-1 border-t border-line-inner px-4 py-2 first:border-t-0">
-      <Marker tone={row.tone} />
-      <span className="min-w-0 flex-1 basis-[220px] py-1.5">
+    <li className="flex items-start gap-x-3.5">
+      <Marker tone={row.tone} className="mt-1" />
+      <span className="min-w-0 flex-1">
         <span
           className={cn(
-            "block text-row font-semibold",
-            row.tone === "waiting" ? "text-ink-meta" : "text-foreground",
+            "text-body",
+            toFix ? "font-medium text-foreground" : "text-ink-meta",
           )}
         >
           {row.text}
         </span>
+        {row.link && (
+          <Button
+            className="ml-3"
+            render={<Link to={row.link.to} />}
+            nativeButton={false}
+            variant="ghost"
+            size="sm"
+          >
+            {row.link.label}
+          </Button>
+        )}
         {row.note && (
-          <span className="block text-meta text-ink-meta">{row.note}</span>
+          <span className="mt-0.5 block text-meta text-ink-meta">
+            {row.note}
+          </span>
         )}
       </span>
-      {row.link && (
-        <Button
-          render={<Link to={row.link.to} />}
-          nativeButton={false}
-          variant="ghost"
-          size="sm"
-        >
-          {row.link.label}
-        </Button>
-      )}
     </li>
   );
 }
 
 // The check's state in shape as well as colour: ✓ passes, ! needs fixing,
-// a dashed ring when there is nothing to check.
+// a dashed ring when there is nothing to check. What needs the user is the
+// only solid mark in the list; a check that passes, or has nothing to check,
+// is a tint or an outline, so the eye lands on what is left to do.
 const MARKER: Record<StatusTone, { glyph: string; className: string }> = {
-  ok: { glyph: "✓", className: "bg-primary text-primary-foreground" },
+  ok: { glyph: "✓", className: "bg-primary/10 text-primary" },
   attention: { glyph: "!", className: "bg-attention text-background" },
   problem: {
     glyph: "!",
@@ -254,14 +268,15 @@ const MARKER: Record<StatusTone, { glyph: string; className: string }> = {
   },
 };
 
-function Marker({ tone }: { tone: StatusTone }) {
+function Marker({ tone, className }: { tone: StatusTone; className?: string }) {
   const marker = MARKER[tone];
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "flex size-[26px] shrink-0 items-center justify-center rounded-full text-[14px] font-semibold",
+        "flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
         marker.className,
+        className,
       )}
     >
       {marker.glyph}
