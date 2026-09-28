@@ -152,10 +152,10 @@ function OverviewColumn({
   children: React.ReactNode;
 }) {
   return (
-    <div className="px-4 pb-6 pt-5 sm:px-6 lg:px-8">
+    <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
       <div className="max-w-[760px]">
         <ProgressSteps steps={journey} label="From statement to books" />
-        <section className="mt-8">
+        <section className="mt-9">
           <h2 className="text-heading text-foreground">{verdict}</h2>
           {children}
         </section>

@@ -214,7 +214,11 @@ function FramePadding({ children }: { children: React.ReactNode }) {
 
 /**
  * One bar: the way back, the account, and its tabs, which sit on the bar's
- * rule. On a phone the way back shrinks to its chevron and the tabs scroll.
+ * rule. The Drafts tab is a table to work in, so the bar stays one row high
+ * and the tabs take the height it already has; they carry the width that is
+ * left, since on a narrow window the account name must not be squeezed to
+ * nothing. On a phone the way back shrinks to its chevron and the tabs
+ * scroll.
  */
 function FrameHeader({
   detail,
@@ -227,8 +231,8 @@ function FrameHeader({
 }) {
   const { account } = detail;
   return (
-    <header className="flex min-h-[calc(var(--height-sap-ctl)+0.5rem)] shrink-0 items-stretch gap-x-8 border-b border-sap-border pl-[calc(var(--sap-page-header-inset,0px)+0.75rem)] pr-3 sm:pl-[calc(var(--sap-page-header-inset,0px)+1.25rem)] sm:pr-5">
-      <div className="flex min-w-0 shrink items-center gap-2">
+    <header className="flex min-h-12 shrink-0 items-stretch gap-x-4 border-b border-sap-border pl-[calc(var(--sap-page-header-inset,0px)+0.75rem)] pr-3 sm:gap-x-8 sm:pl-[calc(var(--sap-page-header-inset,0px)+1.25rem)] sm:pr-5">
+      <div className="flex min-w-0 max-w-[45%] shrink items-center gap-2">
         {detail.other_accounts.length > 0 && (
           <>
             <Link
@@ -273,8 +277,13 @@ interface TabLink {
 }
 
 /**
- * Text tabs on the header's rule, the open one underlined. On the first run
- * they carry it, so a reload keeps its wording.
+ * The tabs on the header's rule, the open one on a rounded fill: the shape a
+ * row of tabs has, so it is read as one rather than as a line of text. A size
+ * above the meta text around it, padding for a pointer, and a wash on hover
+ * say they can be pressed; the counts stay quiet beside their label, as they
+ * do in the sidebar. They take the height the bar already has, and the width
+ * that is left. On the first run they carry it, so a reload keeps its
+ * wording.
  */
 function Tabs({
   detail,
@@ -312,9 +321,9 @@ function Tabs({
   return (
     <nav
       aria-label={`Review ${account.name}`}
-      className="-mb-px flex min-w-0 overflow-x-auto overflow-y-hidden"
+      className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
     >
-      <ul className="flex w-max gap-6">
+      <ul className="flex w-max items-center gap-1 sm:gap-2">
         {tabs.map((tab) => (
           <li key={tab.label} className="flex">
             <NavLink
@@ -322,24 +331,33 @@ function Tabs({
               end={tab.end}
               className={({ isActive }) =>
                 cn(
-                  "inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 text-meta font-medium no-underline outline-none transition-colors duration-150 focus-visible:text-foreground focus-visible:underline",
+                  "inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-control px-2.5 text-body no-underline outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:px-3",
                   isActive
-                    ? "border-foreground text-foreground"
-                    : "border-transparent text-ink-meta hover:text-foreground",
+                    ? "bg-muted font-semibold text-foreground"
+                    : "font-medium text-ink-soft hover:bg-muted/70 hover:text-foreground",
                 )
               }
             >
-              {tab.label}
-              {tab.count !== undefined && (
-                <span className="tnum font-mono text-label font-medium text-ink-meta">
-                  {tab.count}
-                </span>
-              )}
-              {tab.problems !== undefined && (
-                <span className="tnum rounded-full bg-destructive px-1.5 font-mono text-label font-medium text-destructive-foreground">
-                  {tab.problems}
-                  <span className="sr-only"> to fix</span>
-                </span>
+              {({ isActive }) => (
+                <>
+                  {tab.label}
+                  {tab.count !== undefined && (
+                    <span
+                      className={cn(
+                        "tnum font-mono text-label font-medium",
+                        isActive ? "text-ink-soft" : "text-ink-meta",
+                      )}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                  {tab.problems !== undefined && (
+                    <span className="tnum rounded-full bg-destructive px-1.5 font-mono text-label font-medium text-destructive-foreground">
+                      {tab.problems}
+                      <span className="sr-only"> to fix</span>
+                    </span>
+                  )}
+                </>
               )}
             </NavLink>
           </li>
@@ -352,13 +370,13 @@ function Tabs({
 function FrameSkeleton() {
   return (
     <div aria-hidden="true" className="flex-1 overflow-hidden bg-sap-surface">
-      <div className="flex h-[calc(var(--height-sap-ctl)+0.5rem)] items-center gap-8 border-b border-sap-border pl-[calc(var(--sap-page-header-inset,0px)+0.75rem)] pr-3 sm:pl-[calc(var(--sap-page-header-inset,0px)+1.25rem)] sm:pr-5">
-        <div className="h-4 w-[180px] rounded-control bg-sap-nested" />
-        <div className="flex gap-6">
-          {["w-[64px]", "w-[56px]", "w-[84px]", "w-[104px]"].map((width) => (
+      <div className="flex min-h-12 items-center gap-6 border-b border-sap-border pl-[calc(var(--sap-page-header-inset,0px)+0.75rem)] pr-3 sm:pl-[calc(var(--sap-page-header-inset,0px)+1.25rem)] sm:pr-5">
+        <div className="h-4 w-[180px] shrink-0 rounded-control bg-sap-nested" />
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {["w-[56px]", "w-[64px]", "w-[84px]", "w-[104px]"].map((width) => (
             <div
               key={width}
-              className={cn("h-4 rounded-control bg-sap-nested", width)}
+              className={cn("h-7 rounded-control bg-sap-nested", width)}
             />
           ))}
         </div>

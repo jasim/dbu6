@@ -189,6 +189,25 @@ describe("the review account frame", () => {
     ]);
   });
 
+  // The tabs are how a check is fixed, so the open one reads as a pressed
+  // control on a band of its own, not as a line of text beside the account
+  // name.
+  it("sets the open tab on a fill and the closed ones off it", async () => {
+    responses = [{ status: 200, body: detail() }];
+    await renderAt("/review/5");
+
+    const tabs = Array.from(host.querySelectorAll("nav a"));
+    const open = tabs.filter((a) => a.getAttribute("aria-current") === "page");
+    const closed = tabs.filter(
+      (a) => a.getAttribute("aria-current") !== "page",
+    );
+    expect(open.map((a) => a.textContent)).toEqual(["Overview"]);
+    expect(open[0]?.className).toContain("bg-muted");
+    expect(closed[0]?.className).toContain("hover:bg-muted");
+    // The band above carries the account name alone: nothing in it is a tab.
+    expect(host.querySelector("header > div a[href^='/review/5']")).toBeNull();
+  });
+
   it("sends a path that isn't a tab to Overview, for an account with no drafts too", async () => {
     responses = [
       { status: 200, body: detail({ drafts: 0, uncategorised: 0 }) },

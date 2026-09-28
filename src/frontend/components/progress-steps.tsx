@@ -23,6 +23,11 @@ const STATUS_TEXT: Record<StepStatus, string> = {
  * a green tick, current is a blue dot in a ring, waiting is a dashed marker
  * in muted ink. The line is solid up to the current step. Never more than
  * one current.
+ *
+ * It is a caption on the work, not a control beside it: the markers are the
+ * only solid thing here, and every step's name sits in the quiet ink, the
+ * current one a shade darker. Whatever the user is meant to press is
+ * elsewhere on the page.
  */
 export function ProgressSteps({
   steps,
@@ -45,9 +50,8 @@ export function ProgressSteps({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold",
-                  step.status === "done" &&
-                    "bg-primary text-primary-foreground",
+                  "flex size-[22px] shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
+                  step.status === "done" && "bg-primary/10 text-primary",
                   step.status === "current" &&
                     "border-[1.5px] border-attention",
                   step.status === "waiting" &&
@@ -63,9 +67,9 @@ export function ProgressSteps({
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "mx-2 flex-1 border-t-[1.5px]",
+                    "mx-2 flex-1 border-t",
                     step.status === "done"
-                      ? "border-primary"
+                      ? "border-primary/45"
                       : "border-dashed border-waiting-marker",
                   )}
                 />
@@ -74,9 +78,8 @@ export function ProgressSteps({
             <div className="mt-2 pr-3">
               <div
                 className={cn(
-                  "text-[13.5px] font-semibold",
-                  step.status === "current" && "text-attention-ink",
-                  step.status === "waiting" && "text-ink-meta",
+                  "text-meta font-medium",
+                  step.status === "current" ? "text-ink-soft" : "text-ink-meta",
                 )}
               >
                 <span className="sr-only">{STATUS_TEXT[step.status]}: </span>
