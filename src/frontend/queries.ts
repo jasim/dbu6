@@ -16,7 +16,7 @@ import { fetchTableRows, reloadTGridRows } from "@sapporta/frontend";
 import { tableQueryKeys } from "@sapporta/frontend/table/query";
 import {
   agentHandoffApi,
-  categorizationLessonsApi,
+  categorizationRuleRequestsApi,
   codingAgentApi,
   commentWriterApi,
   homeApi,
@@ -67,17 +67,19 @@ export function reviewAccountQuery(accountId: number) {
 }
 
 /**
- * A statement account's lessons for the categoriser. The user's coding agent
- * deletes each once it is taught, outside the app, so they are read again
- * when the user comes back to the window.
+ * A statement account's rule requests for the categoriser. The user's coding
+ * agent deletes each once it is encoded, outside the app, so they are read
+ * again when the user comes back to the window.
  */
-export function categorizationLessonsQuery(accountId: number) {
+export function categorizationRuleRequestsQuery(accountId: number) {
   return queryOptions({
-    queryKey: ["categorization-lessons", accountId],
+    queryKey: ["categorization-rule-requests", accountId],
     queryFn: () =>
-      categorizationLessonsApi
-        .listCategorizationLessons({ query: { base_account_id: accountId } })
-        .then((body) => body.lessons),
+      categorizationRuleRequestsApi
+        .listCategorizationRuleRequests({
+          query: { base_account_id: accountId },
+        })
+        .then((body) => body.rule_requests),
     ...FRESH_QUERY,
     refetchOnWindowFocus: true,
   });

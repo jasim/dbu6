@@ -1,6 +1,6 @@
 import { formatPlainDate } from "@sapporta/shared/temporal";
 import type {
-  CategorizationLesson,
+  CategorizationRuleRequest,
   CategorizationReport,
   CategorizationTally,
 } from "../../shared/index.js";
@@ -19,10 +19,10 @@ import {
 import { categorizationLlm } from "../modules/coding-agent/index.js";
 import { loadAccountsByName } from "../modules/accounts/index.js";
 import {
-  clearCategorizationLessons,
-  deleteCategorizationLesson,
-  insertCategorizationLesson,
-  loadCategorizationLesson,
+  clearCategorizationRuleRequests,
+  deleteCategorizationRuleRequest,
+  insertCategorizationRuleRequest,
+  loadCategorizationRuleRequest,
   loadDraftsById,
   saveReclassifiedDrafts,
   type ReclassifiedDraft,
@@ -171,26 +171,26 @@ function checkDraftsAccount(
   return { kind: "valid", drafts };
 }
 
-export type TeachCategorizationOutcome =
-  | { kind: "taught"; lesson: CategorizationLesson }
+export type RequestCategorizationRuleOutcome =
+  | { kind: "requested"; ruleRequest: CategorizationRuleRequest }
   | Exclude<SetDraftsAccountOutcome, { kind: "set" }>
   | { kind: "not-one-account" };
 
 /**
  * Records that drafts of one statement account go to the account the user
- * chose, as a lesson for the coding agent to turn into a rule. The drafts
- * keep no account: the categorizer gives them one once the rule is in.
+ * chose, as a rule request for the coding agent to turn into a rule. The
+ * drafts keep no account: the categorizer gives them one once the rule is in.
  */
-export function teachCategorization(
+export function requestCategorizationRule(
   ledger: Ledger,
-  lesson: { draftIds: readonly number[]; accountId: number; note: string },
-): TeachCategorizationOutcome {
+  ruleRequest: { draftIds: readonly number[]; accountId: number; note: string },
+): RequestCategorizationRuleOutcome {
   const { auth } = ledger;
-  return ledger.db.transaction((tx: any): TeachCategorizationOutcome => {
+  return ledger.db.transaction((tx: any): RequestCategorizationRuleOutcome => {
     const checked = checkDraftsAccount(
       { ...ledger, db: tx },
-      lesson.draftIds,
-      lesson.accountId,
+      ruleRequest.draftIds,
+      ruleRequest.accountId,
     );
     if (checked.kind !== "valid") return checked;
     const baseAccounts = new Set(
@@ -200,9 +200,9 @@ export function teachCategorization(
     if (baseAccounts.size > 1 || baseAccountId == null) {
       return { kind: "not-one-account" };
     }
-    const id = insertCategorizationLesson(tx, auth, {
+    const id = insertCategorizationRuleRequest(tx, auth, {
       baseAccountId,
-      accountId: lesson.accountId,
+      accountId: ruleRequest.accountId,
       transactions: checked.drafts
         .map((draft) => {
           const money = moneyFromColumns(draft);
@@ -214,23 +214,27 @@ export function teachCategorization(
           };
         })
         .sort((a, b) => a.date.localeCompare(b.date)),
-      note: lesson.note.trim(),
+      note: ruleRequest.note.trim(),
     });
-    const taught = loadCategorizationLesson(tx, auth, id);
-    if (!taught) throw new Error(`Lesson ${id} vanished as it was added`);
-    return { kind: "taught", lesson: taught };
+    const requested = loadCategorizationRuleRequest(tx, auth, id);
+    if (!requested)
+      throw new Error(`Rule request ${id} vanished as it was added`);
+    return { kind: "requested", ruleRequest: requested };
   });
 }
 
-/** Deletes a lesson, taught or not wanted. */
-export function forgetCategorizationLesson(ledger: Ledger, id: number): number {
-  return deleteCategorizationLesson(ledger.db, ledger.auth, id);
+/** Deletes a rule request, encoded or not wanted. */
+export function forgetCategorizationRuleRequest(
+  ledger: Ledger,
+  id: number,
+): number {
+  return deleteCategorizationRuleRequest(ledger.db, ledger.auth, id);
 }
 
-/** Deletes every lesson of a statement account. */
-export function forgetCategorizationLessons(
+/** Deletes every rule request of a statement account. */
+export function forgetCategorizationRuleRequests(
   ledger: Ledger,
   baseAccountId: number,
 ): number {
-  return clearCategorizationLessons(ledger.db, ledger.auth, baseAccountId);
+  return clearCategorizationRuleRequests(ledger.db, ledger.auth, baseAccountId);
 }

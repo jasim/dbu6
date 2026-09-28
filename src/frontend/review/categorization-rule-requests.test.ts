@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type {
-  CategorizationLesson,
-  CategorizationLessonTransaction,
+  CategorizationRuleRequest,
+  CategorizationRuleRequestTransaction,
   ReviewAccountDetail,
 } from "../../shared/index";
 import {
   amountsSeen,
-  LESSON_TRANSACTION_LIMIT,
-  lessonsPrompt,
-} from "./categorization-lessons";
+  RULE_REQUEST_TRANSACTION_LIMIT,
+  ruleRequestsPrompt,
+} from "./categorization-rule-requests";
 
 const detail: ReviewAccountDetail = {
   account: {
@@ -31,22 +31,22 @@ const detail: ReviewAccountDetail = {
   other_accounts: [],
 };
 
-// A draft in a lesson: money out, on 2026-09-01, unless given otherwise.
+// A draft in a rule request: money out, on 2026-09-01, unless given otherwise.
 function draft(
   narration: string,
   amount = 100,
   direction: "withdrawal" | "deposit" = "withdrawal",
   date = "2026-09-01",
-): CategorizationLessonTransaction {
+): CategorizationRuleRequestTransaction {
   return { date, source_narration: narration, direction, amount };
 }
 
-function lesson(
-  transactions: CategorizationLessonTransaction[],
+function ruleRequest(
+  transactions: CategorizationRuleRequestTransaction[],
   note = "",
   name = "Food",
   id = 1,
-): CategorizationLesson {
+): CategorizationRuleRequest {
   return {
     id,
     base_account_id: 7,
@@ -72,18 +72,18 @@ describe("amountsSeen", () => {
   });
 });
 
-describe("lessonsPrompt", () => {
-  it("numbers each lesson with its drafts, amounts, account and note", () => {
-    const prompt = lessonsPrompt(detail, [
-      lesson(
+describe("ruleRequestsPrompt", () => {
+  it("numbers each rule request with its drafts, amounts, account and note", () => {
+    const prompt = ruleRequestsPrompt(detail, [
+      ruleRequest(
         [
           draft("UPI-sample-foodapp-050505", 300),
           draft("UPI-sample-foodapp-050511", 500, "withdrawal", "2026-09-04"),
         ],
         "A food delivery app.",
       ),
-      lesson([draft("NOPII PHARMACY 050505", 1000)], "", "Health", 2),
-      lesson(
+      ruleRequest([draft("NOPII PHARMACY 050505", 1000)], "", "Health", 2),
+      ruleRequest(
         [draft("NOPII SHOP", 200), draft("NOPII SHOP REFUND", 200, "deposit")],
         "",
         "Shopping",
@@ -97,22 +97,22 @@ describe("lessonsPrompt", () => {
     );
     expect(prompt).toContain(
       [
-        '1. 2 drafts go to "Food" (lesson id 1), money out 300.00 to 500.00:',
+        '1. 2 drafts go to "Food" (rule request id 1), money out 300.00 to 500.00:',
         "   - 2026-09-01 · out 300.00 · UPI-sample-foodapp-050505",
         "   - 2026-09-04 · out 500.00 · UPI-sample-foodapp-050511",
         "   My note: A food delivery app.",
         "",
-        '2. 1 draft goes to "Health" (lesson id 2), money out 1000.00:',
+        '2. 1 draft goes to "Health" (rule request id 2), money out 1000.00:',
         "   - 2026-09-01 · out 1000.00 · NOPII PHARMACY 050505",
         "",
-        '3. 2 drafts go to "Shopping" (lesson id 3), money out 200.00; money in 200.00:',
+        '3. 2 drafts go to "Shopping" (rule request id 3), money out 200.00; money in 200.00:',
       ].join("\n"),
     );
   });
 
   it("asks for a proposal first, and for pushback on drafts alike only in how they were paid", () => {
-    const prompt = lessonsPrompt(detail, [
-      lesson([draft("NOPII SAMPLE 050505")]),
+    const prompt = ruleRequestsPrompt(detail, [
+      ruleRequest([draft("NOPII SAMPLE 050505")]),
     ]);
 
     expect(prompt).toContain("Propose before you change anything.");
@@ -125,34 +125,34 @@ describe("lessonsPrompt", () => {
   });
 
   it("leaves the choice of rule or guidance to the agent, by the guide", () => {
-    const prompt = lessonsPrompt(detail, [
-      lesson([draft("NOPII SAMPLE 050505")]),
+    const prompt = ruleRequestsPrompt(detail, [
+      ruleRequest([draft("NOPII SAMPLE 050505")]),
     ]);
 
     expect(prompt).toContain("`dbu6 docs books`");
     expect(prompt).toContain("user-config/transaction_mappings.mjs");
     expect(prompt).toContain("Don't categorise the drafts yourself");
     expect(prompt).toContain(
-      "`sapporta api delete /api/categorization-lessons/<lesson id>`",
+      "`sapporta api delete /api/categorization-rule-requests/<rule request id>`",
     );
     expect(prompt).not.toContain("My note");
   });
 
   it("counts the drafts past the limit, and says where to read them", () => {
     const drafts = Array.from(
-      { length: LESSON_TRANSACTION_LIMIT + 3 },
+      { length: RULE_REQUEST_TRANSACTION_LIMIT + 3 },
       (_, i) => draft(`NOPII SAMPLE 050505${i}`),
     );
-    const prompt = lessonsPrompt(detail, [lesson(drafts)]);
+    const prompt = ruleRequestsPrompt(detail, [ruleRequest(drafts)]);
 
     expect(prompt).toContain(
-      `out 100.00 · NOPII SAMPLE 050505${LESSON_TRANSACTION_LIMIT - 1}\n`,
+      `out 100.00 · NOPII SAMPLE 050505${RULE_REQUEST_TRANSACTION_LIMIT - 1}\n`,
     );
     expect(prompt).not.toContain(
-      `NOPII SAMPLE 050505${LESSON_TRANSACTION_LIMIT}\n`,
+      `NOPII SAMPLE 050505${RULE_REQUEST_TRANSACTION_LIMIT}\n`,
     );
     expect(prompt).toContain(
-      "   - and 3 more: `sapporta api get /api/categorization-lessons --query '{\"base_account_id\":7}'`",
+      "   - and 3 more: `sapporta api get /api/categorization-rule-requests --query '{\"base_account_id\":7}'`",
     );
   });
 });

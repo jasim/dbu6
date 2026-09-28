@@ -4,19 +4,20 @@ import { Temporal } from "@sapporta/shared/temporal";
 import { accountsTable } from "./accounts.js";
 
 /*
- * What the user taught the categoriser on Review's Improve categorization
+ * What the user asked the categoriser on Review's Improve categorization
  * tab: drafts of one statement account, the account they go to, and a note
- * for next time. A lesson waits here until the user's coding agent has turned
- * it into a rule or guidance, and the agent then deletes it. Rows are written
- * only through `/categorization-lessons` (app/categorization-lessons.ts): the
- * table API can read them and nothing else, as with import_presets.
+ * for next time. A rule request waits here until the user's coding agent has
+ * turned it into a rule or guidance, and the agent then deletes it. Rows are
+ * written only through `/categorization-rule-requests`
+ * (app/categorization-rule-requests.ts): the table API can read them and
+ * nothing else, as with import_presets.
  *
  * The drafts' date, source narration, direction and amount are copied,
- * since the drafts are gone once posted. A lesson about an account that is
- * deleted goes with it.
+ * since the drafts are gone once posted. A rule request about an account that
+ * is deleted goes with it.
  */
-export const categorizationLessonsTable = sqliteTable(
-  "categorization_lessons",
+export const categorizationRuleRequestsTable = sqliteTable(
+  "categorization_rule_requests",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     workspace_id: text("workspace_id").notNull(),
@@ -31,7 +32,8 @@ export const categorizationLessonsTable = sqliteTable(
       .references(() => accountsTable.id, { onDelete: "cascade" }),
     /**
      * JSON: the drafts, `{ date, source_narration, direction, amount }[]`, as
-     * `categorizationLessonTransactionSchema` (shared/contracts) reads them.
+     * `categorizationRuleRequestTransactionSchema` (shared/contracts) reads
+     * them.
      */
     transactions: text("transactions").notNull(),
     // What the user added for next time, or "".
@@ -41,7 +43,7 @@ export const categorizationLessonsTable = sqliteTable(
       .notNull(),
   },
   (table) => [
-    index("categorization_lessons_base_account_idx").on(
+    index("categorization_rule_requests_base_account_idx").on(
       table.workspace_id,
       table.scoped_to_user_id,
       table.base_account_id,
@@ -49,10 +51,10 @@ export const categorizationLessonsTable = sqliteTable(
   ],
 );
 
-export const categorizationLessons = sapportaTable({
-  drizzle: categorizationLessonsTable,
+export const categorizationRuleRequests = sapportaTable({
+  drizzle: categorizationRuleRequestsTable,
   meta: {
-    label: "Categorization lessons",
+    label: "Rule requests",
     rowLabelColumns: ["note"],
     rowScope: "workspaceUserScoped",
     immutable: true,

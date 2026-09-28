@@ -14,7 +14,7 @@ import { draftTransactionsApi, importPresetsApi } from "../api";
 import { FactTable, type Fact } from "../components/fact-table";
 import { Button, buttonVariants } from "../components/ui/button";
 import { plural } from "../format";
-import { categorizationLessonsQuery } from "../queries";
+import { categorizationRuleRequestsQuery } from "../queries";
 import { CategorizationNote } from "../views/categorization/CategorizationFigures";
 import { AgentUnavailableDialog } from "../views/categorization/AgentUnavailableDialog";
 import {
@@ -280,8 +280,8 @@ export function RunCategorizerTab() {
                   aria-hidden="true"
                   className="size-4 animate-spin text-primary"
                 />
-                Waiting for your agent to add{" "}
-                {plural(rulesAdded.waiting, "new rule")}
+                Waiting for your agent to turn{" "}
+                {plural(rulesAdded.waiting, "rule request")} into rules
                 <Link
                   to={inRun(reviewHref(accountId, IMPROVE_CATEGORIZATION_TAB))}
                   className="text-meta text-ink-meta hover:text-foreground hover:underline"
@@ -296,7 +296,7 @@ export function RunCategorizerTab() {
                     aria-hidden="true"
                     className="size-4 text-primary"
                   />
-                  New rules added
+                  Rules added
                 </p>
               )
             )}
@@ -434,18 +434,18 @@ export function RunCategorizerTab() {
 }
 
 /**
- * The new rules from Improve categorization that the user's coding agent is
- * still adding, read again every few seconds while there are any, since the
- * agent takes each off the list outside the app; and whether it took the
+ * The rule requests from Improve categorization that the user's coding agent
+ * is still encoding, read again every few seconds while there are any, since
+ * the agent takes each off the list outside the app; and whether it took the
  * last of them off while this was open.
  */
 function useRulesAdded(accountId: number): { waiting: number; added: boolean } {
-  const lessons = useQuery({
-    ...categorizationLessonsQuery(accountId),
+  const ruleRequests = useQuery({
+    ...categorizationRuleRequestsQuery(accountId),
     refetchInterval: (query) =>
       (query.state.data?.length ?? 0) > 0 ? 3000 : false,
   });
-  const waiting = lessons.data?.length ?? 0;
+  const waiting = ruleRequests.data?.length ?? 0;
   const hadSome = useRef(false);
   const [added, setAdded] = useState(false);
   useEffect(() => {

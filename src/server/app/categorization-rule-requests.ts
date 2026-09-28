@@ -1,29 +1,29 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
-import { categorizationLessonsContract } from "../../shared/index.js";
-import { loadCategorizationLessons } from "../modules/drafts/index.js";
+import { categorizationRuleRequestsContract } from "../../shared/index.js";
+import { loadCategorizationRuleRequests } from "../modules/drafts/index.js";
 import {
-  forgetCategorizationLesson,
-  forgetCategorizationLessons,
-  teachCategorization,
+  forgetCategorizationRuleRequest,
+  forgetCategorizationRuleRequests,
+  requestCategorizationRule,
 } from "../workflows/reclassification.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
 
 /*
- * Lessons for the categoriser, from Review's Improve categorization tab. The
- * user's coding agent deletes each once it has encoded it, with
- * `sapporta api delete /api/categorization-lessons/<id>`.
+ * Rule requests for the categoriser, from Review's Improve categorization
+ * tab. The user's coding agent deletes each once it has encoded it, with
+ * `sapporta api delete /api/categorization-rule-requests/<id>`.
  */
 const api = new TsRestApi<SapportaEnv>();
 
 api.register(
-  "listCategorizationLessons",
-  categorizationLessonsContract.listCategorizationLessons,
+  "listCategorizationRuleRequests",
+  categorizationRuleRequestsContract.listCategorizationRuleRequests,
   async ({ c, request }) => {
     const { db, auth } = requireWorkflowLedger(c);
     return {
       status: 200,
       body: {
-        lessons: loadCategorizationLessons(
+        rule_requests: loadCategorizationRuleRequests(
           db,
           auth,
           request.query.base_account_id,
@@ -34,18 +34,18 @@ api.register(
 );
 
 api.register(
-  "teachCategorization",
-  categorizationLessonsContract.teachCategorization,
+  "requestCategorizationRule",
+  categorizationRuleRequestsContract.requestCategorizationRule,
   async ({ c, request }) => {
     const { draft_ids, account_id, note } = request.body;
-    const outcome = teachCategorization(requireWorkflowLedger(c), {
+    const outcome = requestCategorizationRule(requireWorkflowLedger(c), {
       draftIds: draft_ids,
       accountId: account_id,
       note,
     });
     switch (outcome.kind) {
-      case "taught":
-        return { status: 200, body: { lesson: outcome.lesson } };
+      case "requested":
+        return { status: 200, body: { rule_request: outcome.ruleRequest } };
       case "account-not-found":
         return { status: 404, body: { error: "Account not found" } };
       case "drafts-not-found":
@@ -64,7 +64,8 @@ api.register(
         return {
           status: 422,
           body: {
-            error: "A lesson's drafts must all come from one bank or card",
+            error:
+              "A rule request's drafts must all come from one bank or card",
           },
         };
     }
@@ -72,26 +73,26 @@ api.register(
 );
 
 api.register(
-  "deleteCategorizationLesson",
-  categorizationLessonsContract.deleteCategorizationLesson,
+  "deleteCategorizationRuleRequest",
+  categorizationRuleRequestsContract.deleteCategorizationRuleRequest,
   async ({ c, request }) => {
-    const deleted = forgetCategorizationLesson(
+    const deleted = forgetCategorizationRuleRequest(
       requireWorkflowLedger(c),
       request.params.id,
     );
     return deleted === 0
-      ? { status: 404, body: { error: "Lesson not found" } }
+      ? { status: 404, body: { error: "Rule request not found" } }
       : { status: 200, body: { deleted } };
   },
 );
 
 api.register(
-  "clearCategorizationLessons",
-  categorizationLessonsContract.clearCategorizationLessons,
+  "clearCategorizationRuleRequests",
+  categorizationRuleRequestsContract.clearCategorizationRuleRequests,
   async ({ c, request }) => ({
     status: 200,
     body: {
-      deleted: forgetCategorizationLessons(
+      deleted: forgetCategorizationRuleRequests(
         requireWorkflowLedger(c),
         request.query.base_account_id,
       ),

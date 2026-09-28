@@ -118,12 +118,12 @@ export {
   type GPayDraftClassification,
 } from "./draft-transactions.js";
 export {
-  categorizationLessonSchema,
-  categorizationLessonsContract,
-  categorizationLessonTransactionSchema,
-  type CategorizationLesson,
-  type CategorizationLessonTransaction,
-} from "./categorization-lessons.js";
+  categorizationRuleRequestSchema,
+  categorizationRuleRequestsContract,
+  categorizationRuleRequestTransactionSchema,
+  type CategorizationRuleRequest,
+  type CategorizationRuleRequestTransaction,
+} from "./categorization-rule-requests.js";
 export {
   agentModelSchema,
   agentModelsSchema,

@@ -13,13 +13,13 @@ import {
 import { accountsTable } from "../schema/accounts.js";
 import { draftTransactionsTable } from "../schema/draft-journals.js";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
-import { loadCategorizationLessons } from "../modules/drafts/index.js";
+import { loadCategorizationRuleRequests } from "../modules/drafts/index.js";
 import {
   classifyDraftTransactions,
-  forgetCategorizationLesson,
-  forgetCategorizationLessons,
+  forgetCategorizationRuleRequest,
+  forgetCategorizationRuleRequests,
   setDraftsAccount,
-  teachCategorization,
+  requestCategorizationRule,
 } from "./reclassification.js";
 
 const auth = testLedgerAuth();
@@ -198,24 +198,24 @@ describe("setDraftsAccount", () => {
   });
 });
 
-describe("teachCategorization", () => {
+describe("requestCategorizationRule", () => {
   const accounts = (sqlite: Database.Database) =>
     sqlite
       .prepare("SELECT id, account_id FROM draft_transactions ORDER BY id")
       .all();
 
-  it("records the lesson, its drafts oldest first, and leaves them without an account", () => {
+  it("records the rule request, its drafts oldest first, and leaves them without an account", () => {
     const { db, sqlite } = setupDatabase();
     const ledger = { db, sqlite, auth };
     addDraft(db, 3, "UPI debit again", 1);
 
-    const outcome = teachCategorization(ledger, {
+    const outcome = requestCategorizationRule(ledger, {
       draftIds: [3, 1],
       accountId: 2,
       note: "  A coffee shop.  ",
     });
 
-    const lesson = {
+    const ruleRequest = {
       id: 1,
       base_account_id: 1,
       account: { id: 2, name: "Coffee" },
@@ -235,54 +235,72 @@ describe("teachCategorization", () => {
       ],
       note: "A coffee shop.",
     };
-    expect(outcome).toEqual({ kind: "taught", lesson });
+    expect(outcome).toEqual({ kind: "requested", ruleRequest });
     expect(accounts(sqlite)).toEqual([
       { id: 1, account_id: null },
       { id: 3, account_id: null },
     ]);
-    expect(loadCategorizationLessons(db, auth, 1)).toEqual([lesson]);
-    expect(loadCategorizationLessons(db, auth, 4)).toEqual([]);
+    expect(loadCategorizationRuleRequests(db, auth, 1)).toEqual([ruleRequest]);
+    expect(loadCategorizationRuleRequests(db, auth, 4)).toEqual([]);
   });
 
-  it("records no lesson for drafts of more than one statement account", () => {
+  it("records no rule request for drafts of more than one statement account", () => {
     const { db, sqlite } = setupDatabase();
     const ledger = { db, sqlite, auth };
     addDraft(db, 3, "NOPII CARD DEBIT", 4);
 
     expect(
-      teachCategorization(ledger, { draftIds: [1, 3], accountId: 2, note: "" }),
+      requestCategorizationRule(ledger, {
+        draftIds: [1, 3],
+        accountId: 2,
+        note: "",
+      }),
     ).toEqual({ kind: "not-one-account" });
     expect(accounts(sqlite)).toEqual([
       { id: 1, account_id: null },
       { id: 3, account_id: null },
     ]);
-    expect(loadCategorizationLessons(db, auth, 1)).toEqual([]);
+    expect(loadCategorizationRuleRequests(db, auth, 1)).toEqual([]);
   });
 
-  it("records no lesson when the account is refused", () => {
+  it("records no rule request when the account is refused", () => {
     const { db, sqlite } = setupDatabase();
     const ledger = { db, sqlite, auth };
 
     expect(
-      teachCategorization(ledger, { draftIds: [1], accountId: 1, note: "" }),
+      requestCategorizationRule(ledger, {
+        draftIds: [1],
+        accountId: 1,
+        note: "",
+      }),
     ).toEqual({ kind: "own-account" });
-    expect(loadCategorizationLessons(db, auth, 1)).toEqual([]);
+    expect(loadCategorizationRuleRequests(db, auth, 1)).toEqual([]);
   });
 
-  it("forgets a lesson, or an account's lessons", () => {
+  it("forgets a rule request, or an account's rule requests", () => {
     const { db, sqlite } = setupDatabase();
     const ledger = { db, sqlite, auth };
     addDraft(db, 3, "UPI debit again", 1);
-    teachCategorization(ledger, { draftIds: [1], accountId: 2, note: "" });
-    teachCategorization(ledger, { draftIds: [3], accountId: 2, note: "" });
+    requestCategorizationRule(ledger, {
+      draftIds: [1],
+      accountId: 2,
+      note: "",
+    });
+    requestCategorizationRule(ledger, {
+      draftIds: [3],
+      accountId: 2,
+      note: "",
+    });
 
-    expect(forgetCategorizationLesson(ledger, 1)).toBe(1);
-    expect(forgetCategorizationLesson(ledger, 1)).toBe(0);
+    expect(forgetCategorizationRuleRequest(ledger, 1)).toBe(1);
+    expect(forgetCategorizationRuleRequest(ledger, 1)).toBe(0);
     expect(
-      loadCategorizationLessons(db, auth, 1).map((lesson) => lesson.id),
+      loadCategorizationRuleRequests(db, auth, 1).map(
+        (ruleRequest) => ruleRequest.id,
+      ),
     ).toEqual([2]);
-    expect(forgetCategorizationLessons(ledger, 1)).toBe(1);
-    expect(loadCategorizationLessons(db, auth, 1)).toEqual([]);
+    expect(forgetCategorizationRuleRequests(ledger, 1)).toBe(1);
+    expect(loadCategorizationRuleRequests(db, auth, 1)).toEqual([]);
   });
 });
 
@@ -344,7 +362,7 @@ function setupDatabase() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
-    CREATE TABLE categorization_lessons (
+    CREATE TABLE categorization_rule_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       workspace_id TEXT NOT NULL,
       scoped_to_user_id TEXT NOT NULL,

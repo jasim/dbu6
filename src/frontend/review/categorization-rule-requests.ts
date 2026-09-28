@@ -1,8 +1,8 @@
-// The new rules the user makes on Review's Improve categorization tab: drafts
-// they picked, with each one's date, direction and amount, and the account
-// those drafts go to, with a note for next time. They wait in the books as
-// lessons (categorization_lessons) until the user hands them to their coding
-// agent, which proposes how each is encoded, a rule in
+// The rule requests the user makes on Review's Improve categorization tab:
+// drafts they picked, with each one's date, direction and amount, and the
+// account those drafts go to, with a note for next time. They wait in the
+// books as rule requests (categorization_rule_requests) until the user hands
+// them to their coding agent, which proposes how each is encoded, a rule in
 // transaction_mappings.mjs, a line of guidance, or both, or says why it
 // shouldn't be; encodes what the user agrees to; and deletes it from the
 // list. The drafts get their account when the user next runs the
@@ -10,20 +10,20 @@
 
 import {
   guideCommand,
-  type CategorizationLesson,
-  type CategorizationLessonTransaction,
+  type CategorizationRuleRequest,
+  type CategorizationRuleRequestTransaction,
   type ReviewAccountDetail,
 } from "../../shared/index";
 import { PII_RULE } from "../agent-prompt-rules";
 import { agree, plural } from "../format";
 import { reviewHref } from "./routes";
 
-/** Drafts listed under a lesson before the rest are only counted. */
-export const LESSON_TRANSACTION_LIMIT = 20;
+/** Drafts listed under a rule request before the rest are only counted. */
+export const RULE_REQUEST_TRANSACTION_LIMIT = 20;
 
-type Direction = CategorizationLessonTransaction["direction"];
+type Direction = CategorizationRuleRequestTransaction["direction"];
 
-/** The amounts a lesson's drafts moved one way: how many, the least, the most. */
+/** The amounts a rule request's drafts moved one way: how many, the least, the most. */
 export interface AmountsSeen {
   direction: Direction;
   count: number;
@@ -31,9 +31,9 @@ export interface AmountsSeen {
   max: number;
 }
 
-/** A lesson's amounts, money out first, then money in; a way none moved is left out. */
+/** A rule request's amounts, money out first, then money in; a way none moved is left out. */
 export function amountsSeen(
-  transactions: readonly CategorizationLessonTransaction[],
+  transactions: readonly CategorizationRuleRequestTransaction[],
 ): AmountsSeen[] {
   return (["withdrawal", "deposit"] as const).flatMap((direction) => {
     const amounts = transactions
@@ -53,14 +53,14 @@ export function amountsSeen(
 }
 
 /**
- * The request to the coding agent: each lesson as the user gave it, amounts
- * and all. The agent proposes first, and pushes back on a lesson whose
- * drafts share nothing the categorizer can see; how a lesson is encoded is
- * decided with the user, by the books guide.
+ * The request to the coding agent: each rule request as the user gave it,
+ * amounts and all. The agent proposes first, and pushes back on a rule
+ * request whose drafts share nothing the categorizer can see; how a rule
+ * request is encoded is decided with the user, by the books guide.
  */
-export function lessonsPrompt(
+export function ruleRequestsPrompt(
   detail: ReviewAccountDetail,
-  lessons: readonly CategorizationLesson[],
+  ruleRequests: readonly CategorizationRuleRequest[],
 ): string {
   const { account } = detail;
   const books = guideCommand("books");
@@ -71,7 +71,7 @@ id ${account.account_id}) that the categorizer couldn't place, grouped as I
 picked them, and where I've said they go. Each draft is its date, which way
 the money moved, the amount, and the description:
 
-${lessons.map((lesson, index) => lessonText(account.account_id, lesson, index)).join("\n\n")}
+${ruleRequests.map((ruleRequest, index) => ruleRequestText(account.account_id, ruleRequest, index)).join("\n\n")}
 
 The categorizer sees a transaction's description, which way the money
 moved, and the amount, never its date. It tries, in order: exact rules in
@@ -84,7 +84,7 @@ account; an instruction file applies to every account whose preset lists it.
 mapping", and how to read this account's import preset. If this account lists
 no instruction file, or only an empty one, tell me, and propose which to use.
 
-Propose before you change anything. For each numbered lesson:
+Propose before you change anything. For each numbered rule request:
 
 1. Say what these drafts have in common that the categorizer can see: a
    payee, a UPI ID, a merchant's name, a phrase. That I picked them together
@@ -108,36 +108,37 @@ Then stop, and wait for me. Make only the changes I agree to.
 Don't categorise the drafts yourself: once the rules are in, I run the
 categoriser from the app.
 
-When a lesson is encoded, delete it from my list with
-\`sapporta api delete /api/categorization-lessons/<lesson id>\`, and do the
-same for a lesson I tell you to drop. Leave any other lesson on the list.
+When a rule request is encoded, delete it from my list with
+\`sapporta api delete /api/categorization-rule-requests/<rule request id>\`, and do
+the same for a rule request I tell you to drop. Leave any other rule request
+on the list.
 
 The rules and instruction files in user-config/ are my own settings: they
 may name payees and amount ranges. Everywhere else: ${PII_RULE}
 
-Report back what you did for each numbered lesson, or why you didn't.`;
+Report back what you did for each numbered rule request, or why you didn't.`;
 }
 
-function lessonText(
+function ruleRequestText(
   accountId: number,
-  lesson: CategorizationLesson,
+  ruleRequest: CategorizationRuleRequest,
   index: number,
 ): string {
-  const { transactions } = lesson;
-  const shown = transactions.slice(0, LESSON_TRANSACTION_LIMIT);
+  const { transactions } = ruleRequest;
+  const shown = transactions.slice(0, RULE_REQUEST_TRANSACTION_LIMIT);
   const rest = transactions.length - shown.length;
   return [
-    `${index + 1}. ${plural(transactions.length, "draft")} ${agree(transactions.length, "goes", "go")} to "${lesson.account.name}" (lesson id ${lesson.id}), ${amountsSeen(transactions).map(amountsText).join("; ")}:`,
+    `${index + 1}. ${plural(transactions.length, "draft")} ${agree(transactions.length, "goes", "go")} to "${ruleRequest.account.name}" (rule request id ${ruleRequest.id}), ${amountsSeen(transactions).map(amountsText).join("; ")}:`,
     ...shown.map(
       (transaction) =>
         `   - ${transaction.date} · ${way(transaction.direction)} ${amount(transaction.amount)} · ${transaction.source_narration}`,
     ),
     ...(rest > 0
       ? [
-          `   - and ${rest} more: \`sapporta api get /api/categorization-lessons --query '{"base_account_id":${accountId}}'\``,
+          `   - and ${rest} more: \`sapporta api get /api/categorization-rule-requests --query '{"base_account_id":${accountId}}'\``,
         ]
       : []),
-    ...(lesson.note === "" ? [] : [`   My note: ${lesson.note}`]),
+    ...(ruleRequest.note === "" ? [] : [`   My note: ${ruleRequest.note}`]),
   ].join("\n");
 }
 

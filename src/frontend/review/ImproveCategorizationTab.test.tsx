@@ -13,28 +13,28 @@ import {
   vi,
 } from "vitest";
 import type {
-  CategorizationLesson,
+  CategorizationRuleRequest,
   ReviewAccountDetail,
 } from "../../shared/index";
 import { ImproveCategorizationTab } from "./ImproveCategorizationTab";
 import type { ReviewAccountContext } from "./ReviewAccount";
 
 /*
- * Improve categorization's two-region left column. The rule being made comes
- * first: it says what to select, or that every draft goes to an account. The
- * new rules it makes come under their own heading, which names and counts
- * them, above the one button that hands them to the coding agent and then
- * goes to Run categorizer. The grid needs the table's schema, which no test
- * here loads, so a rule is never being made in these tests: the compose card
- * itself is checked in the preview harness.
+ * Improve categorization's two-region left column. The rule request being
+ * made comes first: it says what to select, or that every draft goes to an
+ * account. The rule requests it makes come under their own heading, which
+ * names and counts them, above the one button that hands them to the coding
+ * agent and then goes to Run categorizer. The grid needs the table's schema,
+ * which no test here loads, so a rule request is never being made in these
+ * tests: the compose card itself is checked in the preview harness.
  */
 
 let host: HTMLDivElement;
 let root: Root;
 let requests: Array<{ method: string; url: URL }>;
-let lessons: CategorizationLesson[];
+let ruleRequests: CategorizationRuleRequest[];
 
-const LESSONS: CategorizationLesson[] = [
+const RULE_REQUESTS: CategorizationRuleRequest[] = [
   {
     id: 11,
     base_account_id: 5,
@@ -72,17 +72,19 @@ const LESSONS: CategorizationLesson[] = [
 ];
 
 function respond(method: string, url: URL): unknown {
-  if (url.pathname.endsWith("/categorization-lessons")) {
+  if (url.pathname.endsWith("/categorization-rule-requests")) {
     if (method === "DELETE") {
-      const deleted = lessons.length;
-      lessons = [];
+      const deleted = ruleRequests.length;
+      ruleRequests = [];
       return { deleted };
     }
-    return { lessons };
+    return { rule_requests: ruleRequests };
   }
-  const one = /\/categorization-lessons\/(\d+)$/.exec(url.pathname);
+  const one = /\/categorization-rule-requests\/(\d+)$/.exec(url.pathname);
   if (method === "DELETE" && one) {
-    lessons = lessons.filter((lesson) => lesson.id !== Number(one[1]));
+    ruleRequests = ruleRequests.filter(
+      (ruleRequest) => ruleRequest.id !== Number(one[1]),
+    );
     return { deleted: 1 };
   }
   if (url.pathname.endsWith("/agent-handoff")) {
@@ -110,7 +112,7 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   requests = [];
-  lessons = LESSONS;
+  ruleRequests = RULE_REQUESTS;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -209,10 +211,10 @@ async function settle() {
 }
 
 const panel = () => host.querySelector("aside")?.textContent ?? "";
-// The region the "New rules" heading names: it holds the rules and the one
-// action on them, never the rule being made.
+// The region the "Rule requests" heading names: it holds the rules and the one
+// action on them, never the rule request being made.
 const region = () =>
-  host.querySelector("#new-rules-heading")?.closest("section") ?? null;
+  host.querySelector("#rule-requests-heading")?.closest("section") ?? null;
 const rules = () =>
   [...host.querySelectorAll("aside ol > li")].map((li) => ({
     account: li.querySelector("p")?.firstChild?.textContent,
@@ -229,7 +231,7 @@ const button = (label: string) =>
   );
 
 describe("Improve categorization", () => {
-  it("says what to select, and lists the new rules account first, with their amounts", async () => {
+  it("says what to select, and lists the rule requests account first, with their amounts", async () => {
     await render();
 
     expect(panel()).toContain("Select transactions that go together");
@@ -246,10 +248,10 @@ describe("Improve categorization", () => {
       },
     ]);
     expect(panel()).toContain("A sample grocery shop");
-    expect(button("Add 2 to categorization rules")).toBeDefined();
+    expect(button("Turn 2 rule requests into rules")).toBeDefined();
     expect(
       requests
-        .find((r) => r.url.pathname.endsWith("/categorization-lessons"))
+        .find((r) => r.url.pathname.endsWith("/categorization-rule-requests"))
         ?.url.searchParams.get("base_account_id"),
     ).toBe("5");
     expect(
@@ -259,19 +261,19 @@ describe("Improve categorization", () => {
     ).toBe("/categorization-rules?show=ai&account=5");
   });
 
-  it("heads the new rules with their own heading, apart from the rule being made", async () => {
+  it("heads the rule requests with their own heading, apart from the rule request being made", async () => {
     await render();
 
-    // The heading names and counts the list under it, so "Add 2 to
-    // categorization rules" is visibly about these and not about the rule
-    // being made at the top of the column.
-    expect(region()?.textContent).toContain("New rules");
+    // The heading names and counts the list under it, so "Turn 2 rule
+    // requests into rules" is visibly about these and not about the rule
+    // request being made at the top of the column.
+    expect(region()?.textContent).toContain("Rule requests");
     expect(region()?.querySelectorAll("ol > li")).toHaveLength(2);
     expect(region()?.textContent).not.toContain(
       "Select transactions that go together",
     );
     expect(host.querySelector("aside")?.getAttribute("aria-label")).toBe(
-      "New rules",
+      "Rule requests",
     );
   });
 
@@ -284,30 +286,34 @@ describe("Improve categorization", () => {
       (p) => p.textContent === "Not added yet",
     );
     expect(state).toBeDefined();
-    const add = button("Add 2 to categorization rules");
+    const add = button("Turn 2 rule requests into rules");
     expect(
       state!.compareDocumentPosition(add!) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
-  it("removes a rule, and offers nothing to add once none is left", async () => {
+  it("removes a rule request, and offers nothing to add once none is left", async () => {
     await render();
 
-    await act(async () => button("Remove the rule for Dining")?.click());
+    await act(async () =>
+      button("Remove the rule request for Dining")?.click(),
+    );
     await settle();
     expect(rules().map((rule) => rule.account)).toEqual(["Groceries"]);
-    expect(button("Add 1 to categorization rules")).toBeDefined();
+    expect(button("Turn 1 rule request into rules")).toBeDefined();
 
-    await act(async () => button("Remove the rule for Groceries")?.click());
+    await act(async () =>
+      button("Remove the rule request for Groceries")?.click(),
+    );
     await settle();
     expect(rules()).toEqual([]);
-    expect(button("Add")).toBeUndefined();
+    expect(button("Turn")).toBeUndefined();
   });
 
-  it("hands the new rules to the agent, then goes to Run categorizer", async () => {
+  it("hands the rule requests to the agent, then goes to Run categorizer", async () => {
     await render();
 
-    await act(async () => button("Add 2 to categorization rules")?.click());
+    await act(async () => button("Turn 2 rule requests into rules")?.click());
     await settle();
 
     const handoff = requests.find(
@@ -318,7 +324,7 @@ describe("Improve categorization", () => {
   });
 
   it("says so, in place of the rules and the list, when every draft goes to an account", async () => {
-    lessons = [];
+    ruleRequests = [];
     await render(0);
 
     expect(host.textContent).toContain("Every draft goes to an account");

@@ -20,14 +20,14 @@ const CHECK_TABS = {
 type CheckTab = (typeof CHECK_TABS)[PostingCheckKind];
 
 /**
- * Where the user teaches the categoriser from the drafts, beside the Drafts
- * tab, which is for choosing an account by hand.
+ * Where the user makes rule requests from the drafts, beside the Drafts tab,
+ * which is for choosing an account by hand.
  */
 export const IMPROVE_CATEGORIZATION_TAB = "improve-categorization";
 
 /**
  * Where the categoriser runs again over the drafts still without an account,
- * once Improve categorization has taught it.
+ * once Improve categorization has handed it new rules.
  */
 export const RUN_CATEGORIZER_TAB = "run-categorizer";
 

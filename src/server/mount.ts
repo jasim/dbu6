@@ -21,7 +21,7 @@ import {
 import addAccountApi from "./app/add-account.js";
 import accountsApi from "./app/accounts.js";
 import agentHandoffApi from "./app/agent-handoff.js";
-import categorizationLessonsApi from "./app/categorization-lessons.js";
+import categorizationRuleRequestsApi from "./app/categorization-rule-requests.js";
 import classifyDraftTransactionsApi from "./app/classify-draft-transactions.js";
 import codingAgentApi from "./app/coding-agent.js";
 import commentWriterApi from "./app/comment-writer.js";
@@ -110,7 +110,7 @@ export function loadDbu6App(
   mountApi(api, renderJournalsHledgerApi);
   mountApi(api, postDraftsToJournalApi);
   mountApi(api, setDraftsAccountApi);
-  mountApi(api, categorizationLessonsApi);
+  mountApi(api, categorizationRuleRequestsApi);
   mountApi(api, homeApi);
   mountApi(api, reviewApi);
   mountApi(api, openingBalancesApi);

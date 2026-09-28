@@ -21,17 +21,25 @@ import {
   mintFilterId,
   type FilterCondition,
 } from "@sapporta/shared/filter";
-import { apiErrorMessage, categorizationLessonsApi } from "../api";
+import { apiErrorMessage, categorizationRuleRequestsApi } from "../api";
 import { AgentActions, PromptText } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
 import { Field } from "../components/focus-card";
 import { Button } from "../components/ui/button";
-import { formatAmountRange, formatMoney, formatShortDate } from "../format";
-import { categorizationLessonsQuery } from "../queries";
+import {
+  formatAmountRange,
+  formatMoney,
+  formatShortDate,
+  plural,
+} from "../format";
+import { categorizationRuleRequestsQuery } from "../queries";
 import { Chip } from "../views/import-instructions/rule-parts";
 import { categorizationRulesHref } from "../views/import-instructions/routes";
-import type { CategorizationLesson } from "../../shared/index";
-import { amountsSeen, lessonsPrompt } from "./categorization-lessons";
+import type { CategorizationRuleRequest } from "../../shared/index";
+import {
+  amountsSeen,
+  ruleRequestsPrompt,
+} from "./categorization-rule-requests";
 import { CheckPasses, ReportTab } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 import {
@@ -72,8 +80,8 @@ const SELECT_ROWS = {
 } satisfies GridInteractionConfig;
 // Descriptions shown on a rule before the rest are counted.
 const SHOWN_DESCRIPTIONS = 3;
-// Selected transactions listed inside the rule being made before the rest
-// open on demand: the card holds its own account, note and button, so the
+// Selected transactions listed inside the rule request being made before the
+// rest open on demand: the card holds its own account, note and button, so the
 // contents stay short enough to keep the button in sight.
 const SHOWN_SELECTED = 4;
 
@@ -90,16 +98,18 @@ interface SelectedDraft {
 }
 
 /**
- * Improve categorization: the rule being made and the new rules on the left,
- * the account's drafts with no account on the right, by narration.
+ * Improve categorization: the rule request being made and the rule requests
+ * on the left, the account's drafts with no account on the right, by
+ * narration.
  *
  * The left column is the two steps of one job, top to bottom: the user
- * selects drafts that go together, which makes a draft rule holding them;
- * choosing its account puts it with the new rules below, kept in the books
- * as lessons, and takes its drafts off the list; and the one action on those
- * new rules hands them to the coding agent. Nothing is categorised here: the
- * agent turns each new rule into a rule or guidance and takes it off the
- * list, and the user then runs the categorizer, where this sends them.
+ * selects drafts that go together, which makes a rule request holding them;
+ * choosing its account puts it with the rule requests below, kept in the
+ * books as rule requests, and takes its drafts off the list; and the one
+ * action on those rule requests hands them to the coding agent. Nothing is
+ * categorised here: the agent turns each into a rule or guidance and takes it
+ * off the list, and the user then runs the categorizer, where this sends
+ * them.
  */
 export function ImproveCategorizationTab() {
   const { detail, setup } = useReviewAccount();
@@ -111,10 +121,12 @@ export function ImproveCategorizationTab() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const lessonsQuery = categorizationLessonsQuery(accountId);
-  const lessons = useQuery(lessonsQuery);
-  const refreshLessons = () =>
-    void queryClient.invalidateQueries({ queryKey: lessonsQuery.queryKey });
+  const ruleRequestsQuery = categorizationRuleRequestsQuery(accountId);
+  const ruleRequests = useQuery(ruleRequestsQuery);
+  const refreshRuleRequests = () =>
+    void queryClient.invalidateQueries({
+      queryKey: ruleRequestsQuery.queryKey,
+    });
 
   // The grid is for selecting drafts; editing and deleting them is the Drafts
   // tab's, so here the table reads as immutable and offers neither.
@@ -137,21 +149,21 @@ export function ImproveCategorizationTab() {
     }),
     [accountId, navigate, searchParams],
   );
-  // A draft in a new rule leaves the list. Lessons keep copies of their
-  // drafts, not the drafts, so the list leaves out every draft with one of
-  // their source narrations. A new object recreates the grid's session, so it is
-  // kept per account and new rules.
+  // A draft in a rule request leaves the list. Rule requests keep copies of
+  // their drafts, not the drafts, so the list leaves out every draft with one
+  // of their source narrations. A new object recreates the grid's session, so
+  // it is kept per account and rule requests.
   const queued = useMemo(
     () => [
       ...new Set(
-        lessons.data?.flatMap((lesson) =>
-          lesson.transactions.map(
+        ruleRequests.data?.flatMap((ruleRequest) =>
+          ruleRequest.transactions.map(
             (transaction) => transaction.source_narration,
           ),
         ),
       ),
     ],
-    [lessons.data],
+    [ruleRequests.data],
   );
   const queuedKey = JSON.stringify(queued);
   const rootRows = useMemo(
@@ -224,9 +236,9 @@ export function ImproveCategorizationTab() {
     { setup },
   );
 
-  // Every draft has an account and no new rule waits for the agent: there is
-  // nothing to make a rule from.
-  if (detail.account.uncategorised === 0 && lessons.data?.length === 0) {
+  // Every draft has an account and no rule request waits for the agent: there
+  // is nothing to make a rule from.
+  if (detail.account.uncategorised === 0 && ruleRequests.data?.length === 0) {
     return (
       <ReportTab>
         <CheckPasses
@@ -239,36 +251,36 @@ export function ImproveCategorizationTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-      {/* Two regions, in the order the work happens: the rule being made at
-          the top, then the new rules it joins, which is where the one action
-          on them lives. */}
+      {/* Two regions, in the order the work happens: the rule request being
+          made at the top, then the rule requests it joins, which is where the
+          one action on them lives. */}
       <aside
-        aria-label="New rules"
+        aria-label="Rule requests"
         className="shrink-0 space-y-5 overflow-y-auto border-sap-border px-4 py-4 max-md:order-last max-md:border-t md:w-[380px] md:border-r"
       >
         <DraftRule
           selected={selected}
           uncategorised={detail.account.uncategorised}
-          inNewRules={
-            lessons.data?.reduce(
-              (sum, lesson) => sum + lesson.transactions.length,
+          inRuleRequests={
+            ruleRequests.data?.reduce(
+              (sum, ruleRequest) => sum + ruleRequest.transactions.length,
               0,
             ) ?? 0
           }
-          onAdded={refreshLessons}
+          onAdded={refreshRuleRequests}
         />
-        {lessons.isError ? (
+        {ruleRequests.isError ? (
           <p className="text-meta text-destructive [overflow-wrap:anywhere]">
-            {apiErrorMessage(lessons.error)}
+            {apiErrorMessage(ruleRequests.error)}
           </p>
         ) : (
-          lessons.data &&
-          lessons.data.length > 0 && (
+          ruleRequests.data &&
+          ruleRequests.data.length > 0 && (
             <NewRules
-              lessons={lessons.data}
+              ruleRequests={ruleRequests.data}
               allRulesHref={categorizationRulesHref("ai", accountId)}
-              onChanged={refreshLessons}
-              prompt={lessonsPrompt(detail, lessons.data)}
+              onChanged={refreshRuleRequests}
+              prompt={ruleRequestsPrompt(detail, ruleRequests.data)}
               runCategorizerHref={runCategorizerHref}
               onHandedOver={() => navigate(runCategorizerHref)}
             />
@@ -295,8 +307,9 @@ export function ImproveCategorizationTab() {
             We could not find the schema for "draft_transactions".
           </p>
         ) : (
-          // Until the new rules load, the list can't leave their drafts out.
-          lessons.data && (
+          // Until the rule requests load, the list can't leave their drafts
+          // out.
+          ruleRequests.data && (
             <SchemaTableGridView
               source={source}
               route={route}
@@ -337,8 +350,8 @@ function selectedDraft(row: unknown): SelectedDraft[] {
 /**
  * The transactions selected in the grid: date, the comment over the bank's
  * text, which is what rules match and so what the person writes a rule
- * from, and amount. They are the contents of the rule being made, so they
- * sit inside it rather than as a section of their own. The bank's text
+ * from, and amount. They are the contents of the rule request being made, so
+ * they sit inside it rather than as a section of their own. The bank's text
  * wraps whole, up to two lines, since it is what a rule matches; the first
  * few show, and the rest on demand.
  */
@@ -414,11 +427,11 @@ function SelectedDrafts({ selected }: { selected: readonly SelectedDraft[] }) {
 }
 
 /**
- * The amounts a new rule's drafts moved, which the agent turns into a range
- * for the rule: "money out · 60 – 480".
+ * The amounts a rule request's drafts moved, which the agent turns into a
+ * range for the rule: "money out · 60 – 480".
  */
-function amountsLine(lesson: CategorizationLesson): string {
-  return amountsSeen(lesson.transactions)
+function amountsLine(ruleRequest: CategorizationRuleRequest): string {
+  return amountsSeen(ruleRequest.transactions)
     .map(
       (seen) =>
         `money ${seen.direction === "withdrawal" ? "out" : "in"} · ${formatAmountRange(seen)}`,
@@ -451,22 +464,23 @@ function Descriptions({ narrations: all }: { narrations: readonly string[] }) {
 }
 
 /**
- * The rule the selected drafts would make: the account they go to, a note
- * for next time, and the selected drafts themselves, which are its contents.
- * "Add to new rules" puts it with the new rules below, which is what the
- * button names; the drafts keep no account until the categorizer runs.
+ * The rule request the selected drafts would make: the account they go to, a
+ * note for next time, and the selected drafts themselves, which are its
+ * contents. "Add to rule requests" puts it with the rule requests below,
+ * which is what the button names; the drafts keep no account until the
+ * categorizer runs.
  */
 function DraftRule({
   selected,
   uncategorised,
-  inNewRules,
+  inRuleRequests,
   onAdded,
 }: {
   selected: readonly SelectedDraft[];
   /** The account's drafts that have no account. */
   uncategorised: number;
-  /** How many of them are in new rules, and so off the list. */
-  inNewRules: number;
+  /** How many of them are in rule requests, and so off the list. */
+  inRuleRequests: number;
   onAdded: () => void;
 }) {
   const accountLookup = useTableLookup<number>("accounts");
@@ -475,7 +489,7 @@ function DraftRule({
   const [missingAccount, setMissingAccount] = useState(false);
   const add = useMutation({
     mutationFn: (chosen: number) =>
-      categorizationLessonsApi.teachCategorization({
+      categorizationRuleRequestsApi.requestCategorizationRule({
         body: {
           draft_ids: selected.map((draft) => draft.id),
           account_id: chosen,
@@ -488,8 +502,8 @@ function DraftRule({
     const done =
       uncategorised === 0
         ? "Every draft goes to an account"
-        : uncategorised <= inNewRules
-          ? "Every draft is in a new rule"
+        : uncategorised <= inRuleRequests
+          ? "Every draft is in a rule request"
           : null;
     return done !== null ? (
       <p className="rounded-card border border-dashed border-sap-border-strong px-4 py-3 text-meta text-ink-soft">
@@ -517,7 +531,7 @@ function DraftRule({
     add.mutate(accountId, {
       onSuccess: () => {
         onAdded();
-        // The next rule starts empty.
+        // The next rule request starts empty.
         setAccountId(null);
         setNote("");
       },
@@ -526,7 +540,7 @@ function DraftRule({
 
   return (
     <section
-      aria-label="Draft rule"
+      aria-label="New rule request"
       className="space-y-3 rounded-card border border-dashed border-primary/60 bg-card px-4 py-3.5"
     >
       <Field id="rule-account" label="Account">
@@ -570,32 +584,32 @@ function DraftRule({
           {apiErrorMessage(add.error)}
         </p>
       )}
-      {/* Not "Add rule": this only puts the rule with the new rules below,
-          where the agent is asked for it. The destination is named so the
-          two Adds can't be read as the same one. */}
+      {/* Not "Add rule": this only puts the rule request with the rule
+          requests below, where the agent is asked for it. The destination is
+          named so the two Adds can't be read as the same one. */}
       <Button type="button" size="sm" disabled={add.isPending} onClick={submit}>
-        Add to new rules
+        Add to rule requests
       </Button>
     </section>
   );
 }
 
 /**
- * The new rules the drafts made, as the rules page shows rules: the account,
- * then its descriptions. The heading names them and counts them, so what
- * "Add to new rules" put on the list is the thing under it. At the foot, the
- * one way on: hand them to the coding agent, which adds them to the
+ * The rule requests the drafts made, as the rules page shows rules: the
+ * account, then its descriptions. The heading names them and counts them, so
+ * what "Add to rule requests" put on the list is the thing under it. At the
+ * foot, the one way on: hand them to the coding agent, which adds them to the
  * categorization rules and takes each off this list.
  */
 function NewRules({
-  lessons,
+  ruleRequests,
   allRulesHref,
   onChanged,
   prompt,
   runCategorizerHref,
   onHandedOver,
 }: {
-  lessons: readonly CategorizationLesson[];
+  ruleRequests: readonly CategorizationRuleRequest[];
   /** Every rule the books have, for whoever wants to see them all. */
   allRulesHref: string;
   onChanged: () => void;
@@ -606,7 +620,7 @@ function NewRules({
 }) {
   const remove = useMutation({
     mutationFn: (id: number) =>
-      categorizationLessonsApi.deleteCategorizationLesson({
+      categorizationRuleRequestsApi.deleteCategorizationRuleRequest({
         params: { id },
         body: {},
       }),
@@ -614,12 +628,15 @@ function NewRules({
   });
 
   return (
-    <section aria-labelledby="new-rules-heading" className="space-y-3">
+    <section aria-labelledby="rule-requests-heading" className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="new-rules-heading" className="text-subheading text-foreground">
-          New rules
+        <h2
+          id="rule-requests-heading"
+          className="text-subheading text-foreground"
+        >
+          Rule requests
           <span className="tnum ml-2 text-meta font-medium text-ink-meta">
-            {lessons.length}
+            {ruleRequests.length}
           </span>
         </h2>
         <Link
@@ -630,39 +647,39 @@ function NewRules({
         </Link>
       </div>
       <ol className="rounded-card border border-sap-border bg-card shadow-card">
-        {lessons.map((lesson, index) => (
+        {ruleRequests.map((ruleRequest, index) => (
           <li
-            key={lesson.id}
+            key={ruleRequest.id}
             className={
               index === 0 ? "px-4 py-3" : "border-t border-line-inner px-4 py-3"
             }
           >
             <div className="flex items-start gap-2">
               <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 text-row font-semibold text-foreground">
-                {lesson.account.name}
+                {ruleRequest.account.name}
                 <span className="tnum text-meta font-normal text-ink-soft">
-                  {amountsLine(lesson)}
+                  {amountsLine(ruleRequest)}
                 </span>
               </p>
               <button
                 type="button"
-                onClick={() => remove.mutate(lesson.id)}
+                onClick={() => remove.mutate(ruleRequest.id)}
                 disabled={remove.isPending}
-                title="Remove this rule. Its drafts go back on the list."
-                aria-label={`Remove the rule for ${lesson.account.name}`}
+                title="Remove this rule request. Its drafts go back on the list."
+                aria-label={`Remove the rule request for ${ruleRequest.account.name}`}
                 className="-mr-1 rounded-control p-1 text-ink-meta hover:bg-sap-row-hover hover:text-foreground disabled:opacity-50"
               >
                 <X aria-hidden="true" className="size-3.5" />
               </button>
             </div>
             <Descriptions
-              narrations={lesson.transactions.map(
+              narrations={ruleRequest.transactions.map(
                 (transaction) => transaction.source_narration,
               )}
             />
-            {lesson.note !== "" && (
+            {ruleRequest.note !== "" && (
               <p className="mt-1.5 text-meta text-ink-soft [overflow-wrap:anywhere]">
-                {lesson.note}
+                {ruleRequest.note}
               </p>
             )}
           </li>
@@ -684,7 +701,7 @@ function NewRules({
             standalone
             commit
             prompt={prompt}
-            goal={`Add ${lessons.length} to categorization rules`}
+            goal={`Turn ${plural(ruleRequests.length, "rule request")} into rules`}
             onActed={(how) => {
               if (how !== "command") onHandedOver();
             }}

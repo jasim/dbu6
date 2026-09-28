@@ -33,9 +33,10 @@ export function buildAbility(ctx: AppAuthFacts): AppAbility {
     // Presets change only through POST /import-presets/changes, which checks
     // the whole table (schema/import-presets.ts).
     cannot(["create", "update", "delete"], "import_presets");
-    // Lessons are written only through /categorization-lessons, which sets
-    // the drafts' account with them (schema/categorization-lessons.ts).
-    cannot(["create", "update", "delete"], "categorization_lessons");
+    // Rule requests are written only through /categorization-rule-requests,
+    // which sets the drafts' account with them
+    // (schema/categorization-rule-requests.ts).
+    cannot(["create", "update", "delete"], "categorization_rule_requests");
   }
 
   return build();

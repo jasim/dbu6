@@ -18,7 +18,7 @@ import {
   accountsContract,
   addAccountContract,
   agentHandoffContract,
-  categorizationLessonsContract,
+  categorizationRuleRequestsContract,
   codingAgentContract,
   commentWriterContract,
   draftTransactionsContract,
@@ -69,8 +69,8 @@ export const draftTransactionsApi = createApiClient(draftTransactionsContract, {
   baseUrl: getApiBase,
 });
 
-export const categorizationLessonsApi = createApiClient(
-  categorizationLessonsContract,
+export const categorizationRuleRequestsApi = createApiClient(
+  categorizationRuleRequestsContract,
   { baseUrl: getApiBase },
 );
 

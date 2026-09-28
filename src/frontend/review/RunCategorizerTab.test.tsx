@@ -19,7 +19,7 @@ import {
   vi,
 } from "vitest";
 import type {
-  CategorizationLesson,
+  CategorizationRuleRequest,
   DraftClassification,
   ImportPresetsView,
   ReviewAccountDetail,
@@ -145,13 +145,13 @@ const CLASSIFIED: DraftClassification = {
 let classifyAnswer: DraftClassification;
 // The drafts with no account; a test sets it to none.
 let draftsAnswer: typeof DRAFTS;
-// The new rules from Improve categorization the agent has yet to add.
-let lessonsAnswer: CategorizationLesson[];
+// The rule requests from Improve categorization the agent has yet to encode.
+let ruleRequestsAnswer: CategorizationRuleRequest[];
 
 function respond(method: string, url: URL): unknown {
   if (url.pathname.endsWith("/import-presets")) return PRESETS;
-  if (url.pathname.endsWith("/categorization-lessons")) {
-    return { lessons: lessonsAnswer };
+  if (url.pathname.endsWith("/categorization-rule-requests")) {
+    return { rule_requests: ruleRequestsAnswer };
   }
   if (url.pathname.endsWith("/tables/draft_transactions")) {
     return { data: draftsAnswer };
@@ -179,7 +179,7 @@ beforeEach(() => {
   refreshed = 0;
   classifyAnswer = CLASSIFIED;
   draftsAnswer = DRAFTS;
-  lessonsAnswer = [];
+  ruleRequestsAnswer = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -339,8 +339,8 @@ describe("Run categorizer", () => {
     expect(text()).not.toContain("Waiting for your agent");
   });
 
-  it("says the agent is still adding the new rules from Improve categorization", async () => {
-    lessonsAnswer = [
+  it("says the agent is still encoding the rule requests from Improve categorization", async () => {
+    ruleRequestsAnswer = [
       {
         id: 11,
         base_account_id: 5,
@@ -360,10 +360,12 @@ describe("Run categorizer", () => {
 
     expect(
       requests
-        .find((r) => r.url.pathname.endsWith("/categorization-lessons"))
+        .find((r) => r.url.pathname.endsWith("/categorization-rule-requests"))
         ?.url.searchParams.get("base_account_id"),
     ).toBe("5");
-    expect(text()).toContain("Waiting for your agent to add 1 new rule");
+    expect(text()).toContain(
+      "Waiting for your agent to turn 1 rule request into rules",
+    );
     expect(link("See them")?.getAttribute("href")).toBe(
       "/review/5/improve-categorization",
     );

@@ -171,17 +171,17 @@ Neither is retroactive: re-run the categoriser over the drafts with no
 account ("Categorise these" above), and restart a server started with
 `dbu6 start`.
 
-**New rules from Review.** The Improve categorization tab keeps the new rules
-the user made there as lessons, each with its drafts (date, source
-narration, direction and amount), the account they go to and a note:
-`sapporta api get /api/categorization-lessons --query '{"base_account_id":<id>}'`.
+**Rule requests from Review.** The Improve categorization tab keeps the rule
+requests the user made there, each with its drafts (date, source narration,
+direction and amount), the account they go to and a note:
+`sapporta api get /api/categorization-rule-requests --query '{"base_account_id":<id>}'`.
 Their drafts have no account yet; the user runs the categorizer once the
 rules are in. The user picked the drafts, so they may share nothing the
 categorizer can see; propose each change, and say so when they don't, before
-writing anything. Once a lesson is a rule or guidance, delete it, which takes
-it off the user's list:
-`sapporta api delete /api/categorization-lessons/<lesson id>`. Leave a lesson
-you couldn't encode.
+writing anything. Once a rule request is a rule or guidance, delete it, which
+takes it off the user's list:
+`sapporta api delete /api/categorization-rule-requests/<rule request id>`.
+Leave a rule request you couldn't encode.
 
 ### Fixing the books
 
@@ -502,8 +502,8 @@ Which to read:
 - To show a transaction: `comment`, else `source_narration`. A null comment
   is not written yet, never blank.
 - For anything that must match the bank's text: `source_narration` only.
-  Mapping rules, the categoriser, lessons, duplicate matching and balance
-  checks all read it.
+  Mapping rules, the categoriser, rule requests, duplicate matching and
+  balance checks all read it.
 - To find a transaction: search both; `--q` does.
 
 Edit `comment` only. Never change an existing row's `source_narration`.
@@ -687,7 +687,7 @@ The owner allows reading SQLite directly for diagnosis:
 | `journals`               | Transactions in the books                                                                                                                          | `date`, `description` (an imported row's comment, else its source narration; `Expenses` or `Deposits` on older imports)                                                                                        |
 | `journal_entries`        | A journal's lines                                                                                                                                  | `journal_id`, `account_id`, `debit`, `credit`, `account_balance_assertion`, `comment`, `source_narration`, `source_transaction_key`                                                                            |
 | `import_presets`         | The import presets, one institution per row; read only, change them through `/api/import-presets/changes`                                          | `name`, `parsers` and `accounts` (JSON; see [Import presets](#import-presets))                                                                                                                                 |
-| `categorization_lessons` | What the user taught the categoriser in Review, waiting to become a rule or guidance; read only, change them through `/api/categorization-lessons` | `base_account_id`, `account_id` (where the drafts go), `transactions` (JSON: each draft's `date`, `source_narration`, `direction`, `amount`), `note`                                                           |
+| `categorization_rule_requests` | The rule requests the user made in Review, waiting to become a rule or guidance; read only, change them through `/api/categorization-rule-requests` | `base_account_id`, `account_id` (where the drafts go), `transactions` (JSON: each draft's `date`, `source_narration`, `direction`, `amount`), `note`                                                           |
 
 - Amounts are rupees, stored as REAL. In the tables, a balance is
   debit − credit, so money held is positive, and money owed and income are
