@@ -42,7 +42,7 @@ export async function mountProjectReports(
     const reportApi = module.default;
     if (!isTsRestApi(reportApi)) {
       throw new Error(
-        `${file} must default-export a TsRestApi (from "dbu6/server") holding the report's route.`,
+        `${file} must default-export a TsRestApi (from "@dbu6/app/server") holding the report's route.`,
       );
     }
     await addRoutesWithoutCollision({

@@ -7,7 +7,7 @@ import {
   type GridDataset,
   type ReportLedger,
   type SapportaEnv,
-} from "dbu6/server";
+} from "@dbu6/app/server";
 import { spendingByWeekdayContract } from "./contract.ts";
 
 const api = new TsRestApi<SapportaEnv>();

@@ -7,7 +7,7 @@ import { SINGLE_COPY } from "./plugin.js";
  * npm hoists dbu6's dependencies to the project's node_modules, so the
  * project's files and dbu6's files resolve the same React. That stops being
  * true when the project's package.json names its own, different version of
- * one of them: npm then nests dbu6's copy under node_modules/dbu6, and the
+ * one of them: npm then nests dbu6's copy under node_modules/@dbu6/app, and the
  * page would load React twice (or the wrong one). Vite's dev optimizer cannot
  * be talked out of that, so refuse to start and name the package.
  */

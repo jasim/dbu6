@@ -20,28 +20,28 @@ let logged: string[];
 let commands: string[];
 
 const manifestOf = (version: string) =>
-  `${JSON.stringify({ name: "sample-books", dependencies: { dbu6: version } }, null, 2)}\n`;
+  `${JSON.stringify({ name: "sample-books", dependencies: { "@dbu6/app": version } }, null, 2)}\n`;
 const lockfileOf = (version: string) => `{"sample-lock":"${version}"}\n`;
 const read = (name: string) => readFileSync(join(root, name), "utf8");
 
 /** What `npm install` leaves behind: the pinned version, and a lockfile. */
 function installPinned(): void {
   const { dependencies } = JSON.parse(read("package.json"));
-  const dir = join(root, "node_modules", "dbu6");
+  const dir = join(root, "node_modules", "@dbu6", "app");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(join(dir, "docs", "upgrade-notes"), { recursive: true });
   writeFileSync(
     join(dir, "package.json"),
-    JSON.stringify({ name: "dbu6", version: dependencies.dbu6 }),
+    JSON.stringify({ name: "@dbu6/app", version: dependencies["@dbu6/app"] }),
   );
   for (const version of ["1.0.0", "1.1.0", "1.2.0", "2.0.0"]) {
-    if (compareVersions(version, dependencies.dbu6) > 0) continue;
+    if (compareVersions(version, dependencies["@dbu6/app"]) > 0) continue;
     writeFileSync(
       join(dir, "docs", "upgrade-notes", `${version}.md`),
       `Notes of ${version}.\n`,
     );
   }
-  writeFileSync(join(root, "package-lock.json"), lockfileOf(dependencies.dbu6));
+  writeFileSync(join(root, "package-lock.json"), lockfileOf(dependencies["@dbu6/app"]));
 }
 
 /** A runner that installs as above, and exits `dbu6 <name>` as told. */
@@ -83,10 +83,10 @@ describe("upgradeProject", () => {
       to: "1.2.0",
       checkPassed: true,
     });
-    expect(JSON.parse(read("package.json")).dependencies.dbu6).toBe("1.2.0");
-    const bin = join(root, "node_modules", "dbu6", "bin", "dbu6.mjs");
+    expect(JSON.parse(read("package.json")).dependencies["@dbu6/app"]).toBe("1.2.0");
+    const bin = join(root, "node_modules", "@dbu6", "app", "bin", "dbu6.mjs");
     expect(commands).toEqual([
-      "npm view dbu6 version",
+      "npm view @dbu6/app version",
       "npm install",
       `node ${bin} migrate`,
       `node ${bin} check`,
@@ -109,7 +109,7 @@ describe("upgradeProject", () => {
     expect(commands.at(-1)).toBe("npm install");
     expect(commands.some((command) => command.endsWith(" check"))).toBe(false);
     expect(
-      JSON.parse(read("node_modules/dbu6/package.json")).version,
+      JSON.parse(read("node_modules/@dbu6/app/package.json")).version,
     ).toBe("1.0.0");
     expect(logged.join("\n")).toContain("back on dbu6 1.0.0");
   });
@@ -137,7 +137,7 @@ describe("upgradeProject", () => {
   it("stays upgraded, and says so, when check finds problems", async () => {
     const result = await upgrade(runner({ check: 1 }), "1.1.0");
     expect(result).toMatchObject({ status: "upgraded", checkPassed: false });
-    expect(JSON.parse(read("package.json")).dependencies.dbu6).toBe("1.1.0");
+    expect(JSON.parse(read("package.json")).dependencies["@dbu6/app"]).toBe("1.1.0");
   });
 
   it("does nothing when the project is already on the version", async () => {
@@ -160,7 +160,7 @@ describe("upgradeProject", () => {
       /1\.1\.0 is older than 1\.2\.0.*does not downgrade/,
     );
     expect(commands).toEqual([]);
-    expect(JSON.parse(read("package.json")).dependencies.dbu6).toBe("1.2.0");
+    expect(JSON.parse(read("package.json")).dependencies["@dbu6/app"]).toBe("1.2.0");
   });
 });
 

@@ -74,7 +74,7 @@ export function createHostViteConfig({
       // The entry is virtual, so Vite's scan of the project finds only what
       // the user's files import. Name ours, or the first page load discovers
       // it late and reloads. An alias to a file of ours is not a dependency.
-      include: installed ? ["dbu6/frontend"] : [],
+      include: installed ? ["@dbu6/app/frontend"] : [],
     },
     server: {
       port,

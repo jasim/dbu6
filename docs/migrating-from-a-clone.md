@@ -2,7 +2,7 @@
 
 dbu6 used to run from a clone of its repository, with the books in its
 `data/` and your own parsers, reports and fixes committed beside dbu6's code.
-dbu6 is now an npm package, and your books live in a folder of their own that
+dbu6 is now an npm package, `@dbu6/app`, and your books live in a folder of their own that
 depends on it. This guide, for a person or a coding agent, moves you from the
 first to the second.
 
@@ -115,7 +115,7 @@ move cannot go ahead as written.
 Pick a folder that does not exist yet, beside the clone rather than inside it:
 
 ```bash
-npx dbu6@latest init "$NEW"
+npm init @dbu6@latest "$NEW"
 ```
 
 `init` writes the template, runs `npm install`, creates `.env` with a new
@@ -133,7 +133,7 @@ does not know, and dbu6 will not serve such a database. Check before copying:
 ```bash
 node -e '
 const db = new (require("better-sqlite3"))(process.argv[1], { readonly: true, fileMustExist: true });
-const known = new Set(require("./node_modules/dbu6/migrations/meta/_journal.json").entries.map((e) => String(e.when)));
+const known = new Set(require("./node_modules/@dbu6/app/migrations/meta/_journal.json").entries.map((e) => String(e.when)));
 const applied = db.prepare("select created_at from __drizzle_migrations").all().map((r) => String(r.created_at));
 const unknown = applied.filter((when) => !known.has(when));
 console.log(`${applied.length} applied, ${unknown.length} unknown`, unknown);
@@ -227,7 +227,7 @@ For each directory from step 1:
   `cp -R "$OLD/custom-built-parsers/<name>" custom-built-parsers/`.
 - **Bundled, unchanged**: nothing to do.
 - **Bundled, changed by you**: first compare your copy with the one dbu6
-  ships now, `node_modules/dbu6/custom-built-parsers/<name>/` (shipped
+  ships now, `node_modules/@dbu6/app/custom-built-parsers/<name>/` (shipped
   without its tests and fixtures). If dbu6's now handles what your change was
   for, leave yours behind. Otherwise copy your whole directory as above; it
   shadows the bundled one, and `dbu6 check` names it on every upgrade.
@@ -237,7 +237,7 @@ For each directory from step 1:
   directory), and drop the change to `shared/`. If it changed how existing
   helpers behave, ask for the change in dbu6 (step 7).
 
-Never put a parser under `node_modules/dbu6`. Your fixtures are now in your
+Never put a parser under `node_modules/@dbu6/app`. Your fixtures are now in your
 own project and may hold real statement data; that matters only if you share
 or push the project.
 

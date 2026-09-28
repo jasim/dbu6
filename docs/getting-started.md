@@ -39,12 +39,15 @@ None of it is needed to make the folder or keep books by hand, and
 ## Make the folder
 
 ```sh
-npx dbu6 init my-books
+npm init @dbu6 my-books
 cd my-books
 ```
 
-The folder must not exist yet, or must be empty. `init` writes the project
-files, installs dbu6 into `node_modules`, creates `.env` with a generated auth
+`npm init @dbu6` is npm's shorthand for running the `@dbu6/create` package,
+which runs `dbu6 init` from the latest `@dbu6/app`; `npm init @dbu6@1.2.3`
+uses that version instead. The folder must not exist yet, or must be empty.
+`init` writes the project files, installs dbu6 (the `@dbu6/app` package) into
+`node_modules`, creates `.env` with a generated auth
 secret, fills `user-config/` from dbu6's examples, creates the database, and
 makes the first commit. It touches nothing outside the folder.
 [Your books](your-books.md) describes what it wrote.

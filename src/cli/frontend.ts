@@ -85,9 +85,9 @@ export async function startFrontendDevServer(root: string): Promise<boolean> {
       ...ports,
       // Vite's root is the repository, not the project DBU6_ROOT names:
       // Vite resolves react and the rest from its root's node_modules, and
-      // a project linked to this checkout has only node_modules/dbu6.
+      // a project linked to this checkout has only node_modules/@dbu6/app.
       projectRoot: packageDir(),
-      // `dbu6/frontend` is src/frontend, so our own code hot-updates.
+      // `@dbu6/app/frontend` is src/frontend, so our own code hot-updates.
       ownFrontend: "src",
     });
     return true;

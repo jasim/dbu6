@@ -17,7 +17,7 @@
 // unpublished Sapporta can only be installed through npm `overrides` in the
 // project's package.json, which have to be there before init's `npm install`
 // runs, and the runner is init's one seam for that. Everything else is what
-// `npx dbu6 init` does: the template rendered, `npm install`, the installed
+// `npm init @dbu6` does: the template rendered, `npm install`, the installed
 // package's `setup` and `migrate`, the first commit. A published Sapporta
 // needs no overrides, and CI runs this script without them.
 //
@@ -67,7 +67,7 @@ const frontendPort = Number(options["frontend-port"]);
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
 const tarballs = readdirSync(packDir).filter((file) =>
-  /^dbu6-.*\.tgz$/.test(file),
+  /^dbu6-app-.*\.tgz$/.test(file),
 );
 if (tarballs.length !== 1) {
   throw new Error(
@@ -75,7 +75,7 @@ if (tarballs.length !== 1) {
   );
 }
 const tarball = path.join(packDir, tarballs[0]);
-const tarballVersion = tarballs[0].slice("dbu6-".length, -".tgz".length);
+const tarballVersion = tarballs[0].slice("dbu6-app-".length, -".tgz".length);
 const overridesFile = path.join(packDir, "overrides.json");
 const overrides = existsSync(overridesFile)
   ? JSON.parse(readFileSync(overridesFile, "utf8"))
@@ -141,9 +141,9 @@ const manifest = JSON.parse(
   readFileSync(path.join(projectDir, "package.json"), "utf8"),
 );
 assert.equal(manifest.name, path.basename(projectDir).toLowerCase());
-assert.equal(manifest.dependencies.dbu6, `file:${tarball}`);
+assert.equal(manifest.dependencies["@dbu6/app"], `file:${tarball}`);
 const installed = JSON.parse(
-  readFileSync(path.join(projectDir, "node_modules/dbu6/package.json"), "utf8"),
+  readFileSync(path.join(projectDir, "node_modules/@dbu6/app/package.json"), "utf8"),
 );
 assert.equal(installed.version, tarballVersion, "not the tarball's version");
 assert(
@@ -173,7 +173,7 @@ for (const secret of [".env", "data/sqlite.db"]) {
   assert(!tracked.includes(secret), `${secret} was committed`);
 }
 
-const dbu6 = path.join(projectDir, "node_modules/dbu6/bin/dbu6.mjs");
+const dbu6 = path.join(projectDir, "node_modules/@dbu6/app/bin/dbu6.mjs");
 console.log("\n> dbu6 check");
 const check = await run(process.execPath, [dbu6, "check"], { cwd: projectDir });
 assert.equal(check.status, 0, "dbu6 check failed in a fresh project");
@@ -244,7 +244,7 @@ function removeEarlierRun() {
   const earlier =
     existsSync(manifestFile) &&
     String(
-      JSON.parse(readFileSync(manifestFile, "utf8")).dependencies?.dbu6,
+      JSON.parse(readFileSync(manifestFile, "utf8")).dependencies?.["@dbu6/app"],
     ).startsWith(`file:${packDir}${path.sep}`);
   if (!earlier) throw new Error(`${projectDir} is not empty.`);
   rmSync(projectDir, { recursive: true });

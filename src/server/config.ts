@@ -23,7 +23,7 @@ export interface Dbu6App {
   /**
    * The `/api` sub-app: private, with an auth context on every request. A
    * contract path does not repeat the `/api` prefix. Mount a `TsRestApi` with
-   * `mountApi(app.api, yours)` (from `dbu6/server`) so its routes reach
+   * `mountApi(app.api, yours)` (from `@dbu6/app/server`) so its routes reach
    * OpenAPI as well as the router.
    */
   api: TsRestApi<SapportaEnv>;

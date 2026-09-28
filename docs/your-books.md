@@ -7,7 +7,7 @@ and what is yours to change.
 
 ```
 my-books/
-  package.json            one dependency: dbu6, pinned to an exact version
+  package.json            one dependency: @dbu6/app, pinned to an exact version
   package-lock.json       what that installed
   tsconfig.json           so your reports typecheck under `dbu6 check`
   AGENTS.md               how a coding agent works in this folder
@@ -27,9 +27,9 @@ your own ([Reports](reports.md)). Two files appear when you want them:
 reports, and `frontend.tsx`, for pages and navigation entries of your own
 (`npx dbu6 docs customizing`).
 
-The program is the `dbu6` package in `node_modules`; the folder is yours.
+The program is the `@dbu6/app` package in `node_modules`; the folder is yours.
 Nothing in it refers to dbu6's code until you add a report or a `frontend.tsx`.
-Never edit anything under `node_modules/dbu6`: an install or an upgrade
+Never edit anything under `node_modules/@dbu6/app`: an install or an upgrade
 replaces it.
 
 ## Accounts and journal entries

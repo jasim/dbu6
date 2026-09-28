@@ -40,7 +40,7 @@ export interface UpgradeOptions {
   log?: (line: string) => void;
 }
 
-const PACKAGE = "dbu6";
+const PACKAGE = "@dbu6/app";
 const MANIFEST = "package.json";
 const LOCKFILE = "package-lock.json";
 
@@ -70,7 +70,7 @@ export async function upgradeProject(
   // of the books to go back to, so it does not downgrade.
   if (compareVersions(to, from) < 0) {
     throw new Error(
-      `${PACKAGE} ${to} is older than ${from}, the version installed. dbu6 does not downgrade: ` +
+      `dbu6 ${to} is older than ${from}, the version installed. dbu6 does not downgrade: ` +
         `the database may hold migrations ${to} does not have.`,
     );
   }
@@ -80,19 +80,19 @@ export async function upgradeProject(
     const reinstall = await run("npm", ["install"], { cwd: root });
     log(
       reinstall.status === 0
-        ? `\n${reason}\nThe project is back on ${PACKAGE} ${from}, and its database is untouched.`
-        : `\n${reason}\n${MANIFEST} and ${LOCKFILE} are back on ${PACKAGE} ${from}, but reinstalling it failed. ` +
+        ? `\n${reason}\nThe project is back on dbu6 ${from}, and its database is untouched.`
+        : `\n${reason}\n${MANIFEST} and ${LOCKFILE} are back on dbu6 ${from}, but reinstalling it failed. ` +
             "Run `npm install` before starting dbu6. The database is untouched.",
     );
     return { status: "rolled-back", from, to, reason };
   };
 
-  log(`Upgrading ${PACKAGE} from ${from} to ${to}.`);
+  log(`Upgrading dbu6 from ${from} to ${to}.`);
   manifest.dependencies = { ...manifest.dependencies, [PACKAGE]: to };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   const install = await run("npm", ["install"], { cwd: root });
   if (install.status !== 0) {
-    return rollBack(`Installing ${PACKAGE} ${to} failed.`);
+    return rollBack(`Installing dbu6 ${to} failed.`);
   }
 
   for (const note of upgradeNotes(installedDir(root), from, to)) {
@@ -104,14 +104,14 @@ export async function upgradeProject(
     cwd: root,
   });
   if (migrate.status !== 0) {
-    return rollBack(`The database did not migrate to ${PACKAGE} ${to}; see above.`);
+    return rollBack(`The database did not migrate to dbu6 ${to}; see above.`);
   }
   const check = await run(process.execPath, [command, "check"], { cwd: root });
   const checkPassed = check.status === 0;
   log(
     checkPassed
-      ? `\nUpgraded to ${PACKAGE} ${to}.`
-      : `\nUpgraded to ${PACKAGE} ${to}. \`dbu6 check\` found problems, listed above; fix them before relying on this project.`,
+      ? `\nUpgraded to dbu6 ${to}.`
+      : `\nUpgraded to dbu6 ${to}. \`dbu6 check\` found problems, listed above; fix them before relying on this project.`,
   );
   return { status: "upgraded", from, to, checkPassed };
 }

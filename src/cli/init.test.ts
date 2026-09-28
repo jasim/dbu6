@@ -48,11 +48,11 @@ function runner(
       throw Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" });
     }
     if (command === "npm" && args[0] === "install") {
-      const dir = join(cwd, "node_modules", "dbu6");
+      const dir = join(cwd, "node_modules", "@dbu6", "app");
       mkdirSync(join(dir, "bin"), { recursive: true });
       writeFileSync(
         join(dir, "package.json"),
-        JSON.stringify({ name: "dbu6", version: "1.2.3" }),
+        JSON.stringify({ name: "@dbu6/app", version: "1.2.3" }),
       );
       writeFileSync(join(dir, "bin", "dbu6.mjs"), "");
     }
@@ -93,14 +93,14 @@ describe("initProject", () => {
     });
     const manifest = JSON.parse(read("sample-books", "package.json"));
     expect(manifest.name).toBe("sample-books");
-    expect(manifest.dependencies).toEqual({ dbu6: ownVersion() });
+    expect(manifest.dependencies).toEqual({ "@dbu6/app": ownVersion() });
     // Every template file, `gitignore` under its real name.
     expect(existsSync(join(root, ".gitignore"))).toBe(true);
     expect(existsSync(join(root, "gitignore"))).toBe(false);
     for (const file of ["AGENTS.md", "tsconfig.json", ".env.example"]) {
       expect(existsSync(join(root, file)), file).toBe(true);
     }
-    const bin = "<root>/node_modules/dbu6/bin/dbu6.mjs";
+    const bin = "<root>/node_modules/@dbu6/app/bin/dbu6.mjs";
     expect(commands).toEqual([
       "npm install",
       `node -e ${SQLITE_PROBE}`,
@@ -131,10 +131,12 @@ describe("initProject", () => {
   });
 
   it("installs from a given spec, for an unpublished build", async () => {
-    await init(runner(), "sample-books", "file:/packed/dbu6-1.2.3.tgz");
+    await init(runner(), "sample-books", "file:/packed/dbu6-app-1.2.3.tgz");
     expect(
-      JSON.parse(read("sample-books", "package.json")).dependencies.dbu6,
-    ).toBe("file:/packed/dbu6-1.2.3.tgz");
+      JSON.parse(read("sample-books", "package.json")).dependencies[
+        "@dbu6/app"
+      ],
+    ).toBe("file:/packed/dbu6-app-1.2.3.tgz");
   });
 
   it("names the package after the directory, in npm's form", async () => {
@@ -259,9 +261,9 @@ describe("initCommand", () => {
         runner(),
       ),
     ).toBe(0);
-    expect(JSON.parse(read("books", "package.json")).dependencies.dbu6).toBe(
-      "file:/x.tgz",
-    );
+    expect(
+      JSON.parse(read("books", "package.json")).dependencies["@dbu6/app"],
+    ).toBe("file:/x.tgz");
   });
 });
 

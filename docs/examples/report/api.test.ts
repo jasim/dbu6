@@ -3,7 +3,7 @@
 // server: `openTestLedger` is dbu6's schema in memory.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { gridDatasetSchema, openTestLedger } from "dbu6/server";
+import { gridDatasetSchema, openTestLedger } from "@dbu6/app/server";
 import { spendingByWeekdayReport } from "./api.ts";
 
 function books() {

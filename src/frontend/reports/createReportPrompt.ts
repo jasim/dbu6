@@ -31,7 +31,7 @@ ledger's tables. ${PROJECT_FILES_RULE}
    reports/<id>/ in this project, with the four files the guide names:
    contract.ts, api.ts, Screen.tsx and report.ts. These ids are taken:
    ${takenIds.join(", ")}.
-2. Import only from "dbu6/server" and "dbu6/frontend". Read the books only
+2. Import only from "@dbu6/app/server" and "@dbu6/app/frontend". Read the books only
    through \`reportLedger\`, which is read-only and holds only my rows; a report
    never changes the ledger.
 3. Put the figures in a function that takes the ledger and the query, and

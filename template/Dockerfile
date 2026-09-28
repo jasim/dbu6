@@ -38,7 +38,7 @@ COPY . .
 # Builds dist/app when the project has reports or a frontend.tsx. A project
 # without them is served the web app prebuilt in the dbu6 package, and this
 # only says so.
-RUN node node_modules/dbu6/bin/dbu6.mjs build
+RUN node node_modules/@dbu6/app/bin/dbu6.mjs build
 
 # The runtime image: Node, and what statement imports run on: uv and python3
 # for the parsers, pdftotext (poppler) for PDF statements. No compiler.
@@ -69,4 +69,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:' + (process.env.SAPPORTA_API_PORT || process.env.PORT || 3000) + '/health').then(r => process.exit(r.status >= 500 ? 1 : 0)).catch(() => process.exit(1))"
 
 # `start` migrates the database safely (on a verified copy) before it serves.
-CMD ["node", "node_modules/dbu6/bin/dbu6.mjs", "start"]
+CMD ["node", "node_modules/@dbu6/app/bin/dbu6.mjs", "start"]

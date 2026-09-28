@@ -10,7 +10,7 @@ import {
   TsRestApi,
   z,
   type SapportaEnv,
-} from "dbu6/server";
+} from "@dbu6/app/server";
 
 // A route that is not a report: how many accounts the signed-in user has of
 // each type. Served as GET /api/account-counts (the path does not repeat

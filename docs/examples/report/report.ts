@@ -1,4 +1,4 @@
-import type { ReportDefinition } from "dbu6/frontend";
+import type { ReportDefinition } from "@dbu6/app/frontend";
 import { SpendingByWeekdayScreen } from "./Screen.tsx";
 
 // The Reports page lists this under "Your reports" and the screen opens at

@@ -1,5 +1,5 @@
-// `dbu6/server`: what a user's project may import on the server. This list,
-// `dbu6/frontend` and `dbu6/frontend.css` are the package's whole surface,
+// `@dbu6/app/server`: what a user's project may import on the server. This list,
+// `@dbu6/app/frontend` and `@dbu6/app/frontend.css` are the package's whole surface,
 // and what we promise across versions, so a name is added here on purpose.
 
 // What reports are written against (R1). It is a module of its own because

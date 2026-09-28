@@ -9,6 +9,6 @@
     "upgrade": "dbu6 upgrade"
   },
   "dependencies": {
-    "dbu6": "%%SAPPORTA:DBU6_VERSION%%"
+    "@dbu6/app": "%%SAPPORTA:DBU6_VERSION%%"
   }
 }

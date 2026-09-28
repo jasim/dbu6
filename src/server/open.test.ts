@@ -23,7 +23,7 @@ import { dbu6MigrationsDir, packageDir } from "./paths.js";
 // A scratch project under this repository's gitignored tmp/, so the bare
 // imports in its files resolve the way they do from a user's node_modules.
 // Node imports a project's files itself, not vitest, so they are cached by
-// path for the whole run and none of them imports `dbu6/server`, which would
+// path for the whole run and none of them imports `@dbu6/app/server`, which would
 // resolve to a built dist/. Each test therefore writes files of its own name,
 // and the one dbu6.config.ts is written once. Sapporta allows one project
 // root per process, so the tests share it.

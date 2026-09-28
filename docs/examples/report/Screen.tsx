@@ -7,7 +7,7 @@ import {
   reportClient,
   useReportPeriod,
   useReportResult,
-} from "dbu6/frontend";
+} from "@dbu6/app/frontend";
 import { spendingByWeekdayContract } from "./contract.ts";
 
 // A typed client for this report's own route: `query` and the answer are

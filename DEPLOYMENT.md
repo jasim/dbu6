@@ -1,7 +1,7 @@
 # Deployment
 
-Running a books folder for real: the one `npx dbu6 init` made, with dbu6
-installed in its `node_modules`. This document is for that folder, not for
+Running a books folder for real: the one `npm init @dbu6` made, with dbu6
+(the `@dbu6/app` package) installed in its `node_modules`. This document is for that folder, not for
 dbu6's repository; working on dbu6 itself is [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ## The shape
@@ -23,7 +23,7 @@ that prebuilt app.
 ## Before the first start
 
 ```bash
-npx dbu6 init my-books      # or the folder you already keep
+npm init @dbu6 my-books      # or the folder you already keep
 cd my-books
 ```
 
@@ -108,8 +108,8 @@ Restart `dbu6 start` afterwards; the running process is the old version.
 `init` put a `Dockerfile` and a `.dockerignore` in the folder. The image is
 built from the folder, so it holds this project: its `user-config/`, parsers,
 reports and optional files, with dbu6 installed by `npm ci` from the
-lockfile, and the project's web app built. It is unbuilt until dbu6 is on the
-registry.
+lockfile, and the project's web app built. It is unbuilt until `@dbu6/app` is
+on the npm registry.
 
 ```bash
 docker build -t my-books .

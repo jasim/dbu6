@@ -2,7 +2,7 @@
 
 // `pnpm dev`: keeps dist/ compiled while dbu6 is worked on. It serves nothing,
 // because this repository is not a project: a project folder whose
-// node_modules/dbu6 links to this checkout, such as ../demo-dbu6, runs
+// node_modules/@dbu6/app links to this checkout, such as ../demo-dbu6, runs
 // `dbu6 dev`, and its server restarts when the compiled files change.
 //
 // It starts from a clean dist/, because stale compiled schema modules would

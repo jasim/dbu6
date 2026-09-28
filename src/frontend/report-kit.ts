@@ -1,5 +1,5 @@
 // What a report's screen is written against: the report half of
-// `dbu6/frontend`, which re-exports every name here (index.ts), so a
+// `@dbu6/app/frontend`, which re-exports every name here (index.ts), so a
 // project's screen and ours are written against the same list. A name is
 // added on purpose: it is promised across versions.
 //

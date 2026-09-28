@@ -1,0 +1,31 @@
+{
+  "name": "@dbu6/create",
+  "description": "npm init @dbu6 <directory>: a new dbu6 books folder.",
+  "keywords": [
+    "bookkeeping",
+    "double-entry",
+    "personal-finance",
+    "dbu6"
+  ],
+  "homepage": "https://github.com/jasim/dbu6#readme",
+  "bugs": {
+    "url": "https://github.com/jasim/dbu6/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jasim/dbu6.git",
+    "directory": "create"
+  },
+  "license": "MIT",
+  "author": "Jasim A Basheer",
+  "type": "module",
+  "bin": {
+    "create-dbu6": "./index.mjs"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "files": [
+    "index.mjs"
+  ]
+}

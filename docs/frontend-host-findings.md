@@ -39,7 +39,7 @@ its own:
   lucide-react, use-sync-external-store and the three @sapporta frontend
   packages (checked by listing module ids in the bundle,
   `verify/single-copy.mjs`). At runtime, `useState` imported from `"react"` and
-  from `"dbu6/frontend"` are the same function.
+  from `"@dbu6/app/frontend"` are the same function.
 - `tsc --noEmit` passes over the project with only `dbu6` installed.
 
 The real dbu6 frontend was used (a copy of `packages/frontend/src` and
@@ -80,7 +80,7 @@ This is what Sapporta's packages already do, and it is the form that works.
 
 The `@import "tailwindcss"` line moves to the host because it needs an option
 only the host should decide (`source(none)`, below), and an `@import` that is
-repeated cannot be re-configured. Consequence: `dbu6/frontend.css` is not a
+repeated cannot be re-configured. Consequence: `@dbu6/app/frontend.css` is not a
 standalone stylesheet. Nothing but the host imports it. `start.tsx` (today's
 `main.tsx`) no longer imports any CSS.
 
@@ -89,7 +89,7 @@ app) is `buildHost` run against a project with no `reports/` and no
 `frontend.tsx`; the spike's `empty-project/` is exactly that and builds. D7 can
 drop `packages/frontend/vite.config.ts` and `index.html` rather than keep a
 second pipeline. For `pnpm dev` in this repo the host needs a source mode
-(resolve `dbu6/frontend` to `src/frontend/index.ts` and `@source` to
+(resolve `@dbu6/app/frontend` to `src/frontend/index.ts` and `@source` to
 `src/frontend`), which the spike did not build.
 
 ### React and friends are plain dependencies, re-exported by us. No peers.
@@ -98,13 +98,13 @@ The user's `package.json` has one dependency. It works because npm hoists
 dbu6's dependencies into the project's `node_modules`, so a user's file and
 our compiled JS resolve the same `react`.
 
-- `dbu6/frontend` re-exports what reports need (`useState`, `Link`, `useQuery`
+- `@dbu6/app/frontend` re-exports what reports need (`useState`, `Link`, `useQuery`
   and so on). R1 picks the list. `export *` from all three packages is not
   possible as-is because names would have to be checked for collisions; named
   re-exports are what the spike did.
 - A user who writes `import { useState } from "react"` also gets the same copy.
   That is a phantom dependency, fine under npm, and we cannot stop it; the guide
-  should tell reports to import from `dbu6/frontend`.
+  should tell reports to import from `@dbu6/app/frontend`.
 - JSX needs no import in the user's file, but the automatic runtime makes their
   compiled file import `react/jsx-runtime`. That resolves through hoisting too.
   This is the one place the user's code always depends on hoisting, whatever
@@ -118,10 +118,10 @@ our compiled JS resolve the same `react`.
 
 **The failure case, and the guard.** If the project's `package.json` names its
 own `react` at another version, npm keeps theirs at the top and nests ours
-under `node_modules/dbu6/node_modules/` (along with react-dom, react-router,
+under `node_modules/@dbu6/app/node_modules/` (along with react-dom, react-router,
 @base-ui and @sapporta/*). `resolve.dedupe` then makes it worse: it resolves
 from the root, so the build gets React 18 with react-dom 19. I tried forcing
-every import of these packages to resolve from inside `node_modules/dbu6`. That
+every import of these packages to resolve from inside `node_modules/@dbu6/app`. That
 fixes the production build, but not dev: Vite's dependency optimizer resolves
 its entries (`react/jsx-dev-runtime`, added by plugin-react) and hoisted
 packages such as @tanstack/react-query from the root, with its own resolver,
@@ -157,13 +157,13 @@ The host's stylesheet is generated, because it needs absolute paths:
 
 ```css
 @import "tailwindcss" source(none);
-@import "dbu6/frontend.css";
+@import "@dbu6/app/frontend.css";
 @source "/abs/path/to/my-books/reports";
 @source "/abs/path/to/my-books/frontend.tsx";
 @source "/abs/path/to/my-books/frontend.ts";
 ```
 
-and `dbu6/frontend.css` begins:
+and `@dbu6/app/frontend.css` begins:
 
 ```css
 @import "@sapporta/ui/index.css";
@@ -186,7 +186,7 @@ and `dbu6/frontend.css` begins:
   written into the project.
 - A user's CSS module or plain `.css` import would go through Vite as usual,
   but `@apply` or theme utilities inside it need
-  `@reference "dbu6/frontend.css"` plus Tailwind itself; not tried. Reports are
+  `@reference "@dbu6/app/frontend.css"` plus Tailwind itself; not tried. Reports are
   expected to use classes.
 
 ### How the entry and index.html are served from inside node_modules
@@ -214,11 +214,11 @@ project is never read.
   maps that URL to `\0dbu6:entry.js` and `load` returns the source. It is plain
   JS (no JSX, no types), so it needs no transform. It imports the host CSS,
   globs the project, calls `startDbu6Frontend`, and accepts its own hot updates.
-- The entry imports `"dbu6/frontend"` as a bare specifier, the same string the
+- The entry imports `"@dbu6/app/frontend"` as a bare specifier, the same string the
   user's files use. This matters in dev: Vite pre-bundles it as one optimized
   dependency, and an absolute path from the entry next to a bare import from
   the user would load our module state (extension store, query client) twice.
-  `optimizeDeps.include: ["dbu6/frontend"]` is needed because the entry is
+  `optimizeDeps.include: ["@dbu6/app/frontend"]` is needed because the entry is
   virtual and Vite's scanner never sees it; without it the first load
   discovers the dependency late and reloads.
 
@@ -363,7 +363,7 @@ export const SINGLE_COPY = [
 export interface HostPluginOptions {
   /** The user's project folder. It is Vite's root. */
   projectRoot: string;
-  /** node_modules/dbu6 (or this repo's root, in development). */
+  /** node_modules/@dbu6/app (or this repo's root, in development). */
   packageDir: string;
 }
 
@@ -438,7 +438,7 @@ export function dbu6Host({
 function entrySource(): string {
   return `
 import "${HOST_CSS_URL}";
-import { startDbu6Frontend } from "dbu6/frontend";
+import { startDbu6Frontend } from "@dbu6/app/frontend";
 
 const reportModules = import.meta.glob("/reports/*/report.{ts,tsx}", {
   eager: true,
@@ -464,7 +464,7 @@ if (import.meta.hot) import.meta.hot.accept();
 }
 
 /**
- * One Tailwind run for the whole app. `dbu6/frontend.css` names its own
+ * One Tailwind run for the whole app. `@dbu6/app/frontend.css` names its own
  * compiled JS as a source; the project's files are added here by absolute
  * path, because a stylesheet inside node_modules cannot know where the
  * project is. `source(none)` turns off Tailwind's scan of the Vite root, so
@@ -478,7 +478,7 @@ function hostCss(projectRoot: string): string {
   ];
   return [
     `@import "tailwindcss" source(none);`,
-    `@import "dbu6/frontend.css";`,
+    `@import "@dbu6/app/frontend.css";`,
     ...sources.map((source) => `@source ${JSON.stringify(source)};`),
   ].join("\n");
 }
@@ -526,7 +526,7 @@ export function createHostViteConfig({
       // The entry is virtual, so Vite's scan of the project finds only what
       // the user's files import. Name ours, or the first page load discovers
       // it late and reloads.
-      include: ["dbu6/frontend"],
+      include: ["@dbu6/app/frontend"],
     },
     server: {
       port,
@@ -560,7 +560,7 @@ import { SINGLE_COPY } from "./plugin.js";
  * npm hoists dbu6's dependencies to the project's node_modules, so the
  * project's files and dbu6's files resolve the same React. That stops being
  * true when the project's package.json names its own, different version of
- * one of them: npm then nests dbu6's copy under node_modules/dbu6, and the
+ * one of them: npm then nests dbu6's copy under node_modules/@dbu6/app, and the
  * page would load React twice (or the wrong one). Vite's dev optimizer cannot
  * be talked out of that, so refuse to start and name the package.
  */

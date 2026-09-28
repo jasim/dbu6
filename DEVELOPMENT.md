@@ -3,10 +3,10 @@
 Technical reference for working on dbu6. This repository is the source of one
 npm package, `dbu6`, and nothing else: it is not a project and holds no books.
 `pnpm dev` here only keeps `dist/` compiled. The app runs in a project folder
-beside the checkout, such as `../demo-dbu6`, whose `node_modules/dbu6` links
+beside the checkout, such as `../demo-dbu6`, whose `node_modules/@dbu6/app` links
 to this checkout (see [A project linked to this checkout](#a-project-linked-to-this-checkout)).
 For what dbu6 is and how a person uses it, see
-[README.md](./README.md): they run `npx dbu6 init`, and never clone this
+[README.md](./README.md): they run `npm init @dbu6`, and never clone this
 repository. For running a books folder for real, see
 [DEPLOYMENT.md](./DEPLOYMENT.md).
 
@@ -37,7 +37,7 @@ With the [prerequisites](#prerequisites) installed:
    ```bash
    mkdir ../demo-dbu6 && cd ../demo-dbu6
    echo '{ "name": "demo-dbu6" }' > sapporta.json
-   echo '{ "name": "demo-dbu6", "private": true, "type": "module", "scripts": { "dev": "dbu6 dev", "seed": "dbu6 seed" }, "dependencies": { "dbu6": "link:../dbu6" } }' > package.json
+   echo '{ "name": "demo-dbu6", "private": true, "type": "module", "scripts": { "dev": "dbu6 dev", "seed": "dbu6 seed" }, "dependencies": { "@dbu6/app": "link:../dbu6" } }' > package.json
    pnpm install
    pnpm exec dbu6 setup
    pnpm exec dbu6 migrate
@@ -126,7 +126,7 @@ Publishing Sapporta and nuabase, then `pnpm package-sources:update-npm` and
   `dbu6 dev` restarts its server on each recompile.
 - `pnpm build` — typecheck, then `scripts/build.mjs`: compile the Node side
   (`tsc`) to `dist/server`, `dist/shared` and `dist/frontend-host`, build
-  `dbu6/frontend` to `dist/frontend`, and build the prebuilt web app to
+  `@dbu6/app/frontend` to `dist/frontend`, and build the prebuilt web app to
   `dist/app`. See [The package](#the-package).
 - `pnpm typecheck` — both TypeScript projects: `tsconfig.json` (Node: server,
   shared, frontend host) and `src/frontend/tsconfig.json` (DOM: frontend,
@@ -147,7 +147,7 @@ Publishing Sapporta and nuabase, then `pnpm package-sources:update-npm` and
   (`scripts/pii-scan.mjs`); `pnpm pii-scan:pack` scans what `npm pack` would
   ship and refuses `link:` dependencies. Both run in a release.
 - `pnpm pack:tarball`, `pnpm pack:verify`, `pnpm pack:verify-init`,
-  `pnpm release` — see [The package](#the-package) and
+  `pnpm pack:verify-create`, `pnpm release` — see [The package](#the-package) and
   [Releasing](#releasing).
 - `node scripts/move-files.mjs … [--dry-run]` — move code inside
   `src/server` (paths relative to it) and rewrite every relative import of
@@ -177,8 +177,8 @@ Publishing Sapporta and nuabase, then `pnpm package-sources:update-npm` and
 ### A project linked to this checkout
 
 dbu6 runs, while it is worked on, in a project folder beside the checkout,
-such as `../demo-dbu6`. Its `package.json` depends on `"dbu6":
-"link:../dbu6"`, so `pnpm install` there makes `node_modules/dbu6` a symlink
+such as `../demo-dbu6`. Its `package.json` depends on `"@dbu6/app":
+"link:../dbu6"`, so `pnpm install` there makes `node_modules/@dbu6/app` a symlink
 to this checkout and `node_modules/.bin/dbu6` its command.
 [Getting started](#getting-started-from-a-clone) shows how to make one. It
 runs this checkout's `bin/dbu6.mjs` and the compiled `dist/`, which `pnpm dev`
@@ -317,14 +317,16 @@ GitHub. `DEPLOYMENT.md` is the one user document outside `docs/`.
 
 ### The package
 
-dbu6 is one package with one `package.json`. `exports` names everything a
-user's project may import, and nothing else is reachable:
+dbu6 is published as `@dbu6/app`, one package with one `package.json`; the
+name `dbu6` is npm's to refuse, as too close to existing packages, so it is
+the command's name and not the package's. `exports` names everything a user's
+project may import, and nothing else is reachable:
 
 | Specifier | File | What it is |
 |---|---|---|
-| `dbu6/server` | `dist/server/index.js` | from `src/server/index.ts` |
-| `dbu6/frontend` | `dist/frontend/index.js` | from `src/frontend/index.ts`: a Vite library build with every bare import left external |
-| `dbu6/frontend.css` | `dist/frontend/frontend.css` | `src/frontend/frontend.css` copied: Tailwind source, imported only by the frontend host |
+| `@dbu6/app/server` | `dist/server/index.js` | from `src/server/index.ts` |
+| `@dbu6/app/frontend` | `dist/frontend/index.js` | from `src/frontend/index.ts`: a Vite library build with every bare import left external |
+| `@dbu6/app/frontend.css` | `dist/frontend/frontend.css` | `src/frontend/frontend.css` copied: Tailwind source, imported only by the frontend host |
 
 `src/` is not shipped. [docs/frontend-host-findings.md](./docs/frontend-host-findings.md)
 explains why the frontend ships as compiled JS plus Tailwind source, and how
@@ -343,10 +345,16 @@ include, with a manifest stripped of scripts and dev dependencies and an
 `pnpm-lock.yaml`, so it is npm's resolution at pack time, and it is the
 tarball, not this checkout, that CI must test.
 
+Beside it `pack.mjs` packs `@dbu6/create` from `create/`: one file, whose
+command runs `dbu6 init` from the `@dbu6/app` it depends on. npm maps `npm
+init @dbu6 <directory>` to it, and `npm init @dbu6@1.2.3` to that version, so
+the two are always released together at the same version, which `pack.mjs`
+writes into create's manifest along with the exact dependency.
+
 `pnpm pack:verify` proves the user's path: it packs with `--local-sapporta`
 and runs `scripts/verify-tarball.mjs`, which installs only the tarball in a
-scratch project under `tmp/` with npm and checks that `dbu6/server` and
-`dbu6/frontend` import, that nothing else does, that the project typechecks,
+scratch project under `tmp/` with npm and checks that `@dbu6/app/server` and
+`@dbu6/app/frontend` import, that nothing else does, that the project typechecks,
 and that the frontend host builds its app. While Sapporta is linked from a
 local checkout, `--local-sapporta` also packs those packages (with `pnpm pack`,
 which writes nothing into that checkout) and installs them through npm
@@ -360,6 +368,8 @@ tarball as the dbu6 to install (`initProject` from `dist/cli`, with the linked
 Sapporta's `overrides` added to the new project's package.json before its
 `npm install`), then checks the project it made, runs `dbu6 check` in it, and
 starts `dbu6 start` on ports 2400/2401 until `/health` answers.
+`pnpm pack:verify-create` installs the create tarball, with the app tarball
+through `overrides`, and checks that its command reaches `dbu6 init`.
 `.github/workflows/ci.yml` runs both proofs, plus `dbu6 check` and
 `dbu6 build` in the tarball project, from a registry-resolved tarball; its
 jobs that install are skipped while `package.json` carries `link:` overrides.
@@ -385,7 +395,9 @@ pnpm release               # publish, then tag v<version>; push the tag
 dependency is a `link:`; then runs `pii-scan --tracked`, `pii-scan --pack`,
 `pnpm test` (`--skip-tests` when CI has), `pnpm build`, `pack.mjs` into
 `tmp/release/` (which scans the staged tree once more, generated manifest and
-shrinkwrap included), and `npm publish <tarball> --access public`. A
+shrinkwrap included), and `npm publish <tarball> --access public` for
+`@dbu6/app` and then `@dbu6/create`. Both are public packages of the npm
+organization `dbu6`, so the account publishing needs its publish rights. A
 prerelease version goes under the `next` dist-tag unless `--tag` says
 otherwise. With `--dry-run` every gate and step runs and is reported, `npm
 publish --dry-run` prints what would be uploaded, and the exit code says
@@ -403,7 +415,7 @@ none, since it is not a project, and a user's project gets its own from the
 template. Sapporta looks
 for the marker starting from the running script, so nothing that ships inside
 the package may look like one, or an installed dbu6 would take
-`node_modules/dbu6` for the project.
+`node_modules/@dbu6/app` for the project.
 
 ### How a linked project's `dbu6 dev` runs
 
@@ -413,7 +425,7 @@ stopped by signalling the group, so stopping `dev` leaves nothing running.
 Nothing in it compiles: `pnpm dev` in this repository recompiles the Node side
 into `dist/`, and `node --watch` restarts the API when a file it imported
 changes. Vite runs inside the `dev` process: the frontend host, as in a user's
-`dbu6 dev`, but with `ownFrontend: "src"`: `dbu6/frontend` is aliased to
+`dbu6 dev`, but with `ownFrontend: "src"`: `@dbu6/app/frontend` is aliased to
 `src/frontend/index.ts` and the stylesheet to `src/frontend/frontend.css`, so
 our own code hot-updates. A user's project gets the compiled `dist/frontend`
 from `node_modules` instead, pre-bundled. `pnpm build` uses the third mode,
@@ -422,7 +434,7 @@ from `node_modules` instead, pre-bundled. `pnpm build` uses the third mode,
 The host is Node code and runs compiled, from `dist/frontend-host`, which is
 why `bin/dbu6.mjs` compiles the Node side when `dist/` lacks it. Vite's root is
 this repository, not the project folder: Vite resolves react and the rest from
-its root's `node_modules`, and the project has only `node_modules/dbu6`.
+its root's `node_modules`, and the project has only `node_modules/@dbu6/app`.
 
 ### The `dbu6` command
 
@@ -458,8 +470,8 @@ sits above the rest of the Node side: it alone may import both `src/server` and
 
 A scratch project, say to try a report, is made like
 [a linked project](#a-project-linked-to-this-checkout), on ports of its own.
-Its `dbu6.config.ts` and `reports/*/api.ts` import `dbu6/server`, which
-resolves through `node_modules/dbu6` to this package's `exports`, so to
+Its `dbu6.config.ts` and `reports/*/api.ts` import `@dbu6/app/server`, which
+resolves through `node_modules/@dbu6/app` to this package's `exports`, so to
 `dist/`, which is also what the running server loaded.
 
 #### `dbu6 check`
@@ -598,7 +610,7 @@ A clone from before this repository stopped being a project may hold real
 books in `data/`. They move by hand, once, and nothing here migrates the
 clone layout:
 
-1. Make a project folder outside this repository: `npx dbu6 init my-books`
+1. Make a project folder outside this repository: `npm init @dbu6 my-books`
    once the package is published, or until then
    [a linked project](#a-project-linked-to-this-checkout).
 2. With nothing running, move (not copy, so the books stay in one place)

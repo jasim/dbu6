@@ -92,7 +92,7 @@ test("an import of src/server from src/frontend is reported", () => {
 
 // --- Our own reports are written against what a project's are ---
 //
-// `dbu6/server` and `dbu6/frontend` are what we promise a project's reports.
+// `@dbu6/app/server` and `@dbu6/app/frontend` are what we promise a project's reports.
 // The report half of each is a module of its own (report-kit), which the
 // index re-exports whole. A report of ours imports its side's kit, its own
 // contract in src/shared, the files beside it, and nothing else: no other

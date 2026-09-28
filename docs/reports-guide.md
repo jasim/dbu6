@@ -21,10 +21,10 @@ this guide. Copy its shape.
 
 - Write only inside this project. Never edit anything under `node_modules`;
   `dbu6 upgrade` replaces it.
-- Import only from `"dbu6/server"` and `"dbu6/frontend"`. They are dbu6's
+- Import only from `"@dbu6/app/server"` and `"@dbu6/app/frontend"`. They are dbu6's
   promised surface and carry forward across upgrades. The project has no other
   dependency, so import React, the router and the query hooks from
-  `"dbu6/frontend"` too (`useState`, `Link`, `useQuery`, …), not from `"react"`.
+  `"@dbu6/app/frontend"` too (`useState`, `Link`, `useQuery`, …), not from `"react"`.
 - A report reads the books and never changes them. Read only through
   `reportLedger(c)`; do not open `data/sqlite.db` yourself.
 - No real names, account numbers or amounts in tests. Use round amounts and
@@ -43,11 +43,11 @@ this guide. Copy its shape.
 ## contract.ts
 
 Declares the route with `initContract`, `z` and, for a grid report,
-`gridDatasetSchema`, all from `"dbu6/server"`. The path is under `/reports/`
+`gridDatasetSchema`, all from `"@dbu6/app/server"`. The path is under `/reports/`
 and does not repeat `/api`. Both `api.ts` and `Screen.tsx` import this file.
 
 `contract.ts` is the only file on the screen's side that may import
-`"dbu6/server"`. In the browser that specifier holds only the contract
+`"@dbu6/app/server"`. In the browser that specifier holds only the contract
 helpers (`initContract`, `z`, `gridDatasetSchema`, `errorBodySchema` and the
 dataset types); the build fails, naming the import, if a file the screen
 reaches asks it for anything else.
@@ -93,7 +93,7 @@ from the name, and entries can sit on a parent as well as on its children.
 Drafts (`scoped_draft_transactions`) are imports not yet posted; a report
 about the books leaves them out.
 
-Helpers from `"dbu6/server"`:
+Helpers from `"@dbu6/app/server"`:
 
 - Columns: `textColumn`, `dateColumn`, `moneyColumn`, `percentColumn`,
   `hiddenIdColumn(id, label)`. Each takes `(id, label, options)`; `width` is
@@ -114,7 +114,7 @@ contract and draw it yourself in the screen.
 
 ## api.test.ts
 
-`openTestLedger()` from `"dbu6/server"` is dbu6's schema in an in-memory
+`openTestLedger()` from `"@dbu6/app/server"` is dbu6's schema in an in-memory
 database with `addAccount`, `addJournal` and the `ledger` to pass to your
 function. Assert on the figures, and parse the result with the contract's
 response schema. Run it with `node --test reports/<id>/api.test.ts`;
@@ -123,7 +123,7 @@ response schema. Run it with `node --test reports/<id>/api.test.ts`;
 ## Screen.tsx
 
 Any React component. For a grid report use the blocks dbu6's own reports use,
-all from `"dbu6/frontend"`:
+all from `"@dbu6/app/frontend"`:
 
 - `reportClient(contract)` is a typed client for your contract:
   `client.myReport({ query })` resolves to the 200 body and throws otherwise.

@@ -1,5 +1,5 @@
 // What a report's server side is written against: the report half of
-// `dbu6/server`, which re-exports every name here (index.ts), so a project's
+// `@dbu6/app/server`, which re-exports every name here (index.ts), so a project's
 // report and ours are written against the same list. A name is added on
 // purpose: it is promised across versions.
 //
@@ -10,7 +10,7 @@
 // the reports: through this module there is no cycle, whichever module Node
 // starts from. Keep it free of anything that imports a report.
 
-// The contract: also all that `dbu6/server` is in a browser.
+// The contract: also all that `@dbu6/app/server` is in a browser.
 export * from "../shared/report-contract.js";
 export { TsRestApi, type SapportaEnv } from "@sapporta/server";
 // The signed-in user's books, read-only, and the ability check behind it.

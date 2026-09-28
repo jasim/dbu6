@@ -16,7 +16,7 @@ let root: Root | undefined;
  * (src/frontend-host/plugin.ts); nothing runs when this module is imported.
  *
  * No CSS is imported here. The host owns the one Tailwind run and imports
- * `dbu6/frontend.css` itself.
+ * `@dbu6/app/frontend.css` itself.
  *
  * `extension` is what the project adds: its reports, pages and navigation
  * entries (see `Dbu6FrontendExtension`). Our own entry passes nothing. An id

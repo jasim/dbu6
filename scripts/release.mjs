@@ -19,7 +19,9 @@
 //   3. `pnpm test` (skipped with --skip-tests; CI has run it on the commit)
 //   4. `pnpm build`, which typechecks first
 //   5. `pack.mjs --out tmp/release`, which scans the staged tree once more
-//   6. `npm publish <tarball> --access public`, then `git tag v<version>`
+//   6. `npm publish <tarball> --access public` for @dbu6/app, then for
+//      @dbu6/create (which `npm init @dbu6` runs, and which depends on this
+//      @dbu6/app), then `git tag v<version>`
 //
 // Without --dry-run the first failure stops the release. With it nothing is
 // uploaded (`npm publish --dry-run` prints what would be) and every gate and
@@ -130,22 +132,35 @@ if (dryRun && linked.length > 0) {
   packArgs.push("--local-sapporta", "--version", version);
 }
 if (!step("pack", "node", packArgs)) finish();
-const tarball = readdirSync(outDir).find((file) => /^dbu6-.*\.tgz$/.test(file));
-if (!tarball) {
-  refuse("pack", `no dbu6 tarball in ${outDir}.`);
-  finish();
-}
+const tarballs = ["app", "create"].map((name) => {
+  const pattern = new RegExp(`^dbu6-${name}-.*\\.tgz$`);
+  const tarball = readdirSync(outDir).find((file) => pattern.test(file));
+  if (!tarball) {
+    refuse("pack", `no @dbu6/${name} tarball in ${outDir}.`);
+    finish();
+  }
+  return tarball;
+});
 
 // --- 6. Publish -------------------------------------------------------------
 
-const publishArgs = ["publish", tarball, "--access", "public"];
-if (distTag) publishArgs.push("--tag", distTag);
-if (dryRun) publishArgs.push("--dry-run");
-// The binary, not a shell's `npm`: the owner's shell defines a function of
-// that name that refuses to run. spawnSync with a command never goes through
-// a shell. It runs in tmp/release, where the tarball is; nothing in this
-// directory is read.
-if (!step(`npm publish ${tarball}`, "npm", publishArgs, outDir)) finish();
+// @dbu6/app first: @dbu6/create depends on it at this version. A failed
+// step stops the release there, so if @dbu6/create fails, @dbu6/app is out
+// and the refusal says what is left to do by hand.
+for (const [index, tarball] of tarballs.entries()) {
+  const publishArgs = ["publish", tarball, "--access", "public"];
+  if (distTag) publishArgs.push("--tag", distTag);
+  if (dryRun) publishArgs.push("--dry-run");
+  const label =
+    index === 0 || dryRun
+      ? `npm publish ${tarball}`
+      : `npm publish ${tarball} (@dbu6/app ${version} is published; run \`npm publish ${tarball} --access public\` in ${path.relative(root, outDir)}, then git tag -a v${version})`;
+  // The binary, not a shell's `npm`: the owner's shell defines a function of
+  // that name that refuses to run. spawnSync with a command never goes
+  // through a shell. It runs in tmp/release, where the tarballs are; nothing
+  // in this directory is read.
+  if (!step(label, "npm", publishArgs, outDir)) finish();
+}
 
 if (!dryRun) {
   const tagged = spawnSync(
@@ -158,8 +173,8 @@ if (!dryRun) {
   );
   console.log(
     tagged.status === 0
-      ? `\nPublished dbu6 ${version} and tagged v${version}. Push the tag: git push origin v${version}`
-      : `\nPublished dbu6 ${version}. Tagging failed; tag the commit yourself: git tag -a v${version}`,
+      ? `\nPublished @dbu6/app and @dbu6/create ${version} and tagged v${version}. Push the tag: git push origin v${version}`
+      : `\nPublished @dbu6/app and @dbu6/create ${version}. Tagging failed; tag the commit yourself: git tag -a v${version}`,
   );
 }
 finish();

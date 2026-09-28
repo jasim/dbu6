@@ -1,7 +1,7 @@
 # AGENTS.md
 
 This folder is a person's books, kept with dbu6.
-The program is the `dbu6` package in `node_modules`; everything else here is
+The program is the `@dbu6/app` package in `node_modules`; everything else here is
 theirs: `user-config/`, `custom-built-parsers/`, `reports/`, and the ledger in
 `data/sqlite.db`.
 
@@ -20,7 +20,7 @@ theirs: `user-config/`, `custom-built-parsers/`, `reports/`, and the ledger in
 
 ## Rules
 
-- Never edit anything under `node_modules/dbu6`. An install or an upgrade
+- Never edit anything under `node_modules/@dbu6/app`. An install or an upgrade
   replaces it.
 - Never copy, move or delete `data/sqlite.db`, and never open it with a tool
   that writes. It is the only copy of the books, and dbu6 makes no backup.

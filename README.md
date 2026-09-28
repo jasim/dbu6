@@ -25,18 +25,30 @@ has the install commands for each.
 ## Quick start
 
 ```sh
-npx dbu6 init my-books
+npm init @dbu6 my-books
 cd my-books
 npx dbu6 dev
 ```
 
-`init` creates the folder, installs dbu6 into it and makes the database. `dev`
-serves the app: open <http://localhost:2345> and sign up. Home then takes you
+`npm init @dbu6` creates the folder, installs dbu6 into it and makes the
+database. `dev` serves the app: open <http://localhost:2345> and sign up. Home then takes you
 through your chart of accounts, a bank or card, a recent statement for it, your
 opening balances, and reviewing what dbu6 categorized.
 
 [Getting started](https://github.com/jasim/dbu6/blob/main/docs/getting-started.md)
 has each step in full, the sample data, everyday commands and backups.
+
+## The packages
+
+dbu6 is published on npm by the [`dbu6` organization](https://www.npmjs.com/org/dbu6):
+
+* [`@dbu6/app`](https://www.npmjs.com/package/@dbu6/app) is dbu6 itself: the
+  app, the `dbu6` command, the parsers and the guides. It is the one
+  dependency of a books folder.
+* [`@dbu6/create`](https://www.npmjs.com/package/@dbu6/create) is what `npm
+  init @dbu6` runs. It holds no code of its own beyond running `dbu6 init`
+  from the `@dbu6/app` of the same version, so `npm init @dbu6@1.2.3` makes a
+  folder on dbu6 1.2.3.
 
 ## Documentation
 

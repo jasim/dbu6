@@ -1,14 +1,14 @@
 // The route's query and response, read by both sides: api.ts registers it
-// and Screen.tsx calls it. In the browser `dbu6/server` holds only what a
+// and Screen.tsx calls it. In the browser `@dbu6/app/server` holds only what a
 // contract needs (initContract, z, the grid schema), so importing it here is
-// safe; nothing else from `dbu6/server` may be imported by a file the screen
+// safe; nothing else from `@dbu6/app/server` may be imported by a file the screen
 // reaches.
 import {
   errorBodySchema,
   gridDatasetSchema,
   initContract,
   z,
-} from "dbu6/server";
+} from "@dbu6/app/server";
 
 const c = initContract();
 

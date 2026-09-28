@@ -12,9 +12,9 @@
 // project is created; it must not exist or must be empty.
 //
 // It checks that:
-//   - `dbu6/server` and `dbu6/frontend` import under Node,
-//     `dbu6/frontend.css` resolves, and better-sqlite3's binding loads
-//   - nothing else is importable (`dbu6/package.json`, a deep dist path), and
+//   - `@dbu6/app/server` and `@dbu6/app/frontend` import under Node,
+//     `@dbu6/app/frontend.css` resolves, and better-sqlite3's binding loads
+//   - nothing else is importable (`@dbu6/app/package.json`, a deep dist path), and
 //     no src/ was shipped
 //   - the project typechecks a file that imports both entries, with only dbu6
 //     installed
@@ -24,7 +24,7 @@
 //     project's app. This is the contract test for the two export lists
 //     (PLAN.md R1): remove an export the example uses and it fails here.
 //   - the frontend host builds the project's app (dist/app), which needs the
-//     installed `dbu6/frontend` and `dbu6/frontend.css` to resolve from the
+//     installed `@dbu6/app/frontend` and `@dbu6/app/frontend.css` to resolve from the
 //     project the way a user's build does, and knows when that build is stale
 //
 // N5 extends this into CI jobs (`dbu6 init`, `dbu6 check`).
@@ -51,7 +51,7 @@ const packDir = path.resolve(packDirArg);
 const projectDir = path.resolve(projectDirArg);
 
 const tarballs = readdirSync(packDir).filter((file) =>
-  /^dbu6-.*\.tgz$/.test(file),
+  /^dbu6-app-.*\.tgz$/.test(file),
 );
 if (tarballs.length !== 1) {
   throw new Error(
@@ -81,7 +81,7 @@ writeFileSync(
       name: PROJECT_NAME,
       private: true,
       type: "module",
-      dependencies: { dbu6: `file:${path.join(packDir, tarballs[0])}` },
+      dependencies: { "@dbu6/app": `file:${path.join(packDir, tarballs[0])}` },
       ...(overrides ? { overrides } : {}),
     },
     null,
@@ -107,8 +107,8 @@ cpSync(
 writeFileSync(
   path.join(projectDir, "uses-dbu6.ts"),
   [
-    'import { defineConfig, type Dbu6Config } from "dbu6/server";',
-    'import { startDbu6Frontend } from "dbu6/frontend";',
+    'import { defineConfig, type Dbu6Config } from "@dbu6/app/server";',
+    'import { startDbu6Frontend } from "@dbu6/app/frontend";',
     "",
     "export const config: Dbu6Config = defineConfig({});",
     "export const start: () => void = startDbu6Frontend;",
@@ -123,19 +123,19 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
-const server = await import("dbu6/server");
+const server = await import("@dbu6/app/server");
 assert.equal(typeof server.defineConfig, "function");
 assert.equal(server.openDbu6, undefined, "the application is not exported");
-const frontend = await import("dbu6/frontend");
+const frontend = await import("@dbu6/app/frontend");
 assert.equal(typeof frontend.startDbu6Frontend, "function");
 
 const require = createRequire(import.meta.url);
 // The native binding loads: npm built it, with no approval step.
 new (require("better-sqlite3"))(":memory:").close();
-const css = require.resolve("dbu6/frontend.css");
+const css = require.resolve("@dbu6/app/frontend.css");
 assert.ok(css.endsWith(path.join("dist", "frontend", "frontend.css")), css);
 
-for (const hidden of ["dbu6/package.json", "dbu6/dist/server/paths.js", "dbu6"]) {
+for (const hidden of ["@dbu6/app/package.json", "@dbu6/app/dist/server/paths.js", "@dbu6/app"]) {
   await assert.rejects(import(hidden), { code: /ERR_PACKAGE_PATH_NOT_EXPORTED/ }, hidden);
 }
 const packageDir = path.resolve(path.dirname(css), "../..");
@@ -195,7 +195,7 @@ run(process.execPath, [
   ".",
 ]);
 // The report's own test, as `node --test` runs it in a user's project: Node
-// strips the types from api.ts and resolves "dbu6/server" from node_modules.
+// strips the types from api.ts and resolves "@dbu6/app/server" from node_modules.
 run(process.execPath, [
   "--test",
   path.join("reports", REPORT_ID, "api.test.ts"),

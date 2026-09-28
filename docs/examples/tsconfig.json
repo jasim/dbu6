@@ -10,8 +10,8 @@
     "verbatimModuleSyntax": false,
     "erasableSyntaxOnly": false,
     "paths": {
-      "dbu6/server": ["../../src/server/index.ts"],
-      "dbu6/frontend": ["../../src/frontend/index.ts"]
+      "@dbu6/app/server": ["../../src/server/index.ts"],
+      "@dbu6/app/frontend": ["../../src/frontend/index.ts"]
     }
   },
   "include": ["report", "customizing"]

@@ -13,7 +13,7 @@ oldest first, before it migrates and runs `dbu6 check`.
   names what broke, and `user-config/`, parsers and reports carry forward
   without edits.
 - Written for an agent, in the second person, with the fix first: what
-  changed in the promised surface (`dbu6/server`, `dbu6/frontend`, the
+  changed in the promised surface (`@dbu6/app/server`, `@dbu6/app/frontend`, the
   `user-config/` formats, the parser contract, the schema), what `check` will
   report, and what to do about it. Not a changelog; features and fixes that
   need nothing from the project are not mentioned.

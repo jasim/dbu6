@@ -77,7 +77,7 @@ export function uploadStagingDir(): string {
 }
 
 /** The name `packageDir` looks for in package.json. */
-const PACKAGE_NAME = "dbu6";
+const PACKAGE_NAME = "@dbu6/app";
 
 let foundPackageDir: string | undefined;
 
@@ -86,9 +86,9 @@ let foundPackageDir: string | undefined;
  * migrations and the prebuilt app.
  *
  * It is found by walking up from this file to the nearest package.json named
- * `dbu6`, never from the project root. The walk gives the same answer from
+ * `@dbu6/app`, never from the project root. The walk gives the same answer from
  * src/server (tests), from dist/server (the running server), and from
- * node_modules/dbu6/dist/server in a user's project; a package.json with
+ * node_modules/@dbu6/app/dist/server in a user's project; a package.json with
  * another name on the way up is passed over.
  */
 export function packageDir(...segments: string[]): string {

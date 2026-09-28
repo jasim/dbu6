@@ -118,7 +118,7 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
   }
   await ensureSqliteBinding(root, run, log);
 
-  const command = join(root, "node_modules", "dbu6", "bin", "dbu6.mjs");
+  const command = join(root, "node_modules", "@dbu6", "app", "bin", "dbu6.mjs");
   for (const step of ["setup", "migrate"]) {
     log(`\ndbu6 ${step}`);
     const { status } = await run(process.execPath, [command, step], {

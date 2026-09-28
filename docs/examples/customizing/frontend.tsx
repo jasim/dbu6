@@ -8,7 +8,7 @@ import {
   ScreenTitle,
   usePageTitle,
   type Dbu6FrontendExtension,
-} from "dbu6/frontend";
+} from "@dbu6/app/frontend";
 
 // A page inside the signed-in app shell, at /goals. Any React component
 // works; `Screen` and `ScreenTitle` give it the frame dbu6's own screens use.

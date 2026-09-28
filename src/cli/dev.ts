@@ -3,7 +3,7 @@
  * imported changes, the project's `dbu6.config.ts` and report routes
  * included; and Vite when there is a frontend to hot-update.
  *
- * When node_modules/dbu6 links to dbu6's repository, the server runs compiled
+ * When node_modules/@dbu6/app links to dbu6's repository, the server runs compiled
  * from that checkout's dist/, which `pnpm dev` there keeps current; each
  * recompile restarts the server.
  *

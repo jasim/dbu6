@@ -22,9 +22,9 @@ my-books/
   already has is an error that names it, at startup for a route and on the
   page for the frontend. Nothing of dbu6's is replaced; someone who needs that
   forks dbu6.
-- Import only from `"dbu6/server"` (in `dbu6.config.ts`) and `"dbu6/frontend"`
+- Import only from `"@dbu6/app/server"` (in `dbu6.config.ts`) and `"@dbu6/app/frontend"`
   (in `frontend.tsx`). They are dbu6's promised surface; nothing else in the
-  package is importable, and `node_modules/dbu6` is never edited.
+  package is importable, and `node_modules/@dbu6/app` is never edited.
 - The two files are TypeScript that Node and the bundler run as they are, so
   the project's `tsconfig.json` rules apply: import sibling files by their real
   name, extension included; mark type-only imports with `type`; no enums,
@@ -36,7 +36,7 @@ my-books/
 
 ## `dbu6.config.ts`
 
-Default-exports `defineConfig({ ... })` from `"dbu6/server"`. The config is
+Default-exports `defineConfig({ ... })` from `"@dbu6/app/server"`. The config is
 imported before the database is opened, so it must not do work at import time.
 
 ### `extend(app)`
@@ -46,7 +46,7 @@ before the OpenAPI document is generated, with:
 
 - `app.api`, the `/api` sub-app: private, with the signed-in user on every
   request. Build a `TsRestApi<SapportaEnv>` from a contract (`initContract`,
-  `z`, `errorBodySchema`, all from `"dbu6/server"`; the path does not repeat
+  `z`, `errorBodySchema`, all from `"@dbu6/app/server"`; the path does not repeat
   `/api`), and mount it with `mountApi(app.api, yours)` so its routes reach
   OpenAPI as well as the router.
 - `app.hono`, the whole server. A route added here is outside `/api` and
@@ -69,7 +69,7 @@ already has stops startup with a message naming `dbu6.config.ts`.
 The one named seam. Reclassification, the statement import and the freeform
 import all categorize through it, so replacing it here reaches all three;
 replacing a route would not. Its type is `LoadCategorizer` from
-`"dbu6/server"`: given the account's settings (the prompt file names its
+`"@dbu6/app/server"`: given the account's settings (the prompt file names its
 import preset lists, and the LLM to use), return a categorizer.
 
 The seam is narrow today: dbu6's own categorizer is not exported, so a
@@ -82,7 +82,7 @@ coding agent; for a different set of rules or instructions, edit
 
 ## `frontend.tsx`
 
-Default-exports a `Dbu6FrontendExtension` (a type from `"dbu6/frontend"`):
+Default-exports a `Dbu6FrontendExtension` (a type from `"@dbu6/app/frontend"`):
 
 - `routes`: pages inside the signed-in app shell, each `{ path, Component }`.
   The path is under the app's root, such as `/goals` or `/goals/:goalId`, and
@@ -95,7 +95,7 @@ Default-exports a `Dbu6FrontendExtension` (a type from `"dbu6/frontend"`):
 - `reports`: report definitions, if a report is written somewhere other than
   `reports/<id>/report.ts`. There is no reason to: the folder is found.
 
-Import React's hooks, the router and the query hooks from `"dbu6/frontend"`,
+Import React's hooks, the router and the query hooks from `"@dbu6/app/frontend"`,
 never from `"react"`; the project has one dependency. Classes are picked up
 from `frontend.tsx` and from files under `reports/`, so keep a page's
 components in one of those places.

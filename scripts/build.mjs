@@ -3,7 +3,7 @@
 // Builds the package's dist/:
 //
 //   dist/server, dist/shared, dist/frontend-host, dist/cli   tsc, the Node side
-//   dist/frontend    `dbu6/frontend`: a Vite library build with every bare
+//   dist/frontend    `@dbu6/app/frontend`: a Vite library build with every bare
 //                    import left external, its declarations, and
 //                    frontend.css copied as Tailwind source
 //   dist/app         the prebuilt web app, built by the frontend host from
@@ -37,7 +37,7 @@ copyFileSync(
 );
 if (nodeOnly) process.exit(0);
 
-console.log("\n> Build dbu6/frontend");
+console.log("\n> Build @dbu6/app/frontend");
 const { build } = await import("vite");
 const { default: react } = await import("@vitejs/plugin-react");
 await build({
@@ -72,7 +72,7 @@ copyFileSync(
 );
 // Declarations come from tsc, one per source file, under the same dist/ the
 // Node side wrote, so a relative import of ../shared resolves to dist/shared's.
-run("Emit dbu6/frontend's declarations", [
+run("Emit @dbu6/app/frontend's declarations", [
   tsc,
   "-p",
   "src/frontend",

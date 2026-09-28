@@ -40,12 +40,12 @@ export const PROJECT_FRONTEND_GLOBS = {
 } as const;
 
 /**
- * Where the host finds `dbu6/frontend` and `dbu6/frontend.css`.
+ * Where the host finds `@dbu6/app/frontend` and `@dbu6/app/frontend.css`.
  *
  * - `"installed"`: through the project's node_modules, as a user's project
  *   does. The default.
  * - `"dist"` and `"src"`: from this package's own directory, for this
- *   repository, which has no node_modules/dbu6. `"dist"` is the compiled
+ *   repository, which has no node_modules/@dbu6/app. `"dist"` is the compiled
  *   library, which `pnpm build` makes the prebuilt app from, so the app we ship
  *   went through the pipeline a user's build goes through. `"src"` is the
  *   sources, so `dbu6 dev` in a project linked to this checkout hot-updates
@@ -56,17 +56,17 @@ export type OwnFrontend = "installed" | "dist" | "src";
 export interface HostPluginOptions {
   /** The user's project folder. It is Vite's root. */
   projectRoot: string;
-  /** node_modules/dbu6, or this repository's root. */
+  /** node_modules/@dbu6/app, or this repository's root. */
   packageDir: string;
   ownFrontend: OwnFrontend;
 }
 
-/** The files `dbu6/frontend` and `dbu6/frontend.css` name, when not installed. */
+/** The files `@dbu6/app/frontend` and `@dbu6/app/frontend.css` name, when not installed. */
 export function ownFrontendFiles(
   packageDir: string,
   ownFrontend: "dist" | "src",
 ): { js: string; css: string; contract: string } {
-  // `contract` is what `dbu6/server` is in a browser: see
+  // `contract` is what `@dbu6/app/server` is in a browser: see
   // src/shared/report-contract.ts.
   return ownFrontend === "src"
     ? {
@@ -94,7 +94,7 @@ export function dbu6Host({
   const htmlTemplate = path.join(import.meta.dirname, "index.html");
   const frontendCss =
     ownFrontend === "installed"
-      ? "dbu6/frontend.css"
+      ? "@dbu6/app/frontend.css"
       : ownFrontendFiles(packageDir, ownFrontend).css;
   // Build only: Vite wants an .html input under its root, and names the
   // output after it. This path never exists on disk; `load` supplies it.
@@ -163,7 +163,7 @@ export function dbu6Host({
 function entrySource(ownFrontend: OwnFrontend): string {
   return `
 import "${HOST_CSS_URL}";
-import { startDbu6Frontend } from "dbu6/frontend";
+import { startDbu6Frontend } from "@dbu6/app/frontend";
 
 const reportModules = import.meta.glob("/${PROJECT_FRONTEND_GLOBS.reports}", {
   eager: true,
@@ -199,7 +199,7 @@ ${ownFrontend === "src" ? "" : "\nif (import.meta.hot) import.meta.hot.accept();
 }
 
 /**
- * One Tailwind run for the whole app. `dbu6/frontend.css` names the code
+ * One Tailwind run for the whole app. `@dbu6/app/frontend.css` names the code
  * beside it as a source; the project's files are added here by absolute
  * path, because a stylesheet inside node_modules cannot know where the
  * project is. `source(none)` turns off Tailwind's scan of the Vite root, so

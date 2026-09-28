@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 // Packs dbu6 the way it is published: from a staging copy of exactly the files
-// `npm pack` would include, with a manifest a user's npm can install.
+// `npm pack` would include, with a manifest a user's npm can install. Beside
+// @dbu6/app it packs @dbu6/create (create/), which `npm init @dbu6` runs: its
+// version, and its one dependency on @dbu6/app, are the app's version, written
+// into its manifest here.
 //
 //   node scripts/pack.mjs [--out <dir>] [--version <version>] [--local-sapporta]
 //
@@ -125,10 +128,10 @@ try {
   );
 
   mkdirSync(outDir, { recursive: true });
-  // One dbu6 tarball per out directory: an earlier pack's would be mistaken
-  // for this one.
+  // One tarball of each package per out directory: an earlier pack's would
+  // be mistaken for this one.
   for (const file of readdirSync(outDir)) {
-    if (/^dbu6-.*\.tgz$/.test(file)) rmSync(path.join(outDir, file));
+    if (/^dbu6-(app|create)-.*\.tgz$/.test(file)) rmSync(path.join(outDir, file));
   }
   rmSync(path.join(outDir, "overrides.json"), { force: true });
   if (localSapporta) {
@@ -146,6 +149,7 @@ try {
     ),
   );
   console.log(path.join(outDir, filename));
+  console.log(packCreate());
 } catch (error) {
   if (!(error instanceof PackError)) throw error;
   console.error(`pack: ${error.message}`);
@@ -176,6 +180,42 @@ function scanStaging() {
   fail(
     `${findings.length} finding(s) in the staged tarball; nothing was packed.`,
   );
+}
+
+/**
+ * @dbu6/create's tarball, from a staging copy of create/ whose manifest names
+ * this version and depends on @dbu6/app at exactly it. Returns its path.
+ */
+function packCreate() {
+  const createDir = path.join(root, "create");
+  const createStaging = mkdtempSync(path.join(tmpdir(), "dbu6-create-pack-"));
+  try {
+    cpSync(createDir, createStaging, { recursive: true });
+    const createManifest = JSON.parse(
+      readFileSync(path.join(createDir, "package.json"), "utf8"),
+    );
+    writeFileSync(
+      path.join(createStaging, "package.json"),
+      JSON.stringify(
+        {
+          ...createManifest,
+          version,
+          dependencies: { [manifest.name]: version },
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    const [{ filename }] = JSON.parse(
+      npm(
+        ["pack", "--json", "--ignore-scripts", "--pack-destination", outDir],
+        createStaging,
+      ),
+    );
+    return path.join(outDir, filename);
+  } finally {
+    rmSync(createStaging, { recursive: true, force: true });
+  }
 }
 
 function publishedManifest() {

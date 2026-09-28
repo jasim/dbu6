@@ -1,5 +1,5 @@
 {
-  "name": "dbu6",
+  "name": "@dbu6/app",
   "version": "0.1.0",
   "description": "Self-hosted double-entry bookkeeping for personal finances: bank and credit card statements in, balanced journal entries out, categorized by an LLM on your own machine.",
   "keywords": [
@@ -90,6 +90,7 @@
     "pack:tarball": "node scripts/pack.mjs",
     "pack:verify": "node scripts/pack.mjs --local-sapporta --out tmp/pack && node scripts/verify-tarball.mjs tmp/pack tmp/pack-project",
     "pack:verify-init": "node scripts/pack.mjs --local-sapporta --out tmp/pack && node scripts/verify-init.mjs tmp/pack tmp/init-project",
+    "pack:verify-create": "node scripts/pack.mjs --local-sapporta --out tmp/pack && node scripts/verify-create.mjs tmp/pack tmp/create-project",
     "release": "node scripts/release.mjs",
     "prepublishOnly": "node scripts/release.mjs --refuse-direct-publish",
     "package-sources": "node scripts/package-source-switch.mjs",

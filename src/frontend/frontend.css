@@ -1,4 +1,4 @@
-/* dbu6's stylesheet, as Tailwind source. It ships as `dbu6/frontend.css`,
+/* dbu6's stylesheet, as Tailwind source. It ships as `@dbu6/app/frontend.css`,
    copied unchanged to dist/frontend/, and only the frontend host imports it
    (src/frontend-host/plugin.ts). The host's generated stylesheet is the single
    CSS entrypoint, and the cascade order is:

@@ -3,7 +3,7 @@
 // The `dbu6` command. It is thin: the commands are compiled TypeScript in
 // dist/cli, and this file only gets them loaded.
 //
-// Run from dbu6's own repository, as a project whose node_modules/dbu6 links
+// Run from dbu6's own repository, as a project whose node_modules/@dbu6/app links
 // to it does, there is one more step, because dist/ is a build product there:
 // the Node side is compiled when it is missing. `pnpm dev` in the repository
 // keeps it current. A linked Sapporta checkout also needs its resolution hook
