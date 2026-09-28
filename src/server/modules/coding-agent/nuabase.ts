@@ -63,16 +63,26 @@ const reportedAgentsSchema = z.array(
 );
 
 /**
- * The agents nuabase found on this machine, in its preference order (Claude
- * Code first). An agent dbu6 doesn't know is left out rather than carried
- * around as an id nothing else can read; a status dbu6 can't parse throws.
+ * Every agent dbu6 knows, in its preference order (Claude Code first), as
+ * nuabase found it on this machine. One nuabase didn't report, as a nuabase
+ * older than the agent doesn't, is not installed. An agent dbu6 doesn't know
+ * is left out rather than carried around as an id nothing else can read; a
+ * status dbu6 can't parse throws.
  */
 export async function detectAgents(): Promise<DetectedAgent[]> {
   const reported: unknown = await detectLocalAgents();
-  return reportedAgentsSchema
+  const found = reportedAgentsSchema
     .parse(reported)
     .filter((status) => codingAgentSchema.safeParse(status.agent).success)
     .map((status) => detectedAgentSchema.parse(status));
+  return codingAgentSchema.options.map(
+    (agent): DetectedAgent =>
+      found.find((status) => status.agent === agent) ?? {
+        agent,
+        installed: false,
+        loggedIn: false,
+      },
+  );
 }
 
 /**

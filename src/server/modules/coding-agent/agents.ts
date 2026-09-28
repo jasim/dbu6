@@ -92,13 +92,25 @@ function detectAndStore(): Promise<DetectedAgent[]> {
 /**
  * Every agent dbu6 knows, Claude Code first, and whether each is installed and
  * logged in. Detection runs each CLI, so it runs once, when nothing is stored
- * yet, and its result is kept in dbu_config across restarts: an agent
- * installed or signed in since shows up when Settings detects again
- * (`detectCodingAgentsAgain`).
+ * yet or what is stored was detected by a dbu6 that knew fewer agents, and its
+ * result is kept in dbu_config across restarts: an agent installed or signed
+ * in since shows up when Settings detects again (`detectCodingAgentsAgain`).
  */
 export function codingAgents(): Promise<DetectedAgent[]> {
   const stored = readDbuConfig("coding_agent.agents", detectedAgentsSchema);
-  return stored === null ? detectAndStore() : Promise.resolve(stored);
+  return stored === null || !namesEveryAgent(stored)
+    ? detectAndStore()
+    : Promise.resolve(stored);
+}
+
+/**
+ * Pure: whether a detection names every agent dbu6 knows. Detection names
+ * each, installed or not, so one that doesn't was kept by an older dbu6.
+ */
+export function namesEveryAgent(detected: readonly DetectedAgent[]): boolean {
+  return codingAgentSchema.options.every((agent) =>
+    detected.some((status) => status.agent === agent),
+  );
 }
 
 /** Detects the agents again and keeps the result, for Settings. */

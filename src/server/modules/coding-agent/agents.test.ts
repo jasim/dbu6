@@ -15,6 +15,7 @@ vi.mock("nuabase", () => ({ Nua: { direct: vi.fn(), gateway: vi.fn() } }));
 
 // The module shares a detection under way, so each test loads it afresh.
 let agents: typeof import("./agents.js");
+let config: typeof import("../../dbu-config.js");
 
 const CLAUDE: DetectedAgent = {
   agent: "claude-code",
@@ -38,13 +39,14 @@ const NO_CODEX: DetectedAgent = {
   installed: false,
   loggedIn: false,
 };
+const NO_PI: DetectedAgent = { agent: "pi", installed: false, loggedIn: false };
 
 let projectDir: string;
 
 beforeEach(async () => {
   vi.resetModules();
   // A fresh dbu_config for each test, bound as the runtime binds the table.
-  const config = await import("../../dbu-config.js");
+  config = await import("../../dbu-config.js");
   config.useDbuConfig(config.memoryDbuConfig());
   agents = await import("./agents.js");
   detectLocalAgents.mockReset();
@@ -106,14 +108,30 @@ describe("the chosen agent", () => {
 
 describe("codingAgents", () => {
   it("detects once, keeps the result in dbu_config, and detects again only when asked", async () => {
-    detectLocalAgents.mockResolvedValueOnce([NO_CLAUDE, NO_CODEX]);
-    detectLocalAgents.mockResolvedValueOnce([CLAUDE, CODEX]);
+    detectLocalAgents.mockResolvedValueOnce([NO_CLAUDE, NO_CODEX, NO_PI]);
+    detectLocalAgents.mockResolvedValueOnce([CLAUDE, CODEX, NO_PI]);
 
-    expect(await agents.codingAgents()).toEqual([NO_CLAUDE, NO_CODEX]);
-    expect(await agents.codingAgents()).toEqual([NO_CLAUDE, NO_CODEX]);
-    expect(await agents.detectCodingAgentsAgain()).toEqual([CLAUDE, CODEX]);
-    expect(await agents.codingAgents()).toEqual([CLAUDE, CODEX]);
+    const none = [NO_CLAUDE, NO_CODEX, NO_PI];
+    expect(await agents.codingAgents()).toEqual(none);
+    expect(await agents.codingAgents()).toEqual(none);
+    expect(await agents.detectCodingAgentsAgain()).toEqual([
+      CLAUDE,
+      CODEX,
+      NO_PI,
+    ]);
+    expect(await agents.codingAgents()).toEqual([CLAUDE, CODEX, NO_PI]);
     expect(detectLocalAgents).toHaveBeenCalledTimes(2);
+  });
+
+  it("detects again, once, when what is stored predates an agent dbu6 knows", async () => {
+    // As an older dbu6 kept it, before Pi.
+    config.writeDbuConfig("coding_agent.agents", [CLAUDE, CODEX]);
+    // A nuabase that doesn't report Pi either.
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX]);
+
+    expect(await agents.codingAgents()).toEqual([CLAUDE, CODEX, NO_PI]);
+    expect(await agents.codingAgents()).toEqual([CLAUDE, CODEX, NO_PI]);
+    expect(detectLocalAgents).toHaveBeenCalledTimes(1);
   });
 
   it("shares a detection under way", async () => {

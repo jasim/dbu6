@@ -125,6 +125,12 @@ describe("/coding-agent", () => {
           logged_in: false,
           models: { state: "not_checked" },
         },
+        {
+          agent: "pi",
+          installed: false,
+          logged_in: false,
+          models: { state: "not_checked" },
+        },
       ],
       active: "claude-code",
     });

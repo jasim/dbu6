@@ -33,16 +33,30 @@ beforeEach(() => {
 });
 
 describe("detectAgents", () => {
-  it("keeps what dbu6 reads of each status, in nuabase's order", async () => {
+  it("keeps what dbu6 reads of each status, in dbu6's order", async () => {
     detectLocalAgents.mockResolvedValue([
-      CLAUDE,
       {
         agent: "codex",
         installed: false,
         loggedIn: false,
         detail: "not on PATH",
       },
+      CLAUDE,
     ]);
+
+    expect((await detectAgents()).slice(0, 2)).toEqual([
+      {
+        agent: "claude-code",
+        installed: true,
+        loggedIn: true,
+        binaryPath: "/sample/bin/claude",
+      },
+      { agent: "codex", installed: false, loggedIn: false },
+    ]);
+  });
+
+  it("names every agent dbu6 knows, one nuabase didn't report as not installed", async () => {
+    detectLocalAgents.mockResolvedValue([CLAUDE]);
 
     expect(await detectAgents()).toEqual([
       {
@@ -52,6 +66,7 @@ describe("detectAgents", () => {
         binaryPath: "/sample/bin/claude",
       },
       { agent: "codex", installed: false, loggedIn: false },
+      { agent: "pi", installed: false, loggedIn: false },
     ]);
   });
 
@@ -68,6 +83,8 @@ describe("detectAgents", () => {
 
     expect((await detectAgents()).map((status) => status.agent)).toEqual([
       "claude-code",
+      "codex",
+      "pi",
     ]);
   });
 
