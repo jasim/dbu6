@@ -24,9 +24,22 @@
  * report alone.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, globSync, readFileSync, readdirSync } from "node:fs";
+import {
+  existsSync,
+  globSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+} from "node:fs";
 import { createRequire } from "node:module";
-import { basename, dirname, join, relative } from "node:path";
+import {
+  basename,
+  delimiter,
+  dirname,
+  join,
+  relative,
+  resolve,
+} from "node:path";
 import { pendingMigrations } from "@sapporta/server";
 import { guideCommand } from "../shared/index.js";
 import {
@@ -111,10 +124,21 @@ export async function checkTools(root?: string): Promise<CheckLine[]> {
  * The `sapporta` command agents are told to use, and the token it needs.
  *
  * dbu6 ships that command (`bin/sapporta.mjs`, declared as a bin of this
- * package), so a project needs nothing installed for it — under npm it also
- * has `node_modules/.bin/sapporta` from the copy of Sapporta dbu6 depends on,
- * and under pnpm only dbu6's own bin is linked. Either is enough, which is why
- * both are tried before it is called a failure.
+ * package), so a project needs nothing installed for it. The guides tell an
+ * agent to run it as `npx sapporta …`, which runs the project's own
+ * `node_modules/.bin/sapporta`: the shipped file answering is therefore not
+ * enough, and both it and the project's link to it are checked.
+ *
+ * The link must be dbu6's bin, not merely present. `npx` runs whatever
+ * `node_modules/.bin/sapporta` is, and with no such entry it installs the
+ * standalone `sapporta` package instead, without asking; that CLI reads
+ * `.env.development` — a file dbu6 does not write — never `.env.agent`, and
+ * calls port 3000. A link a package manager made to `@sapporta/server`'s own
+ * `sapporta` bin looks the same to `existsSync` and behaves the same way.
+ *
+ * A `sapporta` the machine installed globally is named when there is one: the
+ * guides say `npx sapporta`, so it cannot be what an agent runs — `npx` ignores
+ * `PATH` here — but a bare command would reach that one instead.
  *
  * The token is the one thing dbu6 cannot provision for the agent itself without
  * being asked, so a missing `.env.agent` is information, not a failure: the
@@ -136,22 +160,30 @@ async function checkSapportaCli(root?: string): Promise<CheckLine[]> {
       encoding: "utf8",
       timeout: 30_000,
     });
-    const reported = `${run.stdout}${run.stderr}`.trim().split("\n").pop() ?? "";
+    // The wrapper writes its own one-line reason to stderr when its install is
+    // broken; on success the version is the only thing on stdout. Either way
+    // the first line that says something is the one worth reporting — the last
+    // line of a Node stack trace names nothing but the runtime.
+    const reported = firstLine(run.stderr) ?? lastLine(run.stdout) ?? "";
     lines.push(
       run.status === 0
-        ? ok("sapporta", `the CLI dbu6 ships answers ${reported || "ok"}`)
+        ? ok("sapporta", `the bin dbu6 ships answers ${reported || "ok"}`)
         : fail(
             "sapporta",
-            `\`sapporta --version\` failed (exit ${String(run.status)}): ${reported}\n` +
+            `the bin dbu6 ships failed \`--version\` (exit ${String(run.status)}): ${reported}\n` +
               "It forwards to @sapporta/server, which dbu6 depends on: reinstall dbu6, then run this again.",
           ),
     );
   }
   if (root !== undefined) {
+    lines.push(checkSapportaOnPath(root, wrapper));
     const agentEnv = join(root, AGENT_ENV_FILE);
     lines.push(
       existsSync(agentEnv)
-        ? ok("Agent token", `${AGENT_ENV_FILE} exists; \`sapporta\` loads it by itself`)
+        ? ok(
+            "Agent token",
+            `${AGENT_ENV_FILE} exists; \`npx sapporta\` loads it by itself`,
+          )
         : info(
             "Agent token",
             `no ${AGENT_ENV_FILE}; run \`dbu6 agent env\` to give this project's coding agents one`,
@@ -159,6 +191,177 @@ async function checkSapportaCli(root?: string): Promise<CheckLine[]> {
     );
   }
   return lines;
+}
+
+/** The names a bin takes, whichever platform linked it. */
+// `scripts/verify-init.mjs` keeps the same list, and proves the link in a
+// project `dbu6 init` made.
+const SAPPORTA_BIN_NAMES = ["sapporta", "sapporta.cmd", "sapporta.ps1"];
+
+/**
+ * What `npx sapporta …` runs in this project.
+ *
+ * The link is the difference between the command every guide gives and the
+ * standalone Sapporta CLI: without it, `npx` installs that one, which reads
+ * `.env.development` — a file dbu6 does not write — and never `.env.agent`, so
+ * it calls localhost:3000 with no token.
+ */
+function checkSapportaOnPath(root: string, wrapper: string): CheckLine {
+  const binDir = join(root, "node_modules", ".bin");
+  const projectBin = SAPPORTA_BIN_NAMES.map((name) => join(binDir, name)).find(
+    (candidate) => existsSync(candidate),
+  );
+  if (projectBin === undefined) {
+    return fail(
+      "npx sapporta",
+      `this project has no ${join("node_modules", ".bin", "sapporta")}, so \`npx sapporta …\` would install the standalone Sapporta CLI from npm: it does not read ${AGENT_ENV_FILE} and calls port 3000.\n` +
+        "Upgrade or reinstall dbu6 (`npx dbu6 upgrade`, `npm install @dbu6/app`), which declares the bin.",
+    );
+  }
+  const named = relative(root, projectBin);
+  if (!isDbu6SapportaBin(projectBin, wrapper)) {
+    // dbu6's own checkout cannot have this link: a package manager links a
+    // package's dependencies into it, never its own bins. AGENTS.md tells a
+    // contributor to run the wrapper by path there.
+    return isDbu6Package(root)
+      ? info(
+          "npx sapporta",
+          `this is the dbu6 package itself, so ${named} is @sapporta/server's bin, not the wrapper: run \`node bin/sapporta.mjs …\` here. In a project that installed dbu6, \`npx sapporta …\` is right.`,
+        )
+      : fail(
+          "npx sapporta",
+          `${named} is not dbu6's bin${pointsAt(projectBin)}, so \`npx sapporta …\` runs a CLI that does not read ${AGENT_ENV_FILE} and calls port 3000.\n` +
+            "Upgrade or reinstall dbu6 (`npx dbu6 upgrade`, `npm install @dbu6/app`), which declares the bin, then run this again.",
+        );
+  }
+  const elsewhere = sapportaOnPath();
+  return elsewhere === null
+    ? ok("npx sapporta", `resolves ${named} in this project`)
+    : info(
+        "npx sapporta",
+        `resolves ${named} in this project; a \`sapporta\` on PATH (${elsewhere}) is not what it runs, so use \`npx sapporta …\`, never the bare name`,
+      );
+}
+
+/** How much of a shim is read: enough for the lines that name its target. */
+const BIN_SHIM_BYTES = 4096;
+
+/** `realpathSync`, or null when the path is missing or unresolvable. */
+function realpathOrNull(path: string): string | null {
+  try {
+    return realpathSync(path);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a `node_modules/.bin` entry runs dbu6's own `sapporta` bin.
+ *
+ * Identity, not the shape of the path: the entry is resolved to the file it
+ * actually runs and compared with the wrapper this dbu6 ships. npm links a
+ * symlink, which `realpathSync` resolves — through a linked package directory
+ * too; pnpm, yarn and Windows write a shim, whose head names the file it runs.
+ * For a linked checkout that name is the checkout's real path, not
+ * `@dbu6/app/…`, which is why the text alone cannot answer.
+ */
+function isDbu6SapportaBin(bin: string, wrapper: string): boolean {
+  const shipped = realpathOrNull(wrapper);
+  if (shipped === null) return false;
+  if (realpathOrNull(bin) === shipped) return true;
+  let shim: string;
+  try {
+    shim = readFileSync(bin, "utf8").slice(0, BIN_SHIM_BYTES);
+  } catch {
+    // Unreadable: the resolved path above is all there is to go on.
+    return false;
+  }
+  return shimTargets(bin, shim).some(
+    (target) => realpathOrNull(target) === shipped,
+  );
+}
+
+/**
+ * The files a shim runs, as its text names them.
+ *
+ * pnpm and yarn write the target as a `cmd-shim-target` comment, which answers
+ * on its own. Otherwise the exec line names it, relative to `$basedir`,
+ * `%dp0%` or `%~dp0`; that is substituted with the shim's own directory.
+ */
+function shimTargets(bin: string, text: string): string[] {
+  const basedir = dirname(bin);
+  const targets: string[] = [];
+  const commented = text.match(/^#\s*cmd-shim-target=(.+)$/m)?.[1]?.trim();
+  if (commented !== undefined && commented !== "") targets.push(commented);
+  for (const [token] of text.matchAll(/[^\s"'=]*sapporta\.mjs/g)) {
+    const expanded = token
+      .replace(/\$basedir/g, basedir)
+      .replace(/%~dp0/gi, basedir)
+      .replace(/%dp0%/gi, basedir);
+    targets.push(resolve(basedir, expanded));
+  }
+  return targets;
+}
+
+/** Where a link points, for the message that refuses it. */
+function pointsAt(bin: string): string {
+  try {
+    const target = realpathSync(bin);
+    return target === bin ? "" : ` (it is ${target})`;
+  } catch {
+    return "";
+  }
+}
+
+/** Whether this project is the dbu6 package itself. */
+function isDbu6Package(root: string): boolean {
+  try {
+    const manifest = JSON.parse(
+      readFileSync(join(root, "package.json"), "utf8"),
+    ) as { name?: string };
+    return manifest.name === "@dbu6/app";
+  } catch {
+    return false;
+  }
+}
+
+/** The first line of a tool's output that says something. */
+function firstLine(text: string | null): string | undefined {
+  return text
+    ?.split("\n")
+    .map((line) => line.trim())
+    .find((line) => line !== "");
+}
+
+/** The last line that says something, for a tool that reports at the end. */
+function lastLine(text: string | null): string | undefined {
+  return text
+    ?.split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .pop();
+}
+
+/**
+ * The first `sapporta` a bare command would find.
+ *
+ * A project's `node_modules/.bin` is not on `PATH` — which is why the guides
+ * say `npx sapporta` — so anything this finds is another install, and a bare
+ * `sapporta` would run that one instead.
+ */
+function sapportaOnPath(): string | null {
+  const extensions =
+    process.platform === "win32"
+      ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean)
+      : [""];
+  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+    if (dir === "") continue;
+    for (const extension of extensions) {
+      const candidate = join(dir, `sapporta${extension}`);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
 }
 
 function checkNodeVersion(): CheckLine {
@@ -530,7 +733,7 @@ function leftoverPresetsFile(movesInto: string | null): CheckLine {
     name,
     "no longer read: import presets live in the database, and the migration that moves them there kept this file because it could not convert it (it printed why). " +
       "Fix what it named, then convert the file with the app running: " +
-      `\`sapporta api post /api/import-presets/import-json --body '{"apply":false}'\`, then ` +
+      `\`npx sapporta api post /api/import-presets/import-json --body '{"apply":false}'\`, then ` +
       `\`--body '{"apply":true}'\` (\`${guideCommand("books")}\` shows how). ` +
       "If the database holds these presets already, delete the file.",
   );

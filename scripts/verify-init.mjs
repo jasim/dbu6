@@ -25,7 +25,8 @@
 //   - the project has every template file, with no token left in any of them,
 //     `.gitignore` under its real name, package.json pinned to the tarball,
 //     the installed dbu6 is the tarball's version, and the `sapporta` bin dbu6
-//     ships runs
+//     ships runs — and that `node_modules/.bin/sapporta`, the one
+//     `npx sapporta …` runs, is that bin and reads the project's `.env.agent`
 //   - `setup` and `migrate` ran: .env has a secret, user-config/ is filled,
 //     data/sqlite.db exists
 //   - the first commit holds the project and nothing that is gitignored
@@ -162,7 +163,53 @@ const sapportaVersion = await run(
 assert.equal(
   sapportaVersion.status,
   0,
-  `\`sapporta --version\` failed: ${sapportaVersion.stdout}`,
+  `the bin dbu6 ships failed \`--version\`: ${sapportaVersion.stdout}`,
+);
+// The command itself, as an agent runs it: every guide says `npx sapporta …`,
+// and `npx` runs the project's own `node_modules/.bin/sapporta`, not the file
+// above. Without that entry `npx` installs the standalone `sapporta` package
+// instead, without asking, and that CLI calls localhost:3000 with no token —
+// which is what this asserts against. On Windows the runnable entry is the
+// `.cmd` shim; the extensionless one is a shell script.
+const binNames =
+  process.platform === "win32"
+    ? ["sapporta.cmd", "sapporta.ps1", "sapporta"]
+    : ["sapporta"];
+const sapportaLink = binNames
+  .map((name) => path.join(projectDir, "node_modules", ".bin", name))
+  .find((candidate) => existsSync(candidate));
+assert(sapportaLink, "init linked no node_modules/.bin/sapporta");
+// Only dbu6's bin reads the project's .env.agent, so a URL that only that file
+// can supply is what the command must call: the standalone CLI reads no such
+// file and would call its default port instead. The shell's own variables are
+// cleared for the probe, because the bin prefers them to the file — a
+// developer's shell exports SAPPORTA_API_URL through mise or direnv.
+const agentEnvPath = path.join(projectDir, ".env.agent");
+writeFileSync(
+  agentEnvPath,
+  "SAPPORTA_API_URL=http://localhost:1\nSAPPORTA_API_TOKEN=spat_05050500_050505\n",
+);
+const probeEnv = { ...process.env };
+delete probeEnv.SAPPORTA_API_URL;
+delete probeEnv.SAPPORTA_API_TOKEN;
+delete probeEnv.SAPPORTA_API_PORT;
+// Windows links `.cmd` shims, which only a command interpreter runs.
+const probeCommand = process.platform === "win32" ? "cmd.exe" : sapportaLink;
+const probePrefix = process.platform === "win32" ? ["/c", sapportaLink] : [];
+let probed;
+try {
+  probed = await run(
+    probeCommand,
+    [...probePrefix, "api", "get", "/api/home", "--output", "json"],
+    { cwd: projectDir, capture: true, env: probeEnv },
+  );
+} finally {
+  rmSync(agentEnvPath, { force: true });
+}
+const called = `${probed.stdout}${probed.stderr}`;
+assert(
+  called.includes("localhost:1"),
+  `the bin \`npx sapporta\` runs did not read the project's .env.agent: ${called}`,
 );
 assert(
   /^BETTER_AUTH_SECRET=\S+$/m.test(readFileSync(path.join(projectDir, ".env"), "utf8")),
@@ -294,11 +341,11 @@ function addOverrides(cwd) {
 }
 
 // The runner `dbu6 init` uses (src/cli/main.ts): the binary, never a shell.
-function run(command, args, { cwd, capture = false }) {
+function run(command, args, { cwd, capture = false, env = process.env }) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
-      env: process.env,
+      env,
       stdio: ["inherit", capture ? "pipe" : "inherit", capture ? "pipe" : "inherit"],
     });
     let stdout = "";

@@ -91,12 +91,118 @@ const byName = (lines: CheckLine[], name: string) =>
   lines.find((line) => line.name === name);
 
 describe("checkTools", () => {
-  it("reports the sapporta command dbu6 ships as working", async () => {
+  it("reports the sapporta bin dbu6 ships as working", async () => {
     const lines = await checkTools(root);
 
     const line = lines.find((entry) => entry.name === "sapporta");
     expect(line).toMatchObject({ status: "ok" });
-    expect(line!.detail).toContain("the CLI dbu6 ships");
+    expect(line!.detail).toContain("the bin dbu6 ships");
+  });
+
+  it("fails when the project has no sapporta for `npx sapporta` to run", async () => {
+    vi.stubEnv("PATH", tempDir("check-empty-path"));
+
+    const line = byName(await checkTools(root), "npx sapporta")!;
+
+    expect(line.status).toBe("fail");
+    expect(line.detail).toContain("standalone Sapporta CLI");
+    expect(line.detail).toContain(".env.agent");
+  });
+
+  it("resolves the project's own sapporta, and names a global one it would not run", async () => {
+    // The installed package as a project gets it: `node_modules/@dbu6/app` is
+    // a directory that is this checkout, which is what npm's `file:` and a
+    // workspace both link instead of copying.
+    mkdirSync(join(root, "node_modules", "@dbu6"), { recursive: true });
+    symlinkSync(packageDir(), join(root, "node_modules", "@dbu6", "app"));
+    mkdirSync(join(root, "node_modules", ".bin"), { recursive: true });
+    symlinkSync(
+      join(root, "node_modules", "@dbu6", "app", "bin", "sapporta.mjs"),
+      join(root, "node_modules/.bin/sapporta"),
+    );
+    vi.stubEnv("PATH", tempDir("check-empty-path"));
+
+    expect(byName(await checkTools(root), "npx sapporta")).toMatchObject({
+      status: "ok",
+      detail: `resolves ${join("node_modules", ".bin", "sapporta")} in this project`,
+    });
+
+    const elsewhere = tempDir("check-other-path");
+    writeFileSync(join(elsewhere, "sapporta"), "");
+    vi.stubEnv("PATH", elsewhere);
+
+    const line = byName(await checkTools(root), "npx sapporta")!;
+    expect(line.status).toBe("info");
+    expect(line.detail).toContain(elsewhere);
+    expect(line.detail).toContain("never the bare name");
+  });
+
+  it("accepts a shim naming dbu6's bin, the way pnpm links one", async () => {
+    mkdirSync(join(root, "node_modules", "@dbu6"), { recursive: true });
+    symlinkSync(packageDir(), join(root, "node_modules", "@dbu6", "app"));
+    write(
+      "node_modules/.bin/sapporta",
+      '#!/bin/sh\nexec node "$basedir/../@dbu6/app/bin/sapporta.mjs" "$@"\n',
+    );
+    vi.stubEnv("PATH", tempDir("check-empty-path"));
+
+    expect(byName(await checkTools(root), "npx sapporta")).toMatchObject({
+      status: "ok",
+    });
+  });
+
+  it("accepts the shim a link to this checkout gets, which names the checkout", async () => {
+    // pnpm writes the target's real path for a `link:` dependency, so the
+    // shim's text has no `@dbu6/app` in it: only following the target can say
+    // whether `npx sapporta` runs the wrapper.
+    const wrapper = packageDir("bin", "sapporta.mjs");
+    write(
+      "node_modules/.bin/sapporta",
+      [
+        "#!/bin/sh",
+        `# cmd-shim-target=${wrapper}`,
+        `exec node "${wrapper}" "$@"`,
+        "",
+      ].join("\n"),
+    );
+    vi.stubEnv("PATH", tempDir("check-empty-path"));
+
+    expect(byName(await checkTools(root), "npx sapporta")).toMatchObject({
+      status: "ok",
+    });
+  });
+
+  it("fails when the project's sapporta is another CLI wearing the name", async () => {
+    write(
+      "node_modules/@sapporta/server/bin/sapporta.mjs",
+      "#!/usr/bin/env node\n",
+    );
+    mkdirSync(join(root, "node_modules", ".bin"), { recursive: true });
+    symlinkSync(
+      join(root, "node_modules/@sapporta/server/bin/sapporta.mjs"),
+      join(root, "node_modules/.bin/sapporta"),
+    );
+    vi.stubEnv("PATH", tempDir("check-empty-path"));
+
+    const line = byName(await checkTools(root), "npx sapporta")!;
+
+    expect(line.status).toBe("fail");
+    expect(line.detail).toContain("not dbu6's bin");
+    expect(line.detail).toContain(".env.agent");
+  });
+
+  it("explains the dbu6 checkout, where no package manager links its own bin", async () => {
+    write("package.json", '{ "name": "@dbu6/app", "type": "module" }\n');
+    write(
+      "node_modules/.bin/sapporta",
+      '#!/bin/sh\nexec node "$basedir/../@sapporta/server/bin/sapporta.mjs" "$@"\n',
+    );
+    vi.stubEnv("PATH", tempDir("check-empty-path"));
+
+    const line = byName(await checkTools(root), "npx sapporta")!;
+
+    expect(line.status).toBe("info");
+    expect(line.detail).toContain("node bin/sapporta.mjs");
   });
 
   it("says which command gives the project an agent token when it has none", async () => {

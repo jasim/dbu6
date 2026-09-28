@@ -31,9 +31,25 @@ const packageDir = path.resolve(import.meta.dirname, "..");
 const root = findProjectRoot(process.cwd());
 const { env } = resolveSapportaEnvironment({ root, shellEnv: process.env });
 
+// Resolved before spawning, so a broken install is one written line rather than
+// a Node loader stack: `dbu6 check` reports the first line of what this prints.
+let cli;
+try {
+  cli = resolveCli(packageDir);
+} catch (error) {
+  const reason = String(error?.message ?? error).split("\n")[0];
+  console.error(
+    `The Sapporta CLI dbu6 forwards to is missing from its own install: ${reason}`,
+  );
+  console.error(
+    "Reinstall dbu6 (`npm install @dbu6/app`, or `npx dbu6 upgrade`), then run this again.",
+  );
+  process.exit(1);
+}
+
 const { status, signal } = spawnSync(
   process.execPath,
-  [resolveCli(packageDir), ...process.argv.slice(2)],
+  [cli, ...process.argv.slice(2)],
   { stdio: "inherit", env: { ...process.env, ...env } },
 );
 process.exit(status ?? (signal ? 1 : 0));
