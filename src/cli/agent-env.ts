@@ -93,16 +93,31 @@ export function chooseAgentAccount(
   const demos = new Set(options.demos ?? []);
   const wanted = options.user?.trim();
   if (wanted !== undefined && wanted !== "") {
-    const match = accounts.find(
+    const matches = accounts.filter(
       (account) => account.email === wanted || account.userId === wanted,
     );
-    if (match === undefined) {
+    if (matches.length === 0) {
       throw new AgentEnvError(
         `No account here has the email ${wanted}. The accounts are:\n` +
           listAccounts(accounts),
       );
     }
-    return match;
+    // The sample account is refused whether or not it was asked for by name:
+    // `--user demo@example.com` must not be a way past the rule below.
+    const sample = matches.find((account) => demos.has(account.email));
+    if (sample !== undefined) {
+      throw new AgentEnvError(
+        `${sample.email} is the sample account \`dbu6 seed\` makes, whose books the next run replaces. Sign up in the app and use that account.`,
+      );
+    }
+    if (matches.length > 1) {
+      throw new AgentEnvError(
+        `${wanted} is in more than one workspace, so say which one the token is for:\n` +
+          `${listAccounts(matches)}\n` +
+          "Run this again with `--user <user id>`.",
+      );
+    }
+    return matches[0]!;
   }
   const candidates = accounts.filter((account) => !demos.has(account.email));
   if (candidates.length === 1) return candidates[0]!;
@@ -116,15 +131,27 @@ export function chooseAgentAccount(
   throw new AgentEnvError(
     `This project has more than one account, so say which one the agent is for:\n` +
       `${listAccounts(candidates)}\n` +
-      "Run this again with `--user <email>`.",
+      "Run this again with `--user <email>`, or with the `user id` shown when one email is in more than one workspace.",
   );
 }
 
+/**
+ * One line per account. An email that appears more than once names its user id,
+ * because `--user` cannot tell two workspaces apart by an email alone and the
+ * token is minted for one workspace.
+ */
 function listAccounts(accounts: readonly AgentAccount[]): string {
+  const perEmail = new Map<string, number>();
+  for (const account of accounts) {
+    perEmail.set(account.email, (perEmail.get(account.email) ?? 0) + 1);
+  }
   return accounts
-    .map(
-      (account) =>
-        `  ${account.email}${account.name ? ` (${account.name})` : ""} — ${account.organizationName}`,
-    )
+    .map((account) => {
+      const id =
+        (perEmail.get(account.email) ?? 0) > 1
+          ? ` (user id ${account.userId})`
+          : "";
+      return `  ${account.email}${account.name ? ` (${account.name})` : ""} — ${account.organizationName}${id}`;
+    })
     .join("\n");
 }

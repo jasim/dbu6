@@ -54,9 +54,9 @@ describe("agentEnvExports", () => {
   });
 
   it("quotes a value a shell would otherwise split or expand", () => {
-    expect(agentEnvExports({ ...VALUES, apiUrl: "http://localhost:2345/a b" })).toContain(
-      "export SAPPORTA_API_URL='http://localhost:2345/a b'",
-    );
+    expect(
+      agentEnvExports({ ...VALUES, apiUrl: "http://localhost:2345/a b" }),
+    ).toContain("export SAPPORTA_API_URL='http://localhost:2345/a b'");
   });
 });
 
@@ -68,9 +68,7 @@ describe("the command agents are told to verify with", () => {
 
 describe("chooseAgentAccount", () => {
   it("takes the one account, with no question asked", () => {
-    expect(
-      chooseAgentAccount([OWNER], { demos: [DEMO.email] }),
-    ).toEqual(OWNER);
+    expect(chooseAgentAccount([OWNER], { demos: [DEMO.email] })).toEqual(OWNER);
   });
 
   it("never hands the agent a sample account, even when it is the only one", () => {
@@ -83,13 +81,17 @@ describe("chooseAgentAccount", () => {
   });
 
   it("ignores a sample account when the owner is there beside it", () => {
-    expect(
-      chooseAgentAccount([DEMO, OWNER], { demos: [DEMO.email] }),
-    ).toEqual(OWNER);
+    expect(chooseAgentAccount([DEMO, OWNER], { demos: [DEMO.email] })).toEqual(
+      OWNER,
+    );
   });
 
   it("asks which account when two are real, naming both emails", () => {
-    const second = { ...OWNER, userId: "05050500-two", email: "two@example.com" };
+    const second = {
+      ...OWNER,
+      userId: "05050500-two",
+      email: "two@example.com",
+    };
 
     expect(() =>
       chooseAgentAccount([OWNER, second], { demos: [DEMO.email] }),
@@ -104,11 +106,62 @@ describe("chooseAgentAccount", () => {
   });
 
   it("picks by email when --user names one", () => {
-    const second = { ...OWNER, userId: "05050500-two", email: "two@example.com" };
+    const second = {
+      ...OWNER,
+      userId: "05050500-two",
+      email: "two@example.com",
+    };
 
     expect(
       chooseAgentAccount([OWNER, second], { user: "two@example.com" }),
     ).toEqual(second);
+  });
+
+  it("refuses a sample account even when --user names it", () => {
+    expect(() =>
+      chooseAgentAccount([DEMO, OWNER], {
+        demos: [DEMO.email],
+        user: DEMO.email,
+      }),
+    ).toThrow(/sample account/);
+  });
+
+  it("asks which workspace when one email is in two, and takes the user id", () => {
+    const other = {
+      ...OWNER,
+      userId: "05050500-other-org",
+      organizationId: "05050500-org-2",
+      organizationName: "NOPII OWNER's Other Workspace",
+    };
+
+    expect(() =>
+      chooseAgentAccount([OWNER, other], { user: OWNER.email }),
+    ).toThrow(/more than one workspace/);
+    try {
+      chooseAgentAccount([OWNER, other], { user: OWNER.email });
+    } catch (error) {
+      const message = (error as Error).message;
+      // Both workspaces named, each with the user id that chooses it.
+      expect(message).toContain("NOPII OWNER's Workspace");
+      expect(message).toContain("NOPII OWNER's Other Workspace");
+      expect(message).toContain(OWNER.userId);
+      expect(message).toContain(other.userId);
+    }
+
+    expect(chooseAgentAccount([OWNER, other], { user: other.userId })).toEqual(
+      other,
+    );
+  });
+
+  it("offers the user id when the project's accounts share an email", () => {
+    const other = {
+      ...OWNER,
+      userId: "05050500-other-org",
+      organizationId: "05050500-org-2",
+      organizationName: "NOPII OWNER's Other Workspace",
+    };
+
+    expect(() => chooseAgentAccount([OWNER, other])).toThrow(/user id/);
   });
 
   it("says who is here when --user names nobody", () => {

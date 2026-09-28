@@ -21,10 +21,10 @@
  * put it and what to check, and never prints the token unless asked with
  * `--print`. An older token this command made, by the same name, is revoked
  * once the new one is safely on disk, so a project does not collect one live
- * token per run.
+ * token per run. `--print` prefers the file the project already has, so it
+ * mints nothing in the case it is normally used.
  */
-import { existsSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { userPrincipal } from "@sapporta/server";
 import {
@@ -48,15 +48,25 @@ import {
   VERIFY_COMMAND,
   type AgentAccount,
 } from "./agent-env.js";
+import {
+  agentEnvPath,
+  readAgentEnvValues,
+  writeAgentEnvFile,
+} from "./agent-file.js";
 
 const USAGE = `Usage: dbu6 agent env [--print] [--user <email>]
 
   Writes .env.agent in the project, holding SAPPORTA_API_URL and
   SAPPORTA_API_TOKEN for a coding agent, and revokes the token an
-  earlier run of this command wrote. --print writes the same pair of
-  \`export\` lines to stdout instead, for \`eval "$(dbu6 agent env --print)"\`.
+  earlier run of this command wrote.
 
-  --user <email>   The account the token is for. Only needed when the project
+  --print          Write the same pair of \`export\` lines to stdout instead,
+                   for \`eval "$(dbu6 agent env --print)"\`. A project that
+                   already has .env.agent gets the pair it holds, and nothing
+                   is minted; one that does not gets a fresh token, which
+                   nothing stores, so a later run of this command revokes it.
+  --user <email>   The account the token is for, or its user id when one email
+                   is in more than one workspace. Only needed when the project
                    has more than one account.`;
 
 export async function agentCommand(
@@ -126,6 +136,19 @@ export async function agentCommand(
     const apiUrl =
       readString(process.env.SAPPORTA_API_URL) ??
       `http://localhost:${runtime.env.apiPort}`;
+
+    const file = agentEnvPath(root);
+    if (print) {
+      // The pair to export is the one the project already uses: printing it
+      // mints nothing, so `eval "$(dbu6 agent env --print)"` cannot leave a
+      // trail of live tokens behind.
+      const stored = readAgentEnvValues(file);
+      if (stored !== null) {
+        process.stdout.write(agentEnvExports(stored));
+        return 0;
+      }
+    }
+
     const membership = findFirstMembership(runtime.conn, account.userId);
     if (membership === null) {
       throw new AgentEnvError(
@@ -149,21 +172,24 @@ export async function agentCommand(
     );
 
     if (print) {
+      // Nothing stores this one, so say so: a later run of this command
+      // revokes it by name, like any other token this command made.
+      process.stderr.write(
+        `No ${AGENT_ENV_FILE} in this project, so this token is not stored: run \`dbu6 agent env\` to keep one there.\n`,
+      );
       process.stdout.write(
         agentEnvExports({ apiUrl, apiToken: created.rawToken }),
       );
       return 0;
     }
 
-    const file = join(root, AGENT_ENV_FILE);
-    writeFileSync(
+    writeAgentEnvFile(
       file,
       agentEnvFile({
         apiUrl,
         apiToken: created.rawToken,
         createdFor: account.email,
       }),
-      { mode: 0o600 },
     );
     const revoked = revokeEarlierAgentTokens(
       runtime.conn,
@@ -262,7 +288,9 @@ function revokeEarlierAgentTokens(
     if (token.id === keepId) continue;
     if (token.revokedAt !== null) continue;
     if (!token.name.startsWith(AGENT_TOKEN_NAME)) continue;
-    if (revokeAuthToken(conn, account.userId, token.id, account.organizationId)) {
+    if (
+      revokeAuthToken(conn, account.userId, token.id, account.organizationId)
+    ) {
       revoked += 1;
     }
   }
