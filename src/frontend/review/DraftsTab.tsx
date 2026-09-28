@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   SchemaTableGridView,
   useSchemaStore,
-  type SchemaTableColumnOptions,
+  type SchemaTableColumns,
   type SchemaTableGridViewSource,
   type SchemaTableRowsByLevel,
   type TableGridActionsProps,
@@ -21,22 +21,23 @@ import { useReviewAccount } from "./ReviewAccount";
 import { reviewHref } from "./routes";
 
 const DRAFT_TRANSACTIONS_TABLE = "draft_transactions";
-// The fixed filter makes this account every row's base account, so the
-// column would only repeat it; the timestamps say when the importer ran, not
-// anything about the transaction. The table page still shows all three.
-const DRAFTS_TAB_HIDDEN_COLUMNS = [
-  "base_account_id",
-  "created_at",
-  "updated_at",
+const DRAFTS_TAB_COLUMNS: SchemaTableColumns = (c) => [
+  c.remainingTable({
+    // The fixed filter makes this account every row's base account, so the
+    // column would only repeat it; the timestamps say when the importer ran,
+    // not anything about the transaction. The table page still shows all
+    // three.
+    exclude: ["base_account_id", "created_at", "updated_at"],
+    // The comment is the person's to write; until someone does, it shows the
+    // bank's text, muted. The bank's text stays whole beside it, read-only
+    // and wide enough to read: bulk categorizing filters on it, and a filter
+    // on the comment would miss the rows the comment writer hasn't reached.
+    columnOptions: {
+      comment: { minWidth: 24, renderCell: CommentCell },
+      source_narration: { minWidth: 40 },
+    },
+  }),
 ];
-// The comment is the person's to write; until someone does, it shows the
-// bank's text, muted. The bank's text stays whole beside it, read-only and
-// wide enough to read: bulk categorizing filters on it, and a filter on the
-// comment would miss the rows the comment writer hasn't reached.
-const DRAFTS_TAB_COLUMNS: Record<string, SchemaTableColumnOptions> = {
-  comment: { minWidth: 24, renderCell: CommentCell },
-  source_narration: { minWidth: 40 },
-};
 
 /**
  * The Drafts tab (PLAN.md §11 P3): the draft table as it has always been,
@@ -91,8 +92,7 @@ export function DraftsTab() {
             registerAs={DRAFT_TRANSACTIONS_TABLE}
             header="toolbar"
             actions={QuickFilterButtons}
-            hiddenColumns={DRAFTS_TAB_HIDDEN_COLUMNS}
-            columnOptions={DRAFTS_TAB_COLUMNS}
+            columns={DRAFTS_TAB_COLUMNS}
             rootRows={rootRows}
             viewRelatedRows
           />

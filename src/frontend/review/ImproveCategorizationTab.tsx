@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import {
   SchemaTableGridView,
   useSchemaStore,
+  type SchemaTableColumns,
   type SchemaTableGridViewSource,
   type SchemaTableRowsByLevel,
   type TGridSession,
@@ -49,14 +50,18 @@ const DRAFT_TRANSACTIONS_TABLE = "draft_transactions";
 // The fixed filters hold both account columns to one value, and the id and
 // running balance say nothing about where a draft goes. Rules match the
 // bank's text, so the comment shows only in the selected drafts' panel.
-const HIDDEN_COLUMNS = [
-  "id",
-  "comment",
-  "base_account_id",
-  "account_id",
-  "balance_assertion_base_account",
-  "created_at",
-  "updated_at",
+const COLUMNS: SchemaTableColumns = (c) => [
+  c.remainingTable({
+    exclude: [
+      "id",
+      "comment",
+      "base_account_id",
+      "account_id",
+      "balance_assertion_base_account",
+      "created_at",
+      "updated_at",
+    ],
+  }),
 ];
 // Repeat payees sit together, so a run of them is one shift-click. The
 // bank's text, which rules match, not the comment.
@@ -314,7 +319,7 @@ export function ImproveCategorizationTab() {
               route={route}
               registerAs={DRAFT_TRANSACTIONS_TABLE}
               header="toolbar"
-              hiddenColumns={HIDDEN_COLUMNS}
+              columns={COLUMNS}
               rootRows={rootRows}
               interaction={SELECT_ROWS}
               sessionRef={sessionRef}
