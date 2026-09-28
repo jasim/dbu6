@@ -237,15 +237,19 @@ function DialogBody({
               {ACCOUNT_TYPE_TERMS[draft.account_type].term}
               {lock.reason === "opening_balances"
                 ? " — Opening Balances stays Equity."
-                : " — its type follows its statements."}
-              {lock.reason === "bank_or_card" && (
+                : lock.reason === "bank_or_card"
+                  ? " — its type comes from the statements imported into it."
+                  : " — it holds a bank or card, whose statements set the type."}
+              {lock.reason !== "opening_balances" && (
                 <>
                   {" "}
                   <Link
                     to={BANKS_SETTINGS_ROUTE}
                     className="text-primary underline-offset-4 hover:underline"
                   >
-                    Change it in Settings › Banks &amp; cards
+                    {lock.reason === "holds_bank_or_card"
+                      ? "Change them in Settings › Banks &amp; cards"
+                      : "Change it in Settings › Banks &amp; cards"}
                   </Link>
                   .
                 </>

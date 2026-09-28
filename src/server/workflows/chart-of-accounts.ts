@@ -290,8 +290,8 @@ export function changeAccount(
             "bank_or_card_type_fixed",
             "account_type",
             listed.has(id)
-              ? `${account.name} is a bank or card, so its type follows its statements. Change it in Settings › Banks & cards.`
-              : `${account.name} holds a bank or card, so its type follows theirs. Change them in Settings › Banks & cards.`,
+              ? `${account.name} is a bank or card, so its type comes from the statements imported into it. Change it in Settings › Banks & cards.`
+              : `${account.name} holds a bank or card, whose statements set its type. Change them in Settings › Banks & cards.`,
           );
         }
       }

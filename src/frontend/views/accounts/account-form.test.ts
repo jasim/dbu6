@@ -105,7 +105,7 @@ describe("the locks", () => {
     expect(typeLock(CHART[8], CONTEXT)).toEqual({ locked: false });
     expect(typeLock(CHART[1], CONTEXT)).toEqual({
       locked: true,
-      reason: "bank_or_card",
+      reason: "holds_bank_or_card",
     });
   });
 

@@ -442,7 +442,7 @@ describe("changeAccount", () => {
         code: "bank_or_card_type_fixed",
         field: "account_type",
         message:
-          "Bank Accounts holds a bank or card, so its type follows theirs. Change them in Settings › Banks & cards.",
+          "Bank Accounts holds a bank or card, whose statements set its type. Change them in Settings › Banks & cards.",
       },
     });
     expect(change(ledger, 3, "Sample Savings", "Revenue", null)).toMatchObject({
@@ -451,7 +451,7 @@ describe("changeAccount", () => {
         code: "bank_or_card_type_fixed",
         field: "account_type",
         message:
-          "Sample Savings is a bank or card, so its type follows its statements. Change it in Settings › Banks & cards.",
+          "Sample Savings is a bank or card, so its type comes from the statements imported into it. Change it in Settings › Banks & cards.",
       },
     });
     expect(rows(ledger)).toEqual(before);

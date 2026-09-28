@@ -150,11 +150,15 @@ export function holdsStatementAccount(
 
 export type TypeLock =
   | { locked: false }
-  | { locked: true; reason: "bank_or_card" | "opening_balances" };
+  | {
+      locked: true;
+      reason: "bank_or_card" | "holds_bank_or_card" | "opening_balances";
+    };
 
 /**
  * Whether the type field is fixed for this account: a bank's or card's type
- * follows its statement, and Opening Balances stays Equity.
+ * comes from the statements imported into it, a group holding one takes
+ * theirs, and Opening Balances stays Equity.
  */
 export function typeLock(
   account: AccountRow,
@@ -163,8 +167,11 @@ export function typeLock(
   if (account.name === OPENING_BALANCES_NAME) {
     return { locked: true, reason: "opening_balances" };
   }
-  if (holdsStatementAccount(context, account.id)) {
+  if (context.statementAccounts.has(account.id)) {
     return { locked: true, reason: "bank_or_card" };
+  }
+  if (holdsStatementAccount(context, account.id)) {
+    return { locked: true, reason: "holds_bank_or_card" };
   }
   return { locked: false };
 }
