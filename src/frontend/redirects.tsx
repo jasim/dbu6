@@ -18,6 +18,7 @@ export const retiredPaths: Readonly<Record<string, string>> = {
   "/welcome": "/",
   "/advanced": "/tools",
   "/tables/accounts": "/accounts",
+  "/tables/accounts/new": "/accounts/new",
   "/views/import-statements": "/import",
   "/views/post-drafts": "/review",
   "/opening-balances": BALANCES_SETTINGS_ROUTE,

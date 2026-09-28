@@ -13,7 +13,6 @@ import {
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { createTableRow } from "@sapporta/frontend";
-import type { Row } from "@sapporta/shared/contracts";
 import {
   LEDGER_ACCOUNT_TYPES,
   type LedgerAccountType,
@@ -31,6 +30,7 @@ import {
 import { BANKS_SETTINGS_ROUTE } from "../settings/routes";
 import {
   NEW_ACCOUNT_DRAFT,
+  accountRow,
   deleteBlockers,
   draftOf,
   moveNotice,
@@ -65,20 +65,18 @@ export function AccountDialog({
   editing,
   onClose,
 }: {
-  /** The account being edited, "new", or null when the dialog is closed. */
-  editing: Editing | null;
+  /** The account being edited: "new", or the one it is. */
+  editing: Editing;
   onClose: () => void;
 }) {
   return (
-    <Dialog open={editing !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
-        {editing !== null && (
-          <DialogBody
-            key={editing === "new" ? "new" : editing.id}
-            account={editing === "new" ? null : editing}
-            onClose={onClose}
-          />
-        )}
+        <DialogBody
+          key={editing === "new" ? "new" : editing.id}
+          account={editing === "new" ? null : editing}
+          onClose={onClose}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -462,24 +460,4 @@ function Field({
       <div className="mt-1.5">{children}</div>
     </div>
   );
-}
-
-/** A table row as the chart holds it, or null when it lacks the columns. */
-function accountRow(row: Row): AccountRow | null {
-  const { id, name, parent_id, account_type } = row;
-  if (
-    typeof id !== "number" ||
-    typeof name !== "string" ||
-    typeof account_type !== "string" ||
-    !(LEDGER_ACCOUNT_TYPES as readonly string[]).includes(account_type) ||
-    (parent_id !== null && typeof parent_id !== "number")
-  ) {
-    return null;
-  }
-  return {
-    id,
-    name,
-    parent_id: parent_id === null ? null : parent_id,
-    account_type: account_type as LedgerAccountType,
-  };
 }

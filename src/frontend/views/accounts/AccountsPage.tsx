@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useMemo } from "react";
+import { Link, Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { Pencil } from "lucide-react";
 import {
+  openResolvedLink,
   SchemaTableGridView,
   useSchemaStore,
   type SchemaTableColumns,
@@ -9,12 +10,8 @@ import {
   type SchemaTableRowsByLevel,
   type TGridCellRenderContext,
 } from "@sapporta/frontend";
-import {
-  LEDGER_ACCOUNT_TYPES,
-  type LedgerAccountType,
-} from "../../../shared/index";
-import { AccountDialog } from "./AccountDialog";
-import type { AccountRow } from "./account-form";
+import { parseRowId } from "../../row-id";
+import { ACCOUNTS_ROUTE, NEW_ACCOUNT_ROUTE, editAccountHref } from "./routes";
 
 /*
  * The Accounts page: the chart as one tree, read-only, with an Edit button on
@@ -25,9 +22,48 @@ import type { AccountRow } from "./account-form";
  *
  * The generated table API is untouched: `sapporta rows update accounts …`
  * still writes one cell at a time, which is what an agent wants.
+ *
+ * Which form is open is the URL's, not this page's: `/accounts/new` and
+ * `/accounts/:accountId/edit` are its child routes, rendered in the Outlet
+ * below, so a form can be linked to, bookmarked and reloaded. The chart stays
+ * mounted behind them — the same session, on the same page of rows — and
+ * Close steps back to it as it was.
  */
 
 const ACCOUNTS_TABLE = "accounts";
+
+/** The one action a chart row has. */
+const EDIT_ACCOUNT = "Edit account";
+
+/*
+ * The chart's columns, made once at module scope rather than per render. The
+ * grid keeps one session per definition and the columns are part of it, so a
+ * builder made fresh on every render would tear the chart down and build it
+ * again — the page, the expanded rows and where the user had scrolled all
+ * gone — every time this page re-rendered for any reason at all.
+ */
+const ACCOUNT_COLUMNS: SchemaTableColumns = (c) => [
+  c.remainingTable(),
+  c.client("edit", {
+    // The header stays empty: every row already says Edit.
+    label: "",
+    width: "content",
+    renderCell: EditCell,
+    activation: {
+      // The pointer uses the cell's own link; Enter needs an activation,
+      // since the grid owns the keyboard. The framework's own cell links do
+      // the same.
+      startsOn: ["enter"],
+      describe: EDIT_ACCOUNT,
+      run: (ctx) => {
+        const id = accountIdOf(ctx.row);
+        if (id !== null) {
+          openResolvedLink({ href: editAccountHref(id), target: "_self" });
+        }
+      },
+    },
+  }),
+];
 
 export function AccountsPage() {
   const navigate = useNavigate();
@@ -36,7 +72,6 @@ export function AccountsPage() {
     state.tables.find((table) => table.name === ACCOUNTS_TABLE),
   );
   const tables = useSchemaStore((state) => state.tables);
-  const [editing, setEditing] = useState<AccountRow | "new" | null>(null);
 
   /*
    * Sapporta's only UI read-only switch is `table.immutable`: it removes cell
@@ -66,29 +101,12 @@ export function AccountsPage() {
         : null,
     [readOnlyAccounts, tables],
   );
+  // The grid writes its page, filters, sort and search to this URL. A form's
+  // route takes the chart's place in the address bar without saying anything
+  // about them, and the grid reads that silence as "leave the view as it is".
   const route = useMemo(
-    () => ({ path: "/accounts", searchParams, navigate }),
+    () => ({ path: ACCOUNTS_ROUTE, searchParams, navigate }),
     [navigate, searchParams],
-  );
-  // A new list rebuilds the grid, and `setEditing` is a state setter, whose
-  // identity never changes — so this list is made once and never depends on
-  // anything.
-  const columns = useMemo<SchemaTableColumns>(
-    () => (c) => [
-      c.remainingTable(),
-      c.client("edit", {
-        // The header stays empty: every row already says Edit.
-        label: "",
-        width: "content",
-        renderCell: EditButtonCell,
-        activation: {
-          startsOn: ["click", "enter"],
-          describe: "Edit account",
-          run: (ctx) => setEditing(accountOf(ctx.row)),
-        },
-      }),
-    ],
-    [],
   );
 
   return (
@@ -98,8 +116,8 @@ export function AccountsPage() {
           source={source}
           route={route}
           registerAs={ACCOUNTS_TABLE}
-          columns={columns}
-          onNewRecord={() => setEditing("new")}
+          columns={ACCOUNT_COLUMNS}
+          onNewRecord={() => void navigate(NEW_ACCOUNT_ROUTE)}
           viewRelatedRows
           gridClassName="accounts-grid"
         />
@@ -108,48 +126,40 @@ export function AccountsPage() {
           We could not find the schema for "accounts".
         </p>
       )}
-      <AccountDialog editing={editing} onClose={() => setEditing(null)} />
+      {/* The open form, as `/accounts/new` or `/accounts/:accountId/edit`. */}
+      <Outlet />
     </div>
   );
 }
 
 /**
  * The Edit button a row shows: the pencil and the word, so the action reads
- * as one. The cell owns the click and Enter gestures, so this button hands
- * the click to the activation itself and stops it reaching the cell, which
- * would run the same activation a second time.
+ * as one. It is a real link — a form is a place, and a copied address or a
+ * new tab is how a place is used — while the cell keeps the keyboard gesture
+ * through its activation.
  */
-function EditButtonCell({
-  activation,
+function EditCell({
+  row,
 }: TGridCellRenderContext<SchemaTableRowsByLevel, unknown, string>) {
-  const label = activation?.label ?? "Edit account";
+  const id = accountIdOf(row);
+  if (id === null) return null;
   return (
-    <button
-      type="button"
+    <Link
+      to={editAccountHref(id)}
+      // The grid moves focus itself; the cell's activation carries Enter.
+      tabIndex={-1}
       className="account-edit-cell"
-      aria-label={label}
-      title={label}
-      onClick={(event) => {
-        event.stopPropagation();
-        void activation?.run();
-      }}
+      aria-label={EDIT_ACCOUNT}
+      title={EDIT_ACCOUNT}
+      onClick={(event) => event.stopPropagation()}
     >
       <Pencil aria-hidden="true" className="size-3" />
       Edit
-    </button>
+    </Link>
   );
 }
 
-/** A grid row as the account it is, for the form. */
-function accountOf(row: Readonly<Record<string, unknown>>): AccountRow {
-  const account_type = row.account_type;
-  return {
-    id: Number(row.id),
-    name: String(row.name),
-    parent_id: row.parent_id === null ? null : Number(row.parent_id),
-    account_type: (typeof account_type === "string" &&
-    (LEDGER_ACCOUNT_TYPES as readonly string[]).includes(account_type)
-      ? account_type
-      : "Asset") as LedgerAccountType,
-  };
+/** The account a grid row is, for its form's URL. */
+function accountIdOf(row: Readonly<Record<string, unknown>>): number | null {
+  return parseRowId(String(row.id));
 }

@@ -72,8 +72,8 @@ export function OpeningBalanceDialog({
   save,
   onClose,
 }: {
-  /** Null when the dialog is closed. */
-  editing: BalanceEditing | null;
+  /** The account and table the balance is in. */
+  editing: BalanceEditing;
   save: (
     account: OpeningBalanceAccount,
     entry: BalanceEntry,
@@ -81,16 +81,14 @@ export function OpeningBalanceDialog({
   onClose: () => void;
 }) {
   return (
-    <Dialog open={editing !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
-        {editing && (
-          <DialogBody
-            key={editing.account.account_id}
-            editing={editing}
-            save={save}
-            onClose={onClose}
-          />
-        )}
+        <DialogBody
+          key={editing.account.account_id}
+          editing={editing}
+          save={save}
+          onClose={onClose}
+        />
       </DialogContent>
     </Dialog>
   );

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   afterEach,
@@ -18,13 +18,19 @@ import type {
 } from "../../../shared/index";
 import { openingBalancesQuery } from "../../queries";
 import { OpeningBalances } from "./OpeningBalances";
+import { EditOpeningBalanceDialog } from "./OpeningBalanceDialogRoute";
+import {
+  BALANCES_SETTINGS_ROUTE,
+  EDIT_BALANCE_PATH,
+  balanceFormHref,
+} from "./routes";
 
 /*
  * Settings' Opening balances on screen: the recorded balances, what you
  * own, what you owe, then the banks and cards; one dialog per account that
  * takes the amount the user's way up; locked balances pointing to their
  * journal entry; and a link naming an account with none landing on its row
- * with its dialog open, the one way a balance is recorded here.
+ * with its form, the one way a balance is recorded here.
  */
 
 // A date the books don't give opens on today, in the workspace's zone.
@@ -218,12 +224,40 @@ async function renderPage(
         createElement(
           MemoryRouter,
           { initialEntries: [url] },
-          createElement(OpeningBalances),
+          createElement(LocationProbe),
+          createElement(
+            Routes,
+            null,
+            createElement(
+              Route,
+              {
+                path: BALANCES_SETTINGS_ROUTE.slice(1),
+                element: createElement(OpeningBalances),
+              },
+              createElement(Route, {
+                path: EDIT_BALANCE_PATH,
+                element: createElement(EditOpeningBalanceDialog),
+              }),
+            ),
+          ),
         ),
       ),
     );
   });
   await settle();
+}
+
+/** Where the page is, as the URL, for the tests that check a link's target. */
+function LocationProbe() {
+  const { pathname, search } = useLocation();
+  return createElement("span", { "data-location": `${pathname}${search}` });
+}
+
+/** The page's URL as the address bar holds it. */
+function location(): string {
+  const probe = document.querySelector("[data-location]");
+  if (probe === null) throw new Error("No location probe");
+  return probe.getAttribute("data-location") ?? "";
 }
 
 function text(): string {
@@ -309,9 +343,9 @@ function alertLink(): string | null | undefined {
   return document.querySelector('[role="alert"] a')?.getAttribute("href");
 }
 
-/** The page on the row a link names; an account with none opens its dialog. */
+/** The page on the row a link names; an account with none goes on to its form. */
 const linked = (account: string) =>
-  `/settings/balances?${new URLSearchParams({ account })}`;
+  `${BALANCES_SETTINGS_ROUTE}?${new URLSearchParams({ account })}`;
 
 describe("OpeningBalances", () => {
   it("lists the recorded balances: what you own, what you owe, then the banks and cards", async () => {
@@ -569,16 +603,26 @@ describe("OpeningBalances", () => {
     expect(lists).toBeGreaterThan(before);
   });
 
-  it("lands on a linked account by its path, with its dialog open", async () => {
+  it("lands on a linked account by its path, at its form's URL", async () => {
     await renderPage(ALL, linked("Liabilities:Cards:Sample Card Gold"));
 
     const row = rowOf("Sample Card Gold");
     expect(row.getAttribute("aria-current")).toBe("true");
     expect(row.className).toContain("bg-attention-bg");
+    // The row stays behind the form, at the link's own `?account=`.
+    expect(location()).toBe(
+      `${balanceFormHref(10)}?${new URLSearchParams({
+        account: "Liabilities:Cards:Sample Card Gold",
+      })}`,
+    );
     expect(text()).toContain("Add a balance for Sample Card Gold");
+    // Opening the form didn't rebuild the page behind it: one read, and the
+    // row the user was looking at is the same element.
+    expect(lists).toBe(1);
+    expect(document.contains(row)).toBe(true);
   });
 
-  it("opens a linked account's dialog once the fresh list names it", async () => {
+  it("opens a linked account's form once the fresh list names it", async () => {
     // The cached list is from before the card was added.
     await renderPage(
       ALL,
@@ -594,6 +638,55 @@ describe("OpeningBalances", () => {
     await renderPage(ALL, linked("EPF"));
 
     expect(rowOf("EPF").getAttribute("aria-current")).toBe("true");
+    expect(document.querySelector("form")).toBeNull();
+  });
+
+  it("opened from a link, the form closes back onto the marked row", async () => {
+    await renderPage(ALL, linked("Sample Card Gold"));
+
+    await click("Cancel");
+
+    expect(location()).toBe(linked("Sample Card Gold"));
+    expect(rowOf("Sample Card Gold").getAttribute("aria-current")).toBe("true");
+  });
+
+  it("opens a recorded balance's form from its URL, and changes it", async () => {
+    await renderPage(ALL, balanceFormHref(8));
+
+    expect(text()).toContain("Edit the balance for Sample Bank Savings");
+
+    await act(async () => button("Save").click());
+    await settle();
+
+    expect(sent).toEqual([
+      {
+        method: "PUT",
+        path: "/opening-balances/8",
+        body: { amount: 12000, date: "2026-03-31" },
+      },
+    ]);
+    expect(location()).toBe(BALANCES_SETTINGS_ROUTE);
+  });
+
+  it("opens a group account's form from its URL, as a link naming it would", async () => {
+    // Investments is a group account: the page lists it only for a link that
+    // names it, and then in its type's table.
+    await renderPage(ALL, balanceFormHref(4));
+
+    expect(text()).toContain("Add a balance for Investments");
+    expect(text()).toContain("What it held.");
+  });
+
+  it("says when the link's account isn't one, or isn't here", async () => {
+    await renderPage(ALL, "/settings/balances/horse/edit");
+    expect(text()).toContain("No account in this link");
+    expect(document.querySelector("form")).toBeNull();
+  });
+
+  it("says when the link names no account in the list", async () => {
+    await renderPage(ALL, balanceFormHref(999));
+
+    expect(text()).toContain("That account isn't in your balances");
     expect(document.querySelector("form")).toBeNull();
   });
 

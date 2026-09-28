@@ -2,7 +2,9 @@
 // its `export * from './form'` meets the build's `form.js` stub, which has no
 // declarations beside it. The package publishes this subpath for it.
 import { fieldIssuesForSubmissionError } from "@sapporta/frontend/form";
+import type { Row } from "@sapporta/shared/contracts";
 import {
+  LEDGER_ACCOUNT_TYPES,
   OPENING_BALANCES_NAME,
   type ChartChoice,
   type LedgerAccountType,
@@ -338,4 +340,29 @@ function isFormField(value: unknown): value is AccountFormField {
 
 function withArticle(type: LedgerAccountType): string {
   return type === "Asset" || type === "Expense" ? `an ${type}` : `a ${type}`;
+}
+
+/**
+ * A row from the accounts table as the form reads one, or null when it lacks
+ * a column. Both ways in — the chart's page of rows and the one row an edit
+ * URL names — land here, so the form is handed the same four columns either
+ * way.
+ */
+export function accountRow(row: Row): AccountRow | null {
+  const { id, name, parent_id, account_type } = row;
+  if (
+    typeof id !== "number" ||
+    typeof name !== "string" ||
+    typeof account_type !== "string" ||
+    !(LEDGER_ACCOUNT_TYPES as readonly string[]).includes(account_type) ||
+    (parent_id !== null && typeof parent_id !== "number")
+  ) {
+    return null;
+  }
+  return {
+    id,
+    name,
+    parent_id: parent_id === null ? null : parent_id,
+    account_type: account_type as LedgerAccountType,
+  };
 }

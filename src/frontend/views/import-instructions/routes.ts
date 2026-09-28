@@ -1,3 +1,5 @@
+import { parseRowId } from "../../row-id";
+
 /** Where the categoriser's rules and each account's AI notes are read. */
 export const CATEGORIZATION_RULES_ROUTE = "/categorization-rules";
 
@@ -19,9 +21,7 @@ export interface RulesView {
  */
 export function readRulesView(params: URLSearchParams): RulesView {
   const show = params.get("show");
-  const account = params.get("account");
-  const accountId =
-    account !== null && /^[1-9]\d*$/.test(account) ? Number(account) : null;
+  const accountId = parseRowId(params.get("account"));
   const tab =
     RULE_TABS.find((one) => one === show) ??
     (show === null && accountId !== null ? "ai" : "exact");

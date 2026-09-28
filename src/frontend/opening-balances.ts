@@ -87,6 +87,20 @@ export function sectionOf(
 ): OpeningSection | null {
   if (account.section !== null) return account.section;
   if (!focuses(account, focus)) return null;
+  return sectionForType(account);
+}
+
+/**
+ * The section an account's form belongs in when a URL names the account by
+ * its id. A URL that names it at all is a link naming it, so this is the
+ * same answer `sectionOf` gives a `?account=` link — the form says what the
+ * row it was opened from says.
+ */
+export function formSectionOf(account: OpeningBalanceAccount): OpeningSection {
+  return account.section ?? sectionForType(account);
+}
+
+function sectionForType(account: OpeningBalanceAccount): OpeningSection {
   return account.account_type === "Asset" ? "own" : "owe";
 }
 

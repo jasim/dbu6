@@ -89,7 +89,18 @@ describe("a frontend extension", () => {
 
   it("refuses a path or a navigation target dbu6 already has", () => {
     const Component = () => null;
-    for (const path of ["/import", "reports", "reports/net-worth", "login"]) {
+    for (const path of [
+      "/import",
+      "reports",
+      "reports/net-worth",
+      "login",
+      // A form under a route of ours is claimed by us too, not only the route
+      // it hangs from.
+      "accounts/new",
+      "accounts/:accountId/edit",
+      "settings/banks/:accountId/edit",
+      "settings/balances/:accountId/edit",
+    ]) {
       expect(() => buildApp({ routes: [{ path, Component }] })).toThrow(
         `A page with the path "${path.replace(/^\//, "")}" already exists`,
       );

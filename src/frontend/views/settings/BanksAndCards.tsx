@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { Lock } from "lucide-react";
 import { Checkbox } from "@sapporta/ui";
 import {
@@ -13,21 +12,19 @@ import {
 } from "@sapporta/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import type {
-  StatementAccountChange,
-  StatementAccountRow,
-} from "../../../shared/index";
+import type { StatementAccountRow } from "../../../shared/index";
 import { ADD_ROUTE } from "../../add-account/state";
-import { apiErrorMessage, setupApi } from "../../api";
+import { apiErrorMessage } from "../../api";
 import { EmptyState } from "../../components/empty-state";
 import { LoadError } from "../../components/load-error";
 import { Screen, ScreenTitle } from "../../components/screen";
 import { StatusChip } from "../../components/status-chip";
 import { Button } from "../../components/ui/button";
 import { maskIdentifier } from "../../format";
-import { refreshSetup, statementAccountsQuery } from "../../queries";
 import { RowMenu } from "./RowMenu";
-import { StatementAccountDialog } from "./StatementAccountDialog";
+import { statementAccountHref } from "./routes";
+import { lockedBecause } from "./statement-account-form";
+import { useStatementAccounts } from "./statement-accounts";
 
 /*
  * Settings' Banks & cards: the banks and cards statements come from, one
@@ -37,34 +34,18 @@ import { StatementAccountDialog } from "./StatementAccountDialog";
  * One whose account was deleted from the books can still be removed, which
  * stops dbu6 importing its statements.
  * A new bank or card comes in from its statements, at /add.
+ *
+ * Editing a row is the URL `/settings/banks/:accountId/edit`, whose form is
+ * this route's child. Removing one is a confirmation, which is a step of the
+ * click that asked for it and not a place of its own.
  */
-
-/**
- * Why a row can't change: entries in the books, or only transactions still
- * to review, which go once deleted in Review. Null while it can.
- */
-function lockedBecause(
-  row: Pick<StatementAccountRow, "entries" | "drafts">,
-): string | null {
-  if (row.entries > 0) return "Has transactions, so it can't change here.";
-  if (row.drafts > 0) {
-    return "Has transactions to review. Delete them in Review to change it.";
-  }
-  return null;
-}
 
 export function BanksAndCards() {
   usePageTitle("Banks & cards");
-  const client = useQueryClient();
-  const query = useQuery(statementAccountsQuery);
-  const [editing, setEditing] = useState<StatementAccountRow | null>(null);
+  const navigate = useNavigate();
+  const { query, save } = useStatementAccounts();
   const [removing, setRemoving] = useState<StatementAccountRow | null>(null);
 
-  const save = async (change: StatementAccountChange) => {
-    const accounts = await setupApi.changeStatementAccount({ body: change });
-    client.setQueryData(statementAccountsQuery.queryKey, accounts);
-    await refreshSetup(client);
-  };
   const addLink = (
     <Link
       to={ADD_ROUTE}
@@ -118,7 +99,9 @@ export function BanksAndCards() {
               <>
                 <AccountsTable
                   rows={data.accounts}
-                  onEdit={setEditing}
+                  onEdit={(row) =>
+                    navigate(statementAccountHref(row.account_id))
+                  }
                   onRemove={setRemoving}
                 />
                 <p className="mt-4 text-body text-ink-soft">
@@ -126,12 +109,6 @@ export function BanksAndCards() {
                 </p>
               </>
             )}
-            <StatementAccountDialog
-              row={editing}
-              data={data}
-              save={save}
-              onClose={() => setEditing(null)}
-            />
             <RemoveDialog
               row={removing}
               remove={(row, deleteAccount) =>
@@ -143,6 +120,10 @@ export function BanksAndCards() {
               }
               onClose={() => setRemoving(null)}
             />
+            {/* The open form, as `/settings/banks/:accountId/edit`: it reads
+                the list above through the Outlet, so opening it reads
+                nothing again. */}
+            <Outlet context={{ data, save }} />
           </>
         )}
       </div>

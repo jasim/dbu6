@@ -8,6 +8,7 @@ import {
   type LlmStatus,
   type StatementImportError,
 } from "../../shared/index";
+import { parseRowId } from "../row-id";
 
 /*
  * Which card /add shows (PLAN.md "The cards"), as a pure function of the URL,
@@ -76,7 +77,7 @@ export function readAddUrl(params: URLSearchParams): AddUrl {
   return {
     from,
     setup: params.get("run") === "setup",
-    added: added !== null && /^[1-9]\d*$/.test(added) ? Number(added) : null,
+    added: parseRowId(added),
   };
 }
 

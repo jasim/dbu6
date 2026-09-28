@@ -43,24 +43,22 @@ export function StatementAccountDialog({
   save,
   onClose,
 }: {
-  /** The row being edited; null when the dialog is closed. */
-  row: StatementAccountRow | null;
+  /** The row being edited. */
+  row: StatementAccountRow;
   data: StatementAccounts;
   save: (change: StatementAccountChange) => Promise<unknown>;
   onClose: () => void;
 }) {
   return (
-    <Dialog open={row !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
-        {row && (
-          <DialogBody
-            key={row.account_id}
-            row={row}
-            data={data}
-            save={save}
-            onClose={onClose}
-          />
-        )}
+        <DialogBody
+          key={row.account_id}
+          row={row}
+          data={data}
+          save={save}
+          onClose={onClose}
+        />
       </DialogContent>
     </Dialog>
   );

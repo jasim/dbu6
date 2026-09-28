@@ -81,13 +81,6 @@ export function reviewPage(
   return REVIEW_TABS.find((tab) => tab === rest) ?? null;
 }
 
-/** The account id in a Review URL, or null when it isn't one. */
-export function parseAccountId(value: string | undefined): number | null {
-  if (value === undefined || !/^[1-9]\d*$/.test(value)) return null;
-  const id = Number(value);
-  return Number.isSafeInteger(id) ? id : null;
-}
-
 /*
  * What /add hands Review in the URL (PLAN.md "Routes and URL state"):
  * `?imported=1` marks where the flow landed, and `?run=setup` the first

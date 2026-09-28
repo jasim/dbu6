@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   afterEach,
@@ -17,6 +17,12 @@ import type {
   StatementAccounts,
 } from "../../../shared/index";
 import { BanksAndCards } from "./BanksAndCards";
+import { EditStatementAccountDialog } from "./StatementAccountDialogRoute";
+import {
+  BANKS_SETTINGS_ROUTE,
+  EDIT_STATEMENT_ACCOUNT_PATH,
+  statementAccountHref,
+} from "./routes";
 
 /*
  * Settings' Banks & cards on screen: one flat table with its marks, the
@@ -30,6 +36,7 @@ let root: Root;
 let accounts: StatementAccounts;
 let posts: unknown[];
 let refusal: { error: string; code: string } | null;
+let reads: number;
 
 beforeAll(() => {
   (
@@ -89,6 +96,7 @@ beforeEach(() => {
   root = createRoot(host);
   posts = [];
   refusal = null;
+  reads = 0;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -96,6 +104,7 @@ beforeEach(() => {
       const url = new URL(String(request?.url ?? input), "http://localhost");
       const method = request?.method ?? init?.method ?? "GET";
       if (url.pathname.endsWith("/setup/statement-accounts")) {
+        if (method === "GET") reads += 1;
         if (method === "POST") {
           const body = request ? await request.text() : String(init?.body);
           posts.push(JSON.parse(body));
@@ -123,7 +132,10 @@ async function settle() {
   }
 }
 
-async function renderPage(rows: StatementAccountRow[]) {
+async function renderPage(
+  rows: StatementAccountRow[],
+  url = BANKS_SETTINGS_ROUTE,
+) {
   accounts = books(rows);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -135,13 +147,41 @@ async function renderPage(rows: StatementAccountRow[]) {
         { client },
         createElement(
           MemoryRouter,
-          { initialEntries: ["/settings/banks"] },
-          createElement(BanksAndCards),
+          { initialEntries: [url] },
+          createElement(LocationProbe),
+          createElement(
+            Routes,
+            null,
+            createElement(
+              Route,
+              {
+                path: BANKS_SETTINGS_ROUTE.slice(1),
+                element: createElement(BanksAndCards),
+              },
+              createElement(Route, {
+                path: EDIT_STATEMENT_ACCOUNT_PATH,
+                element: createElement(EditStatementAccountDialog),
+              }),
+            ),
+          ),
         ),
       ),
     );
   });
   await settle();
+}
+
+/** Where the page is, as the URL, for the tests that check a link's target. */
+function LocationProbe() {
+  const { pathname, search } = useLocation();
+  return createElement("span", { "data-location": `${pathname}${search}` });
+}
+
+/** The page's URL as the address bar holds it. */
+function location(): string {
+  const probe = document.querySelector("[data-location]");
+  if (probe === null) throw new Error("No location probe");
+  return probe.getAttribute("data-location") ?? "";
 }
 
 function text(): string {
@@ -382,5 +422,50 @@ describe("BanksAndCards", () => {
     await settle();
     expect(() => button("Edit")).toThrow();
     expect(button("Remove")).toBeTruthy();
+  });
+
+  it("edits a row at its own URL", async () => {
+    await renderPage([savings, card]);
+    await choose("Sample Bank Savings", "Edit");
+
+    expect(location()).toBe(statementAccountHref(8));
+  });
+
+  it("opens one row's form from its URL, and returns to the list", async () => {
+    await renderPage([savings, card], statementAccountHref(8));
+
+    expect(text()).toContain("Edit Sample Bank Savings");
+    expect(field("Bank").value).toBe("Sample Bank");
+
+    await act(async () => button("Cancel").click());
+    await settle();
+
+    expect(location()).toBe(BANKS_SETTINGS_ROUTE);
+    expect(document.querySelector("form")).toBeNull();
+    expect(text()).toContain("Sample Bank Savings");
+    // Opening and closing the form rebuilt nothing behind it: one read.
+    expect(reads).toBe(1);
+  });
+
+  it("says when the link's number isn't one", async () => {
+    await renderPage([savings], "/settings/banks/horse/edit");
+
+    expect(text()).toContain("No bank or card in this link");
+    expect(document.querySelector("form")).toBeNull();
+  });
+
+  it("says when the link names no row in the list", async () => {
+    await renderPage([savings], statementAccountHref(999));
+
+    expect(text()).toContain("That bank or card isn't in your settings");
+    expect(document.querySelector("form")).toBeNull();
+  });
+
+  it("says why a locked row's form won't open", async () => {
+    await renderPage([card], statementAccountHref(9));
+
+    expect(text()).toContain("Sample Card can't change here");
+    expect(text()).toContain("Has transactions, so it can't change here.");
+    expect(document.querySelector("form")).toBeNull();
   });
 });

@@ -13,7 +13,10 @@ import { fetchTableRows, reloadTGridRows } from "@sapporta/frontend";
 // `tableQueryKeys` is not reachable through the package's `.` entry: its
 // `export * from './table'` meets the build's `table/query.js` stub, which
 // has no declarations beside it. The package publishes this subpath for it.
-import { tableQueryKeys } from "@sapporta/frontend/table/query";
+import {
+  tableQueryKeys,
+  tableRecordQueryOptions,
+} from "@sapporta/frontend/table/query";
 import {
   agentHandoffApi,
   categorizationRuleRequestsApi,
@@ -234,6 +237,22 @@ export const accountChartQuery = queryOptions({
     ).data,
   ...FRESH_QUERY,
 });
+
+/**
+ * One account, as `/accounts/:accountId/edit` reads it. Its own read, not a
+ * lookup in the chart's page: that page stops at MAX_PAGE_SIZE rows, and a
+ * link to an account past the end of it would open nothing.
+ */
+export function accountQuery(accountId: number) {
+  return queryOptions({
+    ...tableRecordQueryOptions({
+      tableName: "accounts",
+      // The route's `:id` is a path segment, so the id travels as text.
+      recordId: String(accountId),
+    }),
+    ...FRESH_QUERY,
+  });
+}
 
 /**
  * Whether anything is posted on one account. The form's "they'll show under

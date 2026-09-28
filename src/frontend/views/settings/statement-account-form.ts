@@ -36,6 +36,22 @@ export function draftOf(row: StatementAccountRow): StatementAccountDraft {
 }
 
 /**
+ * Why a row can't change: entries in the books, or only transactions still
+ * to review, which go once deleted in Review. Null while it can. The list
+ * shows it in place of the row's menu, and a form's URL says it in place of
+ * the form.
+ */
+export function lockedBecause(
+  row: Pick<StatementAccountRow, "entries" | "drafts">,
+): string | null {
+  if (row.entries > 0) return "Has transactions, so it can't change here.";
+  if (row.drafts > 0) {
+    return "Has transactions to review. Delete them in Review to change it.";
+  }
+  return null;
+}
+
+/**
  * Another account at the bank, which makes a number necessary for this one;
  * null when there is none. `self` is the account being edited.
  */

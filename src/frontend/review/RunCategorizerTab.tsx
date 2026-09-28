@@ -14,6 +14,7 @@ import { draftTransactionsApi, importPresetsApi } from "../api";
 import { FactTable, type Fact } from "../components/fact-table";
 import { Button, buttonVariants } from "../components/ui/button";
 import { plural } from "../format";
+import { parseRowId } from "../row-id";
 import { categorizationRuleRequestsQuery } from "../queries";
 import { CategorizationNote } from "../views/categorization/CategorizationFigures";
 import { AgentUnavailableDialog } from "../views/categorization/AgentUnavailableDialog";
@@ -35,7 +36,6 @@ import { useReviewAccount } from "./ReviewAccount";
 import {
   IMPROVE_CATEGORIZATION_TAB,
   needsAccountHref,
-  parseAccountId,
   REVIEW_ROUTE,
   reviewHref,
   RUN_CATEGORIZER_TAB,
@@ -65,7 +65,7 @@ interface CategorizerRun {
  */
 export function ReclassifyDraftsRedirect() {
   const [searchParams] = useSearchParams();
-  const accountId = parseAccountId(searchParams.get("account") ?? undefined);
+  const accountId = parseRowId(searchParams.get("account"));
   return (
     <Navigate
       to={

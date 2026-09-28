@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { Lock } from "lucide-react";
 import { cn } from "@sapporta/ui/cn";
 import {
@@ -18,13 +23,12 @@ import type {
   OpeningSection,
 } from "../../../shared/index";
 import { ADD_OTHER_ROUTE } from "../../add-account/state";
-import { apiErrorMessage, openingBalancesApi } from "../../api";
+import { apiErrorMessage } from "../../api";
 import { EmptyState } from "../../components/empty-state";
 import { LoadError } from "../../components/load-error";
 import { Screen, ScreenTitle } from "../../components/screen";
 import { Button } from "../../components/ui/button";
 import { formatDate } from "../../format";
-import { openingBalancesQuery, refreshSetup } from "../../queries";
 import {
   focuses,
   journalHref,
@@ -37,13 +41,12 @@ import {
 } from "../../opening-balances";
 import {
   balanceProblem,
-  OpeningBalanceDialog,
   ProblemLine,
-  type BalanceEditing,
-  type BalanceEntry,
   type BalanceProblem,
 } from "./OpeningBalanceDialog";
 import { RowMenu } from "./RowMenu";
+import { balanceFormHref } from "./routes";
+import { useOpeningBalances } from "./opening-balances-data";
 
 /*
  * Settings' Opening balances: what each account held or owed when the
@@ -53,45 +56,38 @@ import { RowMenu } from "./RowMenu";
  * while its journal entry opens other accounts too. Recording one is C1's
  * (/add/other), except the balance a link names that an account lacks: a
  * bank or card whose statements print none, which C1 doesn't list.
+ *
+ * One account's form is the URL `/settings/balances/:accountId/edit`, whose
+ * route is a child of this one. Recording or removing is not a page of its
+ * own: the form's route carries this page's `?account=`, so the row a link
+ * named stays highlighted behind it and is still there when it closes.
  */
 export function OpeningBalances() {
   usePageTitle("Opening balances");
-  const client = useQueryClient();
-  const query = useQuery(openingBalancesQuery);
+  const navigate = useNavigate();
+  const { search } = useLocation();
+  const { query, save, remove } = useOpeningBalances();
   const [params] = useSearchParams();
   const focus = params.get("account");
-  const [editing, setEditing] = useState<BalanceEditing | null>(null);
   const [removing, setRemoving] = useState<OpeningBalanceAccount | null>(null);
 
-  // A failure may mean the list is out of date: read it again.
-  const afterFailure = (error: unknown): never => {
-    void query.refetch();
-    throw error;
-  };
-  const save = async (account: OpeningBalanceAccount, entry: BalanceEntry) => {
-    await (
-      account.opening === null
-        ? openingBalancesApi.record({
-            body: { account_id: account.account_id, ...entry },
-          })
-        : openingBalancesApi.change({
-            params: { accountId: account.account_id },
-            body: entry,
-          })
-    ).catch(afterFailure);
-    await refreshSetup(client);
-  };
-  const remove = async (account: OpeningBalanceAccount) => {
-    await openingBalancesApi
-      .remove({ params: { accountId: account.account_id }, body: {} })
-      .catch(afterFailure);
-    await refreshSetup(client);
-  };
+  /**
+   * Opens an account's balance form in front of this list. It keeps this
+   * page's `?account=`, which is what lists the row the form belongs to: the
+   * row stays behind the form, and comes back with it.
+   */
+  const openForm = (account: OpeningBalanceAccount) =>
+    void navigate({
+      pathname: balanceFormHref(account.account_id),
+      search,
+    });
 
-  // A link naming an account with no balance opens its dialog, once. The
+  // A link naming an account with no balance goes on to its form, once. The
   // cached list may predate the account (a bank just added), so the link
-  // waits for a list that is fresh and names it.
+  // waits for a list that is fresh and names it. A link that already landed
+  // on that form — a reload of it — is left where it is.
   const opened = useRef(false);
+  const { pathname } = useLocation();
   const data = query.data;
   const fetching = query.isFetching;
   useEffect(() => {
@@ -101,9 +97,9 @@ export function OpeningBalances() {
     opened.current = true;
     const section = sectionOf(account, focus);
     if (section && account.opening === null) {
-      setEditing({ account, section });
+      if (pathname !== balanceFormHref(account.account_id)) openForm(account);
     }
-  }, [data, fetching, focus]);
+  }, [data, fetching, focus, pathname]);
 
   const sections = data ? recordedSections(data, focus) : [];
   const addLink = (
@@ -160,9 +156,7 @@ export function OpeningBalances() {
                       key={section.section}
                       section={section}
                       focus={focus}
-                      onOpen={(account) =>
-                        setEditing({ account, section: section.section })
-                      }
+                      onOpen={openForm}
                       onRemove={setRemoving}
                     />
                   ))}
@@ -172,16 +166,15 @@ export function OpeningBalances() {
                 </p>
               </>
             )}
-            <OpeningBalanceDialog
-              editing={editing}
-              save={save}
-              onClose={() => setEditing(null)}
-            />
             <RemoveDialog
               account={removing}
               remove={remove}
               onClose={() => setRemoving(null)}
             />
+            {/* The open form, as `/settings/balances/:accountId/edit`: it
+                reads the list above through the Outlet, so opening it reads
+                nothing again. */}
+            <Outlet context={{ data, save }} />
           </>
         )}
       </div>

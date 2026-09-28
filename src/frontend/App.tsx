@@ -33,6 +33,11 @@ import { DuplicatesTab } from "./review/DuplicatesTab";
 import { ImproveCategorizationTab } from "./review/ImproveCategorizationTab";
 import { Overview } from "./review/Overview";
 import { AccountsPage } from "./views/accounts/AccountsPage";
+import {
+  EditAccountDialog,
+  NewAccountDialog,
+} from "./views/accounts/AccountDialogRoute";
+import { EDIT_ACCOUNT_PATH, NEW_ACCOUNT_PATH } from "./views/accounts/routes";
 import { ReviewAccount } from "./review/ReviewAccount";
 import { ReviewAccounts } from "./review/ReviewAccounts";
 import {
@@ -53,7 +58,11 @@ import { OpeningBalances } from "./views/settings/OpeningBalances";
 import {
   BALANCES_SETTINGS_ROUTE,
   BANKS_SETTINGS_ROUTE,
+  EDIT_BALANCE_PATH,
+  EDIT_STATEMENT_ACCOUNT_PATH,
 } from "./views/settings/routes";
+import { EditOpeningBalanceDialog } from "./views/settings/OpeningBalanceDialogRoute";
+import { EditStatementAccountDialog } from "./views/settings/StatementAccountDialogRoute";
 import { ChartCard } from "./setup/ChartCard";
 import { SETUP_ROUTE } from "./setup/routes";
 
@@ -123,7 +132,11 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
     <>
       {/* The everyday screens. Until Step 6 rebuilds each one, its route shows
         today's screen, so the sidebar already points where it will. */}
-      <Route path="accounts" element={<AccountsPage />} />
+      <Route path="accounts" element={<AccountsPage />}>
+        {/* The chart's two forms, each its own URL. */}
+        <Route path={NEW_ACCOUNT_PATH} element={<NewAccountDialog />} />
+        <Route path={EDIT_ACCOUNT_PATH} element={<EditAccountDialog />} />
+      </Route>
       <Route path="import" element={<AutoImportStatements />} />
       <Route path="review" element={<ReviewAccounts />} />
       <Route path="review/:accountId" element={<ReviewAccount />}>
@@ -144,11 +157,23 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
         element={<Navigate to="/reports" replace />}
       />
       <Route path="settings" element={<SettingsPage />} />
-      <Route path={BANKS_SETTINGS_ROUTE.slice(1)} element={<BanksAndCards />} />
+      <Route path={BANKS_SETTINGS_ROUTE.slice(1)} element={<BanksAndCards />}>
+        {/* One bank or card's form, each its own URL. */}
+        <Route
+          path={EDIT_STATEMENT_ACCOUNT_PATH}
+          element={<EditStatementAccountDialog />}
+        />
+      </Route>
       <Route
         path={BALANCES_SETTINGS_ROUTE.slice(1)}
         element={<OpeningBalances />}
-      />
+      >
+        {/* One account's balance, each its own URL. */}
+        <Route
+          path={EDIT_BALANCE_PATH}
+          element={<EditOpeningBalanceDialog />}
+        />
+      </Route>
       <Route
         path={CATEGORIZATION_RULES_ROUTE.slice(1)}
         element={<ImportInstructions />}
@@ -224,13 +249,23 @@ export function buildApp(extension: Dbu6FrontendExtension = {}): App {
   };
 }
 
-/** The top-level `path` of every route in a fragment of `<Route>`s. */
-function routePaths(routes: ReactNode): string[] {
+/**
+ * The `path` of every route in a fragment of `<Route>`s, nested ones included
+ * — a child route's URL is its parent's path and its own, so `accounts` with
+ * a `new` child is the path `accounts/new`. The guard below compares these
+ * with an extension's, and a URL this app already answers may not be taken.
+ */
+function routePaths(routes: ReactNode, under = ""): string[] {
   return Children.toArray(routes).flatMap((child) => {
     if (!isValidElement<{ path?: string; children?: ReactNode }>(child)) {
       return [];
     }
-    if (child.type !== Route) return routePaths(child.props.children);
-    return child.props.path === undefined ? [] : [routeKey(child.props.path)];
+    if (child.type !== Route) return routePaths(child.props.children, under);
+    const path =
+      child.props.path === undefined
+        ? under
+        : routeKey(`${under}/${child.props.path}`);
+    const nested = routePaths(child.props.children, path);
+    return child.props.path === undefined ? nested : [path, ...nested];
   });
 }

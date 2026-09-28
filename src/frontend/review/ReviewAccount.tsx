@@ -20,6 +20,7 @@ import { ApiError } from "@sapporta/shared/client";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
 import { apiErrorMessage } from "../api";
+import { parseRowId } from "../row-id";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
@@ -33,7 +34,6 @@ import {
   CATEGORIZATION_TABS,
   checkTab,
   IMPROVE_CATEGORIZATION_TAB,
-  parseAccountId,
   readReviewRun,
   REVIEW_ROUTE,
   reviewHref,
@@ -76,7 +76,7 @@ export function useReviewAccount(): ReviewAccountContext {
  * tab change and after posting, so the counts follow edits made in a tab.
  */
 export function ReviewAccount() {
-  const accountId = parseAccountId(useParams().accountId);
+  const accountId = parseRowId(useParams().accountId);
   const { pathname, search } = useLocation();
   if (accountId === null) return <Navigate to={REVIEW_ROUTE} replace />;
   // Any path under the account that isn't a tab lands on its Overview.
