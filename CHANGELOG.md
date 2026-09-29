@@ -1,5 +1,11 @@
 # @dbu6/app
 
+## 0.2.1
+
+### Patch Changes
+
+- Expect the changelog among the files package.json ships by path
+
 ## 0.2.0
 
 ### Minor Changes
