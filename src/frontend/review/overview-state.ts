@@ -74,8 +74,7 @@ export interface PostedView {
   verdict: string;
   outcome: Phrase;
   /**
-   * The primary action: the next account to review, else importing more,
-   * or Home once the first run has set the books up.
+   * The primary action: the next account to review, else Home.
    */
   next: OverviewLink;
   /** A quiet second way on, when there is another account. */
@@ -267,7 +266,8 @@ export function postedView(
         journey: posted,
         verdict: "Added to your books",
         outcome,
-        next: { label: "Import statements", to: "/import" },
+        next: BOOKS_SET_UP_NEXT,
+        also: { label: "Import another statement", to: "/import" },
       };
 }
 

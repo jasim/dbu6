@@ -154,12 +154,15 @@ describe("postedView", () => {
     expect(view.also).toEqual({ label: "All accounts", to: "/review" });
   });
 
-  it("sends the user to import when no account has drafts left", () => {
+  it("sends the user Home when no account has drafts left", () => {
     const view = postedView(detail({}, { closing: null }), 1, []);
 
     expect(phraseText(view.outcome)).toBe("1 transaction added.");
-    expect(view.next).toEqual({ label: "Import statements", to: "/import" });
-    expect(view.also).toBeUndefined();
+    expect(view.next).toEqual({ label: "Go to Home", to: "/" });
+    expect(view.also).toEqual({
+      label: "Import another statement",
+      to: "/import",
+    });
   });
 
   it("carries the first run to the next account and to the picker", () => {
