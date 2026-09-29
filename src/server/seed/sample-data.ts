@@ -267,20 +267,20 @@ export function buildLedger(asOf) {
 
   function openingBalances() {
     const balances = [
-      [HDFC, 350000],
-      [SBI, 65000],
-      [CASH, 3500],
-      ["EPF", 640000],
-      ["PPF", 210000],
-      ["NPS", 125000],
-      ["Parag Parikh Flexi Cap", 340000],
-      ["UTI Nifty 50 Index", 220000],
-      ["Zerodha", 160000],
-      ["Gold", 45000],
-      ["HDFC Fixed Deposit", 150000],
-      [HCC, -21400],
-      [ICC, -7850],
-      [CAR_LOAN, -420000],
+      [HDFC, 280000],
+      [SBI, 40000],
+      [CASH, 3000],
+      ["EPF", 400000],
+      ["PPF", 130000],
+      ["NPS", 75000],
+      ["Parag Parikh Flexi Cap", 200000],
+      ["UTI Nifty 50 Index", 130000],
+      ["Zerodha", 100000],
+      ["Gold", 30000],
+      ["HDFC Fixed Deposit", 100000],
+      [HCC, -14000],
+      [ICC, -5000],
+      [CAR_LOAN, -280000],
     ];
     const equity = balances.reduce((sum, [, rupees]) => sum + rupees, 0);
     txn(
@@ -298,7 +298,7 @@ export function buildLedger(asOf) {
     );
   }
 
-  let carLoanOutstanding = 420000;
+  let carLoanOutstanding = 280000;
 
   function month(y, m) {
     const D = (d) => ymd(y, m, Math.min(d, daysInMonth(y, m)));
@@ -309,9 +309,9 @@ export function buildLedger(asOf) {
     const quarterEnd = [3, 6, 9, 12].includes(m);
 
     // Salary: credited on the last working day, with the payslip's deductions.
-    const gross = appraised ? 283400 : 260000;
+    const gross = appraised ? 160000 : 150000;
     const pf = Math.round(gross * 0.4 * 0.12); // 12% of basic, which is 40% of gross
-    const tds = appraised ? 50100 : 42800; // new regime, spread over the year
+    const tds = appraised ? 14700 : 12600; // new regime, spread over the year
     const professionalTax = m === 2 ? 300 : 200;
     txn(
       D(lastWorkingDay(y, m)),
@@ -335,19 +335,19 @@ export function buildLedger(asOf) {
       D(2),
       HDFC,
       "Rent",
-      appraised ? 33600 : 32000,
+      appraised ? 23100 : 22000,
       `Rent — ${label}`,
       `UPI/RENT ${mon}/landlord.sample@okhdfcbank`,
     );
     txn(D(3), "Transfer to SBI household account", [
-      [SBI, 27500, "IMPS/SELF TRANSFER/HDFC SAVINGS"],
-      [HDFC, -27500],
+      [SBI, 19500, "IMPS/SELF TRANSFER/HDFC SAVINGS"],
+      [HDFC, -19500],
     ]);
     pay(
       D(5),
       SBI,
       "House Help",
-      3500,
+      2500,
       "Maid salary",
       "UPI/HOUSE HELP/maid.sample@oksbi",
     );
@@ -355,7 +355,7 @@ export function buildLedger(asOf) {
       D(5),
       SBI,
       "House Help",
-      5500,
+      4000,
       "Cook salary",
       "UPI/COOK/cook.sample@oksbi",
     );
@@ -363,7 +363,7 @@ export function buildLedger(asOf) {
       D(1),
       SBI,
       "Milk & Dairy",
-      amount(2200, 2700),
+      amount(1600, 2000),
       "Milk subscription recharge",
       "UPI/COUNTRY DELIGHT/countrydelight@ybl",
     );
@@ -380,17 +380,17 @@ export function buildLedger(asOf) {
       D(4),
       SBI,
       "Parents' Support",
-      10000,
+      7000,
       "Monthly support to parents",
       "UPI/PARENTS/parents.sample@oksbi",
     );
     txn(D(10), "PPF contribution", [
-      ["PPF", 5000, "TRANSFER TO PPF ACCOUNT"],
-      [SBI, -5000],
+      ["PPF", 3000, "TRANSFER TO PPF ACCOUNT"],
+      [SBI, -3000],
     ]);
 
     // Car loan EMI: interest on the outstanding principal at 9% a year.
-    const emi = 14500;
+    const emi = 10000;
     const interest = Math.round((carLoanOutstanding * 0.09) / 12);
     carLoanOutstanding -= emi - interest;
     txn(
@@ -405,8 +405,8 @@ export function buildLedger(asOf) {
     );
 
     // Investments
-    const flexiCapSip = appraised ? 11000 : 10000;
-    const indexSip = appraised ? 7000 : 6000;
+    const flexiCapSip = appraised ? 7000 : 6000;
+    const indexSip = appraised ? 4500 : 4000;
     txn(D(7), "SIP — Parag Parikh Flexi Cap", [
       ["Parag Parikh Flexi Cap", flexiCapSip, "ACH D- PPFAS MUTUAL FUND SIP"],
       [HDFC, -flexiCapSip],
@@ -416,8 +416,8 @@ export function buildLedger(asOf) {
       [HDFC, -indexSip],
     ]);
     txn(D(15), "NPS Tier I contribution", [
-      ["NPS", 4000, "NPS TRUST CONTRIBUTION"],
-      [HDFC, -4000],
+      ["NPS", 2500, "NPS TRUST CONTRIBUTION"],
+      [HDFC, -2500],
     ]);
 
     // Child
@@ -426,7 +426,7 @@ export function buildLedger(asOf) {
         D(5),
         HDFC,
         "School Fees",
-        24000,
+        15000,
         "Preschool quarterly fees",
         "NEFT/SAMPLE PRESCHOOL/QUARTERLY FEES",
       );
@@ -434,7 +434,7 @@ export function buildLedger(asOf) {
       D(8),
       HDFC,
       "Kids' Activities",
-      2500,
+      1800,
       "Swimming and art classes",
       "UPI/KIDS ACTIVITY CENTRE/kidsclub.sample@okicici",
     );
@@ -445,20 +445,20 @@ export function buildLedger(asOf) {
       D(7),
       HCC,
       "Electricity",
-      summer ? amount(2300, 3100) : amount(1150, 1650),
+      summer ? amount(1800, 2400) : amount(900, 1300),
       "BESCOM electricity bill",
       "BBPS BESCOM BANGALORE",
     );
-    pay(D(18), HCC, "Internet", 1200, "ACT Fibernet", "ACT FIBERNET BANGALORE");
+    pay(D(18), HCC, "Internet", 800, "ACT Fibernet", "ACT FIBERNET BANGALORE");
     pay(
       D(22),
       HCC,
       "Mobile",
-      1050,
+      750,
       "Airtel postpaid family plan",
       "AIRTEL POSTPAID",
     );
-    pay(D(9), HCC, "Streaming", 650, "Netflix", "NETFLIX.COM");
+    pay(D(9), HCC, "Streaming", 499, "Netflix", "NETFLIX.COM");
     pay(D(15), HCC, "Streaming", 180, "Spotify", "SPOTIFY INDIA");
     pay(
       D(20),
@@ -474,7 +474,7 @@ export function buildLedger(asOf) {
         D(6),
         HCC,
         "Fitness",
-        7500,
+        5000,
         "cult.fit quarterly membership",
         "CULTFIT CUREFIT HEALTHCARE",
       );
@@ -493,7 +493,7 @@ export function buildLedger(asOf) {
         D(weekends[i]),
         HCC,
         "Groceries",
-        amount(1500, 3000),
+        amount(1100, 2100),
         `Groceries — ${store.split(" ")[0]}`,
         store,
       );
@@ -501,7 +501,7 @@ export function buildLedger(asOf) {
         D(weekends[i]),
         CASH,
         "Groceries",
-        amount(250, 600),
+        amount(200, 450),
         "Vegetables and fruits",
         "Cash — vegetable market",
       );
@@ -516,7 +516,7 @@ export function buildLedger(asOf) {
         D(d),
         HDFC,
         "Groceries",
-        amount(180, 900),
+        amount(150, 650),
         `Quick commerce — ${name}`,
         `UPI/${name}/${vpa}`,
       );
@@ -532,7 +532,7 @@ export function buildLedger(asOf) {
         D(d),
         HDFC,
         "Food Delivery",
-        amount(220, 780),
+        amount(180, 550),
         `${name} order`,
         `UPI/${name.toUpperCase()}/${vpa}`,
       );
@@ -546,7 +546,7 @@ export function buildLedger(asOf) {
         "SAMPLE UDUPI RESTAURANT",
         "SAMPLE PIZZERIA",
       ]);
-      pay(D(d), HCC, "Dining Out", amount(600, 2800), "Dining out", place);
+      pay(D(d), HCC, "Dining Out", amount(450, 1800), "Dining out", place);
     }
 
     // Getting around
@@ -555,7 +555,7 @@ export function buildLedger(asOf) {
         D(d),
         HCC,
         "Fuel",
-        amount(1400, 2400),
+        amount(1000, 1700),
         "Fuel",
         pick([
           "HPCL FUEL STATION",
@@ -575,7 +575,7 @@ export function buildLedger(asOf) {
         D(d),
         HDFC,
         "Cabs & Autos",
-        amount(90, 650),
+        amount(80, 450),
         `${name} ride`,
         `UPI/${name.toUpperCase()}/${vpa}`,
       );
@@ -593,7 +593,7 @@ export function buildLedger(asOf) {
       D(11),
       HDFC,
       "Metro",
-      500,
+      400,
       "Namma Metro card recharge",
       "UPI/BMRCL/bmrcl@axisbank",
     );
@@ -601,7 +601,7 @@ export function buildLedger(asOf) {
       D(13),
       HDFC,
       "Car Maintenance",
-      600,
+      400,
       "Car wash",
       "UPI/CAR WASH/carwash.sample@paytm",
     );
@@ -610,7 +610,7 @@ export function buildLedger(asOf) {
         D(16),
         HDFC,
         "Tolls & Parking",
-        1000,
+        700,
         "FASTag recharge",
         "UPI/FASTAG RECHARGE/netc.fastag@hdfcbank",
       );
@@ -634,7 +634,7 @@ export function buildLedger(asOf) {
         D(d),
         HDFC,
         "Medicines",
-        amount(250, 1300),
+        amount(200, 900),
         "Pharmacy",
         `UPI/${name}/${vpa}`,
       );
@@ -644,7 +644,7 @@ export function buildLedger(asOf) {
         D(int(3, 25)),
         HDFC,
         "Doctor & Lab",
-        800,
+        600,
         "Doctor consultation",
         "UPI/SAMPLE CLINIC/clinic.sample@okaxis",
       );
@@ -653,7 +653,7 @@ export function buildLedger(asOf) {
         D(d),
         HDFC,
         "Grooming",
-        amount(300, 1400),
+        amount(250, 900),
         "Salon",
         "UPI/SAMPLE SALON/salon.sample@okaxis",
       );
@@ -664,7 +664,7 @@ export function buildLedger(asOf) {
         D(d),
         ICC,
         "Household",
-        amount(300, 2200),
+        amount(250, 1500),
         "Amazon — household",
         "AMAZON PAY INDIA",
       );
@@ -673,7 +673,7 @@ export function buildLedger(asOf) {
         D(d),
         ICC,
         "Books & Toys",
-        amount(300, 1500),
+        amount(250, 1000),
         "Kids books and toys",
         pick(["AMAZON PAY INDIA", "FIRSTCRY BRAINBEES"]),
       );
@@ -682,7 +682,7 @@ export function buildLedger(asOf) {
         D(int(1, 28)),
         ICC,
         "Clothing",
-        amount(900, 3800),
+        amount(700, 2500),
         "Clothing",
         pick(["MYNTRA DESIGNS", "AJIO RELIANCE RETAIL"]),
       );
@@ -693,7 +693,7 @@ export function buildLedger(asOf) {
         D(d),
         HCC,
         "Movies",
-        amount(650, 1300),
+        amount(500, 1000),
         "Movie tickets",
         pick(["BOOKMYSHOW", "PVR INOX"]),
       );
@@ -712,7 +712,7 @@ export function buildLedger(asOf) {
       D(25),
       HCC,
       "Card Cashback",
-      amount(250, 750),
+      amount(150, 500),
       "HDFC card cashback",
       "CASHBACK CREDIT",
     );
@@ -720,7 +720,7 @@ export function buildLedger(asOf) {
       D(20),
       ICC,
       "Card Cashback",
-      amount(120, 450),
+      amount(80, 300),
       "Amazon Pay card cashback",
       "AMAZON PAY CASHBACK",
     );
@@ -729,7 +729,7 @@ export function buildLedger(asOf) {
         D(31),
         HDFC,
         "Savings Interest",
-        amount(1900, 2800),
+        amount(1200, 1800),
         "Savings interest",
         "CREDIT INTEREST CAPITALISED",
       );
@@ -737,7 +737,7 @@ export function buildLedger(asOf) {
         D(31),
         SBI,
         "Savings Interest",
-        amount(380, 560),
+        amount(250, 380),
         "Savings interest",
         "INTEREST CREDIT",
       );
@@ -767,7 +767,7 @@ export function buildLedger(asOf) {
       on(9, 13),
       HDFC,
       "Food",
-      450,
+      350,
       "Bakery — bread, cake and snacks",
       "UPI/SAMPLE BAKERY/bakery.sample@okaxis",
     );
@@ -775,7 +775,7 @@ export function buildLedger(asOf) {
       on(12, 6),
       HCC,
       "Food",
-      1500,
+      1000,
       "Snacks and drinks for a house party",
       "SAMPLE SUPERMARKET",
     );
@@ -783,7 +783,7 @@ export function buildLedger(asOf) {
       on(3, 7),
       CASH,
       "Food",
-      400,
+      300,
       "Sweets and savouries",
       "Cash — sweet shop",
     );
@@ -791,7 +791,7 @@ export function buildLedger(asOf) {
       on(6, 19),
       HDFC,
       "Food",
-      1000,
+      700,
       "Office cafeteria card top-up",
       "UPI/SAMPLE CAFETERIA/cafeteria.sample@okicici",
     );
@@ -799,7 +799,7 @@ export function buildLedger(asOf) {
       on(11, 8),
       ICC,
       "Shopping",
-      2600,
+      1800,
       "Amazon order — kitchenware and a desk lamp",
       "AMAZON PAY INDIA",
     );
@@ -809,20 +809,20 @@ export function buildLedger(asOf) {
       on(9, 18),
       HCC,
       "Travel Tickets",
-      6800,
+      4500,
       "Train tickets home for Diwali",
       "IRCTC E-TICKETING",
     );
     txn(on(9, 21), "Group dinner, split with friends", [
-      ["Dining Out", 1600, "Own share"],
-      [RECEIVABLES, 4800, "Friends' share"],
-      [HCC, -6400],
+      ["Dining Out", 1200, "Own share"],
+      [RECEIVABLES, 3600, "Friends' share"],
+      [HCC, -4800],
     ]);
     receive(
       on(9, 23),
       HDFC,
       RECEIVABLES,
-      4800,
+      3600,
       "Friends settle dinner split",
       "UPI/SPLITWISE SETTLE UP",
     );
@@ -832,7 +832,7 @@ export function buildLedger(asOf) {
       on(10, 1),
       CASH,
       "Festivals",
-      1200,
+      900,
       "Dussehra pooja items",
       "Cash — pooja store",
     );
@@ -840,7 +840,7 @@ export function buildLedger(asOf) {
       on(10, 3),
       ICC,
       "Electronics",
-      43000,
+      28000,
       "New smartphone (festival sale)",
       "AMAZON PAY INDIA",
     );
@@ -848,7 +848,7 @@ export function buildLedger(asOf) {
       on(10, 8),
       HCC,
       "Travel Tickets",
-      24600,
+      16000,
       "Flights to Goa",
       "INDIGO INTERGLOBE AVIATION",
     );
@@ -856,16 +856,16 @@ export function buildLedger(asOf) {
       on(10, 11),
       HCC,
       "Car Maintenance",
-      6800,
+      4500,
       "Car periodic service",
       "SAMPLE MOTORS SERVICE CENTRE",
     );
-    pay(on(10, 12), ICC, "Clothing", 14500, "Diwali clothes", "MYNTRA DESIGNS");
+    pay(on(10, 12), ICC, "Clothing", 9500, "Diwali clothes", "MYNTRA DESIGNS");
     pay(
       on(10, 15),
       SBI,
       "House Help",
-      3500,
+      2500,
       "Diwali bonus — maid",
       "UPI/HOUSE HELP/maid.sample@oksbi",
     );
@@ -873,7 +873,7 @@ export function buildLedger(asOf) {
       on(10, 15),
       SBI,
       "House Help",
-      5500,
+      4000,
       "Diwali bonus — cook",
       "UPI/COOK/cook.sample@oksbi",
     );
@@ -881,19 +881,19 @@ export function buildLedger(asOf) {
       on(10, 17),
       HDFC,
       "Local Travel",
-      650,
+      450,
       "Cab to railway station",
       "UPI/UBER/uber@axisbank",
     );
     txn(on(10, 18), "Dhanteras gold coin", [
-      ["Gold", 25000, "POS SAMPLE JEWELLERS"],
-      [HDFC, -25000],
+      ["Gold", 15000, "POS SAMPLE JEWELLERS"],
+      [HDFC, -15000],
     ]);
     pay(
       on(10, 19),
       HCC,
       "Gifts",
-      6800,
+      4500,
       "Diwali sweets and gifts",
       "SAMPLE SWEETS AND GIFTS",
     );
@@ -901,7 +901,7 @@ export function buildLedger(asOf) {
       on(10, 20),
       CASH,
       "Festivals",
-      2800,
+      1800,
       "Diyas, lights, and decorations",
       "Cash — Diwali market",
     );
@@ -909,13 +909,13 @@ export function buildLedger(asOf) {
       on(10, 23),
       HDFC,
       "Local Travel",
-      600,
+      400,
       "Cab home from station",
       "UPI/OLA/olacabs@ybl",
     );
     txn(on(10, 28), "Funds added to Zerodha", [
-      ["Zerodha", 25000, "NEFT/ZERODHA BROKING LTD"],
-      [HDFC, -25000],
+      ["Zerodha", 15000, "NEFT/ZERODHA BROKING LTD"],
+      [HDFC, -15000],
     ]);
 
     // November
@@ -923,7 +923,7 @@ export function buildLedger(asOf) {
       on(11, 6),
       HDFC,
       "Stock Dividends",
-      1150,
+      700,
       "Infosys interim dividend",
       "ACH C- INFOSYS LTD INT DIV",
     );
@@ -931,7 +931,7 @@ export function buildLedger(asOf) {
       on(11, 12),
       HCC,
       "Health Insurance",
-      26400,
+      21000,
       "Family floater health insurance",
       "SAMPLE HEALTH INSURANCE PREMIUM",
     );
@@ -939,7 +939,7 @@ export function buildLedger(asOf) {
       on(11, 15),
       HCC,
       "Hotels & Stays",
-      31500,
+      20000,
       "Goa resort booking",
       "SAMPLE GOA BEACH RESORT",
     );
@@ -947,7 +947,7 @@ export function buildLedger(asOf) {
       on(11, 16),
       HDFC,
       "Doctor & Lab",
-      3200,
+      2500,
       "Child vaccination",
       "UPI/SAMPLE CHILDRENS CLINIC/clinic.sample@okaxis",
     );
@@ -956,7 +956,7 @@ export function buildLedger(asOf) {
       on(11, 23),
       HDFC,
       "Gifts",
-      5000,
+      3000,
       "Wedding gift",
       "UPI/WEDDING GIFT/cousin.sample@okicici",
     );
@@ -964,7 +964,7 @@ export function buildLedger(asOf) {
       on(11, 28),
       ICC,
       "Electronics",
-      11500,
+      8000,
       "Air purifier",
       "AMAZON PAY INDIA",
     );
@@ -974,7 +974,7 @@ export function buildLedger(asOf) {
       on(12, 14),
       HCC,
       "Outings",
-      5000,
+      3500,
       "Wonderla day out",
       "WONDERLA HOLIDAYS",
     );
@@ -982,7 +982,7 @@ export function buildLedger(asOf) {
       on(12, 25),
       HCC,
       "Gifts",
-      1850,
+      1200,
       "Christmas cake and gifts",
       "SAMPLE BAKERY",
     );
@@ -990,7 +990,7 @@ export function buildLedger(asOf) {
       on(12, 26),
       HDFC,
       "Local Travel",
-      1150,
+      800,
       "Cab to airport",
       "UPI/UBER/uber@axisbank",
     );
@@ -998,7 +998,7 @@ export function buildLedger(asOf) {
       on(12, 27),
       CASH,
       "Local Travel",
-      2400,
+      1500,
       "Scooter rental in Goa",
       "Cash — scooter rental",
     );
@@ -1006,7 +1006,7 @@ export function buildLedger(asOf) {
       on(12, 27),
       HCC,
       "Dining Out",
-      2850,
+      1900,
       "Dinner in Goa",
       "SAMPLE GOA SHACK",
     );
@@ -1014,7 +1014,7 @@ export function buildLedger(asOf) {
       on(12, 28),
       HCC,
       "Local Travel",
-      3500,
+      2200,
       "Water sports in Goa",
       "SAMPLE WATER SPORTS",
     );
@@ -1022,7 +1022,7 @@ export function buildLedger(asOf) {
       on(12, 28),
       CASH,
       "Dining Out",
-      1600,
+      1000,
       "Beach shack lunch",
       "Cash — beach shack",
     );
@@ -1030,7 +1030,7 @@ export function buildLedger(asOf) {
       on(12, 29),
       HCC,
       "Dining Out",
-      3400,
+      2200,
       "Dinner in Goa",
       "SAMPLE GOA RESTAURANT",
     );
@@ -1038,7 +1038,7 @@ export function buildLedger(asOf) {
       on(12, 30),
       HDFC,
       "Local Travel",
-      1100,
+      750,
       "Cab home from airport",
       "UPI/OLA/olacabs@ybl",
     );
@@ -1047,8 +1047,8 @@ export function buildLedger(asOf) {
     // is still within the seeded year
     const loanDate = on(1, 10);
     txn(loanDate, "Loan to a friend", [
-      [RECEIVABLES, 10000, "UPI/LOAN TO FRIEND/friend.sample@okaxis"],
-      [HDFC, -10000],
+      [RECEIVABLES, 6000, "UPI/LOAN TO FRIEND/friend.sample@okaxis"],
+      [HDFC, -6000],
     ]);
     const repaidOn = ymd(...addMonths(...yearMonth(loanDate), 2), 12);
     if (repaidOn <= year.lastPostedDate)
@@ -1056,7 +1056,7 @@ export function buildLedger(asOf) {
         repaidOn,
         HDFC,
         RECEIVABLES,
-        10000,
+        6000,
         "Friend repays loan",
         "UPI/LOAN REPAYMENT/friend.sample@okaxis",
       );
@@ -1064,7 +1064,7 @@ export function buildLedger(asOf) {
       on(1, 14),
       CASH,
       "Festivals",
-      1400,
+      900,
       "Sankranti festival",
       "Cash — festival market",
     );
@@ -1072,7 +1072,7 @@ export function buildLedger(asOf) {
       on(1, 18),
       HDFC,
       "Term Life Insurance",
-      16850,
+      12500,
       "Term life insurance premium",
       "ACH D- SAMPLE LIFE INSURANCE PREMIUM",
     );
@@ -1080,7 +1080,7 @@ export function buildLedger(asOf) {
       on(1, 19),
       ICC,
       "Clothing",
-      4200,
+      2800,
       "End-of-season sale",
       "AJIO RELIANCE RETAIL",
     );
@@ -1088,7 +1088,7 @@ export function buildLedger(asOf) {
       on(1, 24),
       HCC,
       "Furniture",
-      15000,
+      10000,
       "Study table and chair",
       "IKEA INDIA",
     );
@@ -1096,21 +1096,21 @@ export function buildLedger(asOf) {
       on(1, 25),
       HDFC,
       "Gifts",
-      11000,
+      7000,
       "Wedding gift",
       "UPI/WEDDING GIFT/friend.sample@okhdfcbank",
     );
 
     // February
     txn(on(2, 3), "Funds added to Zerodha", [
-      ["Zerodha", 20000, "NEFT/ZERODHA BROKING LTD"],
-      [HDFC, -20000],
+      ["Zerodha", 12000, "NEFT/ZERODHA BROKING LTD"],
+      [HDFC, -12000],
     ]);
     pay(
       on(2, 8),
       HCC,
       "Car Insurance",
-      17900,
+      12500,
       "Car insurance renewal",
       "SAMPLE GENERAL INSURANCE",
     );
@@ -1126,7 +1126,7 @@ export function buildLedger(asOf) {
       on(2, 14),
       HDFC,
       "Gifts",
-      5000,
+      3000,
       "Wedding gift",
       "UPI/WEDDING GIFT/colleague.sample@okicici",
     );
@@ -1134,7 +1134,7 @@ export function buildLedger(asOf) {
       on(2, 14),
       HCC,
       "Dining Out",
-      3800,
+      2500,
       "Valentine's Day dinner",
       "SAMPLE FINE DINING",
     );
@@ -1142,7 +1142,7 @@ export function buildLedger(asOf) {
       on(2, 20),
       HDFC,
       "Stock Dividends",
-      1000,
+      600,
       "Coal India interim dividend",
       "ACH C- COAL INDIA LTD DIV",
     );
@@ -1150,7 +1150,7 @@ export function buildLedger(asOf) {
       on(2, 21),
       HCC,
       "Doctor & Lab",
-      4200,
+      3000,
       "Annual health check-up",
       "SAMPLE DIAGNOSTICS",
     );
@@ -1158,7 +1158,7 @@ export function buildLedger(asOf) {
       on(2, 26),
       HCC,
       "Courses & Books",
-      4100,
+      2800,
       "Coursera specialisation",
       "COURSERA",
     );
@@ -1169,9 +1169,9 @@ export function buildLedger(asOf) {
       on(3, 16),
       "Fixed deposit matured",
       [
-        [HDFC, 160800],
-        ["HDFC Fixed Deposit", -150000, "FD maturity principal"],
-        ["Fixed Deposit Interest", -10800, "FD interest"],
+        [HDFC, 107200],
+        ["HDFC Fixed Deposit", -100000, "FD maturity principal"],
+        ["Fixed Deposit Interest", -7200, "FD interest"],
       ],
       { narration: "FD MATURITY PROCEEDS" },
     );
@@ -1179,7 +1179,7 @@ export function buildLedger(asOf) {
       on(3, 19),
       HCC,
       "Festivals",
-      2600,
+      1700,
       "Ugadi festival shopping",
       "SAMPLE SUPERMARKET",
     );
@@ -1187,7 +1187,7 @@ export function buildLedger(asOf) {
       on(3, 20),
       HDFC,
       "Parents' Health Insurance",
-      42500,
+      30000,
       "Parents' senior citizen health insurance",
       "NEFT/SAMPLE HEALTH INSURANCE",
     );
@@ -1195,7 +1195,7 @@ export function buildLedger(asOf) {
       on(3, 24),
       HCC,
       "Donations",
-      5000,
+      3000,
       "Donation to education charity",
       "SAMPLE CHARITY FOUNDATION",
     );
@@ -1212,7 +1212,7 @@ export function buildLedger(asOf) {
       ppfInterestDate,
       "PPF",
       "PPF Interest",
-      17000,
+      10500,
       `PPF interest for ${fyLabel(financialYear(...yearMonth(ppfInterestDate)))}`,
       "PPF INTEREST CREDIT",
     );
@@ -1222,7 +1222,7 @@ export function buildLedger(asOf) {
       on(4, 11),
       HCC,
       "Car Maintenance",
-      14200,
+      9500,
       "Car service and new battery",
       "SAMPLE MOTORS SERVICE CENTRE",
     );
@@ -1235,14 +1235,14 @@ export function buildLedger(asOf) {
       "DEBIT CARD ANNUAL FEE INCL GST",
     );
     txn(on(4, 19), "Akshaya Tritiya digital gold", [
-      ["Gold", 15000, "UPI/DIGITAL GOLD/digigold.sample@ybl"],
-      [HDFC, -15000],
+      ["Gold", 9000, "UPI/DIGITAL GOLD/digigold.sample@ybl"],
+      [HDFC, -9000],
     ]);
     pay(
       on(4, 25),
       HDFC,
       "Repairs & Maintenance",
-      1800,
+      1200,
       "AC servicing",
       "UPI/URBAN COMPANY/urbancompany@icici",
     );
@@ -1252,7 +1252,7 @@ export function buildLedger(asOf) {
       on(5, 2),
       CASH,
       "Repairs & Maintenance",
-      650,
+      500,
       "Plumber",
       "Cash — plumber",
     );
@@ -1260,7 +1260,7 @@ export function buildLedger(asOf) {
       on(5, 8),
       HDFC,
       "Hotels & Stays",
-      16500,
+      10500,
       "Coorg homestay booking",
       "UPI/SAMPLE COORG HOMESTAY/homestay.sample@okaxis",
     );
@@ -1268,7 +1268,7 @@ export function buildLedger(asOf) {
       on(5, 15),
       HCC,
       "Fuel",
-      2900,
+      2000,
       "Fuel for Coorg trip",
       "HPCL FUEL STATION",
     );
@@ -1276,7 +1276,7 @@ export function buildLedger(asOf) {
       on(5, 16),
       HCC,
       "Dining Out",
-      1850,
+      1200,
       "Lunch on the road",
       "SAMPLE HIGHWAY RESTAURANT",
     );
@@ -1284,7 +1284,7 @@ export function buildLedger(asOf) {
       on(5, 16),
       CASH,
       "Local Travel",
-      1800,
+      1200,
       "Coffee estate tour",
       "Cash — estate tour",
     );
@@ -1292,7 +1292,7 @@ export function buildLedger(asOf) {
       on(5, 17),
       HCC,
       "Dining Out",
-      2350,
+      1500,
       "Dinner in Madikeri",
       "SAMPLE MADIKERI RESTAURANT",
     );
@@ -1300,7 +1300,7 @@ export function buildLedger(asOf) {
       on(5, 17),
       CASH,
       "Gifts",
-      1450,
+      950,
       "Coffee and spices to take home",
       "Cash — spice shop",
     );
@@ -1308,7 +1308,7 @@ export function buildLedger(asOf) {
       on(5, 29),
       HDFC,
       "Kids' Activities",
-      6500,
+      4500,
       "Summer camp",
       "UPI/SAMPLE SUMMER CAMP/camp.sample@okicici",
     );
@@ -1318,7 +1318,7 @@ export function buildLedger(asOf) {
       on(6, 5),
       HDFC,
       "School Fees",
-      18500,
+      12000,
       "Annual fees and books",
       "NEFT/SAMPLE PRESCHOOL/ANNUAL FEES",
     );
@@ -1326,7 +1326,7 @@ export function buildLedger(asOf) {
       on(6, 10),
       HDFC,
       "Stock Dividends",
-      1400,
+      850,
       "Infosys final dividend",
       "ACH C- INFOSYS LTD FIN DIV",
     );
@@ -1334,7 +1334,7 @@ export function buildLedger(asOf) {
       on(6, 12),
       ICC,
       "Books & Toys",
-      4650,
+      3200,
       "School uniforms and books",
       "AMAZON PAY INDIA",
     );
@@ -1342,13 +1342,13 @@ export function buildLedger(asOf) {
       on(6, 26),
       HDFC,
       "Stock Dividends",
-      800,
+      500,
       "ITC dividend",
       "ACH C- ITC LTD DIV",
     );
     const juneYear = yearMonth(on(6, 1))[0];
-    const bonusGross = 250000;
-    const bonusTds = 78000;
+    const bonusGross = 160000;
+    const bonusTds = 42000;
     txn(
       ymd(juneYear, 6, lastWorkingDay(juneYear, 6)),
       `Performance bonus for ${fyLabel(financialYear(juneYear, 6) - 1)}`,
@@ -1362,14 +1362,14 @@ export function buildLedger(asOf) {
 
     // July
     txn(on(7, 3), "Funds added to Zerodha", [
-      ["Zerodha", 30000, "NEFT/ZERODHA BROKING LTD"],
-      [HDFC, -30000],
+      ["Zerodha", 18000, "NEFT/ZERODHA BROKING LTD"],
+      [HDFC, -18000],
     ]);
     pay(
       on(7, 11),
       HCC,
       "Doctor & Lab",
-      6500,
+      4500,
       "Dental treatment",
       "SAMPLE DENTAL CLINIC",
     );
@@ -1377,7 +1377,7 @@ export function buildLedger(asOf) {
       on(7, 18),
       ICC,
       "Clothing",
-      3900,
+      2600,
       "End-of-season sale",
       "MYNTRA DESIGNS",
     );
@@ -1385,7 +1385,7 @@ export function buildLedger(asOf) {
       on(7, 20),
       HDFC,
       "Stock Dividends",
-      600,
+      400,
       "HDFC Bank dividend",
       "ACH C- HDFC BANK LTD DIV",
     );
@@ -1400,9 +1400,9 @@ export function buildLedger(asOf) {
       on(8, 14),
       `Income tax refund for ${lastFinancialYear}`,
       [
-        [HDFC, 8200],
-        ["Income Tax", -7800, "Refund"],
-        ["Interest", -400, "Interest on the refund"],
+        [HDFC, 5200],
+        ["Income Tax", -5000, "Refund"],
+        ["Interest", -200, "Interest on the refund"],
       ],
       { narration: "NEFT CR-CPC INCOME TAX REFUND" },
     );
@@ -1410,7 +1410,7 @@ export function buildLedger(asOf) {
       on(8, 22),
       HCC,
       "Car Maintenance",
-      5900,
+      4000,
       "Car periodic service",
       "SAMPLE MOTORS SERVICE CENTRE",
     );
@@ -1418,7 +1418,7 @@ export function buildLedger(asOf) {
       on(8, 25),
       "EPF",
       "EPF Interest",
-      58600,
+      37500,
       `EPF interest for ${lastFinancialYear}`,
       "EPFO INTEREST CREDIT",
     );
@@ -1426,21 +1426,21 @@ export function buildLedger(asOf) {
       on(8, 27),
       ICC,
       "Gifts",
-      2500,
+      1800,
       "Raksha Bandhan gift",
       "AMAZON PAY INDIA",
     );
     txn(on(8, 28), "Weekend villa with friends, split", [
-      ["Hotels & Stays", 4500, "Own share"],
-      [RECEIVABLES, 13500, "Friends' share"],
-      [HCC, -18000],
+      ["Hotels & Stays", 3000, "Own share"],
+      [RECEIVABLES, 9000, "Friends' share"],
+      [HCC, -12000],
     ]);
     for (const day of [30, 30, 31])
       receive(
         on(8, day),
         HDFC,
         RECEIVABLES,
-        4500,
+        3000,
         "Friend settles villa split",
         "UPI/SPLITWISE SETTLE UP",
       );
@@ -1456,7 +1456,7 @@ export function buildLedger(asOf) {
       day(6),
       HDFC,
       "Groceries",
-      750,
+      600,
       "Unrecognised UPI payment",
       "UPI/SAMPLE KIRANA STORE/paytmqr.sample@paytm",
       { uncategorized: true },
@@ -1465,7 +1465,7 @@ export function buildLedger(asOf) {
       day(9),
       HDFC,
       RECEIVABLES,
-      2000,
+      1500,
       "Unrecognised IMPS credit",
       "IMPS CR/SAMPLE SENDER",
       { uncategorized: true },
@@ -1529,7 +1529,7 @@ export function buildLedger(asOf) {
   }
 
   /**
-   * Keep about 3.5 lakh in HDFC savings as an emergency fund, and invest what
+   * Keep about 2.2 lakh in HDFC savings as an emergency fund, and invest what
    * is above it in April (after the FD matures) and July (after the bonus).
    */
   function investSurplus() {
@@ -1549,8 +1549,8 @@ export function buildLedger(asOf) {
     ].sort(([a], [b]) => a.localeCompare(b));
     for (const [date, description, account, narration] of sweeps) {
       const surplus =
-        Math.floor((balanceOf(HDFC, date) / 100 - 350000) / 10000) * 10000;
-      if (surplus >= 50000)
+        Math.floor((balanceOf(HDFC, date) / 100 - 220000) / 10000) * 10000;
+      if (surplus >= 30000)
         txn(
           date,
           description,
