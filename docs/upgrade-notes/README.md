@@ -17,8 +17,10 @@ oldest first, before it migrates and runs `dbu6 check`.
   `user-config/` formats, the parser contract, the schema), what `check` will
   report, and what to do about it. Not a changelog; features and fixes that
   need nothing from the project are not mentioned.
-- The file is added in the same commit as the change it describes, so it is
-  in the tarball of the version it names. Only files named by an exact
+- The file is added in the version commit, the one that sets `version` in
+  `package.json` to the version the file names, so it is in the tarball of
+  that version. The version is not known before that commit, because it is
+  computed from the pending changesets. Only files named by an exact
   version are printed; this README is not.
 
 This is the first version of the package, so there is no note yet.

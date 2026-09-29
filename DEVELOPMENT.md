@@ -112,11 +112,23 @@ links are committed, and three things are gated on them:
   that lack the checkout's changes) except with `--local-sapporta`, which
   `pnpm pack:verify` and `pnpm pack:verify-init` use and which is never
   published.
-- `pnpm release` refuses; `pnpm release --dry-run` runs the whole path with
-  `--local-sapporta` and says a release would be stopped.
+- `pnpm release:publish` refuses; `pnpm release:publish --dry-run` runs the
+  whole path with `--local-sapporta` and says a release would be stopped.
 
 Publishing Sapporta and nuabase, then `pnpm package-sources:update-npm` and
-`pnpm package-sources:use-npm`, lifts all three.
+`pnpm package-sources:use-npm`, lifts all three. `update-npm` without
+arguments records each package's `latest` version on npm. With `name@version`
+arguments, such as `pnpm package-sources update-npm @sapporta/server@0.9.1`,
+it records exactly the versions named and keeps the versions already recorded
+for the other packages.
+
+`pnpm release:pin <name@version> ...` does the whole move to npm in one
+command: `update-npm` with those versions, `use:npm`, `pnpm install`, then
+`pnpm package-sources:verify`, stopping at the first step that fails. The
+release train uses it ([Releasing](#releasing)), so after a release made by
+the train this checkout is on npm versions. `pnpm release:link` goes back to
+the checkouts: it runs `use:local`, which reuses the recorded checkout paths,
+and then `pnpm install`. Neither command commits anything.
 
 ## Commands
 
@@ -147,7 +159,9 @@ Publishing Sapporta and nuabase, then `pnpm package-sources:update-npm` and
   (`scripts/pii-scan.mjs`); `pnpm pii-scan:pack` scans what `npm pack` would
   ship and refuses `link:` dependencies. Both run in a release.
 - `pnpm pack:tarball`, `pnpm pack:verify`, `pnpm pack:verify-init`,
-  `pnpm pack:verify-create`, `pnpm release` — see [The package](#the-package) and
+  `pnpm pack:verify-create` — see [The package](#the-package).
+- `pnpm changeset`, `pnpm release:status`, `pnpm release:version`,
+  `pnpm release:publish`, `pnpm release:pin`, `pnpm release:link` — see
   [Releasing](#releasing).
 - `node scripts/move-files.mjs … [--dry-run]` — move code inside
   `src/server` (paths relative to it) and rewrite every relative import of
@@ -420,17 +434,50 @@ dependencies, `private: true`, and `link:` specs while Sapporta is linked),
 and the staged manifest is what a user's npm installs. `npm publish` here is
 refused twice, by `private` and by `prepublishOnly`, which prints where to go
 instead. `npm publish <tarball>` runs no lifecycle script, so the gate is the
-release script itself:
+release script itself.
+
+The version comes from changesets. A change that should reach users is
+committed together with a changeset: a small Markdown file in `.changeset/`,
+written by `pnpm changeset`, which names `@dbu6/app`, the bump (`patch`,
+`minor` or `major`) and a one-line summary. `pnpm release:version` runs
+`changeset version`, which consumes the pending changesets: it raises
+`version` in `package.json` by the highest bump among them and adds their
+summaries to `CHANGELOG.md`. `@dbu6/create` never appears in a changeset,
+because `pack.mjs` gives it the app's version. `CHANGELOG.md` is shipped in
+the package, so a project can read it in `node_modules/@dbu6/app`; `.changeset/`
+is not.
+
+`pnpm release:status` prints, as one JSON object, what a release would
+start from: the version in `package.json`, whether `@dbu6/app` and
+`@dbu6/create` are both on npm at that version, the packages dbu6 depends
+on, the highest pending bump, and, when no changeset is pending, the commits
+since the last release that no changeset describes
+(`scripts/release-status.mjs` explains how the last release is found).
+
+Sapporta, nuabase and dbu6 are normally released together by the release
+train, `pnpm release-train` in `../sapporta-devtools`, which releases them in
+dependency order and does all the git work itself. For dbu6 it runs `pnpm
+release:pin` with the versions of Sapporta and nuabase it has just published
+([Sapporta and nuabase packages](#sapporta-and-nuabase-packages)), then `pnpm
+release:version`, commits the result as "Version packages for release", runs
+`pnpm release:publish`, and pushes the commit with its tag. For a minor or
+major release the train reminds you to add an upgrade note (below) to that
+commit.
+
+Without the train, the same steps are done by hand:
 
 ```bash
-# in package.json: set "version" to the release, commit
-pnpm release --dry-run     # every gate and step, nothing uploaded
-pnpm release               # publish, then tag v<version>; push the tag
+pnpm release:version               # consume the changesets; review package.json and CHANGELOG.md
+git add package.json CHANGELOG.md .changeset docs/upgrade-notes
+git commit -m "Version packages for release"
+pnpm release:publish --dry-run     # every gate and step, nothing uploaded
+pnpm release:publish               # publish, then tag v<version>
+git push --follow-tags
 ```
 
 `scripts/release.mjs` refuses unless the version is exact and not the
-`0.0.0` placeholder, the tree is clean, no `v<version>` tag exists and no
-dependency is a `link:`; then runs `pii-scan --tracked`, `pii-scan --pack`,
+`0.0.0` placeholder, the tree is clean, a `v<version>` tag, if there is one,
+is on the commit being released, and no dependency is a `link:`; then runs `pii-scan --tracked`, `pii-scan --pack`,
 `pnpm test` (`--skip-tests` when CI has), `pnpm build`, `pack.mjs` into
 `tmp/release/` (which scans the staged tree once more, generated manifest and
 shrinkwrap included), and `npm publish <tarball> --access public` for
@@ -441,9 +488,17 @@ otherwise. With `--dry-run` every gate and step runs and is reported, `npm
 publish --dry-run` prints what would be uploaded, and the exit code says
 whether a release would have gone through.
 
+A release that stops partway, for example after `@dbu6/app` is published and
+before `@dbu6/create` is, is finished by running `pnpm release:publish` again
+on the same commit. Before it tests or builds anything, the script asks npm
+which of the two packages are already there at this version. It publishes
+only the missing ones and creates the tag only when it does not exist. When
+both packages are on npm and the tag is on the commit, it reports that the
+release is done and exits successfully.
+
 A release that changes the promised surface, a `user-config/` format, the
 parser contract or the schema in a way a project has to act on gets a note in
-`docs/upgrade-notes/<version>.md`, in the same commit
+`docs/upgrade-notes/<version>.md`, added to the version commit
 ([docs/upgrade-notes/README.md](./docs/upgrade-notes/README.md) has the
 convention). `dbu6 upgrade` prints the notes between the two versions. Most
 releases need none.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The AGENTS.md "No PII" scan, as code. An npm publish cannot be taken back,
-// so `pnpm release` (scripts/release.mjs) runs this over exactly what `npm
-// pack` would include and scripts/pack.mjs runs it again over the staged
+// so `pnpm release:publish` (scripts/release.mjs) runs this over exactly what
+// `npm pack` would include and scripts/pack.mjs runs it again over the staged
 // tarball, and CI runs it over the git tracked tree.
 //
 //   node scripts/pii-scan.mjs --tracked            the git tracked tree (CI)
@@ -125,6 +125,13 @@ export function unmarkedDigitRuns(line, { isStatementData = false } = {}) {
     if (word && /[a-f]/.test(word)) continue;
     // A seven-digit abbreviated commit hash, named as one.
     if (run.length === 7 && /commit\s+`?$/i.test(line.slice(0, start))) continue;
+    // The same hash opening an entry of CHANGELOG.md, which `changeset
+    // version` writes as `- <hash>: <summary>`. Most hashes have a letter in
+    // them and pass as a hex word above; this is the one in about thirty that
+    // is all digits.
+    if (run.length === 7 && /^\s*- $/.test(line.slice(0, start)) && line[end] === ":") {
+      continue;
+    }
     // A colour. Not in statement data: `#123456` in a narration is a reference.
     if (!isStatementData && line[start - 1] === "#" && (run.length === 6 || run.length === 8)) {
       continue;

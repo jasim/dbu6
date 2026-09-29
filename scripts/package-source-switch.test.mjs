@@ -378,3 +378,56 @@ test("a mistyped option is reported, not thrown as a stack trace", () => {
     tree.cleanup();
   }
 });
+
+test("update-npm with versions records exactly those and keeps the rest", () => {
+  const tree = makeTree({ mode: "npm" });
+  try {
+    // Every other package is recorded already, so nothing asks the registry.
+    const result = run(
+      ["update-npm", "@sapporta/server@0.9.1", "nuabase@2.4.0-beta.1"],
+      tree.dir,
+    );
+    assert.equal(result.status, 0, result.stderr);
+
+    const { npm } = configOf(tree.dir);
+    assert.equal(npm["@sapporta/server"], "0.9.1");
+    assert.equal(npm.nuabase, "2.4.0-beta.1");
+    for (const entry of PACKAGES) {
+      if (entry.name === "@sapporta/server" || entry.name === "nuabase") continue;
+      assert.equal(npm[entry.name], VERSIONS[entry.name], entry.name);
+    }
+    // Only the config moves; use:npm is what writes package.json.
+    assert.equal(manifestOf(tree.dir).dependencies.nuabase, VERSIONS.nuabase);
+  } finally {
+    tree.cleanup();
+  }
+});
+
+test("update-npm refuses a package it does not manage, and writes nothing", () => {
+  const tree = makeTree({ mode: "npm" });
+  try {
+    const before = readFileSync(path.join(tree.dir, CONFIG_FILE), "utf8");
+    const result = run(
+      ["update-npm", "@sapporta/server@0.9.1", "react@19.2.7"],
+      tree.dir,
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /react is not a managed package/);
+    assert.equal(readFileSync(path.join(tree.dir, CONFIG_FILE), "utf8"), before);
+  } finally {
+    tree.cleanup();
+  }
+});
+
+test("update-npm refuses an argument that is not name@exact-version", () => {
+  const tree = makeTree({ mode: "npm" });
+  try {
+    for (const arg of ["@sapporta/server", "nuabase@^2.4.0", "nuabase@latest"]) {
+      const result = run(["update-npm", arg], tree.dir);
+      assert.notEqual(result.status, 0, arg);
+      assert.match(result.stderr, /^package-sources: /, arg);
+    }
+  } finally {
+    tree.cleanup();
+  }
+});

@@ -5,7 +5,7 @@
 // yet and still be packed and published later.
 //
 //   pnpm package-sources status
-//   pnpm package-sources update-npm
+//   pnpm package-sources update-npm [name@version ...]
 //   pnpm package-sources use:npm
 //   pnpm package-sources use:local [workspace] [--nuabase <path>]
 //   pnpm package-sources verify
@@ -16,6 +16,15 @@
 // recorded in the gitignored .package-source-switch.json and removes those
 // overrides. Both are all-or-nothing: every managed package moves together,
 // and `verify` refuses a tree that mixes the two.
+//
+// `update-npm` records the npm versions `use:npm` writes. Without arguments it
+// records each managed package's `latest` on the registry. With `name@version`
+// arguments it records exactly those versions and leaves the other recorded
+// ones as they are; a managed package that is neither named nor recorded yet
+// gets its `latest`. The release train in ../sapporta-devtools uses the second
+// form (through `pnpm release:pin`, scripts/release-pin.mjs) to pin dbu6 to
+// the versions it has just published, which `latest` may not be when a
+// release is a prerelease or npm has not caught up.
 import { existsSync } from "node:fs";
 import { readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -97,8 +106,7 @@ try {
       await showStatus();
       break;
     case "update-npm":
-      expectNoArguments();
-      await updateNpmVersions();
+      await updateNpmVersions(parsePins(commandArgs));
       break;
     case "use:npm":
       expectNoArguments();
@@ -193,12 +201,47 @@ async function showStatus() {
   }
 }
 
-async function updateNpmVersions() {
+/**
+ * The `name@version` arguments of `update-npm`, as a map. Each name must be a
+ * managed package and each version exact, since it is written into
+ * package.json as it is.
+ */
+function parsePins(args) {
+  const pins = new Map();
+  for (const arg of args) {
+    // The last `@`, so that a scoped name keeps its own.
+    const at = arg.lastIndexOf("@");
+    const name = at > 0 ? arg.slice(0, at) : "";
+    const version = at > 0 ? arg.slice(at + 1) : "";
+    if (!name || !version) {
+      throw new Error(`Expected name@version, got "${arg}".`);
+    }
+    if (!PACKAGE_BY_NAME.has(name)) {
+      throw new Error(
+        `${name} is not a managed package. Managed: ` +
+          `${LINKED_PACKAGES.map((entry) => entry.name).join(", ")}.`,
+      );
+    }
+    if (classifySource(version) !== "npm") {
+      throw new Error(`${arg}: "${version}" is not an exact version.`);
+    }
+    if (pins.has(name) && pins.get(name) !== version) {
+      throw new Error(
+        `${name} is named twice, at ${pins.get(name)} and ${version}.`,
+      );
+    }
+    pins.set(name, version);
+  }
+  return pins;
+}
+
+async function updateNpmVersions(pins) {
   const config = await readConfig();
   const manifests = await readManifestFiles();
   const packageNames = new Set([
     ...findLinkedLocations(manifests).map((location) => location.packageName),
     ...Object.keys(config.npm),
+    ...pins.keys(),
   ]);
 
   if (packageNames.size === 0) {
@@ -206,9 +249,20 @@ async function updateNpmVersions() {
   }
 
   for (const packageName of [...packageNames].sort()) {
-    const latest = await fetchLatestVersion(packageName);
-    config.npm[packageName] = latest;
-    console.log(`${packageName}: ${latest}`);
+    let version;
+    let from;
+    if (pins.has(packageName)) {
+      version = pins.get(packageName);
+      from = "as given";
+    } else if (pins.size > 0 && config.npm[packageName]) {
+      version = config.npm[packageName];
+      from = "kept";
+    } else {
+      version = await fetchLatestVersion(packageName);
+      from = "latest";
+    }
+    config.npm[packageName] = version;
+    console.log(`${packageName}: ${version} (${from})`);
   }
 
   config.updatedAt = new Date().toISOString();
@@ -762,7 +816,11 @@ function printHelp() {
 
 Commands:
   status                  Show the configured checkouts and current sources.
-  update-npm              Refresh stored npm release versions.
+  update-npm [name@version ...]
+                          Record the npm versions use:npm writes. Without
+                          arguments, each managed package's latest; with
+                          them, exactly the versions named, keeping the
+                          others already recorded.
   use:npm                 Switch all managed dependencies to npm releases.
   use:local [workspace] [--nuabase <path>]
                           Link all managed dependencies to local checkouts.

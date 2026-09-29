@@ -7,13 +7,17 @@
 // the repository, so package.json keeps `private: true` and its
 // `prepublishOnly` runs this script with --refuse-direct-publish.
 //
-//   pnpm release [--dry-run] [--tag <dist-tag>] [--skip-tests]
+//   pnpm release:publish [--dry-run] [--tag <dist-tag>] [--skip-tests]
 //
-// A release goes through, in order:
+// The version is already in package.json when this runs: `pnpm
+// release:version` wrote it from the changesets, and it was committed (the
+// release train in ../sapporta-devtools commits it as "Version packages for
+// release"). A release goes through, in order:
 //
 //   1. the gates, which cost nothing: the version in package.json is exact
-//      and not the 0.0.0 placeholder, the git tree is clean, no `v<version>`
-//      tag exists, and no dependency is a `link:` to a local checkout
+//      and not the 0.0.0 placeholder, the git tree is clean, a `v<version>`
+//      tag, if one exists, is on this commit, and no dependency is a `link:`
+//      to a local checkout
 //   2. `pii-scan --tracked` and `pii-scan --pack`: no PII, no fixture or test
 //      in the package, no link: or home path in what decides its contents
 //   3. `pnpm test` (skipped with --skip-tests; CI has run it on the commit)
@@ -22,6 +26,15 @@
 //   6. `npm publish <tarball> --access public` for @dbu6/app, then for
 //      @dbu6/create (which `npm init @dbu6` runs, and which depends on this
 //      @dbu6/app), then `git tag v<version>`
+//
+// A release can stop halfway: @dbu6/app published and @dbu6/create not, or
+// both published and the tag not made. Running it again on the same commit
+// finishes it. A package already on npm at this version is not published
+// again (npm would refuse the upload anyway), and the tag is made only when it
+// is missing. When both packages are on npm and the tag is there, the release
+// is done, and the script says so and exits 0 before testing or building
+// anything. A tag on another commit is refused: that version was released
+// from different code, so the version in package.json has to move on.
 //
 // Without --dry-run the first failure stops the release. With it nothing is
 // uploaded (`npm publish --dry-run` prints what would be) and every gate and
@@ -36,6 +49,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { publishedPackages, RELEASED_PACKAGES } from "./npm-published.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const outDir = path.join(root, "tmp", "release");
@@ -53,7 +67,7 @@ if (options["refuse-direct-publish"]) {
   console.error(
     "dbu6 is not published from this directory: `npm publish` here would ship the\n" +
       "repository (its scripts, dev dependencies and linked packages). Run\n" +
-      "`pnpm release`, which publishes the tarball scripts/pack.mjs stages.",
+      "`pnpm release:publish`, which publishes the tarball scripts/pack.mjs stages.",
   );
   process.exit(1);
 }
@@ -96,8 +110,18 @@ if (dirty !== "") {
     `uncommitted changes; a release is made from a commit:\n${indent(dirty)}`,
   );
 }
-if (git(["tag", "--list", `v${version}`]).trim() !== "") {
-  refuse("git tag", `v${version} already exists.`);
+const tag = `v${version}`;
+const tagExists = git(["tag", "--list", tag]).trim() !== "";
+if (tagExists) {
+  const tagged = git(["rev-list", "-n", "1", tag]).trim();
+  const head = git(["rev-parse", "HEAD"]).trim();
+  if (tagged !== head) {
+    refuse(
+      "git tag",
+      `${tag} already exists on ${tagged.slice(0, 7)}, not on this commit; ` +
+        "that version was released from other code. Raise the version.",
+    );
+  }
 }
 const linked = Object.entries(manifest.dependencies ?? {})
   .filter(([, spec]) => /^(link|file):/.test(spec))
@@ -108,6 +132,35 @@ if (linked.length > 0) {
     `${linked.join(", ")} come from a local checkout. Publish the linked ` +
       "packages and run `pnpm package-sources:use-npm` first.",
   );
+}
+
+// What an earlier run of this release already put on npm. Asked before the
+// tests and the build, so that a finished release costs nothing to re-run.
+// When the registry cannot be asked, a release stops: it could not tell a
+// package to publish from one already published. A dry run goes on as if
+// neither were.
+const onNpm = new Map();
+try {
+  for (const { name, published } of publishedPackages(version)) {
+    onNpm.set(name, published);
+  }
+} catch (error) {
+  refuse("npm registry", error.message);
+}
+const allOnNpm = RELEASED_PACKAGES.every((name) => onNpm.get(name));
+if (tagExists && allOnNpm && refusals.length === 0) {
+  console.log(
+    `\n@dbu6/app and @dbu6/create ${version} are on npm and ${tag} is on this ` +
+      "commit: the release is done.",
+  );
+  process.exit(0);
+}
+for (const [name, published] of onNpm) {
+  if (published) {
+    console.log(
+      `\n${name} ${version} is already on npm; it is not published again.`,
+    );
+  }
 }
 
 // --- 2–4. Scans, tests, build -----------------------------------------------
@@ -132,11 +185,14 @@ if (dryRun && linked.length > 0) {
   packArgs.push("--local-sapporta", "--version", version);
 }
 if (!step("pack", "node", packArgs)) finish();
-const tarballs = ["app", "create"].map((name) => {
-  const pattern = new RegExp(`^dbu6-${name}-.*\\.tgz$`);
+// npm names a scoped package's tarball `<scope>-<name>-<version>.tgz`.
+const tarballs = RELEASED_PACKAGES.map((name) => {
+  const pattern = new RegExp(
+    `^${name.replace(/^@/, "").replace("/", "-")}-.*\\.tgz$`,
+  );
   const tarball = readdirSync(outDir).find((file) => pattern.test(file));
   if (!tarball) {
-    refuse("pack", `no @dbu6/${name} tarball in ${outDir}.`);
+    refuse("pack", `no ${name} tarball in ${outDir}.`);
     finish();
   }
   return tarball;
@@ -145,16 +201,23 @@ const tarballs = ["app", "create"].map((name) => {
 // --- 6. Publish -------------------------------------------------------------
 
 // @dbu6/app first: @dbu6/create depends on it at this version. A failed
-// step stops the release there, so if @dbu6/create fails, @dbu6/app is out
-// and the refusal says what is left to do by hand.
+// step stops the release there; running `pnpm release:publish` again on the
+// same commit publishes only what is still missing.
 for (const [index, tarball] of tarballs.entries()) {
+  const name = RELEASED_PACKAGES[index];
+  if (onNpm.get(name)) {
+    console.log(
+      `\n> npm publish ${tarball}: skipped, ${name} ${version} is on npm`,
+    );
+    continue;
+  }
   const publishArgs = ["publish", tarball, "--access", "public"];
   if (distTag) publishArgs.push("--tag", distTag);
   if (dryRun) publishArgs.push("--dry-run");
   const label =
     index === 0 || dryRun
       ? `npm publish ${tarball}`
-      : `npm publish ${tarball} (@dbu6/app ${version} is published; run \`npm publish ${tarball} --access public\` in ${path.relative(root, outDir)}, then git tag -a v${version})`;
+      : `npm publish ${tarball} (@dbu6/app ${version} is published; run \`pnpm release:publish\` again to publish the rest)`;
   // The binary, not a shell's `npm`: the owner's shell defines a function of
   // that name that refuses to run. spawnSync with a command never goes
   // through a shell. It runs in tmp/release, where the tarballs are; nothing
@@ -163,19 +226,25 @@ for (const [index, tarball] of tarballs.entries()) {
 }
 
 if (!dryRun) {
-  const tagged = spawnSync(
-    "git",
-    ["tag", "-a", `v${version}`, "-m", `dbu6 ${version}`],
-    {
-      cwd: root,
-      stdio: "inherit",
-    },
-  );
-  console.log(
-    tagged.status === 0
-      ? `\nPublished @dbu6/app and @dbu6/create ${version} and tagged v${version}. Push the tag: git push origin v${version}`
-      : `\nPublished @dbu6/app and @dbu6/create ${version}. Tagging failed; tag the commit yourself: git tag -a v${version}`,
-  );
+  if (tagExists) {
+    console.log(
+      `\n@dbu6/app and @dbu6/create ${version} are on npm, and ${tag} was already on this commit.`,
+    );
+  } else {
+    const tagged = spawnSync(
+      "git",
+      ["tag", "-a", tag, "-m", `dbu6 ${version}`],
+      {
+        cwd: root,
+        stdio: "inherit",
+      },
+    );
+    console.log(
+      tagged.status === 0
+        ? `\n@dbu6/app and @dbu6/create ${version} are on npm, and this commit is tagged ${tag}. Push the tag: git push origin ${tag}`
+        : `\n@dbu6/app and @dbu6/create ${version} are on npm. Tagging failed; run \`pnpm release:publish\` again, or tag the commit yourself: git tag -a ${tag}`,
+    );
+  }
 }
 finish();
 
@@ -205,7 +274,7 @@ function finish() {
   if (refusals.length === 0) {
     if (dryRun) {
       console.log(
-        `\nDry run complete: a release of dbu6 ${version} would go through. Run pnpm release.`,
+        `\nDry run complete: a release of dbu6 ${version} would go through. Run pnpm release:publish.`,
       );
     }
     process.exit(0);

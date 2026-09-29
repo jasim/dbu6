@@ -94,6 +94,7 @@ test("digit runs that are not identifiers pass", () => {
     "sha a3f26728" + "16bc91",
     "took 1.23456789 s",
     "FDRLR050505050505050505",
+    "- 73029" + "14: Show a draft's bank narration",
   ]) {
     assert.deepEqual(unmarkedDigitRuns(line), [], line);
   }
