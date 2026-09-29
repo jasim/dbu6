@@ -106,7 +106,7 @@ describe("/coding-agent", () => {
     expect(direct).not.toHaveBeenCalled();
   });
 
-  it("uses the first installed agent until one is chosen", async () => {
+  it("shows no agent chosen until one is", async () => {
     detectLocalAgents.mockResolvedValue(BOTH);
 
     const response = await (await app()).request("/coding-agent");
@@ -132,7 +132,8 @@ describe("/coding-agent", () => {
           models: { state: "not_checked" },
         },
       ],
-      active: "claude-code",
+      chosen: null,
+      picking: false,
     });
   });
 
@@ -164,8 +165,8 @@ describe("/coding-agent", () => {
     const put = await choose(hono, "codex");
 
     expect(put.status).toBe(200);
-    expect((await put.json()).active).toBe("codex");
-    expect((await (await hono.request("/coding-agent")).json()).active).toBe(
+    expect((await put.json()).chosen).toBe("codex");
+    expect((await (await hono.request("/coding-agent")).json()).chosen).toBe(
       "codex",
     );
     expect(
@@ -189,7 +190,7 @@ describe("/coding-agent", () => {
       message: "Codex isn't installed on the machine running dbu6.",
     });
   });
-  it("checks the active agent's models again when asked", async () => {
+  it("with none chosen, asks the agents again when asked, and picks the first that works", async () => {
     detectLocalAgents.mockResolvedValue(BOTH);
     answering("sonnet");
     const hono = await app();
@@ -200,16 +201,18 @@ describe("/coding-agent", () => {
     const check = await checkAgain(hono);
 
     expect(check.status).toBe(200);
-    expect((await check.json()).agents[0].models).toEqual({
-      state: "checking",
+    expect(await check.json()).toMatchObject({
+      agents: [{ models: { state: "checking" } }, {}, {}],
+      chosen: null,
+      picking: true,
     });
     await vi.waitFor(async () => {
-      const [claude] = (await (await hono.request("/coding-agent")).json())
-        .agents;
-      expect(claude.models).toMatchObject({
+      const settings = await (await hono.request("/coding-agent")).json();
+      expect(settings.agents[0].models).toMatchObject({
         state: "ready",
         session: { model: "opus" },
       });
+      expect(settings).toMatchObject({ chosen: "claude-code", picking: false });
     });
     expect(direct).toHaveBeenCalledTimes(4);
   });
@@ -226,8 +229,13 @@ describe("/coding-agent", () => {
     const check = await checkAgain(hono);
 
     expect(check.status).toBe(200);
-    expect((await check.json()).active).toBe("claude-code");
+    expect((await check.json()).agents[0].installed).toBe(true);
     expect(detectLocalAgents).toHaveBeenCalledTimes(2);
+    await vi.waitFor(async () => {
+      expect((await (await hono.request("/coding-agent")).json()).chosen).toBe(
+        "claude-code",
+      );
+    });
   });
 
   it("reads the agents detected last, without detecting again", async () => {

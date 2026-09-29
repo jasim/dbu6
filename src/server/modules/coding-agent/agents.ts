@@ -2,7 +2,6 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
 import {
-  CODING_AGENTS,
   codingAgentSchema,
   type AgentModel,
   type CodingAgent,
@@ -18,10 +17,10 @@ import {
 
 /*
  * Which coding agent dbu6 uses for everything AI, and how it runs each one.
- * It is the agent chosen in Settings when that one is installed, else the
- * first installed one, Claude Code first. The choice lives in
- * user-config/settings.json: the agent belongs to this machine, not to a
- * workspace.
+ * It is always the chosen one (codingAgentInUse in src/shared): until the
+ * user chooses, dbu6 picks the first installed agent that works and saves it
+ * as the choice (models.ts). The choice lives in user-config/settings.json:
+ * the agent belongs to this machine, not to a workspace.
  *
  * What the screens say about an agent — its name, how to sign in — is in
  * CODING_AGENTS in src/shared. Both are keyed by the same agents, so adding
@@ -158,32 +157,5 @@ export function installedCodingAgents(
 ): InstalledAgent[] {
   return detected.filter(
     (status): status is InstalledAgent => status.installed,
-  );
-}
-
-/** Pure: the chosen agent when it is installed, else the first installed. */
-export function activeCodingAgent(
-  detected: readonly DetectedAgent[],
-  chosen: CodingAgent | null,
-): InstalledAgent | null {
-  const installed = installedCodingAgents(detected);
-  return installed.find((a) => a.agent === chosen) ?? installed[0] ?? null;
-}
-
-/** The agent dbu6 uses right now, or null when none is installed. */
-export async function currentCodingAgent(): Promise<InstalledAgent | null> {
-  const [detected, chosen] = await Promise.all([
-    codingAgents(),
-    chosenCodingAgent(),
-  ]);
-  return activeCodingAgent(detected, chosen);
-}
-
-/** Logs the agent dbu6 will use, for startup. */
-export function logCodingAgent(agent: InstalledAgent | null): void {
-  console.log(
-    agent === null
-      ? "[coding-agent] no coding agent installed: categorization and agent prompts are off"
-      : `[coding-agent] using ${CODING_AGENTS[agent.agent].label} (${agent.binaryPath})`,
   );
 }

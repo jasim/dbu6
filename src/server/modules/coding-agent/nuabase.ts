@@ -33,6 +33,18 @@ const CHECK_TIMEOUT_MS = 60_000;
 // Agent processes one client runs at once.
 const CONCURRENT_CALLS = 2;
 
+// Nuabase logs every call's start and end, usage included, as info. dbu6
+// keeps its warnings and errors and logs its own failures (failedGet,
+// failedList), so the server's log isn't a transcript of LLM calls.
+const logger = {
+  debug() {},
+  info() {},
+  warn: (message: string, context?: unknown) =>
+    console.warn(`[nuabase] ${message}`, context ?? ""),
+  error: (message: string, context?: unknown) =>
+    console.error(`[nuabase] ${message}`, context ?? ""),
+};
+
 /** What dbu6 reads of nuabase's LocalAgentStatus. */
 export type DetectedAgent =
   | { agent: CodingAgent; installed: false; loggedIn: false }
@@ -151,6 +163,7 @@ export async function askModel(
         agent: agent.agent,
         model,
         binaryPath: agent.binaryPath,
+        logger,
         timeoutMs: CHECK_TIMEOUT_MS,
       }),
     });
@@ -184,6 +197,7 @@ export function agentListClient(
       agent: agent.agent,
       model,
       binaryPath: agent.binaryPath,
+      logger,
       timeoutMs: CALL_TIMEOUT_MS,
       concurrency: CONCURRENT_CALLS,
     }),
@@ -244,6 +258,7 @@ export function agentGetClient(
       agent: agent.agent,
       model,
       binaryPath: agent.binaryPath,
+      logger,
       timeoutMs: CALL_TIMEOUT_MS,
       concurrency: CONCURRENT_CALLS,
     }),

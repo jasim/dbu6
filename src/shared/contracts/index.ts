@@ -138,12 +138,16 @@ export {
   ANY_CODING_AGENT,
   CODING_AGENTS,
   NO_CODING_AGENT_MESSAGE,
+  codingAgentInUse,
+  noCodingAgentMessage,
   unavailableAgentModelSchema,
+  type AgentInUse,
   type AgentModel,
   type AgentModels,
   type CodingAgent,
   type CodingAgentSettings,
   type CodingAgentStatus,
+  type NoCodingAgent,
   type UnavailableAgentModel,
 } from "./coding-agent.js";
 export {

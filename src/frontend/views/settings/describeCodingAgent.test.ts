@@ -40,11 +40,12 @@ const NO_CODEX: CodingAgentStatus = {
 };
 
 describe("describeCodingAgent", () => {
-  it("says what the active agent does, and on which models", () => {
+  it("says what the chosen agent does, and on which models", () => {
     expect(
       describeCodingAgent({
         agents: [CLAUDE, SIGNED_OUT_CODEX],
-        active: "claude-code",
+        chosen: "claude-code",
+        picking: false,
       }),
     ).toEqual({
       tone: "ok",
@@ -67,7 +68,8 @@ describe("describeCodingAgent", () => {
           unavailable: [{ ...SOL, reason: "Not on this sample plan." }],
         }),
       ],
-      active: "codex",
+      chosen: "codex",
+      picking: false,
     });
 
     expect(state.tone).toBe("ok");
@@ -81,7 +83,8 @@ describe("describeCodingAgent", () => {
     expect(
       describeCodingAgent({
         agents: [claude({ state: "checking" }), NO_CODEX],
-        active: "claude-code",
+        chosen: "claude-code",
+        picking: false,
       }),
     ).toEqual({
       tone: "ok",
@@ -104,7 +107,8 @@ describe("describeCodingAgent", () => {
             ],
           }),
         ],
-        active: "codex",
+        chosen: "codex",
+        picking: false,
       }),
     ).toEqual({
       tone: "attention",
@@ -121,7 +125,8 @@ describe("describeCodingAgent", () => {
     expect(
       describeCodingAgent({
         agents: [CLAUDE, SIGNED_OUT_CODEX],
-        active: "codex",
+        chosen: "codex",
+        picking: false,
       }),
     ).toEqual({
       tone: "attention",
@@ -134,28 +139,97 @@ describe("describeCodingAgent", () => {
 
   it("says what won't work when no agent is installed", () => {
     expect(
-      describeCodingAgent({ agents: [NO_CLAUDE, NO_CODEX], active: null }),
+      describeCodingAgent({
+        agents: [NO_CLAUDE, NO_CODEX],
+        chosen: null,
+        picking: false,
+      }),
     ).toEqual({
       tone: "attention",
-      text: "No coding agent found. Install Claude Code or Codex or Pi on the machine running dbu6. Without one, dbu6 can't categorize transactions, read new bank statements, or fix import problems. Check again once one is installed.",
+      text: "No coding agent found. Install Claude Code or Codex or Pi on the machine running dbu6. Until then, dbu6 can't categorize transactions, read new bank statements, or fix import problems.",
       details: [],
       checkAgain: true,
+    });
+  });
+
+  it("says dbu6 is looking for an agent while it picks one", () => {
+    expect(
+      describeCodingAgent({
+        agents: [claude({ state: "checking" }), SIGNED_OUT_CODEX],
+        chosen: null,
+        picking: true,
+      }),
+    ).toEqual({
+      tone: "ok",
+      text: "Looking for a coding agent that works…",
+      details: [],
+      checkAgain: false,
+    });
+  });
+
+  it("says why each installed agent can't be used when none works", () => {
+    expect(
+      describeCodingAgent({
+        agents: [
+          claude({
+            state: "no_model",
+            unavailable: [
+              { ...OPUS, reason: "Not on this sample plan." },
+              { ...SONNET, reason: "Not on this sample plan." },
+            ],
+          }),
+          SIGNED_OUT_CODEX,
+        ],
+        chosen: null,
+        picking: false,
+      }),
+    ).toEqual({
+      tone: "attention",
+      text: "None of the installed coding agents works yet. Sign one in, then check again in Settings. Until then, dbu6 can't categorize transactions, read new bank statements, or fix import problems.",
+      details: [
+        "Claude Code didn't answer on Claude Opus or Claude Sonnet, and dbu6 doesn't use less capable models.",
+        "Codex isn't signed in: run codex login in a terminal.",
+      ],
+      checkAgain: true,
+    });
+  });
+
+  it("never falls back to another agent when the chosen one is gone", () => {
+    expect(
+      describeCodingAgent({
+        agents: [CLAUDE, NO_CODEX],
+        chosen: "codex",
+        picking: false,
+      }),
+    ).toMatchObject({
+      tone: "attention",
+      text: expect.stringContaining(
+        "Codex, chosen in Settings, isn't installed.",
+      ),
     });
   });
 });
 
 describe("checkingModels", () => {
-  it("is true only while the active agent's models are being checked", () => {
+  it("is true only while the chosen agent's models are being checked, or dbu6 is picking", () => {
     const checkingCodex = codex({ state: "checking" });
 
     expect(
-      checkingModels({ agents: [CLAUDE, checkingCodex], active: "codex" }),
+      checkingModels({
+        agents: [CLAUDE, checkingCodex],
+        chosen: "codex",
+        picking: false,
+      }),
     ).toBe(true);
     expect(
       checkingModels({
         agents: [CLAUDE, checkingCodex],
-        active: "claude-code",
+        chosen: "claude-code",
+        picking: false,
       }),
     ).toBe(false);
+    expect(
+      checkingModels({ agents: [CLAUDE], chosen: null, picking: true }),
+    ).toBe(true);
   });
 });

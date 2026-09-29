@@ -118,6 +118,7 @@ describe("localAgentLlm", () => {
       model: "sonnet",
       binaryPath: "/sample/bin/claude",
       timeoutMs: 180_000,
+      logger: expect.anything(),
       concurrency: 2,
     });
     // A local agent takes its own model names only, so no call names one.

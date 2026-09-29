@@ -243,8 +243,22 @@ describe("handOffPrompt", () => {
     await expect(stat(join(root, "tmp"))).rejects.toThrow();
   });
 
-  it("refuses when none of the agent's models answered", async () => {
+  it("refuses when no agent is chosen and none works", async () => {
     detectLocalAgents.mockResolvedValue(CLAUDE_ONLY);
+    answering();
+
+    await expect(
+      handoff.handOffPrompt(PROMPT, "darwin", root),
+    ).rejects.toMatchObject({
+      error: "no_coding_agent",
+      message: expect.stringContaining("None of the installed coding agents"),
+    });
+  });
+
+  it("refuses when none of the chosen agent's models answered", async () => {
+    detectLocalAgents.mockResolvedValue(CLAUDE_ONLY);
+    const { saveChosenCodingAgent } = await import("./agents.js");
+    await saveChosenCodingAgent("claude-code");
     answering();
 
     await expect(

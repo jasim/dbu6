@@ -90,7 +90,9 @@ function reads(sqlite: Database.Database, auth: LedgerAuth) {
   return {
     accounts: loadLedgerAccounts(sqlite, auth),
     drafts: loadDraftStatus(sqlite, auth),
-    balanceSheet: balanceSheetReport(readOnlyLedger(sqlite, auth), { asOfDate: "2026-12-31" }),
+    balanceSheet: balanceSheetReport(readOnlyLedger(sqlite, auth), {
+      asOfDate: "2026-12-31",
+    }),
     checkpoints: loadLastReconciled(sqlite, auth),
     checkpoint: lookupLastReconciled(sqlite, auth, SAVINGS),
   };

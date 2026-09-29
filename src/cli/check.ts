@@ -817,7 +817,10 @@ async function checkPresetRows(
 async function checkSettings(dir: string): Promise<CheckLine> {
   const name = "user-config/settings.json";
   if (!existsSync(join(dir, "settings.json"))) {
-    return info(name, "absent; the first installed coding agent is used");
+    return info(
+      name,
+      "absent; dbu6 picks the first coding agent that works and saves it here",
+    );
   }
   try {
     const agent = await chosenCodingAgent();

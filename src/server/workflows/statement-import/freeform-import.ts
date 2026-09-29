@@ -1,4 +1,7 @@
-import type { AbacusImportRequest, AccountKind } from "../../../shared/index.js";
+import type {
+  AbacusImportRequest,
+  AccountKind,
+} from "../../../shared/index.js";
 import {
   abacusStatementFromJson,
   verifyDeclaredBalances,

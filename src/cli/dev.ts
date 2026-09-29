@@ -13,19 +13,29 @@
  * alone does not always take that child with it.
  */
 import { spawn, type ChildProcess } from "node:child_process";
+import { printAppUrl } from "../server/app-url.js";
 import { packageDir } from "../server/paths.js";
 import { startFrontendDevServer } from "./frontend.js";
 
 /** Runs until a child stops or a signal arrives. Returns the exit code. */
 export async function runDev(root: string): Promise<number> {
   // Vite first: whether it runs decides what the server serves.
-  const withVite = await startFrontendDevServer(root);
+  const vitePort = await startFrontendDevServer(root);
+  // With Vite in front, the app is on Vite's port, and so are the links auth
+  // builds; the file's value, often the API's port, is overridden for the
+  // server this runs.
+  const env = { ...process.env };
+  if (vitePort !== null) {
+    env.SAPPORTA_PUBLIC_APP_URL = `http://localhost:${vitePort}`;
+  }
+  // Before the server's startup logs; the server prints it again after them.
+  if (env.SAPPORTA_PUBLIC_APP_URL) printAppUrl(env.SAPPORTA_PUBLIC_APP_URL);
   const children = new Set<ChildProcess>();
 
-  const start = (label: string, args: string[]) => {
-    console.log(`\n> ${label}`);
+  const start = (args: string[]) => {
     const child = spawn(process.execPath, args, {
       cwd: root,
+      env,
       stdio: "inherit",
       detached: true,
     });
@@ -47,8 +57,8 @@ export async function runDev(root: string): Promise<number> {
 
   // With Vite in front, the server serves no web app of its own.
   const serve = [packageDir("bin", "dbu6.mjs"), "serve"];
-  if (withVite) serve.push("--no-frontend");
-  const started = [start("API server (node --watch)", ["--watch", ...serve])];
+  if (vitePort !== null) serve.push("--no-frontend");
+  const started = [start(["--watch", ...serve])];
 
   const stopped = new Promise<number>((resolve) => {
     for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {

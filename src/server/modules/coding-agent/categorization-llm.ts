@@ -1,14 +1,14 @@
 import {
   CODING_AGENTS,
-  NO_CODING_AGENT_MESSAGE,
+  noCodingAgentMessage,
   type CodingAgent,
 } from "../../../shared/index.js";
 import type { CategorizationLlm } from "../categorization/index.js";
-import { currentCodingAgent } from "./agents.js";
 import { noAgentModelReason } from "./errors.js";
 import {
   agentModels,
   checkAgentModelsAgain,
+  currentCodingAgent,
   type CheckedAgentModels,
 } from "./models.js";
 import {
@@ -161,14 +161,15 @@ export async function currentLlmEngine(): Promise<LlmEngine> {
   if (current.engine === "nuabase") {
     return { kind: "gateway", apiKey: current.apiKey };
   }
-  const agent = await currentCodingAgent();
-  if (agent === null) {
+  const inUse = await currentCodingAgent();
+  if (inUse.agent === null) {
     return {
       kind: "unavailable",
-      agent: null,
-      reason: NO_CODING_AGENT_MESSAGE,
+      agent: inUse.why.kind === "chosen_missing" ? inUse.why.chosen : null,
+      reason: noCodingAgentMessage(inUse.why),
     };
   }
+  const { agent } = inUse;
   // At startup the check may still be running; it takes a few seconds.
   const models = await agentModels(agent);
   if (models.state === "no_model") {

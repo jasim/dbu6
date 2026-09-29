@@ -71,10 +71,12 @@ export async function tryBuildingFrontend(
 /**
  * Starts Vite for `dev` when there is a frontend to hot-update: the project's
  * reports or `frontend.tsx`, or, when dbu6 runs from its repository, our
- * own. Returns whether it did; when it did not, the server serves the
- * prebuilt app.
+ * own. Returns the port it listens on, or null when it did not start and the
+ * server serves the prebuilt app.
  */
-export async function startFrontendDevServer(root: string): Promise<boolean> {
+export async function startFrontendDevServer(
+  root: string,
+): Promise<number | null> {
   const host = await frontendHost();
   const ports = {
     port: integerEnv("SAPPORTA_FRONTEND_PORT", 5173),
@@ -90,11 +92,11 @@ export async function startFrontendDevServer(root: string): Promise<boolean> {
       // `@dbu6/app/frontend` is src/frontend, so our own code hot-updates.
       ownFrontend: "src",
     });
-    return true;
+    return ports.port;
   }
-  if (!host.projectFrontend(root).needsBuild) return false;
+  if (!host.projectFrontend(root).needsBuild) return null;
   await host.createProjectDevServer(root, ports);
-  return true;
+  return ports.port;
 }
 
 function integerEnv(name: string, fallback: number): number {

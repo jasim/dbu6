@@ -31,9 +31,10 @@ const CHECKING_POLL_MS = 2000;
 
 /*
  * The coding agent dbu6 uses for everything AI, installed on the server's
- * machine, and the models it runs on. Until the user picks one, dbu6 uses the
- * first installed. Below it, the way to setting up accounts, to their opening
- * balances and to their categorization instructions.
+ * machine, and the models it runs on. Until the user picks one, dbu6 picks
+ * the first installed agent that works and saves it as the choice. Below it,
+ * the way to setting up accounts, to their opening balances and to their
+ * categorization instructions.
  */
 export function Settings() {
   usePageTitle("Settings");
@@ -85,7 +86,7 @@ export function Settings() {
             <RadioGroup<CodingAgent | null>
               aria-labelledby={labelId}
               className="max-w-[480px]"
-              value={settings.data.active}
+              value={settings.data.chosen}
               disabled={choose.isPending}
               onValueChange={(agent) => {
                 if (agent !== null) choose.mutate(agent);

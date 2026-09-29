@@ -6,6 +6,7 @@
  * promised interface.
  */
 import { dirname, relative } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import type { Hono } from "hono";
@@ -18,6 +19,7 @@ import {
   type SapportaEnv,
   type TsRestApi,
 } from "@sapporta/server";
+import { printAppUrl } from "./app-url.js";
 import addAccountApi from "./app/add-account.js";
 import accountsApi from "./app/accounts.js";
 import agentHandoffApi from "./app/agent-handoff.js";
@@ -167,6 +169,9 @@ export function mountDbu6Frontend(
   app.get("/*", serveStatic({ root, path: "index.html" }));
 }
 
+// How long the URL waits for the coding agent's startup check.
+const APP_URL_WAIT_MS = 5000;
+
 /**
  * Listens on the runtime's port, and closes SQLite cleanly when the process
  * receives a termination signal. The lock was taken before the database was
@@ -185,7 +190,7 @@ export function serveDbu6(
   // answer run their CLIs, so neither holds up startup, and each runs only
   // when dbu_config has no result yet. Settings shows what was found, checks
   // the other agents only when it shows them, and detects again on request.
-  startCodingAgent().catch((error: unknown) => {
+  const codingAgentChecked = startCodingAgent().catch((error: unknown) => {
     console.error("[coding-agent] startup check failed:", error);
   });
   // Writes the comments still missing, the backlog after migration 0012
@@ -194,7 +199,19 @@ export function serveDbu6(
 
   const port = runtime.env.apiPort;
   const server = serve({ fetch: app.fetch, port }, () => {
-    console.log(`dbu6 API server ready (port ${port})`);
+    // After the coding agent's check, so its log lines don't bury the URL,
+    // but no later than a few seconds: a first pick asks agent after agent,
+    // each check taking up to a minute. When it outlasts the wait, the URL is
+    // printed again once it ends.
+    const url = runtime.env.publicAppUrl;
+    const checkedInTime = Promise.race([
+      codingAgentChecked.then(() => true),
+      delay(APP_URL_WAIT_MS, false),
+    ]);
+    void checkedInTime.then((checked) => {
+      printAppUrl(url);
+      if (!checked) void codingAgentChecked.then(() => printAppUrl(url));
+    });
   });
   const shutdown = (signal: NodeJS.Signals) => {
     server.close();

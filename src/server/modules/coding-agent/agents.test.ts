@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { codingAgentInUse } from "../../../shared/index.js";
 import type { DetectedAgent } from "./nuabase.js";
 
 const { detectLocalAgents } = vi.hoisted(() => ({
@@ -59,22 +60,32 @@ afterEach(async () => {
   await rm(projectDir, { recursive: true, force: true });
 });
 
-describe("activeCodingAgent", () => {
-  it("uses the chosen agent when it is installed", () => {
-    expect(agents.activeCodingAgent([CLAUDE, CODEX], "codex")).toBe(CODEX);
+describe("codingAgentInUse", () => {
+  it("uses the chosen agent when it is installed, even signed out", () => {
+    expect(codingAgentInUse([CLAUDE, CODEX], "codex")).toEqual({
+      agent: CODEX,
+    });
   });
 
-  it("uses the first installed agent until one is chosen", () => {
-    expect(agents.activeCodingAgent([CLAUDE, CODEX], null)).toBe(CLAUDE);
-    expect(agents.activeCodingAgent([NO_CLAUDE, CODEX], null)).toBe(CODEX);
+  it("uses none until one is chosen", () => {
+    expect(codingAgentInUse([CLAUDE, CODEX], null)).toEqual({
+      agent: null,
+      why: { kind: "none_works" },
+    });
   });
 
-  it("falls back to an installed agent when the chosen one is gone", () => {
-    expect(agents.activeCodingAgent([CLAUDE, NO_CODEX], "codex")).toBe(CLAUDE);
+  it("never falls back to another agent when the chosen one is gone", () => {
+    expect(codingAgentInUse([CLAUDE, NO_CODEX], "codex")).toEqual({
+      agent: null,
+      why: { kind: "chosen_missing", chosen: "codex" },
+    });
   });
 
-  it("is null when no agent is installed", () => {
-    expect(agents.activeCodingAgent([NO_CLAUDE, NO_CODEX], "codex")).toBeNull();
+  it("says when no agent is installed", () => {
+    expect(codingAgentInUse([NO_CLAUDE, NO_CODEX], null)).toEqual({
+      agent: null,
+      why: { kind: "none_installed" },
+    });
   });
 });
 
@@ -95,14 +106,6 @@ describe("the chosen agent", () => {
       sample_setting: "sample",
       coding_agent: "codex",
     });
-  });
-
-  it("drives the current agent", async () => {
-    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX]);
-
-    expect((await agents.currentCodingAgent())?.agent).toBe("claude-code");
-    await agents.saveChosenCodingAgent("codex");
-    expect((await agents.currentCodingAgent())?.agent).toBe("codex");
   });
 });
 

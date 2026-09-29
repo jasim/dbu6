@@ -15,17 +15,21 @@ const NO_CODEX: DetectedAgent = {
 };
 
 describe("codingAgentSettingsFrom", () => {
-  it("lists every agent with its status and models, and the active one", () => {
+  it("lists every agent with its status and models, and the chosen one", () => {
     expect(
-      codingAgentSettingsFrom([CLAUDE, NO_CODEX], null, (status) =>
-        status.loggedIn
-          ? {
-              state: "ready",
-              session: { model: "opus", label: "Claude Opus" },
-              categorization: { model: "sonnet", label: "Claude Sonnet" },
-              unavailable: [],
-            }
-          : { state: "not_checked" },
+      codingAgentSettingsFrom(
+        [CLAUDE, NO_CODEX],
+        "claude-code",
+        false,
+        (status) =>
+          status.loggedIn
+            ? {
+                state: "ready",
+                session: { model: "opus", label: "Claude Opus" },
+                categorization: { model: "sonnet", label: "Claude Sonnet" },
+                unavailable: [],
+              }
+            : { state: "not_checked" },
       ),
     ).toEqual({
       agents: [
@@ -47,7 +51,8 @@ describe("codingAgentSettingsFrom", () => {
           models: { state: "not_checked" },
         },
       ],
-      active: "claude-code",
+      chosen: "claude-code",
+      picking: false,
     });
   });
 });

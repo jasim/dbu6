@@ -45,8 +45,8 @@ export async function startHostDevServer(
   options: HostConfigOptions,
 ): Promise<ViteDevServer> {
   const server = await createServer(createHostViteConfig(options));
+  // No printUrls: `dbu6 dev` prints the one URL to open.
   await server.listen();
-  server.printUrls();
   return server;
 }
 

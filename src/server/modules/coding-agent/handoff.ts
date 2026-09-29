@@ -3,8 +3,11 @@ import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { AgentHandoff, AgentHandoffAvailability } from "../../../shared/index.js";
-import { CODING_AGENT_RUN, currentCodingAgent } from "./agents.js";
+import type {
+  AgentHandoff,
+  AgentHandoffAvailability,
+} from "../../../shared/index.js";
+import { CODING_AGENT_RUN } from "./agents.js";
 import {
   HandoffUnsupportedError,
   NoAgentModelError,
@@ -13,7 +16,7 @@ import {
   TerminalOpenFailedError,
 } from "./errors.js";
 import { launcherCommand, launcherScript } from "./launcher.js";
-import { agentModels } from "./models.js";
+import { agentModels, currentCodingAgent } from "./models.js";
 import type { InstalledAgent } from "./nuabase.js";
 
 /*
@@ -62,7 +65,7 @@ export function handoffAvailability(
 export async function agentHandoffAvailability(
   platform: NodeJS.Platform,
 ): Promise<AgentHandoffAvailability> {
-  return handoffAvailability(await currentCodingAgent(), platform);
+  return handoffAvailability((await currentCodingAgent()).agent, platform);
 }
 
 /**
@@ -74,8 +77,9 @@ export async function handOffPrompt(
   platform: NodeJS.Platform,
   root: string,
 ): Promise<AgentHandoff> {
-  const agent = await currentCodingAgent();
-  if (agent === null) throw new NoCodingAgentError();
+  const inUse = await currentCodingAgent();
+  if (inUse.agent === null) throw new NoCodingAgentError(inUse.why);
+  const { agent } = inUse;
   const availability = handoffAvailability(agent, platform);
   if (availability.mode === "none")
     throw new HandoffUnsupportedError(agent.agent);

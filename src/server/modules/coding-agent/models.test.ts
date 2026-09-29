@@ -15,6 +15,11 @@ vi.mock("nuabase", () => ({ Nua: { direct } }));
 
 // The module keeps each agent's check, so each test loads it afresh.
 let models: typeof import("./models.js");
+let agents: typeof import("./agents.js");
+
+const chosen = () => agents.chosenCodingAgent();
+const saveChosen = (agent: "claude-code" | "codex" | "pi") =>
+  agents.saveChosenCodingAgent(agent);
 
 let projectDir: string;
 
@@ -66,6 +71,7 @@ beforeEach(async () => {
   const config = await import("../../dbu-config.js");
   config.useDbuConfig(config.memoryDbuConfig());
   models = await import("./models.js");
+  agents = await import("./agents.js");
   detectLocalAgents.mockReset();
   localAgent.mockClear();
   direct.mockReset();
@@ -176,12 +182,14 @@ describe("agentModels", () => {
         model: "gpt-5.6-sol",
         binaryPath: "/sample/bin/codex",
         timeoutMs: 60_000,
+        logger: expect.anything(),
       },
       {
         agent: "codex",
         model: "gpt-5.6-terra",
         binaryPath: "/sample/bin/codex",
         timeoutMs: 60_000,
+        logger: expect.anything(),
       },
     ]);
   });
@@ -308,12 +316,101 @@ describe("startCodingAgent", () => {
     expect(askedModels()).toEqual([]);
   });
 
-  it("checks nothing when the agent isn't signed in", async () => {
+  it("checks nothing when no agent is signed in", async () => {
     detectLocalAgents.mockResolvedValue([{ ...CLAUDE, loggedIn: false }]);
 
     await models.startCodingAgent();
 
     expect(direct).not.toHaveBeenCalled();
+    expect(await chosen()).toBeNull();
+  });
+
+  it("stays on the chosen agent when it doesn't work, and asks no other", async () => {
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX]);
+    await saveChosen("claude-code");
+    answering("gpt-5.6-sol");
+
+    await models.startCodingAgent();
+
+    expect(askedModels()).toEqual(["opus", "sonnet"]);
+    expect(await chosen()).toBe("claude-code");
+  });
+});
+
+describe("pickCodingAgent", () => {
+  it("saves the first agent that works, and asks none after it", async () => {
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX, PI]);
+    answering("gpt-5.6-terra", undefined);
+
+    await models.pickCodingAgent();
+
+    expect(askedModels()).toEqual([
+      "opus",
+      "sonnet",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+    ]);
+    expect(await chosen()).toBe("codex");
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("skips an agent that isn't signed in without asking it", async () => {
+    detectLocalAgents.mockResolvedValue([
+      { ...CLAUDE, loggedIn: false },
+      CODEX,
+      PI,
+    ]);
+    answering("gpt-5.6-sol");
+
+    await models.pickCodingAgent();
+
+    expect(askedModels()).toEqual(["gpt-5.6-sol", "gpt-5.6-terra"]);
+    expect(await chosen()).toBe("codex");
+  });
+
+  it("chooses nothing when no agent works", async () => {
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX, PI]);
+    answering();
+
+    await models.pickCodingAgent();
+
+    expect(await chosen()).toBeNull();
+    expect(await models.currentCodingAgent()).toEqual({
+      agent: null,
+      why: { kind: "none_works" },
+    });
+  });
+
+  it("keeps a choice made while it runs", async () => {
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX, PI]);
+    // Opus answers only once the user has chosen Pi.
+    let chose = () => {};
+    const choosing = new Promise<void>((resolve) => (chose = resolve));
+    direct.mockImplementation(() => ({
+      get: async () => {
+        await choosing;
+        return { success: true, data: "OK" };
+      },
+    }));
+
+    const pick = models.pickCodingAgent();
+    await saveChosen("pi");
+    chose();
+    await pick;
+
+    expect(await chosen()).toBe("pi");
+  });
+
+  it("is shared by callers while it runs", async () => {
+    detectLocalAgents.mockResolvedValue([CLAUDE, CODEX, PI]);
+    answering("opus", "sonnet");
+
+    const first = models.pickCodingAgent();
+    expect(models.pickingCodingAgent()).toBe(true);
+    await Promise.all([first, models.pickCodingAgent()]);
+
+    expect(askedModels()).toEqual(["opus", "sonnet"]);
+    expect(models.pickingCodingAgent()).toBe(false);
   });
 });
 

@@ -2,15 +2,20 @@ import { z } from "zod";
 import {
   agentModelsSchema,
   CODING_AGENTS,
+  codingAgentInUse,
+  noCodingAgentMessage,
   type AgentModel,
   type AgentModels,
   type CodingAgent,
+  type AgentInUse,
 } from "../../../shared/index.js";
 import { readDbuConfig, writeDbuConfig } from "../../dbu-config.js";
 import {
+  chosenCodingAgent,
   CODING_AGENT_RUN,
-  currentCodingAgent,
-  logCodingAgent,
+  codingAgents,
+  installedCodingAgents,
+  saveChosenCodingAgent,
 } from "./agents.js";
 import {
   askModel,
@@ -25,6 +30,8 @@ import {
  * for a one-word reply:
  *
  * - at startup, for the agent dbu6 will use, when it has no check yet;
+ * - with no agent chosen, for each installed agent in turn until one answers,
+ *   which dbu6 then saves as the choice (pickCodingAgent);
  * - when Settings shows a signed-in agent that has no check yet;
  * - when the user asks again on Settings (an agent may be signed in now, or a
  *   model may have become available).
@@ -170,18 +177,79 @@ export function agentModelsNow(status: DetectedAgent): AgentModels {
   return { state: "checking" };
 }
 
+let picking: Promise<void> | null = null;
+
+/** dbu6 is trying the agents to pick one, for Settings. */
+export function pickingCodingAgent(): boolean {
+  return picking !== null;
+}
+
 /**
- * Startup: log the agent dbu6 will use, and when nothing is stored yet, detect
- * the agents and ask that agent's models whether they answer, so a prompt or
- * an import doesn't wait for the check. What is stored is used as it is: only
- * Settings detects again. Only the agent dbu6 uses is asked: every call a
- * model check costs is billed to the user's plan, and the others are never run
- * until Settings asks about them (agentModelsNow).
+ * With no agent chosen, tries the installed ones in order, Claude Code first,
+ * and saves the first that is signed in and has a model that answers as the
+ * choice. They are asked one at a time, so no agent after the one that works
+ * is asked: each check is billed to the user's plan. A choice made while the
+ * pick runs is kept, and when none works, nothing is chosen. Callers during a
+ * pick share it. A pick asks only agents with no stored check, so running it
+ * again is quiet and free until the checks are forgotten (Settings).
+ */
+export function pickCodingAgent(): Promise<void> {
+  picking ??= pickFirstThatWorks().finally(() => {
+    picking = null;
+  });
+  return picking;
+}
+
+async function pickFirstThatWorks(): Promise<void> {
+  if ((await chosenCodingAgent()) !== null) return;
+  for (const agent of installedCodingAgents(await codingAgents())) {
+    if (!agent.loggedIn) continue;
+    if ((await agentModels(agent)).state !== "ready") continue;
+    if ((await chosenCodingAgent()) === null) {
+      await saveChosenCodingAgent(agent.agent);
+      console.log(
+        `[coding-agent] chose ${CODING_AGENTS[agent.agent].label}, the first agent that works (saved in user-config/settings.json)`,
+      );
+    }
+    return;
+  }
+}
+
+/**
+ * The agent dbu6 uses right now: the chosen one, even when it doesn't work,
+ * so it is never swapped for another behind the user's back. With none
+ * chosen, picks one first.
+ */
+export async function currentCodingAgent(): Promise<AgentInUse<DetectedAgent>> {
+  if ((await chosenCodingAgent()) === null) await pickCodingAgent();
+  const [detected, chosen] = await Promise.all([
+    codingAgents(),
+    chosenCodingAgent(),
+  ]);
+  return codingAgentInUse(detected, chosen);
+}
+
+/**
+ * Startup: pick an agent when none is chosen, log the one dbu6 will use, and
+ * when nothing is stored yet, ask its models whether they answer, so a prompt
+ * or an import doesn't wait for the check. What is stored is used as it is:
+ * only Settings detects again. Only the agent dbu6 uses, or with none chosen
+ * the agents up to the first that works, are asked: every call a model check
+ * costs is billed to the user's plan, and the others are never run until
+ * Settings asks about them (agentModelsNow).
  */
 export async function startCodingAgent(): Promise<void> {
-  const agent = await currentCodingAgent();
-  logCodingAgent(agent);
-  if (agent?.loggedIn) await agentModels(agent);
+  const inUse = await currentCodingAgent();
+  logCodingAgent(inUse);
+  if (inUse.agent?.loggedIn) await agentModels(inUse.agent);
+}
+
+function logCodingAgent(inUse: AgentInUse<DetectedAgent>): void {
+  console.log(
+    inUse.agent === null
+      ? `[coding-agent] ${noCodingAgentMessage(inUse.why)} Categorization and agent prompts are off.`
+      : `[coding-agent] using ${CODING_AGENTS[inUse.agent.agent].label} (${inUse.agent.binaryPath})`,
+  );
 }
 
 function logAgentModels(agent: CodingAgent, models: CheckedAgentModels) {
@@ -190,7 +258,7 @@ function logAgentModels(agent: CodingAgent, models: CheckedAgentModels) {
     .map((model) => `${model.label} didn't answer (${model.reason})`)
     .join("; ");
   if (models.state === "no_model") {
-    console.warn(`[coding-agent] ${label} can't be used: ${unavailable}`);
+    console.log(`[coding-agent] ${label}: no model answered: ${unavailable}`);
     return;
   }
   console.log(

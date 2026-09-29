@@ -5,7 +5,9 @@ import { initContract } from "@sapporta/rest-core";
  * The coding-agent CLIs dbu6 works with on the machine running its server, in
  * preference order. dbu6 uses one of them for everything AI: categorization
  * runs on it, and prompts for the user's agent open in it. Which one is a
- * setting; until the user picks, it is the first one installed.
+ * setting. Until one is chosen, dbu6 picks the first installed agent that
+ * works and saves it as the choice; a choice, the user's or dbu6's, is never
+ * changed behind the user's back.
  *
  * What the screens say about an agent is here; how the server runs one —
  * its models and its session options — is in
@@ -30,6 +32,54 @@ export const ANY_CODING_AGENT = codingAgentSchema.options
   .join(" or ");
 
 export const NO_CODING_AGENT_MESSAGE = `No coding agent found. Install ${ANY_CODING_AGENT} on the machine running dbu6.`;
+
+/** Why dbu6 has no coding agent to use. */
+export type NoCodingAgent =
+  /** None is installed, so there is nothing to pick. */
+  | { kind: "none_installed" }
+  /** None is chosen, and no installed agent worked when dbu6 tried them. */
+  | { kind: "none_works" }
+  /** One is chosen, but it isn't installed now. */
+  | { kind: "chosen_missing"; chosen: CodingAgent };
+
+/** The agent dbu6 uses, or why there is none. */
+export type AgentInUse<T extends { agent: CodingAgent }> =
+  { agent: T & { installed: true } } | { agent: null; why: NoCodingAgent };
+
+/**
+ * Pure: the agent dbu6 uses, which is always the chosen one when it is
+ * installed. Never another: an agent is used only once chosen, by the user
+ * or by dbu6's pick of the first that works.
+ */
+export function codingAgentInUse<
+  T extends { agent: CodingAgent; installed: boolean },
+>(agents: readonly T[], chosen: CodingAgent | null): AgentInUse<T> {
+  const installed = agents.filter(
+    (status): status is T & { installed: true } => status.installed,
+  );
+  if (chosen === null) {
+    return {
+      agent: null,
+      why: { kind: installed.length === 0 ? "none_installed" : "none_works" },
+    };
+  }
+  const agent = installed.find((status) => status.agent === chosen);
+  return agent === undefined
+    ? { agent: null, why: { kind: "chosen_missing", chosen } }
+    : { agent };
+}
+
+/** Why dbu6 has no coding agent, in the log and on screen. */
+export function noCodingAgentMessage(why: NoCodingAgent): string {
+  switch (why.kind) {
+    case "none_installed":
+      return NO_CODING_AGENT_MESSAGE;
+    case "none_works":
+      return "None of the installed coding agents works yet. Sign one in, then check again in Settings.";
+    case "chosen_missing":
+      return `${CODING_AGENTS[why.chosen].label}, chosen in Settings, isn't installed. Install it, or choose another agent in Settings.`;
+  }
+}
 
 // Who answers an LLM call dbu6 makes (categorizing an import, drawing a
 // chart of accounts), or why nobody can: the check the call itself makes.
@@ -108,10 +158,12 @@ export const codingAgentSettingsSchema = z.object({
   /** Every agent dbu6 knows, Claude Code first, installed or not. */
   agents: z.array(codingAgentStatusSchema),
   /**
-   * The agent dbu6 uses: the chosen one when it is installed, else the first
-   * installed one. Null when none is installed.
+   * The agent dbu6 uses, chosen by the user or picked by dbu6 as the first
+   * that worked. Null until one is.
    */
-  active: codingAgentSchema.nullable(),
+  chosen: codingAgentSchema.nullable(),
+  /** dbu6 is trying the installed agents to pick one, nothing being chosen. */
+  picking: z.boolean(),
 });
 export type CodingAgentSettings = z.infer<typeof codingAgentSettingsSchema>;
 
@@ -151,7 +203,7 @@ export const codingAgentContract = c.router({
     method: "POST",
     path: "/coding-agent/model-check",
     summary:
-      "Detect the coding agents again and ask the active agent's models whether they answer; the settings show the check running",
+      "Detect the coding agents again and ask the chosen agent's models whether they answer, or with none chosen, pick the first that works; the settings show the check running",
     body: z.object({}),
     responses: {
       200: codingAgentSettingsSchema,

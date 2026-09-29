@@ -3,7 +3,6 @@ import type {
   CodingAgentSettings,
 } from "../../../shared/index.js";
 import {
-  activeCodingAgent,
   chosenCodingAgent,
   codingAgents,
   detectCodingAgentsAgain,
@@ -15,6 +14,8 @@ import {
   agentModelsNow,
   checkAgentModelsAgain,
   forgetAgentModels,
+  pickCodingAgent,
+  pickingCodingAgent,
 } from "./models.js";
 import type { DetectedAgent } from "./nuabase.js";
 
@@ -25,12 +26,16 @@ import type { DetectedAgent } from "./nuabase.js";
  * (models.ts), both kept in dbu_config; only checking again runs the agents'
  * CLIs, so an agent installed or signed in since shows up then. A check still
  * running reads as `checking`, and the screen asks again until it finishes.
+ * With no agent chosen, dbu6's pick of the first that works (models.ts) runs
+ * at startup and when checking again, and reads as `picking` until it has
+ * chosen one or found none.
  */
 
 /** Pure: the settings for these agents, the choice and their models. */
 export function codingAgentSettingsFrom(
   detected: readonly DetectedAgent[],
   chosen: CodingAgent | null,
+  picking: boolean,
   models: (status: DetectedAgent) => AgentModelsView,
 ): CodingAgentSettings {
   return {
@@ -40,7 +45,8 @@ export function codingAgentSettingsFrom(
       logged_in: status.loggedIn,
       models: models(status),
     })),
-    active: activeCodingAgent(detected, chosen)?.agent ?? null,
+    chosen,
+    picking,
   };
 }
 
@@ -54,7 +60,19 @@ async function detectedAndChosen(): Promise<
 
 export async function codingAgentSettings(): Promise<CodingAgentSettings> {
   const [detected, chosen] = await detectedAndChosen();
-  return codingAgentSettingsFrom(detected, chosen, agentModelsNow);
+  return settingsNow(detected, chosen);
+}
+
+function settingsNow(
+  detected: readonly DetectedAgent[],
+  chosen: CodingAgent | null,
+): CodingAgentSettings {
+  return codingAgentSettingsFrom(
+    detected,
+    chosen,
+    chosen === null && pickingCodingAgent(),
+    agentModelsNow,
+  );
 }
 
 /** Saves the choice, or refuses an agent that isn't installed. */
@@ -66,13 +84,14 @@ export async function chooseCodingAgent(
     throw new CodingAgentNotInstalledError(agent);
   }
   await saveChosenCodingAgent(agent);
-  return codingAgentSettingsFrom(detected, agent, agentModelsNow);
+  return codingAgentSettingsFrom(detected, agent, false, agentModelsNow);
 }
 
 /**
  * Detects the agents again and forgets every model check, then starts one for
- * the agent dbu6 uses when it is signed in; the settings come back with that
- * check running, and the other signed-in agents' start as Settings shows them.
+ * the chosen agent when it is signed in, or with none chosen, starts a pick;
+ * the settings come back with that running, and the other signed-in agents'
+ * checks start as Settings shows them.
  */
 export async function recheckCodingAgentModels(): Promise<CodingAgentSettings> {
   const [detected, chosen] = await Promise.all([
@@ -80,7 +99,10 @@ export async function recheckCodingAgentModels(): Promise<CodingAgentSettings> {
     chosenCodingAgent(),
   ]);
   forgetAgentModels();
-  const active = activeCodingAgent(detected, chosen);
-  if (active?.loggedIn) void checkAgentModelsAgain(active);
-  return codingAgentSettingsFrom(detected, chosen, agentModelsNow);
+  const agent = installedCodingAgents(detected).find(
+    (status) => status.agent === chosen,
+  );
+  if (agent?.loggedIn) void checkAgentModelsAgain(agent);
+  if (chosen === null) void pickCodingAgent();
+  return settingsNow(detected, chosen);
 }

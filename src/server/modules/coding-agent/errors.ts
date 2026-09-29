@@ -1,8 +1,9 @@
 import {
   CODING_AGENTS,
-  NO_CODING_AGENT_MESSAGE,
   noAgentModelMessage,
+  noCodingAgentMessage,
   type CodingAgent,
+  type NoCodingAgent,
   type UnavailableAgentModel,
 } from "../../../shared/index.js";
 
@@ -26,8 +27,8 @@ export class NoCodingAgentError extends CodingAgentError {
   readonly status = 400;
   readonly error = "no_coding_agent";
 
-  constructor() {
-    super(NO_CODING_AGENT_MESSAGE);
+  constructor(why: NoCodingAgent) {
+    super(noCodingAgentMessage(why));
     this.name = "NoCodingAgentError";
   }
 }

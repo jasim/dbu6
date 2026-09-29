@@ -101,7 +101,9 @@ describe("/agent-handoff routes", () => {
   });
 
   it("refuses with the reason the handoff gave", async () => {
-    handOffPrompt.mockRejectedValue(new NoCodingAgentError());
+    handOffPrompt.mockRejectedValue(
+      new NoCodingAgentError({ kind: "none_installed" }),
+    );
 
     const response = await post(app());
 

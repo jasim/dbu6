@@ -1,7 +1,8 @@
 import {
   CODING_AGENTS,
-  NO_CODING_AGENT_MESSAGE,
+  codingAgentInUse,
   noAgentModelMessage,
+  noCodingAgentMessage,
   type CodingAgentSettings,
   type CodingAgentStatus,
 } from "../../../shared/index";
@@ -26,29 +27,55 @@ export interface CodingAgentState {
 const AGENT_JOBS =
   "categorize transactions, read new bank statements, or fix import problems";
 
-function activeAgent(
-  settings: CodingAgentSettings,
-): CodingAgentStatus | undefined {
-  return settings.agents.find((a) => a.agent === settings.active);
+/**
+ * dbu6 is picking an agent, or the chosen one's models are being checked:
+ * either takes a few seconds.
+ */
+export function checkingModels(settings: CodingAgentSettings): boolean {
+  if (settings.picking) return true;
+  const inUse = codingAgentInUse(settings.agents, settings.chosen);
+  return inUse.agent?.models.state === "checking";
 }
 
-/** The active agent's models are being checked, which takes a few seconds. */
-export function checkingModels(settings: CodingAgentSettings): boolean {
-  return activeAgent(settings)?.models.state === "checking";
+// Why an installed agent can't be used, for the list under "none works".
+function whyNotUsable(status: CodingAgentStatus): string | null {
+  const label = CODING_AGENTS[status.agent].label;
+  if (!status.logged_in) {
+    return `${label} isn't signed in: run ${CODING_AGENTS[status.agent].signInCommand} in a terminal.`;
+  }
+  return status.models.state === "no_model"
+    ? noAgentModelMessage(status.agent, status.models.unavailable)
+    : null;
 }
 
 export function describeCodingAgent(
   settings: CodingAgentSettings,
 ): CodingAgentState {
-  const active = activeAgent(settings);
-  if (active === undefined) {
+  if (settings.picking) {
+    return {
+      tone: "ok",
+      text: "Looking for a coding agent that works…",
+      details: [],
+      checkAgain: false,
+    };
+  }
+  const inUse = codingAgentInUse(settings.agents, settings.chosen);
+  if (inUse.agent === null) {
+    const { why } = inUse;
     return {
       tone: "attention",
-      text: `${NO_CODING_AGENT_MESSAGE} Without one, dbu6 can't ${AGENT_JOBS}. Check again once one is installed.`,
-      details: [],
+      text: `${noCodingAgentMessage(why)} Until then, dbu6 can't ${AGENT_JOBS}.`,
+      details:
+        why.kind === "none_works"
+          ? settings.agents.flatMap((status) => {
+              const reason = status.installed ? whyNotUsable(status) : null;
+              return reason === null ? [] : [reason];
+            })
+          : [],
       checkAgain: true,
     };
   }
+  const active = inUse.agent;
   const label = CODING_AGENTS[active.agent].label;
   if (!active.logged_in) {
     return {

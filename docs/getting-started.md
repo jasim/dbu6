@@ -58,8 +58,8 @@ makes the first commit. It touches nothing outside the folder.
 npx dbu6 dev
 ```
 
-`dev` migrates the database and serves the app. When it prints
-`dbu6 API server ready (port 2345)`, open <http://localhost:2345> and sign up.
+`dev` migrates the database and serves the app, and prints the address to open,
+<http://localhost:2345> by default. Open it and sign up.
 By default a new account needs no email verification, and any mail dbu6 sends
 is printed in this terminal. Leave `dev` running while you use dbu6 and stop it
 with Ctrl-C. `npx dbu6 start` is the same server for good, without the reload.
