@@ -60,12 +60,12 @@ export function createHostViteConfig({
         ? []
         : [
             {
-              find: /^dbu6\/frontend$/,
+              find: /^@dbu6\/app\/frontend$/,
               replacement: ownFrontendFiles(packageDir, ownFrontend).js,
             },
             // Installed, package.json's `browser` condition does this.
             {
-              find: /^dbu6\/server$/,
+              find: /^@dbu6\/app\/server$/,
               replacement: ownFrontendFiles(packageDir, ownFrontend).contract,
             },
           ],
