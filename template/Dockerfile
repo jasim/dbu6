@@ -10,9 +10,9 @@
 #     -v my-books-data:/app/data \
 #     my-books
 #
-# The image has no .env file (.dockerignore keeps it out), so the container's
-# environment configures dbu6: the two variables above are required, and
-# DEPLOYMENT.md in dbu6's repository lists the rest. data/ is not in the
+# The image has no .env.development (.dockerignore keeps it out), so the
+# container's environment configures dbu6: the two variables above are
+# required, and DEPLOYMENT.md in dbu6's repository lists the rest. data/ is not in the
 # image either, and must be a volume, or the books vanish with the container.
 # user-config/ is copied in from this folder, so an edit to a mapping rule or
 # a prompt is a rebuild; to edit it live, bind-mount the folder instead:

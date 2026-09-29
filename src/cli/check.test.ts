@@ -109,6 +109,18 @@ describe("checkTools", () => {
     expect(line.detail).toContain(".env.agent");
   });
 
+  it("names the global sapporta `npx` would run instead, without the project's link", async () => {
+    const elsewhere = tempDir("check-other-path");
+    writeFileSync(join(elsewhere, "sapporta"), "");
+    vi.stubEnv("PATH", elsewhere);
+
+    const line = byName(await checkTools(root), "npx sapporta")!;
+
+    expect(line.status).toBe("fail");
+    expect(line.detail).toContain(join(elsewhere, "sapporta"));
+    expect(line.detail).toContain("without the token in .env.agent");
+  });
+
   it("resolves the project's own sapporta, and names a global one it would not run", async () => {
     // The installed package as a project gets it: `node_modules/@dbu6/app` is
     // a directory that is this checkout, which is what npm's `file:` and a

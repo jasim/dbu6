@@ -27,7 +27,7 @@ export async function setupProject(root: string): Promise<void> {
 
 async function createEnvFile(root: string): Promise<void> {
   const target = envFile(root);
-  const example = packageDir("template", ".env.example");
+  const example = packageDir("template", ".env.development.example");
   if (!(await copyUnlessPresent(example, target))) return;
   console.log(`Created ${basename(target)} from ${basename(example)}.`);
 }

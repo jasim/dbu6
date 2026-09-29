@@ -2,19 +2,21 @@
  * `dbu6 agent env`: give this project's coding agents a token, in the one file
  * the shipped `sapporta` command reads.
  *
- * A prompt dbu6 hands over asks for `SAPPORTA_API_URL` and
- * `SAPPORTA_API_TOKEN`, and nothing in a plain project puts them anywhere. The
- * app mints tokens in the browser, one at a time, each shown once; this command
- * does the same thing from the folder, for the agent that is working in it:
- * one token, written to `.env.agent` beside `.env` and gitignored, which the
- * `sapporta` bin loads and the server itself does not.
+ * The `sapporta` command finds the app by itself, from the project's
+ * `SAPPORTA_API_PORT`, but it needs a `SAPPORTA_API_TOKEN` to act for anyone.
+ * The app mints tokens in the browser, one at a time, each shown once; this
+ * command does the same thing from the folder, for the agent that is working
+ * in it: one token, written to `.env.agent` beside `.env.development` and
+ * gitignored, which the `sapporta` bin reads and the server itself does not.
+ * The token is minted straight into the database, so no app has to be
+ * running.
  *
  * It is also the command the project's AGENTS.md names, so an agent that finds
  * `SAPPORTA_API_TOKEN` missing has a way to provision it that does not involve
  * asking a person to copy a secret into a chat.
  *
  *   dbu6 agent env            write .env.agent, print what to verify with
- *   dbu6 agent env --print    print `export …` lines instead, for `eval`
+ *   dbu6 agent env --print    print an `export …` line instead, for `eval`
  *   dbu6 agent env --user <email>   which account, when a project has several
  *
  * Writing is not silent: the file is a credential, so the command says where it
@@ -56,15 +58,16 @@ import {
 
 const USAGE = `Usage: dbu6 agent env [--print] [--user <email>]
 
-  Writes .env.agent in the project, holding SAPPORTA_API_URL and
-  SAPPORTA_API_TOKEN for a coding agent, and revokes the token an
-  earlier run of this command wrote.
+  Writes .env.agent in the project, holding SAPPORTA_API_TOKEN for a
+  coding agent, and revokes the token an earlier run of this command
+  wrote.
 
-  --print          Write the same pair of \`export\` lines to stdout instead,
-                   for \`eval "$(dbu6 agent env --print)"\`. A project that
-                   already has .env.agent gets the pair it holds, and nothing
-                   is minted; one that does not gets a fresh token, which
-                   nothing stores, so a later run of this command revokes it.
+  --print          Write the same token as an \`export\` line to stdout
+                   instead, for \`eval "$(dbu6 agent env --print)"\`. A
+                   project that already has .env.agent gets the token it
+                   holds, and nothing is minted; one that does not gets a
+                   fresh token, which nothing stores, so a later run of this
+                   command revokes it.
   --user <email>   The account the token is for, or its user id when one email
                    is in more than one workspace. Only needed when the project
                    has more than one account.`;
@@ -133,13 +136,9 @@ export async function agentCommand(
       user,
       demos: [DEMO_ACCOUNT.email],
     });
-    const apiUrl =
-      readString(process.env.SAPPORTA_API_URL) ??
-      `http://localhost:${runtime.env.apiPort}`;
-
     const file = agentEnvPath(root);
     if (print) {
-      // The pair to export is the one the project already uses: printing it
+      // The token to export is the one the project already uses: printing it
       // mints nothing, so `eval "$(dbu6 agent env --print)"` cannot leave a
       // trail of live tokens behind.
       const stored = readAgentEnvValues(file);
@@ -177,16 +176,13 @@ export async function agentCommand(
       process.stderr.write(
         `No ${AGENT_ENV_FILE} in this project, so this token is not stored: run \`dbu6 agent env\` to keep one there.\n`,
       );
-      process.stdout.write(
-        agentEnvExports({ apiUrl, apiToken: created.rawToken }),
-      );
+      process.stdout.write(agentEnvExports({ apiToken: created.rawToken }));
       return 0;
     }
 
     writeAgentEnvFile(
       file,
       agentEnvFile({
-        apiUrl,
         apiToken: created.rawToken,
         createdFor: account.email,
       }),
@@ -200,14 +196,14 @@ export async function agentCommand(
     console.log(
       [
         `Wrote ${AGENT_ENV_FILE} for ${account.email}.`,
-        `  API   ${apiUrl}`,
         `  token ${created.token.id.slice(0, 8)}… (${AGENT_TOKEN_NAME})`,
         revoked > 0
           ? `  revoked ${revoked} earlier ${AGENT_TOKEN_NAME} token(s)`
           : "",
         "",
-        "It is gitignored. The `sapporta` command loads it by itself, so verify",
-        "with, from this folder:",
+        "It is gitignored. The `sapporta` command reads the token from it and",
+        "finds the app by itself, so with the app running, verify with, from",
+        "this folder:",
         "",
         `  ${VERIFY_COMMAND}`,
         "",
@@ -295,8 +291,4 @@ function revokeEarlierAgentTokens(
     }
   }
   return revoked;
-}
-
-function readString(value: string | undefined): string | undefined {
-  return value !== undefined && value.length > 0 ? value : undefined;
 }

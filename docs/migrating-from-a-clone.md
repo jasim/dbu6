@@ -12,7 +12,7 @@ What moves, and where to:
 | --- | --- |
 | `data/sqlite.db` (or `$SAPPORTA_DATA_DIR/sqlite.db`) | `data/sqlite.db` |
 | `data/user-config/*` | `user-config/*` |
-| `.env.development`, `.env.production`, `mise.toml` | `.env`, a few values only (step 5) |
+| `.env.development`, `.env.production`, `mise.toml` | `.env.development`, a few values only (step 5) |
 | a parser you added under `custom-built-parsers/` | `custom-built-parsers/<name>/` |
 | a bundled parser you changed | `custom-built-parsers/<name>/`, shadowing ours |
 | a report, route, page or categorizer you added | `reports/<id>/`, `dbu6.config.ts`, `frontend.tsx` |
@@ -43,9 +43,9 @@ decide at the end.
   stopped until step 8. A running server can still be writing to the database
   you are about to copy.
 - A shell without the clone's settings. The environment wins over a
-  project's `.env`, so a `SAPPORTA_DATA_DIR` exported by the clone's mise or
-  your shell profile would point `init` and `migrate` at the clone's
-  database. `env | grep -E '^(SAPPORTA_|DBU6_|BETTER_AUTH_)'` must print
+  project's `.env.development`, so a `SAPPORTA_DATA_DIR` exported by the
+  clone's mise or your shell profile would point `init` and `migrate` at the
+  clone's database. `env | grep -E '^(SAPPORTA_|DBU6_|BETTER_AUTH_)'` must print
   nothing; if it does, unset them at their source and open a new shell (a
   coding agent asks the person to restart it from one).
 
@@ -118,9 +118,9 @@ Pick a folder that does not exist yet, beside the clone rather than inside it:
 npm init @dbu6@latest "$NEW"
 ```
 
-`init` writes the template, runs `npm install`, creates `.env` with a new
-auth secret, fills `user-config/` with dbu6's examples, creates an empty
-database at `$NEW/data/sqlite.db`, and makes the first commit. It ends by
+`init` writes the template, runs `npm install`, creates `.env.development`
+with a new auth secret, fills `user-config/` with dbu6's examples, creates an
+empty database at `$NEW/data/sqlite.db`, and makes the first commit. It ends by
 printing `Your books are in $NEW.` Do not start the app yet.
 
 From here on, run commands in `$NEW`.
@@ -205,10 +205,11 @@ fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(/"custom-built-pars
 '
 ```
 
-**Environment.** `.env` is already complete for this machine, and serves the
-app and its API on one port, `2345`. Do not copy the clone's env files over
-it. Carry over only these, if the clone set them in `.env.development`,
-`.env.production` or `mise.toml`:
+**Environment.** The new `.env.development` is already complete for this
+machine, and serves the app and its API on one port, `2345`. Do not copy the
+clone's env files over it, though the clone's has the same name. Carry over
+only these, if the clone set them in `.env.development`, `.env.production` or
+`mise.toml`:
 
 - `SAPPORTA_MAIL_TRANSPORT`, `SAPPORTA_MAIL_FROM` and the `SMTP_*` values.
 - `LLM_ENGINE` and `NUABASE_API_KEY`, if you used the Nuabase gateway.
@@ -217,8 +218,8 @@ it. Carry over only these, if the clone set them in `.env.development`,
 
 Everything else, `SAPPORTA_DATA_DIR` and the clone's ports and URLs included,
 stays behind. The new `BETTER_AUTH_SECRET` only means you sign in again, with
-the same email and password. Put secrets in `.env`, which is gitignored — but
-not the agent access token: the clone's `SAPPORTA_API_TOKEN` stays behind, and
+the same email and password. Put secrets in `.env.development`, which is
+gitignored — but not the agent access token: the clone's `SAPPORTA_API_TOKEN` stays behind, and
 `npx dbu6 agent env` mints a fresh one into the gitignored `.env.agent`, which
 the `sapporta` command reads by itself (`npx dbu6 docs books`, "Reaching the
 app").
@@ -322,7 +323,7 @@ already in the books, or start where they end).
 ## 9. Commit, and retire the clone
 
 ```bash
-git status --short          # no data/, no .env, no tmp/
+git status --short          # no data/, no .env*, no tmp/
 git add -A
 git commit -m "Move my books from the dbu6 clone"
 ```

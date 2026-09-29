@@ -302,6 +302,7 @@ export function AddAccount() {
             theRead?.files ?? [],
             name,
             accountKind,
+            window.location.origin,
           )}
           promptsAgent={card.promptsAgent}
           onAction={(action: ProblemAction) => {

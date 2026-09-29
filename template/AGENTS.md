@@ -15,9 +15,10 @@ theirs: `user-config/`, `custom-built-parsers/`, `reports/`, and the ledger in
   ```
 
 - The `sapporta` command is already here: dbu6 ships it, so run it as
-  `npx sapporta …` from this folder and install nothing. It reads
-  `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` from the environment and from
-  `.env`/`.env.agent` by itself.
+  `npx sapporta …` from this folder and install nothing. It finds the app by
+  itself, from `SAPPORTA_API_PORT` in the environment or in
+  `.env.development`, and takes `SAPPORTA_API_TOKEN` from the environment or
+  else from `.env.agent`.
 
 - If it answers `Authentication required`, this folder has no agent token yet.
   Make one and check it:
@@ -44,7 +45,7 @@ theirs: `user-config/`, `custom-built-parsers/`, `reports/`, and the ledger in
 - Never copy, move or delete `data/sqlite.db`, and never open it with a tool
   that writes. It is the only copy of the books, and dbu6 makes no backup.
   Change the books through the HTTP API.
-- Never commit `data/` or `.env`.
+- Never commit `data/` or any `.env*` file.
 - Upgrade with `npx dbu6 upgrade`, then fix everything `npx dbu6 check`
   reports. Only dbu6 migrates the database (`upgrade`, `start` and `migrate`
   do it, on a verified copy); never run SQL that changes its schema.

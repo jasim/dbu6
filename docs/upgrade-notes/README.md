@@ -22,5 +22,3 @@ oldest first, before it migrates and runs `dbu6 check`.
   that version. The version is not known before that commit, because it is
   computed from the pending changesets. Only files named by an exact
   version are printed; this README is not.
-
-This is the first version of the package, so there is no note yet.

@@ -16,7 +16,8 @@ import {
  * /import's refusal carries the batch's files and the account that failed,
  * so they are filled in here from the read: each file's parser and its
  * staged copy (kept when the refusal gets a prompt), for the account `add`
- * would make.
+ * would make. `origin` is where the screen was served from, for a prompt
+ * that re-runs the import.
  */
 export function refusalProblems(
   account: AddAccountCandidate,
@@ -24,6 +25,7 @@ export function refusalProblems(
   files: readonly AddAccountFile[],
   name: string,
   kind: AccountKind | null,
+  origin: string,
 ): Problem[] {
   const planFiles = account.file_names.flatMap(
     (fileName): AutoImportPlanFile[] => {
@@ -43,18 +45,21 @@ export function refusalProblems(
       ];
     },
   );
-  return describeProblems({
-    kind: "account-refused",
-    refusal: {
-      ...refusal,
-      files: planFiles,
-      failed_group: {
-        account_id: account.account?.id ?? 0,
-        account_name: name,
-        base_account: name,
-        is_credit_card: kind === "card",
-        file_names: account.file_names,
+  return describeProblems(
+    {
+      kind: "account-refused",
+      refusal: {
+        ...refusal,
+        files: planFiles,
+        failed_group: {
+          account_id: account.account?.id ?? 0,
+          account_name: name,
+          base_account: name,
+          is_credit_card: kind === "card",
+          file_names: account.file_names,
+        },
       },
     },
-  });
+    origin,
+  );
 }

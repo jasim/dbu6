@@ -60,11 +60,20 @@ describe("a file several parsers claim", () => {
 
 describe("a prompt that lets the agent re-run the import", () => {
   it("takes the token from the project, not from my account page", () => {
-    const prompt = noAccountPrompt(UNRESOLVED);
+    const prompt = noAccountPrompt(UNRESOLVED, "http://localhost:2345");
 
     expect(prompt).toContain("npx dbu6 agent env");
     expect(prompt).toContain(".env.agent");
     expect(prompt).toContain("set -a; . ./.env.agent; set +a");
     expect(prompt).not.toContain("account page");
+  });
+
+  it("posts to the origin the screen was served from", () => {
+    const prompt = noAccountPrompt(UNRESOLVED, "http://localhost:2340");
+
+    expect(prompt).toContain(
+      'curl -sS -X POST "http://localhost:2340/api/import-draft/statements/auto"',
+    );
+    expect(prompt).not.toContain("$SAPPORTA_API_URL");
   });
 });

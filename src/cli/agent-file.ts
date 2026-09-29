@@ -26,17 +26,16 @@ export function writeAgentEnvFile(file: string, contents: string): void {
 }
 
 /**
- * What the project's file holds, or null when it is absent or incomplete.
+ * What the project's file holds, or null when it is absent or has no token.
  *
- * `dbu6 agent env --print` reads this: the pair to export is the one the
- * project already uses, so printing it mints nothing.
+ * `dbu6 agent env --print` reads this: the token to export is the one the
+ * project already uses, so printing it mints nothing. An older file also holds
+ * a `SAPPORTA_API_URL`, which is ignored.
  */
 export function readAgentEnvValues(file: string): AgentEnvValues | null {
   if (!existsSync(file)) return null;
   const parsed = parseEnv(readFileSync(file, "utf8"));
-  const apiUrl = parsed.SAPPORTA_API_URL;
   const apiToken = parsed.SAPPORTA_API_TOKEN;
-  if (apiUrl === undefined || apiUrl === "") return null;
   if (apiToken === undefined || apiToken === "") return null;
-  return { apiUrl, apiToken };
+  return { apiToken };
 }

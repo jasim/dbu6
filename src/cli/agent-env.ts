@@ -4,9 +4,10 @@
  * module only has to fetch the account, mint the token and write the file.
  *
  * The token is a person's own agent access token, minted in their database the
- * way the app's token screen mints one. It is written beside `.env` as
- * `.env.agent`, which the shipped `sapporta` bin loads and `dbu6 dev` does not,
- * so the server's own process never holds it. The file is gitignored.
+ * way the app's token screen mints one. It is written beside
+ * `.env.development` as `.env.agent`, which the shipped `sapporta` bin reads
+ * the token from and `dbu6 dev` does not, so the server's own process never
+ * holds it. The file is gitignored.
  */
 
 /** The file the agent reads its token from. */
@@ -16,41 +17,36 @@ export const AGENT_ENV_FILE = ".env.agent";
 export const AGENT_TOKEN_NAME = "dbu6 agent env";
 
 export interface AgentEnvValues {
-  /** The running app the CLI talks to. */
-  apiUrl: string;
   /** The raw token, which the database never returns again. */
   apiToken: string;
 }
 
 /**
- * The file exactly as it is written. It is a dotenv file like `.env`, and its
- * first lines say where it came from so a person who finds it can tell whether
- * to keep it.
+ * The file exactly as it is written. It is a dotenv file like
+ * `.env.development`, and its first lines say where it came from so a person
+ * who finds it can tell whether to keep it. It holds no URL: the `sapporta`
+ * command finds the app's port by itself, and a URL here would go stale when
+ * the port moves.
  */
 export function agentEnvFile({
-  apiUrl,
   apiToken,
   createdFor,
 }: AgentEnvValues & { createdFor: string }): string {
   return [
     "# Agent access for coding agents (dbu6). Written by `dbu6 agent env`,",
     "# which the project's AGENTS.md tells an agent to run. Gitignored: this",
-    "# file is a credential. Read by the `sapporta` command only.",
+    "# file is a credential. The token is for the `sapporta` command, which",
+    "# reads it from here, and for `curl`.",
     `# Workspace owner: ${createdFor}`,
     "",
-    `SAPPORTA_API_URL=${apiUrl}`,
     `SAPPORTA_API_TOKEN=${apiToken}`,
     "",
   ].join("\n");
 }
 
-/** The `export …` lines `dbu6 agent env --print` writes, for `eval`. */
-export function agentEnvExports({ apiUrl, apiToken }: AgentEnvValues): string {
-  return [
-    `export SAPPORTA_API_URL=${shellQuote(apiUrl)}`,
-    `export SAPPORTA_API_TOKEN=${shellQuote(apiToken)}`,
-    "",
-  ].join("\n");
+/** The `export …` line `dbu6 agent env --print` writes, for `eval`. */
+export function agentEnvExports({ apiToken }: AgentEnvValues): string {
+  return `export SAPPORTA_API_TOKEN=${shellQuote(apiToken)}\n`;
 }
 
 /**

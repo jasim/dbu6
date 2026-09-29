@@ -26,8 +26,10 @@
 //     `.gitignore` under its real name, package.json pinned to the tarball,
 //     the installed dbu6 is the tarball's version, and the `sapporta` bin dbu6
 //     ships runs — and that `node_modules/.bin/sapporta`, the one
-//     `npx sapporta …` runs, is that bin and reads the project's `.env.agent`
-//   - `setup` and `migrate` ran: .env has a secret, user-config/ is filled,
+//     `npx sapporta …` runs, is that bin: it calls the port in the project's
+//     `.env.development` with the token in its `.env.agent`
+//   - `setup` and `migrate` ran: .env.development has a secret, user-config/
+//     is filled,
 //     data/sqlite.db exists
 //   - the first commit holds the project and nothing that is gitignored
 //   - `dbu6 check` passes in a fresh project
@@ -35,6 +37,7 @@
 //     given port, and stops on SIGTERM
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createServer } from "node:http";
 import {
   existsSync,
   globSync,
@@ -167,9 +170,9 @@ assert.equal(
 );
 // The command itself, as an agent runs it: every guide says `npx sapporta …`,
 // and `npx` runs the project's own `node_modules/.bin/sapporta`, not the file
-// above. Without that entry `npx` installs the standalone `sapporta` package
-// instead, without asking, and that CLI calls localhost:3000 with no token —
-// which is what this asserts against. On Windows the runnable entry is the
+// above. Without that entry `npx` runs a global `sapporta` or installs the
+// standalone package, without asking, and that CLI sends no token — which is
+// what this asserts against. On Windows the runnable entry is the
 // `.cmd` shim; the extensionless one is a shell script.
 const binNames =
   process.platform === "win32"
@@ -179,16 +182,24 @@ const sapportaLink = binNames
   .map((name) => path.join(projectDir, "node_modules", ".bin", name))
   .find((candidate) => existsSync(candidate));
 assert(sapportaLink, "init linked no node_modules/.bin/sapporta");
-// Only dbu6's bin reads the project's .env.agent, so a URL that only that file
-// can supply is what the command must call: the standalone CLI reads no such
-// file and would call its default port instead. The shell's own variables are
-// cleared for the probe, because the bin prefers them to the file — a
-// developer's shell exports SAPPORTA_API_URL through mise or direnv.
+// The probe listens on a port of its own, written into the project's
+// .env.development for the call: the CLI must find it there by itself, and only
+// dbu6's bin adds the token from .env.agent, so the request that arrives must
+// carry it. The shell's own variables are cleared for the probe, because they
+// win over both files — a developer's shell exports them through mise or
+// direnv.
+const settingsPath = path.join(projectDir, ".env.development");
+const settings = readFileSync(settingsPath, "utf8");
 const agentEnvPath = path.join(projectDir, ".env.agent");
-writeFileSync(
-  agentEnvPath,
-  "SAPPORTA_API_URL=http://localhost:1\nSAPPORTA_API_TOKEN=spat_05050500_050505\n",
-);
+const probeToken = "spat_05050500_050505";
+const received = [];
+const probeServer = createServer((request, response) => {
+  received.push(request.headers.authorization ?? null);
+  response.writeHead(200, { "content-type": "application/json" });
+  response.end("{}");
+});
+await new Promise((resolve) => probeServer.listen(0, "localhost", resolve));
+const probePort = probeServer.address().port;
 const probeEnv = { ...process.env };
 delete probeEnv.SAPPORTA_API_URL;
 delete probeEnv.SAPPORTA_API_TOKEN;
@@ -198,21 +209,32 @@ const probeCommand = process.platform === "win32" ? "cmd.exe" : sapportaLink;
 const probePrefix = process.platform === "win32" ? ["/c", sapportaLink] : [];
 let probed;
 try {
+  writeFileSync(
+    settingsPath,
+    settings.replace(/^SAPPORTA_API_PORT=.*$/m, `SAPPORTA_API_PORT=${probePort}`),
+  );
+  writeFileSync(agentEnvPath, `SAPPORTA_API_TOKEN=${probeToken}\n`);
   probed = await run(
     probeCommand,
     [...probePrefix, "api", "get", "/api/home", "--output", "json"],
     { cwd: projectDir, capture: true, env: probeEnv },
   );
 } finally {
+  writeFileSync(settingsPath, settings);
   rmSync(agentEnvPath, { force: true });
+  await new Promise((resolve) => probeServer.close(resolve));
 }
 const called = `${probed.stdout}${probed.stderr}`;
 assert(
-  called.includes("localhost:1"),
-  `the bin \`npx sapporta\` runs did not read the project's .env.agent: ${called}`,
+  received.length > 0,
+  `the bin \`npx sapporta\` runs did not call the port in .env.development: ${called}`,
 );
 assert(
-  /^BETTER_AUTH_SECRET=\S+$/m.test(readFileSync(path.join(projectDir, ".env"), "utf8")),
+  received.every((authorization) => authorization === `Bearer ${probeToken}`),
+  `the bin \`npx sapporta\` runs did not send the token in .env.agent: ${called}`,
+);
+assert(
+  /^BETTER_AUTH_SECRET=\S+$/m.test(readFileSync(settingsPath, "utf8")),
   "setup did not fill in BETTER_AUTH_SECRET",
 );
 assert(
@@ -234,7 +256,7 @@ assert.equal(
 const tracked = (
   await run("git", ["ls-files"], { cwd: projectDir, capture: true })
 ).stdout.split("\n");
-for (const secret of [".env", ".env.agent", "data/sqlite.db"]) {
+for (const secret of [".env.development", ".env.agent", "data/sqlite.db"]) {
   assert(!tracked.includes(secret), `${secret} was committed`);
 }
 
@@ -261,7 +283,8 @@ assert(
   "agent env wrote .env.agent for a project with no account",
 );
 
-// The env wins over .env, so the ports are given without editing the file.
+// The env wins over .env.development, so the ports are given without editing
+// the file.
 const env = {
   ...process.env,
   SAPPORTA_API_PORT: String(apiPort),

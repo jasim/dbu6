@@ -6,7 +6,10 @@
 import { spawn } from "node:child_process";
 import { dirname } from "node:path";
 import { acquireDataLock } from "../server/data-lock.js";
-import { migrateSafely, type MigrateSafelyResult } from "../server/migrate-safely.js";
+import {
+  migrateSafely,
+  type MigrateSafelyResult,
+} from "../server/migrate-safely.js";
 import { serveDbu6 } from "../server/mount.js";
 import { openDbu6 } from "../server/open.js";
 import { databaseFile } from "../server/paths.js";
@@ -17,7 +20,12 @@ import { printDocs } from "./docs.js";
 import { appDir, buildFrontend } from "./frontend.js";
 import { initCommand } from "./init.js";
 import { runParser, testParsers } from "./parser.js";
-import { devFolder, loadProjectEnv, resolveProjectRoot } from "./project.js";
+import {
+  devFolder,
+  formerEnvFileProblem,
+  loadProjectEnv,
+  resolveProjectRoot,
+} from "./project.js";
 import { setupProject } from "./setup.js";
 import { upgradeProject, type RunCommand } from "./upgrade.js";
 
@@ -29,7 +37,7 @@ const USAGE = `dbu6 <command>
   migrate                      migrate the database safely
   upgrade [version]            move to a dbu6 version (latest), migrate, check
   check                        report everything an upgrade can break
-  setup                        create .env, an auth secret and user-config/
+  setup                        create .env.development, an auth secret and user-config/
   seed [date] [--statements <dir>]   sample data for the demo account
   parser test [name]           run a parser's tests, or all of the project's
   parser run <name> <input>    run a parser on a statement file
@@ -57,6 +65,11 @@ export async function main(args: string[]): Promise<number> {
   }
 
   const root = resolveProjectRoot();
+  const formerEnv = formerEnvFileProblem(root);
+  if (formerEnv !== null) {
+    console.error(formerEnv);
+    return 1;
+  }
   if (command === "setup") {
     await setupProject(root);
     return 0;

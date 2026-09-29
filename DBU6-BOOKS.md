@@ -32,7 +32,7 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
 - **Periods:** the app's periods use the financial year (1 April to 31 March).
   When the user says "this year", say which year you used, or ask.
 - **Link the screen** where the user can see it. The base URL is
-  `SAPPORTA_PUBLIC_APP_URL`, set in the project's `.env`. Read it; do not
+  `SAPPORTA_PUBLIC_APP_URL`, set in the project's `.env.development`. Read it; do not
   assume a port: the template's `http://localhost:2345` is only a default, and
   a second project on the same machine is on other ports.
   - Home: `/`
@@ -291,9 +291,10 @@ Leave a rule request you couldn't encode.
     (duplicates, the categorizer failing) can leave an account set up with
     no transactions; dropping its files again finishes it, as `empty`.
   - For example, read a drop, then add it as a new account:
-    `curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/add-account/read" -F "files=@<path>" -F "files=@<path>"`,
+    `curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "http://localhost:<port>/api/add-account/read" -F "files=@<path>" -F "files=@<path>"`,
     then
-    `curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/add-account/add" -F "files=@<path>" -F "files=@<path>" -F "name=<account name>" -F "parent_id=<id>" -F "opening_amount=<signed>"`,
+    `curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "http://localhost:<port>/api/add-account/add" -F "files=@<path>" -F "files=@<path>" -F "name=<account name>" -F "parent_id=<id>" -F "opening_amount=<signed>"`,
+    with the port and the token as **Uploads** under "Reaching the app" says,
     leaving out `opening_amount` unless the read said `needs_opening`.
 
   To set a bank or card up without its statements, the endpoint behind
@@ -641,30 +642,36 @@ it could belong to), it keeps the file, `dbu6 migrate` prints why, and
   forwards to `@sapporta/server`, which dbu6 depends on), so run it as
   `npx sapporta …` from the project and install nothing. Every command in this
   file is spelled that way: `npx` runs this project's own
-  `node_modules/.bin/sapporta`, which is dbu6's bin. That bin loads
-  `SAPPORTA_API_URL` and `SAPPORTA_API_TOKEN` from the shell, then `.env`, then
-  `.env.agent`, and derives the URL from `SAPPORTA_API_PORT` when nothing names
-  it, so nothing has to be prefixed onto a command and no environment needs
-  setting by hand.
+  `node_modules/.bin/sapporta`, which is dbu6's bin. Nothing has to be
+  prefixed onto a command and no environment needs setting by hand:
+  - The CLI finds the app by itself: it calls `http://localhost:<port>`, with
+    the port from `SAPPORTA_API_PORT` in the environment, else in the
+    project's `.env.development` — the same rule `npx dbu6 dev` binds by.
+    `SAPPORTA_API_URL`, when set, overrides that; leave it unset unless it
+    points somewhere else on purpose.
+  - dbu6's bin adds `SAPPORTA_API_TOKEN` from `.env.agent` when the
+    environment has none, and changes nothing else.
   - If `npx` says the package was not found and will be installed, stop: this
     project has no link to dbu6's bin, and what would run instead is the
-    standalone `sapporta` CLI from npm, which reads no `.env.agent` and calls
-    port 3000. `npx dbu6 check` names the missing link; upgrading or
-    reinstalling dbu6 (`npx dbu6 upgrade`) restores it.
-  - A `sapporta` installed globally is not what `npx sapporta` runs — `npx`
-    looks only at the project — but a bare `sapporta` reaches that one, which
-    is a different program, so never write these commands without `npx`.
+    standalone `sapporta` CLI from npm, which reaches the app without the
+    token. `npx dbu6 check` names the missing link; upgrading or reinstalling
+    dbu6 (`npx dbu6 upgrade`) restores it.
+  - Without that link `npx` also runs a `sapporta` installed globally, and a
+    bare `sapporta` always does. Either is a plain Sapporta CLI that sends no
+    token, and an old one may call port 3000, so never write these commands
+    without `npx`.
 - **The token** must be in the environment as `SAPPORTA_API_TOKEN`.
   - `npx dbu6 agent env` gives this project one: it mints a token, writes it to
     the gitignored `.env.agent`, and revokes the one its previous run wrote.
     It names the account it used, and refuses a project that holds only the
     sample account `dbu6 seed` makes.
-  - The CLI reads that file by itself. A command that is not the CLI — the
-    `curl` uploads below — does not, so put the two values in its environment
-    first: `set -a; . ./.env.agent; set +a`.
-  - `.env.agent` also records the `SAPPORTA_API_URL` it was made for, and that
-    value wins over the port in `.env`. If the app's port changes afterwards,
-    run `npx dbu6 agent env` again, or the stale URL is what the CLI calls.
+  - dbu6's `sapporta` reads that file by itself. Anything else — a plain
+    Sapporta CLI, or the `curl` uploads below — does not, so put the token in
+    its environment first: `set -a; . ./.env.agent; set +a`. A CLI that
+    answers "No API token sent" needs exactly that.
+  - The file holds only the token. One an older dbu6 wrote also holds a
+    `SAPPORTA_API_URL`, which dbu6's bin ignores but loading the file into a
+    shell does not: run `npx dbu6 agent env` again to rewrite it.
   - A person can instead create one in the app, at
     `<app URL>/account/profile?token=new`, and choose **Copy prompt**.
   - Never put the token in a tracked file or show it in the chat.
@@ -689,8 +696,10 @@ dev` in the project), or offer to.
   and `npx sapporta rows delete`. Add `--output json` to parse the output.
 - **Endpoints:** `npx sapporta api get <path> --query '{…}'`,
   `npx sapporta api post <path> --body '{…}'`.
-- **Uploads** need curl, with the token in the environment as above:
-  `curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "$SAPPORTA_API_URL/api/import-draft/statements/auto" -F "files=@<path>"`.
+- **Uploads** need curl, with the token in the environment as above. The app is
+  at `http://localhost:<port>`, the port being `SAPPORTA_API_PORT` from the
+  environment, else from `.env.development`:
+  `curl -sS -H "Authorization: Bearer $SAPPORTA_API_TOKEN" "http://localhost:<port>/api/import-draft/statements/auto" -F "files=@<path>"`.
 
 ### Reading the database
 

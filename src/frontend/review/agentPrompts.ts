@@ -1,7 +1,8 @@
 // Prompts the user copies into their coding agent from Review's Duplicates
 // and Balance checks tabs (PLAN.md §11 P3), in the manner of the import
 // prompts: what the app was doing, the facts, what to do, what not to do,
-// and what to report back.
+// and what to report back. Each takes the origin the screen was served from,
+// which answers `/api` too, so the agent needs no address of its own.
 
 import type {
   ReviewAccountDetail,
@@ -16,7 +17,10 @@ import { reviewHref } from "./routes";
 /** Rows listed in a prompt before the rest are left to the API. */
 export const PROMPT_ROW_LIMIT = 50;
 
-export function duplicatesPrompt(detail: ReviewAccountDetail): string {
+export function duplicatesPrompt(
+  detail: ReviewAccountDetail,
+  origin: string,
+): string {
   const { account } = detail;
   return `I'm reviewing drafts in my books app (this repository) before adding them to
 the books, on the screen ${reviewHref(account.account_id, "duplicates")}. It flags
@@ -25,7 +29,7 @@ won't add those drafts to the books while any are left.
 
 ${accountFacts(detail)}
 
-${readingTheData(account.account_id)}
+${readingTheData(origin, account.account_id)}
 
 Each possible duplicate, one per line: the date, the direction and amount, the
 draft (id, narration, account), what it matched, and how it matched.
@@ -50,7 +54,10 @@ Report back a verdict for each line (one transaction or two, and why) and the
 change you propose for it.`;
 }
 
-export function balanceChecksPrompt(detail: ReviewAccountDetail): string {
+export function balanceChecksPrompt(
+  detail: ReviewAccountDetail,
+  origin: string,
+): string {
   const { account, failing } = detail;
   return `I'm reviewing drafts in my books app (this repository) before adding them to
 the books, on the screen ${reviewHref(account.account_id, "balance-checks")}.
@@ -60,7 +67,7 @@ and the app won't add the drafts to the books until every check passes.
 
 ${accountFacts(detail)}
 
-${readingTheData(account.account_id)}
+${readingTheData(origin, account.account_id)}
 
 Each failing check, one per line: the date, the draft id, the running balance,
 the statement's balance, and the difference (running minus statement).
@@ -101,15 +108,15 @@ function accountFacts(detail: ReviewAccountDetail): string {
 ${account.account_id}. It has ${plural(account.drafts, "draft")}${dates} waiting in Review. ${checked}`;
 }
 
-function readingTheData(accountId: number): string {
-  const api = "$SAPPORTA_API_URL/api";
+function readingTheData(origin: string, accountId: number): string {
+  const api = `${origin}/api`;
   return `To read the data, with the dev server running, use the Sapporta command this
-project already has: it finds the app's address and the agent token in the
-gitignored \`.env.agent\` by itself, and \`npx dbu6 agent env\` writes one if the
+project already has: it finds the app by itself and reads the agent token from
+the gitignored \`.env.agent\`, and \`npx dbu6 agent env\` writes one if the
 project has none. \`npx sapporta api get <path>\` and \`npx sapporta rows list
 <table>\` send those requests. A plain HTTP client does not read the file, so
-load it first with \`set -a; . ./.env.agent; set +a\` and send
-"Authorization: Bearer $SAPPORTA_API_TOKEN" to:
+load the token first with \`set -a; . ./.env.agent; set +a\` and send
+"Authorization: Bearer $SAPPORTA_API_TOKEN" to the app at ${origin}:
 
   GET ${api}/review/accounts/${accountId}
   GET ${api}/reports/duplicate-drafts?base_account_id=${accountId}

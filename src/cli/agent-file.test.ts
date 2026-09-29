@@ -23,10 +23,7 @@ afterEach(() => {
   }
 });
 
-const VALUES = {
-  apiUrl: "http://localhost:2345",
-  apiToken: "spat_05050500_050505",
-};
+const VALUES = { apiToken: "spat_05050500_050505" };
 
 describe("writeAgentEnvFile", () => {
   it("writes a new file private to its owner", () => {
@@ -49,11 +46,21 @@ describe("writeAgentEnvFile", () => {
 });
 
 describe("readAgentEnvValues", () => {
-  it("reads the pair a project holds", () => {
+  it("reads the token a project holds", () => {
     const file = tempFile();
     writeAgentEnvFile(
       file,
-      `# comment\nSAPPORTA_API_URL=${VALUES.apiUrl}\nSAPPORTA_API_TOKEN=${VALUES.apiToken}\n`,
+      `# comment\nSAPPORTA_API_TOKEN=${VALUES.apiToken}\n`,
+    );
+
+    expect(readAgentEnvValues(file)).toEqual(VALUES);
+  });
+
+  it("reads an older file that still holds a URL, and ignores the URL", () => {
+    const file = tempFile();
+    writeAgentEnvFile(
+      file,
+      `SAPPORTA_API_URL=http://localhost:1\nSAPPORTA_API_TOKEN=${VALUES.apiToken}\n`,
     );
 
     expect(readAgentEnvValues(file)).toEqual(VALUES);
@@ -63,16 +70,13 @@ describe("readAgentEnvValues", () => {
     expect(readAgentEnvValues(tempFile())).toBeNull();
   });
 
-  it("answers null when either value is missing or blank", () => {
+  it("answers null when the token is missing or blank", () => {
     const noToken = tempFile();
-    writeAgentEnvFile(noToken, `SAPPORTA_API_URL=${VALUES.apiUrl}\n`);
+    writeAgentEnvFile(noToken, "SAPPORTA_API_URL=http://localhost:1\n");
     expect(readAgentEnvValues(noToken)).toBeNull();
 
     const blank = tempFile();
-    writeAgentEnvFile(
-      blank,
-      `SAPPORTA_API_URL=${VALUES.apiUrl}\nSAPPORTA_API_TOKEN=\n`,
-    );
+    writeAgentEnvFile(blank, "SAPPORTA_API_TOKEN=\n");
     expect(readAgentEnvValues(blank)).toBeNull();
   });
 });

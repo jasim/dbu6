@@ -260,9 +260,9 @@ async function ensureSqliteBinding(
 
 /**
  * The first commit, when git is installed: the project is worth versioning
- * from its first minute, and `data/` and `.env` are already ignored. Git's
- * identity is never configured here; a commit that fails for the lack of one
- * leaves the files staged and says so.
+ * from its first minute, and `data/` and `.env.development` are already
+ * ignored. Git's identity is never configured here; a commit that fails for
+ * the lack of one leaves the files staged and says so.
  */
 async function firstCommit(
   root: string,

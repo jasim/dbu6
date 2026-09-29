@@ -123,13 +123,16 @@ a short label that appears in the result and in error messages.
 
 ## 4. Import
 
-With the dev server running, post the request. `SAPPORTA_API_URL` and
-`SAPPORTA_API_TOKEN` come from the environment (`npx dbu6 docs books`, "Reaching
-the app", says where a project keeps them). If the token is empty, ask the
-user to create an agent access token from their account page in the app.
+With the dev server running, post the request to the app at
+`http://localhost:<port>`, the port being `SAPPORTA_API_PORT` from the
+environment, else from the project's `.env.development`. `SAPPORTA_API_TOKEN`
+comes from the gitignored `.env.agent`: load it with
+`set -a; . ./.env.agent; set +a`, and if there is none, run
+`npx dbu6 agent env` (`npx dbu6 docs books`, "Reaching the app", has the
+details).
 
 ```bash
-curl -sS -X POST "$SAPPORTA_API_URL/api/import-draft/abacus" \
+curl -sS -X POST "http://localhost:<port>/api/import-draft/abacus" \
   -H "Authorization: Bearer $SAPPORTA_API_TOKEN" \
   -H "Content-Type: application/json" \
   --data @tmp/freeform-transactions/<file>.json

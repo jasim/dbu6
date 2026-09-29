@@ -10,6 +10,8 @@ import {
   PROMPT_ROW_LIMIT,
 } from "./agentPrompts";
 
+const ORIGIN = "http://localhost:2345";
+
 function duplicate(draft_id: number): ReviewDuplicate {
   return {
     date: "2026-09-05",
@@ -65,7 +67,10 @@ function detail(overrides: Partial<ReviewAccountDetail>): ReviewAccountDetail {
 
 describe("duplicatesPrompt", () => {
   it("starts from the account's facts and lists each possible duplicate", () => {
-    const prompt = duplicatesPrompt(detail({ duplicates: [duplicate(812)] }));
+    const prompt = duplicatesPrompt(
+      detail({ duplicates: [duplicate(812)] }),
+      ORIGIN,
+    );
 
     expect(prompt).toContain("/review/7/duplicates");
     expect(prompt).toContain(
@@ -78,7 +83,7 @@ describe("duplicatesPrompt", () => {
       "Its last posted balance check is 250000.00 on 2026-08-31.",
     );
     expect(prompt).toContain(
-      "$SAPPORTA_API_URL/api/reports/duplicate-drafts?base_account_id=7",
+      "http://localhost:2345/api/reports/duplicate-drafts?base_account_id=7",
     );
     expect(prompt).toContain(
       '- 2026-09-05 · withdrawal 12000.00 · draft 812 "NOPII CARD PAYMENT" (Sample Card) · matched journal 31, entry 1204 "NOPII payment received" (Sample Card) · base-account-payment, confidence 80%',
@@ -94,13 +99,15 @@ describe("duplicatesPrompt", () => {
     expect(prompt).toContain("npx dbu6 agent env");
     expect(prompt).toContain(".env.agent");
     expect(prompt).not.toContain("account page");
+    // The address is the screen's own; no variable the agent must have set.
+    expect(prompt).not.toContain("$SAPPORTA_API_URL");
   });
 
   it("lists at most 50 duplicates and points at the API for the rest", () => {
     const rows = Array.from({ length: PROMPT_ROW_LIMIT + 3 }, (_, i) =>
       duplicate(i + 1),
     );
-    const prompt = duplicatesPrompt(detail({ duplicates: rows }));
+    const prompt = duplicatesPrompt(detail({ duplicates: rows }), ORIGIN);
 
     expect(prompt.match(/^- 2026-09-05/gm)).toHaveLength(PROMPT_ROW_LIMIT);
     expect(prompt).toContain("and 3 more (read them from the API above)");
@@ -111,6 +118,7 @@ describe("balanceChecksPrompt", () => {
   it("lists each failing check and explains how the check is computed", () => {
     const prompt = balanceChecksPrompt(
       detail({ failing: [failing(901), failing(902)], checkpoint: null }),
+      ORIGIN,
     );
 
     expect(prompt).toContain(
@@ -123,7 +131,7 @@ describe("balanceChecksPrompt", () => {
     expect(prompt).toContain("How the check is computed: the running balance");
     expect(prompt).not.toMatch(/packages\/|src\/|\.ts\b/);
     expect(prompt).toContain(
-      "$SAPPORTA_API_URL/api/tables/draft_transactions?filter[base_account_id][eq]=7&sort=date,id&limit=1000",
+      "http://localhost:2345/api/tables/draft_transactions?filter[base_account_id][eq]=7&sort=date,id&limit=1000",
     );
     expect(prompt).not.toContain("more (read them");
   });
@@ -132,7 +140,7 @@ describe("balanceChecksPrompt", () => {
     const rows = Array.from({ length: PROMPT_ROW_LIMIT + 1 }, (_, i) =>
       failing(i + 1),
     );
-    const prompt = balanceChecksPrompt(detail({ failing: rows }));
+    const prompt = balanceChecksPrompt(detail({ failing: rows }), ORIGIN);
 
     expect(prompt.match(/^- 2026-09-05/gm)).toHaveLength(PROMPT_ROW_LIMIT);
     expect(prompt).toContain("and 1 more (read them from the API above)");

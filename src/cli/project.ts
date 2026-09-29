@@ -49,9 +49,28 @@ export function runsFromSource(): boolean {
   return existsSync(packageDir("src", "server"));
 }
 
-/** The project's environment file. */
+/**
+ * The project's environment file. It has Sapporta's name for it, so the
+ * `sapporta` command finds the project's port there however it was installed.
+ */
 export function envFile(root: string): string {
-  return join(root, ".env");
+  return join(root, ".env.development");
+}
+
+/**
+ * Why the project cannot be used as it is, or null. A project made before the
+ * file was renamed has only `.env`, and it may set `SAPPORTA_DATA_DIR`: a
+ * command that ignored it would open, or create, a database in the wrong
+ * place. So every command with a project stops first, and nothing moves the
+ * file but its owner.
+ *
+ * Transitional: remove once the known projects have moved.
+ */
+export function formerEnvFileProblem(root: string): string | null {
+  if (!existsSync(join(root, ".env")) || existsSync(envFile(root))) {
+    return null;
+  }
+  return `${join(root, ".env")} is no longer read; rename it to .env.development.`;
 }
 
 /**

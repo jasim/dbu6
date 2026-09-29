@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, matchesGlob } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { packageDir } from "../server/paths.js";
 import {
@@ -97,7 +97,11 @@ describe("initProject", () => {
     // Every template file, `gitignore` under its real name.
     expect(existsSync(join(root, ".gitignore"))).toBe(true);
     expect(existsSync(join(root, "gitignore"))).toBe(false);
-    for (const file of ["AGENTS.md", "tsconfig.json", ".env.example"]) {
+    for (const file of [
+      "AGENTS.md",
+      "tsconfig.json",
+      ".env.development.example",
+    ]) {
       expect(existsSync(join(root, file)), file).toBe(true);
     }
     const bin = "<root>/node_modules/@dbu6/app/bin/dbu6.mjs";
@@ -235,7 +239,7 @@ describe("renderTemplate", () => {
     });
     expect(files.map((file) => file.path)).toEqual([
       ".dockerignore",
-      ".env.example",
+      ".env.development.example",
       ".gitignore",
       "AGENTS.md",
       "Dockerfile",
@@ -271,5 +275,38 @@ describe("projectSlug", () => {
   it("lowercases and replaces what npm does not accept", () => {
     expect(projectSlug("My Books")).toBe("my-books");
     expect(projectSlug("")).toBe("my-books");
+  });
+});
+
+/**
+ * Whether an ignore file's patterns leave `name` out, the last matching
+ * pattern deciding as it does for git and Docker. Enough for the plain
+ * top-level patterns the template uses.
+ */
+function ignores(ignoreFile: string, name: string): boolean {
+  let ignored = false;
+  for (const raw of readFileSync(packageDir("template", ignoreFile), "utf8")
+    .split("\n")
+    .map((line) => line.trim())) {
+    if (raw === "" || raw.startsWith("#")) continue;
+    const negated = raw.startsWith("!");
+    const pattern = negated ? raw.slice(1) : raw;
+    if (matchesGlob(name, pattern)) ignored = !negated;
+  }
+  return ignored;
+}
+
+describe("the template's ignore files", () => {
+  it("keep the settings file and the agent's token out of git", () => {
+    expect(ignores("gitignore", ".env.development")).toBe(true);
+    expect(ignores("gitignore", ".env.agent")).toBe(true);
+    expect(ignores("gitignore", ".env")).toBe(true);
+    // The defaults `init` writes beside them hold no secret.
+    expect(ignores("gitignore", ".env.development.example")).toBe(false);
+  });
+
+  it("keep the settings file and the agent's token out of an image", () => {
+    expect(ignores(".dockerignore", ".env.development")).toBe(true);
+    expect(ignores(".dockerignore", ".env.agent")).toBe(true);
   });
 });

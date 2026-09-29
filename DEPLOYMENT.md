@@ -27,11 +27,12 @@ npm init @dbu6 my-books      # or the folder you already keep
 cd my-books
 ```
 
-`init` wrote `.env` from the template with a generated `BETTER_AUTH_SECRET`
-and local defaults. For a server, set the values that differ:
+`init` wrote `.env.development` from the template with a generated
+`BETTER_AUTH_SECRET` and local defaults. On a machine of your own that runs
+`npx dbu6 start` in this folder, set the values that differ there:
 
 ```sh
-# .env
+# .env.development
 SAPPORTA_API_PORT=3000
 SAPPORTA_PUBLIC_APP_URL=https://books.example.com   # the origin the browser uses
 BETTER_AUTH_SECRET=...                               # keep the generated one
@@ -42,9 +43,11 @@ SAPPORTA_MAIL_FROM="dbu6 <no-reply@books.example.com>"
 SMTP_URL=smtps://user:pass@smtp.example.com:465
 ```
 
-A value already in the environment wins over `.env`, so a systemd unit, a
-container or a platform can set everything and the file can be absent. `.env`
-is gitignored; never commit it.
+Every `dbu6` command reads that file; the name is Sapporta's, and it is how
+the `sapporta` command finds the port too. A value already in the environment
+wins over it, so a systemd unit, a container or a platform can set everything
+and the file can be absent — a real deployment is configured that way. The
+file is gitignored; never commit it.
 
 Then:
 
@@ -120,8 +123,8 @@ docker run -d --name my-books -p 3000:3000 \
   my-books
 ```
 
-- The image has no `.env` (`.dockerignore` keeps it out), so the container's
-  environment configures dbu6. `BETTER_AUTH_SECRET` and
+- The image has no `.env.development` (`.dockerignore` keeps it out), so the
+  container's environment configures dbu6. `BETTER_AUTH_SECRET` and
   `SAPPORTA_PUBLIC_APP_URL` are required; the rest is the table below. The
   port is `SAPPORTA_API_PORT`, or a platform's `PORT`, or 3000.
 - `/app/data` must be a volume, named or a bind mount, or the books vanish
@@ -158,7 +161,7 @@ docker run -d --name my-books -p 3000:3000 \
 | `SAPPORTA_MAIL_FROM` | The sender of verification and reset mail, on a domain your SMTP provider will send for. |
 | `SMTP_URL`, or `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | The SMTP connection, when the transport is `smtp`. `SMTP_URL` wins when both are given. |
 | `LLM_ENGINE`, `NUABASE_API_KEY` | Deprecated: categorize on the Nuabase gateway instead of a coding agent on the machine. |
-| `SAPPORTA_API_URL`, `SAPPORTA_API_TOKEN` | Not read by the server: they point the `sapporta` CLI and a coding agent at a running dbu6 (`npx dbu6 docs books`). `npx dbu6 agent env` mints the token into the gitignored `.env.agent`, and the CLI dbu6 ships reads both by itself. |
+| `SAPPORTA_API_TOKEN` | Not read by the server: the token the `sapporta` CLI and a coding agent send to a running dbu6 (`npx dbu6 docs books`). `npx dbu6 agent env` mints it into the gitignored `.env.agent`, which the CLI dbu6 ships reads by itself. The CLI finds the app from `SAPPORTA_API_PORT`; `SAPPORTA_API_URL` overrides that, and is needed only to reach an app on another host. |
 
 ## A reverse proxy
 

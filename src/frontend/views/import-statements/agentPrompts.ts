@@ -14,7 +14,9 @@
 // project's own directories.
 //
 // Each prompt takes the server's own reply for its case, a plan file or an
-// account's refusal, and reads the contract's fields as they are named.
+// account's refusal, and reads the contract's fields as they are named. One
+// that re-runs the import also takes the origin the screen was served from,
+// which answers `/api` too, so the agent needs no address of its own.
 
 import { guideCommand, type AutoImportPlanFile } from "../../../shared/index";
 import { PII_RULE, PROJECT_FILES_RULE } from "../../agent-prompt-rules";
@@ -40,17 +42,17 @@ const SAVED_PARSERS_NOTE = `A saved parser is named by its directory: the one of
 project's custom-built-parsers/, or else the one bundled with dbu6, which
 \`${PARSERS_GUIDE}\` lists.`;
 
-function rerunBlock(paths: readonly string[]): string {
+function rerunBlock(origin: string, paths: readonly string[]): string {
   const uploads = paths.map((path) => `    -F "files=@${path}"`).join(" \\\n");
   return `Re-running the import yourself: with the dev server running, POST the statement
 file(s) to the same endpoint the screen uses. The upload is multipart, which the
-Sapporta command cannot send, so use curl with the agent token this project
-already has in the gitignored \`.env.agent\` (\`npx dbu6 agent env\` writes one if
-the project has none) put into the shell first:
+Sapporta command cannot send, so use curl. The app is at ${origin}; the agent
+token is in the gitignored \`.env.agent\` (\`npx dbu6 agent env\` writes one if
+the project has none), so put it into the shell first:
 
   set -a; . ./.env.agent; set +a
 
-  curl -sS -X POST "$SAPPORTA_API_URL/api/import-draft/statements/auto" \\
+  curl -sS -X POST "${origin}/api/import-draft/statements/auto" \\
     -H "Authorization: Bearer $SAPPORTA_API_TOKEN" \\
 ${uploads}
 
@@ -120,7 +122,10 @@ Tell me when it is done and I will retry the import.`;
 
 // The account a statement goes to isn't set up: no institution lists its
 // parser, or the one that does has no accounts.
-export function noAccountPrompt(file: PlanFile<"unresolved">): string {
+export function noAccountPrompt(
+  file: PlanFile<"unresolved">,
+  origin: string,
+): string {
   const { account } = file;
   const parser = parserLabel(file.parser_path);
   const who =
@@ -154,7 +159,7 @@ ${PRESET_CHANGES_NOTE}
 
 Then tell me it is done and I will retry the import, or re-run it yourself.
 
-${rerunBlock([stagedAt(file)])}`;
+${rerunBlock(origin, [stagedAt(file)])}`;
 }
 
 export function identifierRequiredPrompt(file: PlanFile<"unresolved">): string {
@@ -239,6 +244,7 @@ ${SAVED_PARSERS_NOTE} ${PROJECT_FILES_RULE}
 
 export function balanceMismatchPrompt(
   refusal: RefusalOf<"balance_mismatch" | "segment_balance_mismatch">,
+  origin: string,
 ): string {
   const numbers =
     refusal.error === "balance_mismatch"
@@ -256,11 +262,12 @@ statement. ${PII_RULE}
 Once fixed, you may re-run the import yourself or tell me and I will retry
 from the screen.
 
-${rerunBlock(groupPaths(refusal))}`;
+${rerunBlock(origin, groupPaths(refusal))}`;
 }
 
 export function boundaryGapPrompt(
   refusal: RefusalOf<"statement_boundary_mismatch">,
+  origin: string,
 ): string {
   return `${groupIntro(refusal)} ${refusal.earlier_source} ends at
 ${refusal.earlier_closing} and ${refusal.later_source} starts at ${refusal.later_opening},
@@ -273,11 +280,12 @@ mis-reading an edge row, fix it with a sanitized fixture and test. ${PII_RULE}
 
 Then re-run the import yourself or tell me and I will retry.
 
-${rerunBlock(groupPaths(refusal))}`;
+${rerunBlock(origin, groupPaths(refusal))}`;
 }
 
 export function disagreementPrompt(
   refusal: RefusalOf<"statement_disagreement">,
+  origin: string,
 ): string {
   return `${groupIntro(refusal)} The parts disagree on ${refusal.date}
 (${list(refusal.parts)}); the first differing row is ${JSON.stringify(refusal.row)}.${quoted(refusal.message)}
@@ -289,11 +297,12 @@ and test. ${PII_RULE}
 
 Then re-run the import with the correct file(s) or tell me which one to drop.
 
-${rerunBlock(groupPaths(refusal))}`;
+${rerunBlock(origin, groupPaths(refusal))}`;
 }
 
 export function partInvalidPrompt(
   refusal: RefusalOf<"statement_part_invalid">,
+  origin: string,
 ): string {
   return `${groupIntro(refusal)} The part ${refusal.part} is not
 self-consistent: ${refusal.detail}.${quoted(refusal.message)}
@@ -304,11 +313,12 @@ with a sanitized fixture and test, never by loosening validation. ${PII_RULE}
 
 Then re-run the import yourself or tell me and I will retry.
 
-${rerunBlock(groupPaths(refusal))}`;
+${rerunBlock(origin, groupPaths(refusal))}`;
 }
 
 export function reconciliationPrompt(
   refusal: RefusalOf<"reconciliation_match_failed">,
+  origin: string,
 ): string {
   return `${groupIntro(refusal)} The ledger's last reconciled
 balance for that account is ${refusal.checkpoint_balance} on ${refusal.checkpoint_date},
@@ -325,11 +335,12 @@ change and why. ${PII_RULE}
 
 After the fix you may re-run the import.
 
-${rerunBlock(groupPaths(refusal))}`;
+${rerunBlock(origin, groupPaths(refusal))}`;
 }
 
 export function missingAccountPrompt(
   refusal: RefusalOf<"import_account_not_found">,
+  origin: string,
 ): string {
   const { account_id, account_name } = refusal.failed_group;
   return `${groupIntro(refusal)} The account ${account_name} in my import presets
@@ -346,11 +357,12 @@ ${PRESET_CHANGES_NOTE}
 
 Then re-run the import yourself or tell me and I will retry.
 
-${rerunBlock(groupPaths(refusal))}`;
+${rerunBlock(origin, groupPaths(refusal))}`;
 }
 
 export function closingBalancePrompt(
   refusal: RefusalOf<"closing_balance_unavailable">,
+  origin: string,
 ): string {
   return `${groupIntro(refusal)} This is a credit-card
 statement and the parser emitted no closing balance and no printed running
@@ -363,11 +375,14 @@ does print about the amount owed. ${PII_RULE}
 
 Then re-run the import yourself or tell me and I will retry.
 
-${rerunBlock(groupPaths(refusal))}`;
+${rerunBlock(origin, groupPaths(refusal))}`;
 }
 
 // For a code without a prompt of its own: the whole reply goes to the agent.
-export function genericFailurePrompt(refusal: AccountRefusal): string {
+export function genericFailurePrompt(
+  refusal: AccountRefusal,
+  origin: string,
+): string {
   return `${groupIntro(refusal)}${quoted(refusal.message)}
 The full error payload was:
 
@@ -379,5 +394,5 @@ the ledger. ${PII_RULE}
 
 Once fixed, you may re-run the import yourself or tell me and I will retry.
 
-${rerunBlock(groupPaths(refusal))}`;
+${rerunBlock(origin, groupPaths(refusal))}`;
 }

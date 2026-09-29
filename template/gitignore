@@ -5,9 +5,10 @@ node_modules/
 dist/
 # Statements that did not import, kept for a coding agent to read
 tmp/
-.env
-# The agent access token, written by `npx dbu6 agent env`. A credential.
-.env.agent
+# Settings and secrets (.env.development), and the agent access token
+# `npx dbu6 agent env` writes (.env.agent). Credentials, never committed.
+.env*
+!.env.development.example
 *.log
 .DS_Store
 __pycache__/

@@ -1,6 +1,6 @@
 # Optional. mise is only for pinning Node and for the setting below; nothing
 # in this repository needs it. A project folder that runs this checkout keeps
-# its ports, tokens and keys in its own .env or mise.toml.
+# its ports, tokens and keys in its own .env.development or mise.toml.
 
 [tools]
 node = "24"

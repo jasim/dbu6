@@ -33,6 +33,7 @@ import { formatDate, formatMoney, parserLabel } from "../../format";
 // wording of titles, labels and sentences is free to change.
 
 const BANK_PARSER = "hdfc-bank-xls";
+const ORIGIN = "http://localhost:2345";
 
 /** Where the app staged an upload of a batch it could not import. */
 function staged(fileName: string): string {
@@ -142,7 +143,7 @@ describe("plan rejections", () => {
       candidate_parser_paths: [],
     };
     const error = refused(422, planRejection([resolvedRow, unrecognized]));
-    const problems = describeProblems(error);
+    const problems = describeProblems(error, ORIGIN);
     expect(problems).toHaveLength(1);
     const [problem] = problems;
     expect(problem).toMatchObject({
@@ -204,6 +205,7 @@ describe("plan rejections", () => {
           },
         ]),
       ),
+      ORIGIN,
     );
     for (const path of tried) {
       expect(factValues(problem).join(" ")).toContain(parserLabel(path));
@@ -230,7 +232,7 @@ describe("plan rejections", () => {
         },
       ]),
     );
-    const [problem] = describeProblems(error);
+    const [problem] = describeProblems(error, ORIGIN);
     expect(problem).toMatchObject({
       subject: "HDFC Bank Cards Division",
       fileNames: ["card-aug.xls"],
@@ -271,6 +273,7 @@ describe("plan rejections", () => {
           },
         ]),
       ),
+      ORIGIN,
     );
     expect(problem).toMatchObject({
       subject: "Sample Bank",
@@ -305,7 +308,7 @@ describe("plan rejections", () => {
     const summary = describeBatch({ kind: "failed", failure: error });
     expect(summary).toMatchObject({ tone: "attention", next: null });
     expect(summary.text).not.toMatch(/\d/);
-    const [problem] = describeProblems(error);
+    const [problem] = describeProblems(error, ORIGIN);
     expect(problem.actions).toEqual([]);
   });
 
@@ -328,7 +331,7 @@ describe("plan rejections", () => {
         },
       ]),
     );
-    const [problem] = describeProblems(error);
+    const [problem] = describeProblems(error, ORIGIN);
     expect(problem).toMatchObject({
       subject: "Sample Bank",
       fileNames: ["other.xls"],
@@ -360,6 +363,7 @@ describe("plan rejections", () => {
           },
         ]),
       ),
+      ORIGIN,
     );
     expect(problem.subject).toBe("Sample Bank");
     expect(factValues(problem).join(" ")).toContain("Sample Current");
@@ -383,6 +387,7 @@ describe("account import failures", () => {
         files: [resolvedRow],
         failed_group: { ...failedGroup, file_names: fileNames },
       }),
+      ORIGIN,
     );
     return problem;
   }
@@ -400,7 +405,7 @@ describe("account import failures", () => {
       files: [resolvedRow],
       failed_group: failedGroup,
     });
-    const [problem] = describeProblems(error);
+    const [problem] = describeProblems(error, ORIGIN);
     expect(problem).toMatchObject({
       subject: "Sample Bank",
       fileNames: ["bank-aug.xls"],
@@ -475,6 +480,7 @@ describe("account import failures", () => {
           file_names: ["bank-aug.xls", "bank-aug-copy.xls"],
         },
       }),
+      ORIGIN,
     );
     expect(problem.facts).toEqual([]);
     expect(problem.agent).toBeNull();
@@ -512,7 +518,10 @@ describe("account import failures", () => {
     expect(other.text).toContain("bank-aug.xls");
 
     // A problem none of whose files is in the list stands apart.
-    const [lost] = describeProblems({ kind: "network", message: "offline" });
+    const [lost] = describeProblems(
+      { kind: "network", message: "offline" },
+      ORIGIN,
+    );
     expect(placeProblems([lost], ["bank-aug.xls"]).apart).toEqual([lost]);
   });
 
@@ -526,6 +535,7 @@ describe("account import failures", () => {
           file_names: ["bank-jul.xls", "bank-sep.xls"],
         },
       }),
+      ORIGIN,
     );
     expect(problem.tone).toBe("problem");
     expect(factValues(problem)).toEqual([
@@ -553,6 +563,7 @@ describe("account import failures", () => {
         files: [resolvedRow],
         failed_group: failedGroup,
       }),
+      ORIGIN,
     );
     // It reads whole without Details: the balance and day are in it.
     expect(problem.context).toContain(formatMoney(2500));
@@ -585,7 +596,7 @@ describe("account import failures", () => {
     expect(summary.text).toContain("Sample Bank");
     expect(summary.text).toContain("Sample Card");
     expect(summary.next).toContain("bank-aug.xls");
-    const [problem] = describeProblems(error);
+    const [problem] = describeProblems(error, ORIGIN);
     expect(problem).toMatchObject({
       subject: "Sample Card",
       fileNames: ["card-aug.xls"],
@@ -601,6 +612,7 @@ describe("account import failures", () => {
         files: [],
         failed_group: failedGroup,
       }),
+      ORIGIN,
     );
     expect(problem.fix).toContain("Sample Bank");
     expect(problem.actions).toEqual([
@@ -620,6 +632,7 @@ describe("account import failures", () => {
         files: [],
         failed_group: failedGroup,
       }),
+      ORIGIN,
     );
     expect(problem).toMatchObject({
       subject: "Sample Bank",
@@ -651,6 +664,7 @@ describe("account import failures", () => {
           files: [],
           failed_group: failedGroup,
         }),
+        ORIGIN,
       );
       expect(problem.subject, code).toBe("Sample Bank");
       expect(problem.context, code).toContain(PAYLOADS[code].message);
@@ -671,7 +685,7 @@ describe("account import failures", () => {
       failed_group: failedGroup,
     });
     expect(error.kind).toBe("unexpected");
-    const [problem] = describeProblems(error);
+    const [problem] = describeProblems(error, ORIGIN);
     expect(problem.agent).toBeNull();
     expect(problem.technical).toContain('"error": "something_new"');
     expect(describeBatch({ kind: "failed", failure: error })).toMatchObject({
@@ -681,12 +695,18 @@ describe("account import failures", () => {
   });
 
   it("explains a lost connection and a missing permission without an agent", () => {
-    const [forbidden] = describeProblems(refused(403, { error: "Forbidden" }));
+    const [forbidden] = describeProblems(
+      refused(403, { error: "Forbidden" }),
+      ORIGIN,
+    );
     expect(forbidden).toMatchObject({ fileNames: [], agent: null });
-    const [network] = describeProblems({
-      kind: "network",
-      message: "Failed to fetch",
-    });
+    const [network] = describeProblems(
+      {
+        kind: "network",
+        message: "Failed to fetch",
+      },
+      ORIGIN,
+    );
     expect(network).toMatchObject({ fileNames: [], agent: null });
     expect(network.technical).toContain("Failed to fetch");
   });
@@ -698,6 +718,7 @@ describe("account import failures", () => {
         files: [resolvedRow],
         failed_group: failedGroup,
       }),
+      ORIGIN,
     );
     expect(factValues(problem)).toEqual([
       formatMoney(1000),
@@ -723,7 +744,9 @@ describe("problem tones", () => {
       failed_group: failedGroup,
     });
     expect(error.kind, code).toBe("account-refused");
-    const tones = describeProblems(error).map((problem) => problem.tone);
+    const tones = describeProblems(error, ORIGIN).map(
+      (problem) => problem.tone,
+    );
     expect(new Set(tones)).toEqual(new Set([problemTone(error)]));
     return problemTone(error);
   }
@@ -786,7 +809,7 @@ describe("problem tones", () => {
         })),
       ]),
     );
-    const problems = describeProblems(plan);
+    const problems = describeProblems(plan, ORIGIN);
     expect(problems).toHaveLength(6);
     expect(problems.every((problem) => problem.tone === "attention")).toBe(
       true,
@@ -796,7 +819,7 @@ describe("problem tones", () => {
   it("gives the connection and unexpected-error cards the destructive tone", () => {
     const network: ImportFailure = { kind: "network", message: "offline" };
     expect(problemTone(network)).toBe("problem");
-    expect(describeProblems(network)[0].tone).toBe("problem");
+    expect(describeProblems(network, ORIGIN)[0].tone).toBe("problem");
     for (const code of [
       "ambiguous_duplicate",
       "abacus_json_parse_failed",
@@ -855,7 +878,7 @@ describe("problem tones", () => {
       ]),
     );
     const prompts = [...refusals, plan].flatMap((failure) =>
-      describeProblems(failure).flatMap((problem) =>
+      describeProblems(failure, ORIGIN).flatMap((problem) =>
         problem.agent ? [problem.agent.prompt] : [],
       ),
     );
@@ -911,6 +934,7 @@ describe("refusalPromptsAgent", () => {
           files: [{ ...resolvedRow, file_name: "bank-aug.xls" }],
           failed_group: failedGroup,
         }),
+        ORIGIN,
       );
       expect({
         refusal: refusal.error,

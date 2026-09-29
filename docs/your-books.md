@@ -14,8 +14,8 @@ my-books/
   Dockerfile              the folder as a container, when you want one
   .dockerignore
   sapporta.json           the project's name
-  .env.example            the defaults `dbu6 setup` copies to .env
-  .env                    ports, mail, the auth secret; gitignored
+  .env.development.example  the defaults `dbu6 setup` copies to .env.development
+  .env.development        ports, mail, the auth secret; gitignored
   .env.agent              the agent's token; gitignored, written by `dbu6 agent env`
   user-config/            mapping rules and categorization prompts
   data/sqlite.db          the books; gitignored, back it up yourself

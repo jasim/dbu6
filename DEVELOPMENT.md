@@ -44,12 +44,14 @@ With the [prerequisites](#prerequisites) installed:
    pnpm dev
    ```
 
-   `dbu6 setup` creates `.env` from the template's `.env.example` with a
+   `dbu6 setup` creates `.env.development` from the template's
+   `.env.development.example` with a
    generated `BETTER_AUTH_SECRET` and fills `user-config/`, and `dbu6 migrate`
    creates the database. `dbu6 dev` would not: it sets up only an empty
    folder, and this one already has files in it.
 
-4. Open the frontend port, `SAPPORTA_FRONTEND_PORT` in that folder's `.env`
+4. Open the frontend port, `SAPPORTA_FRONTEND_PORT` in that folder's
+   `.env.development`
    (http://localhost:2340 from the template), and sign up; set
    `SAPPORTA_PUBLIC_APP_URL` to the same address (see
    [Ports and environment](#ports-and-environment)). For sample data, run
@@ -66,7 +68,7 @@ this checkout is in.
 - `mise` is optional. Here `mise.toml` only pins the Node version and names a
   local Sapporta checkout; copy `mise.toml.example` to `mise.toml` if you want
   it. A project folder keeps its ports and personal settings, such as
-  `NUABASE_API_KEY`, in its own `.env` or `mise.toml`.
+  `NUABASE_API_KEY`, in its own `.env.development` or `mise.toml`.
 - For automatic categorization and the Open in terminal buttons, Claude Code,
   Codex or Pi installed and logged in on this machine. See
   [LLM engine](#llm-engine).
@@ -197,7 +199,8 @@ to this checkout and `node_modules/.bin/dbu6` its command.
 [Getting started](#getting-started-from-a-clone) shows how to make one. It
 runs this checkout's `bin/dbu6.mjs` and the compiled `dist/`, which `pnpm dev`
 here keeps current, so start that first. Everything else about it is an
-ordinary project's: its `.env`, `data/`, `user-config/`, `sapporta.json`, and
+ordinary project's: its `.env.development`, `data/`, `user-config/`,
+`sapporta.json`, and
 its own reports and parsers if it has any.
 
 In it, `pnpm <script>` runs what its `package.json` names and
@@ -207,8 +210,8 @@ In it, `pnpm <script>` runs what its `package.json` names and
   Vite, which hot-updates `src/frontend`. It creates and overwrites nothing,
   except in an empty folder, which it sets up first. See
   [How a linked project's `dbu6 dev` runs](#how-a-linked-projects-dbu6-dev-runs).
-- `dbu6 setup`: create `.env` from the template's `.env.example` with a
-  generated `BETTER_AUTH_SECRET`, and fill `user-config/` from
+- `dbu6 setup`: create `.env.development` from the template's
+  `.env.development.example` with a generated `BETTER_AUTH_SECRET`, and fill `user-config/` from
   `user-config.example/`. Every step leaves an existing file alone. It does
   not touch the database.
 - `dbu6 migrate`: `migrateSafely` alone (see
@@ -232,27 +235,40 @@ In it, `pnpm <script>` runs what its `package.json` names and
 
 ## Ports and environment
 
-A project's environment lives in its `.env`, which the `dbu6` command loads
-for every command. `dbu6 setup` creates it from `template/.env.example` and
-fills in `BETTER_AUTH_SECRET`. It holds the ports and the URLs derived from
+A project's environment lives in its `.env.development`, which the `dbu6`
+command loads for every command. `dbu6 setup` creates it from
+`template/.env.development.example` and fills in `BETTER_AUTH_SECRET`. The
+name is Sapporta's, and that is the point: the `sapporta` CLI, whichever copy
+runs, finds the project's `SAPPORTA_API_PORT` there, so the port is set once
+and nothing derives or copies it. A deployment loads no file
+(`.dockerignore` keeps it out of an image) and is configured by its real
+environment. It holds the ports and the URLs derived from
 them, the data directory, and local-only auth and mail defaults —
 `SAPPORTA_MAIL_TRANSPORT=stream` among them, so Nodemailer prints the full
 generated email source to the API console instead of delivering it. This
 repository has no env file: nothing here reads one.
+
+A project made before the rename has only `.env`. Every command that has a
+project stops on that with "`.env` is no longer read; rename it to
+`.env.development`" (`formerEnvFileProblem` in `src/cli/project.ts`, called
+from `main.ts` before `setup` and before anything opens a database), because
+that file may set `SAPPORTA_DATA_DIR` and ignoring it would open, or create, a
+database in the wrong place. dbu6 never moves the file itself. The check is
+transitional: remove it once the known projects have moved.
 
 A value already in the environment wins over one from an env file, so a
 `mise.toml` entry or a plain shell export overrides any of these without
 editing the file. That is what makes mise optional rather than required.
 
 A linked project's `dbu6 dev` always serves the app through Vite, on
-`SAPPORTA_FRONTEND_PORT`. The template's `.env.example` points
+`SAPPORTA_FRONTEND_PORT`. The template's `.env.development.example` points
 `SAPPORTA_PUBLIC_APP_URL` at the API port, where a project with no reports is
 served, so in a linked project set it to the frontend port's address, as
-`../demo-dbu6/.env` does, and auth and email links reach the app.
+`../demo-dbu6/.env.development` does, and auth and email links reach the app.
 
-`SAPPORTA_DATA_DIR` in a project's `.env` names the directory that holds
-`sqlite.db`: an absolute path, or a path relative to the
-project root. When it is unset the database is `data/sqlite.db` in the project
+`SAPPORTA_DATA_DIR` in a project's `.env.development` names the directory
+that holds `sqlite.db`: an absolute path, or a path relative to the project
+root. When it is unset the database is `data/sqlite.db` in the project
 folder. Point it somewhere else to keep, say, sample data apart from real
 data. `pnpm db:migrate` and `pnpm db:studio` here read the same variable, from
 the shell.
@@ -262,16 +278,15 @@ the shell.
 Each backend binds to `SAPPORTA_API_PORT` and each Vite dev server binds to
 `SAPPORTA_FRONTEND_PORT` — `3000` and `5173` when neither is set. To run
 several projects side-by-side, give each its own stable port pair, either by
-editing its `.env`:
+editing its `.env.development`:
 
 ```sh
 SAPPORTA_FRONTEND_PORT=2341
 SAPPORTA_API_PORT=2346
 SAPPORTA_PUBLIC_APP_URL=http://localhost:2341
-SAPPORTA_API_URL=http://localhost:2346
 ```
 
-or by overriding the same four variables from its `mise.toml`. The frontend
+or by overriding the same three variables from its `mise.toml`. The frontend
 host (`src/frontend-host/config.ts`) points its `/api` proxy at the API port and
 binds Vite to the frontend port. The API trusts the derived public app
 URL and uses it for auth/email callback links, so those links also go through
@@ -279,8 +294,11 @@ Vite's `/api/*` proxy in development. `VITE_API_URL` is not needed because
 frontend code calls relative `/api/*` URLs through Vite's proxy.
 
 Vite fails when the configured frontend port is occupied instead of silently
-selecting another one. The derived `SAPPORTA_API_URL` also points API-backed CLI
-commands at the same backend.
+selecting another one. API-backed `sapporta` commands reach the same backend
+with no `SAPPORTA_API_URL`: the CLI reads `SAPPORTA_API_PORT` from the
+environment, else from `.env.development`, which is the rule the server binds
+by. A `SAPPORTA_API_URL` left in the environment outranks that port, so set
+one only to reach another app on purpose.
 
 Managed hosting platforms may set the conventional `PORT` variable instead of
 `SAPPORTA_API_PORT`. The API accepts that fallback. If both variables are set,
@@ -296,17 +314,23 @@ manager links only a package's direct dependencies into the folder that holds
 it — under pnpm's isolated layout a project gets no `sapporta` at all, and an
 agent told to run one would find nothing.
 
-Before the CLI starts, the wrapper resolves the project's environment with
-`bin/sapporta-env.mjs`: `.env` first, then `.env.agent`, with anything already
-exported in the shell winning over both, and `SAPPORTA_API_URL` derived from
-`SAPPORTA_API_PORT` when neither file names the URL. That is a deliberate
-second read of `.env` — the CLI's own project lookup reads `.env.development`,
-which Sapporta's scaffold writes and dbu6 does not. Keeping the token in
-`.env.agent` rather than `.env` matters: `dbu6 dev` loads `.env` into the
-server's process, and the server has no business holding an agent's credential.
+The CLI finds the app by itself, from the project's `SAPPORTA_API_PORT` (see
+[Ports and environment](#ports-and-environment)), but reads a token only from
+the environment. So before it starts, the wrapper adds `SAPPORTA_API_TOKEN`
+from the project's `.env.agent` when the environment has none
+(`bin/sapporta-env.mjs`), and does nothing else: the arguments and the rest of
+the environment reach the CLI unchanged, and an older `.env.agent`'s
+`SAPPORTA_API_URL` is ignored. Any other `sapporta` — a global one, or the
+standalone package `npx` installs when the project has no link — still reaches
+the right port and answers "No API token sent", which loading `.env.agent`
+fixes; the wrapper is a convenience, not the one thing that must be right.
+Keeping the token in `.env.agent` rather than `.env.development` matters:
+`dbu6 dev` loads `.env.development` into the server's process, and the server
+has no business holding an agent's credential.
 
-`dbu6 agent env` (`src/cli/agent.ts`) mints that token — the same
-`createAuthToken` the app's token screen calls — writes `.env.agent` mode `0600`
+`dbu6 agent env` (`src/cli/agent.ts`) mints that token straight into the
+database — the same `createAuthToken` the app's token screen calls, so no app
+has to be running — writes `.env.agent`, holding only the token, mode `0600`
 and gitignored, and revokes the token its previous run wrote, matched by name so
 a token made in the app is left alone. The file itself is `src/cli/agent-file.ts`,
 which chmods it as well as writing it: `mode` on a write applies only to a file
@@ -315,8 +339,9 @@ refuses to mint one for the sample account `dbu6 seed` makes — even when
 `--user` names it — because seeding replaces that account's books. Which account
 it uses is `chooseAgentAccount` in `src/cli/agent-env.ts`: the single non-sample
 account, or `--user <email>` — or `<user id>`, when one email is in more than one
-workspace — when a project holds more. `--print` exports the pair the project's
-file already holds, so `eval "$(dbu6 agent env --print)"` mints nothing.
+workspace — when a project holds more. `--print` exports the token the
+project's file already holds, so `eval "$(dbu6 agent env --print)"` mints
+nothing.
 
 `dbu6 check`'s Tools section runs the shipped wrapper's `--version`, resolves the
 project's own `node_modules/.bin/sapporta` — the entry `npx sapporta …` runs —
@@ -343,7 +368,8 @@ dist/                    gitignored — build output, the only code the package 
 ```
 
 `template/` is what a person's folder starts as: `package.json` pinned to
-this package's exact version, `tsconfig.json`, `.env.example`, `gitignore`
+this package's exact version, `tsconfig.json`, `.env.development.example`,
+`gitignore`
 (written as `.gitignore`; npm drops a real one from a package), `AGENTS.md`,
 and the `Dockerfile` with its `.dockerignore`. `user-config/` is filled by
 `setup`, from `user-config.example/`. There is no `reports/`,
@@ -539,7 +565,8 @@ dependency, which is why no script passes `--import` any more.
 
 `src/cli/` holds one module per concern: `main.ts` (dispatch, and what a
 migration result prints), `project.ts` (the project folder: `DBU6_ROOT`, else
-the nearest `package.json` at or above the working directory; and its `.env`),
+the nearest `package.json` at or above the working directory; and its
+`.env.development`),
 `dev.ts`, `setup.ts`, `init.ts`, `upgrade.ts`, `check.ts`, `parser.ts`, `docs.ts`,
 `agent.ts` (the `agent env` command), `agent-env.ts` (who the token is for, and
 what the file says), `agent-file.ts` (the one file it writes, and its mode), and
@@ -561,7 +588,7 @@ sits above the rest of the Node side: it alone may import both `src/server` and
 | `seed [date] [--statements <dir>]` | sample data for the demo account |
 | `parser test [name]`, `parser run <name> <input>` | a parser's tests, or a parser on a file, with `shared` on `PYTHONPATH` |
 | `docs [name]` | print a packaged guide (`GUIDES` in `src/shared/guides.ts`); lists them with no name |
-| `agent env [--print] [--user <email>]` | mint the project's coding agent a Sapporta token: `.env.agent` (mode `0600`, gitignored), revoking the one its previous run wrote; `--print` exports the pair the file already holds instead |
+| `agent env [--print] [--user <email>]` | mint the project's coding agent a Sapporta token: `.env.agent` (mode `0600`, gitignored), revoking the one its previous run wrote; `--print` exports the token the file already holds instead |
 | `init <directory> [--dbu6 <spec>]` | a new project: `template/` rendered (the name from the directory, dbu6 pinned to this package's exact version, `gitignore` written as `.gitignore`), `npm install`, then the installed package's `setup` and `migrate`, and a first commit when git is installed. Refuses a directory with anything in it. `--dbu6` installs another spec, such as a tarball, for an unpublished build |
 
 A scratch project, say to try a report, is made like
@@ -713,8 +740,8 @@ clone layout:
    `data/sqlite.db` to `my-books/data/`. Before user-config moved to the
    project root it sat in `data/user-config/`; move that, or `user-config/`,
    to `my-books/user-config/`, over what `init` filled in. Move
-   `.env.development` to `my-books/.env`, which keeps the auth secret and so
-   the sign-ins, and `tmp/statement-uploads/` and `tmp/agent-prompts/` to
+   `.env.development` to `my-books/.env.development`, over the one `init`
+   wrote, which keeps the auth secret and so the sign-ins, and `tmp/statement-uploads/` and `tmp/agent-prompts/` to
    `my-books/tmp/`.
 3. Copy any private parser from the clone's `custom-built-parsers/` (one
    the package does not ship) to `my-books/custom-built-parsers/<name>/`.
@@ -1012,8 +1039,8 @@ for the workflow of having a coding agent build and register a new parser.
 
 ## Deployment
 
-[DEPLOYMENT.md](./DEPLOYMENT.md) is written for a user's books folder: `.env`,
-`dbu6 start`, the `Dockerfile` that `init` puts in the folder
+[DEPLOYMENT.md](./DEPLOYMENT.md) is written for a user's books folder:
+`.env.development`, `dbu6 start`, the `Dockerfile` that `init` puts in the folder
 (`template/Dockerfile`, which builds the image from the project, not from
 this repository), upgrading, and the environment variables. This repository
 has no Dockerfile of its own; the template's is unbuilt until Sapporta is

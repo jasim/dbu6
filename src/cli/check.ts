@@ -130,15 +130,18 @@ export async function checkTools(root?: string): Promise<CheckLine[]> {
  * enough, and both it and the project's link to it are checked.
  *
  * The link must be dbu6's bin, not merely present. `npx` runs whatever
- * `node_modules/.bin/sapporta` is, and with no such entry it installs the
- * standalone `sapporta` package instead, without asking; that CLI reads
- * `.env.development` — a file dbu6 does not write — never `.env.agent`, and
- * calls port 3000. A link a package manager made to `@sapporta/server`'s own
- * `sapporta` bin looks the same to `existsSync` and behaves the same way.
+ * `node_modules/.bin/sapporta` is. With no such entry it runs a `sapporta` in
+ * npm's global bin folder, and otherwise installs the standalone `sapporta`
+ * package, without asking. Any of those finds the app's port where dbu6 keeps
+ * it, in the environment or `.env.development`, but none reads the token in
+ * `.env.agent`, so it reaches the app as nobody; one older than Sapporta's
+ * reading of the port from the environment may call another port, and a much
+ * older one port 3000. A link a package manager made to `@sapporta/server`'s
+ * own `sapporta` bin looks the same to `existsSync` and behaves the same way.
  *
- * A `sapporta` the machine installed globally is named when there is one: the
- * guides say `npx sapporta`, so it cannot be what an agent runs — `npx` ignores
- * `PATH` here — but a bare command would reach that one instead.
+ * A `sapporta` the machine installed globally is named when there is one.
+ * While the project has its link `npx sapporta` does not run it, but a bare
+ * `sapporta` does, and so does `npx` once the link is gone.
  *
  * The token is the one thing dbu6 cannot provision for the agent itself without
  * being asked, so a missing `.env.agent` is information, not a failure: the
@@ -182,7 +185,7 @@ async function checkSapportaCli(root?: string): Promise<CheckLine[]> {
       existsSync(agentEnv)
         ? ok(
             "Agent token",
-            `${AGENT_ENV_FILE} exists; \`npx sapporta\` loads it by itself`,
+            `${AGENT_ENV_FILE} exists; \`npx sapporta\` reads its token by itself`,
           )
         : info(
             "Agent token",
@@ -201,10 +204,10 @@ const SAPPORTA_BIN_NAMES = ["sapporta", "sapporta.cmd", "sapporta.ps1"];
 /**
  * What `npx sapporta …` runs in this project.
  *
- * The link is the difference between the command every guide gives and the
- * standalone Sapporta CLI: without it, `npx` installs that one, which reads
- * `.env.development` — a file dbu6 does not write — and never `.env.agent`, so
- * it calls localhost:3000 with no token.
+ * The link is the difference between the command every guide gives and a
+ * plain Sapporta CLI: without it, `npx` runs a global one or installs the
+ * standalone one, which never reads `.env.agent` and so calls the app with no
+ * token.
  */
 function checkSapportaOnPath(root: string, wrapper: string): CheckLine {
   const binDir = join(root, "node_modules", ".bin");
@@ -214,7 +217,7 @@ function checkSapportaOnPath(root: string, wrapper: string): CheckLine {
   if (projectBin === undefined) {
     return fail(
       "npx sapporta",
-      `this project has no ${join("node_modules", ".bin", "sapporta")}, so \`npx sapporta …\` would install the standalone Sapporta CLI from npm: it does not read ${AGENT_ENV_FILE} and calls port 3000.\n` +
+      `this project has no ${join("node_modules", ".bin", "sapporta")}, so \`npx sapporta …\` would run ${elsewhereOrNpm()}: it reaches the app without the token in ${AGENT_ENV_FILE}, and an old one calls port 3000.\n` +
         "Upgrade or reinstall dbu6 (`npx dbu6 upgrade`, `npm install @dbu6/app`), which declares the bin.",
     );
   }
@@ -230,7 +233,7 @@ function checkSapportaOnPath(root: string, wrapper: string): CheckLine {
         )
       : fail(
           "npx sapporta",
-          `${named} is not dbu6's bin${pointsAt(projectBin)}, so \`npx sapporta …\` runs a CLI that does not read ${AGENT_ENV_FILE} and calls port 3000.\n` +
+          `${named} is not dbu6's bin${pointsAt(projectBin)}, so \`npx sapporta …\` runs a CLI that reaches the app without the token in ${AGENT_ENV_FILE}.\n` +
             "Upgrade or reinstall dbu6 (`npx dbu6 upgrade`, `npm install @dbu6/app`), which declares the bin, then run this again.",
         );
   }
@@ -241,6 +244,14 @@ function checkSapportaOnPath(root: string, wrapper: string): CheckLine {
         "npx sapporta",
         `resolves ${named} in this project; a \`sapporta\` on PATH (${elsewhere}) is not what it runs, so use \`npx sapporta …\`, never the bare name`,
       );
+}
+
+/** What `npx` falls back to without the project's link. */
+function elsewhereOrNpm(): string {
+  const elsewhere = sapportaOnPath();
+  return elsewhere === null
+    ? "the standalone Sapporta CLI, installed from npm"
+    : `the \`sapporta\` at ${elsewhere}, or else the standalone Sapporta CLI from npm`;
 }
 
 /** How much of a shim is read: enough for the lines that name its target. */

@@ -1,6 +1,5 @@
-// The environment the shipped `sapporta` bin hands the CLI. Every case here is
-// a way a project can be wired: the project's own file, the agent's file, a
-// shell that overrides both, and a port whose URL has to be derived.
+// The environment the shipped `sapporta` bin hands the CLI: the shell's own,
+// plus the agent's token from `.env.agent`, and nothing else from any file.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,8 +8,7 @@ import { after, describe, it } from "node:test";
 import {
   AGENT_ENV_FILE,
   findProjectRoot,
-  PROJECT_ENV_FILE,
-  resolveSapportaEnvironment,
+  sapportaEnvironment,
 } from "./sapporta-env.mjs";
 
 const temps = [];
@@ -57,101 +55,93 @@ describe("findProjectRoot", () => {
   });
 });
 
-describe("resolveSapportaEnvironment", () => {
-  it("derives the API URL from the port the project's .env sets", () => {
-    const root = project({ [PROJECT_ENV_FILE]: "SAPPORTA_API_PORT=2345\n" });
-
-    const { env, sources } = resolveSapportaEnvironment({
-      root,
-      shellEnv: {},
-    });
-
-    assert.equal(env.SAPPORTA_API_URL, "http://localhost:2345");
-    assert.equal(sources.apiUrl, "port 2345");
-  });
-
-  it("takes the token from .env.agent, which the server never loads", () => {
+describe("sapportaEnvironment", () => {
+  it("adds the token from .env.agent to the shell's environment", () => {
     const root = project({
-      [PROJECT_ENV_FILE]: "SAPPORTA_API_PORT=2345\n",
       [AGENT_ENV_FILE]: "SAPPORTA_API_TOKEN=spat_sample_050505\n",
     });
 
-    const { env, sources } = resolveSapportaEnvironment({
+    const env = sapportaEnvironment({
       root,
-      shellEnv: {},
+      shellEnv: { PATH: "/sample/bin" },
     });
 
-    assert.equal(env.SAPPORTA_API_TOKEN, "spat_sample_050505");
-    assert.equal(sources.apiToken, AGENT_ENV_FILE);
-    assert.equal(env.SAPPORTA_API_URL, "http://localhost:2345");
-  });
-
-  it("lets .env.agent override .env for the same key", () => {
-    const root = project({
-      [PROJECT_ENV_FILE]: "SAPPORTA_API_URL=http://localhost:1111\n",
-      [AGENT_ENV_FILE]: "SAPPORTA_API_URL=http://localhost:2222\n",
+    assert.deepEqual(env, {
+      PATH: "/sample/bin",
+      SAPPORTA_API_TOKEN: "spat_sample_050505",
     });
-
-    const { env } = resolveSapportaEnvironment({ root, shellEnv: {} });
-
-    assert.equal(env.SAPPORTA_API_URL, "http://localhost:2222");
   });
 
-  it("lets the shell win over both files", () => {
+  it("ignores the URL an older .env.agent holds, so the CLI finds the port itself", () => {
     const root = project({
-      [PROJECT_ENV_FILE]: "SAPPORTA_API_PORT=2345\n",
       [AGENT_ENV_FILE]:
-        "SAPPORTA_API_URL=http://localhost:2222\nSAPPORTA_API_TOKEN=from-file\n",
+        "SAPPORTA_API_URL=http://localhost:1111\nSAPPORTA_API_TOKEN=spat_sample_050505\n",
     });
 
-    const { env, sources } = resolveSapportaEnvironment({
-      root,
-      shellEnv: {
-        PATH: "/sample/bin",
-        SAPPORTA_API_URL: "http://localhost:9999",
-        SAPPORTA_API_TOKEN: "from-shell",
-      },
-    });
-
-    assert.equal(env.SAPPORTA_API_URL, "http://localhost:9999");
-    assert.equal(env.SAPPORTA_API_TOKEN, "from-shell");
-    assert.equal(sources.apiUrl, "shell");
-    assert.equal(sources.apiToken, "shell");
-    // Everything else the shell had is still there for the CLI.
-    assert.equal(env.PATH, "/sample/bin");
-  });
-
-  it("keeps the port out of a URL it cannot use, leaving the CLI its default", () => {
-    const root = project({ [PROJECT_ENV_FILE]: "SAPPORTA_API_PORT=99999\n" });
-
-    const { env, sources } = resolveSapportaEnvironment({ root, shellEnv: {} });
+    const env = sapportaEnvironment({ root, shellEnv: {} });
 
     assert.equal(env.SAPPORTA_API_URL, undefined);
-    assert.equal(sources.apiUrl, undefined);
+    assert.equal(env.SAPPORTA_API_TOKEN, "spat_sample_050505");
   });
 
-  it("reads nothing from a project that has no environment file", () => {
-    const { env, sources } = resolveSapportaEnvironment({
-      root: tempDir(),
-      shellEnv: { HOME: "/sample/home" },
-    });
-
-    assert.equal(env.SAPPORTA_API_URL, undefined);
-    assert.equal(sources.apiToken, undefined);
-    assert.equal(env.HOME, "/sample/home");
-  });
-
-  it("ignores a key a file leaves empty, so a blank never blanks the value", () => {
+  it("reads no other file, the settings file included", () => {
     const root = project({
-      [AGENT_ENV_FILE]: "SAPPORTA_API_TOKEN=\n",
+      ".env.development": "SAPPORTA_API_PORT=2345\nSAPPORTA_API_TOKEN=nope\n",
+      ".env": "SAPPORTA_API_URL=http://localhost:1111\n",
     });
 
-    const { env, sources } = resolveSapportaEnvironment({
+    assert.deepEqual(sapportaEnvironment({ root, shellEnv: {} }), {});
+  });
+
+  it("lets a token in the environment win over the file", () => {
+    const root = project({
+      [AGENT_ENV_FILE]: "SAPPORTA_API_TOKEN=from-file\n",
+    });
+
+    const env = sapportaEnvironment({
       root,
       shellEnv: { SAPPORTA_API_TOKEN: "from-shell" },
     });
 
     assert.equal(env.SAPPORTA_API_TOKEN, "from-shell");
-    assert.equal(sources.apiToken, "shell");
+  });
+
+  it("passes the environment's URL and port through untouched", () => {
+    const root = project({
+      [AGENT_ENV_FILE]: "SAPPORTA_API_TOKEN=spat_sample_050505\n",
+    });
+    const shellEnv = {
+      SAPPORTA_API_URL: "http://localhost:9999",
+      SAPPORTA_API_PORT: "4000",
+    };
+
+    const env = sapportaEnvironment({ root, shellEnv });
+
+    assert.equal(env.SAPPORTA_API_URL, "http://localhost:9999");
+    assert.equal(env.SAPPORTA_API_PORT, "4000");
+    // The shell's own object is not changed.
+    assert.equal(shellEnv.SAPPORTA_API_TOKEN, undefined);
+  });
+
+  it("takes the file's token over an empty one in the environment", () => {
+    const root = project({
+      [AGENT_ENV_FILE]: "SAPPORTA_API_TOKEN=from-file\n",
+    });
+
+    const env = sapportaEnvironment({
+      root,
+      shellEnv: { SAPPORTA_API_TOKEN: "" },
+    });
+
+    assert.equal(env.SAPPORTA_API_TOKEN, "from-file");
+  });
+
+  it("adds nothing when there is no .env.agent, or it holds no token", () => {
+    assert.deepEqual(
+      sapportaEnvironment({ root: tempDir(), shellEnv: { HOME: "/sample" } }),
+      { HOME: "/sample" },
+    );
+    const blank = project({ [AGENT_ENV_FILE]: "SAPPORTA_API_TOKEN=\n" });
+    assert.deepEqual(sapportaEnvironment({ root: blank, shellEnv: {} }), {});
   });
 });

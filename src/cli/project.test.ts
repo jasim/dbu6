@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tempDir } from "../server/migrations.test.support.js";
-import { devFolder } from "./project.js";
+import { devFolder, envFile, formerEnvFileProblem } from "./project.js";
 
 let root: string;
 
@@ -36,5 +36,28 @@ describe("devFolder", () => {
     writeFileSync(join(root, "data", "sqlite.db"), "");
 
     expect(devFolder(root)).toBe("project");
+  });
+});
+
+describe("envFile", () => {
+  it("is Sapporta's .env.development, where its CLI looks for the port", () => {
+    expect(envFile(root)).toBe(join(root, ".env.development"));
+  });
+});
+
+describe("formerEnvFileProblem", () => {
+  it("names a .env left without .env.development", () => {
+    writeFileSync(join(root, ".env"), "");
+
+    expect(formerEnvFileProblem(root)).toMatch(
+      /rename it to \.env\.development/,
+    );
+  });
+
+  it("has nothing to say once .env.development exists, or with neither file", () => {
+    expect(formerEnvFileProblem(root)).toBeNull();
+    writeFileSync(join(root, ".env"), "");
+    writeFileSync(join(root, ".env.development"), "");
+    expect(formerEnvFileProblem(root)).toBeNull();
   });
 });

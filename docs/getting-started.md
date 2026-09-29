@@ -47,8 +47,8 @@ cd my-books
 which runs `dbu6 init` from the latest `@dbu6/app`; `npm init @dbu6@1.2.3`
 uses that version instead. The folder must not exist yet, or must be empty.
 `init` writes the project files, installs dbu6 (the `@dbu6/app` package) into
-`node_modules`, creates `.env` with a generated auth
-secret, fills `user-config/` from dbu6's examples, creates the database, and
+`node_modules`, creates `.env.development` (the settings every `dbu6` command
+reads) with a generated auth secret, fills `user-config/` from dbu6's examples, creates the database, and
 makes the first commit. It touches nothing outside the folder.
 [Your books](your-books.md) describes what it wrote.
 

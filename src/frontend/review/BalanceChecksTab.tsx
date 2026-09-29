@@ -75,7 +75,7 @@ export function BalanceChecksTab() {
       />
       <AskYourAgent
         title="Find out why the drafts miss the statement's balance"
-        prompt={balanceChecksPrompt(detail)}
+        prompt={balanceChecksPrompt(detail, window.location.origin)}
       />
     </ReportTab>
   );

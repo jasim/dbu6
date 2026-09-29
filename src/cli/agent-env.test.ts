@@ -26,17 +26,15 @@ const DEMO: AgentAccount = {
   organizationName: "Demo's Workspace",
 };
 
-const VALUES = {
-  apiUrl: "http://localhost:2345",
-  apiToken: "spat_05050500_050505",
-};
+const VALUES = { apiToken: "spat_05050500_050505" };
 
 describe("agentEnvFile", () => {
-  it("writes the two values the Sapporta CLI reads, and where they came from", () => {
+  it("writes the token alone, and where it came from", () => {
     const file = agentEnvFile({ ...VALUES, createdFor: OWNER.email });
 
-    expect(file).toContain("SAPPORTA_API_URL=http://localhost:2345");
     expect(file).toContain(`SAPPORTA_API_TOKEN=${VALUES.apiToken}`);
+    // No URL: the CLI finds the port itself, and a URL here would go stale.
+    expect(file).not.toContain("SAPPORTA_API_URL");
     // The person who owns the token, so the file can be judged later.
     expect(file).toContain(OWNER.email);
     // Gitignored, and read by the shipped command only.
@@ -46,17 +44,16 @@ describe("agentEnvFile", () => {
 });
 
 describe("agentEnvExports", () => {
-  it("prints export lines a shell can eval", () => {
+  it("prints the token's export line, for a shell to eval", () => {
     expect(agentEnvExports(VALUES)).toBe(
-      "export SAPPORTA_API_URL=http://localhost:2345\n" +
-        `export SAPPORTA_API_TOKEN=${VALUES.apiToken}\n`,
+      `export SAPPORTA_API_TOKEN=${VALUES.apiToken}\n`,
     );
   });
 
   it("quotes a value a shell would otherwise split or expand", () => {
-    expect(
-      agentEnvExports({ ...VALUES, apiUrl: "http://localhost:2345/a b" }),
-    ).toContain("export SAPPORTA_API_URL='http://localhost:2345/a b'");
+    expect(agentEnvExports({ apiToken: "a b$c" })).toBe(
+      "export SAPPORTA_API_TOKEN='a b$c'\n",
+    );
   });
 });
 

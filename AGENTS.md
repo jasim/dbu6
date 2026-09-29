@@ -22,10 +22,11 @@ depends on. In a project that installed dbu6, run it as `npx sapporta …`, whic
 runs that bin. Here, where dbu6 is the root package and a package manager links
 a package's dependencies into it but never its own bins, `npx sapporta` reaches
 `@sapporta/server`'s own bin instead, so run the wrapper by path:
-`node bin/sapporta.mjs …`. Either way it resolves the project's root, loads
-`.env` and `.env.agent`, and derives `SAPPORTA_API_URL` from
-`SAPPORTA_API_PORT`, so the command reaches a running app without being told
-where it is. `bin/sapporta-env.mjs` holds that resolution, with its types beside
+`node bin/sapporta.mjs …`. The CLI finds a running app by itself, from
+`SAPPORTA_API_PORT` in the environment or else in the project's
+`.env.development`, the same rule dbu6 binds by; the wrapper only resolves the
+project's root and adds `SAPPORTA_API_TOKEN` from `.env.agent` when the
+environment has none. `bin/sapporta-env.mjs` holds that, with its types beside
 it and its tests in `bin/sapporta-env.test.mjs` (`pnpm run test:scripts`).
 
 The project's own token comes from `dbu6 agent env`, which writes the

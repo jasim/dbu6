@@ -2,7 +2,7 @@ node_modules
 .DS_Store
 dist
 .env*
-!template/.env.example
+!template/.env.development.example
 mise.toml
 mise.local.toml
 .mise.local.toml
