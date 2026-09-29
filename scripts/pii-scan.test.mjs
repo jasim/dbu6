@@ -152,9 +152,13 @@ test("a fixture or test in the package is a finding", () => {
   assert.deepEqual(deliberate.map((f) => f.file), [FIXTURE]);
 });
 
-test("package.json names the shipped guide and the worked example's test by path", () => {
+test("package.json names the shipped guide, the changelog and the worked example's test by path", () => {
   const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  assert.deepEqual(deliberatelyShippedFiles(rootDir), ["DBU6-BOOKS.md", "docs/examples/report/api.test.ts"]);
+  assert.deepEqual(deliberatelyShippedFiles(rootDir), [
+    "DBU6-BOOKS.md",
+    "CHANGELOG.md",
+    "docs/examples/report/api.test.ts",
+  ]);
 });
 
 test("the tracked tree is clean", () => {
