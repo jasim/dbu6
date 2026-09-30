@@ -43,11 +43,11 @@ function report(
 }
 
 describe("figures", () => {
-  it("sign income and spending and say what was kept", () => {
+  it("sign income and spending and say what was saved", () => {
     expect(figures({ income: 100000, spending: 79000 })).toEqual({
       income: { figure: "+1,00,000.00", direction: "in" },
       spending: { figure: `${MINUS}79,000.00`, direction: "out" },
-      remaining: { tone: "kept", figure: "21,000.00", share: "21%" },
+      remaining: { tone: "saved", figure: "21,000.00", share: "21%" },
     });
   });
 
@@ -61,7 +61,7 @@ describe("figures", () => {
 
   it("leave the share out when there is no income", () => {
     expect(figures({ income: 0, spending: 0 }).remaining).toEqual({
-      tone: "kept",
+      tone: "saved",
       figure: "0.00",
       share: null,
     });

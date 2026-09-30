@@ -27,9 +27,9 @@ export function signedAmount(section: Section, value: number): string {
   return formatAmount(value, amountDirection(section, value));
 }
 
-/** What the income and spending left: kept, or overspent by. */
+/** What the income and spending left: saved, or overspent by. */
 export type Remaining =
-  | { tone: "kept"; figure: string; share: string | null }
+  | { tone: "saved"; figure: string; share: string | null }
   | { tone: "overspent"; figure: string; share: null };
 
 /** A section's figure: signed, and green when the money came in. */
@@ -62,7 +62,7 @@ export function figures(totals: { income: number; spending: number }): Figures {
         ? // Overspending isn't an error: ink, never red.
           { tone: "overspent", figure: formatMoney(-remaining), share: null }
         : {
-            tone: "kept",
+            tone: "saved",
             figure: formatMoney(remaining),
             share:
               income > 0 ? `${Math.round((remaining / income) * 100)}%` : null,

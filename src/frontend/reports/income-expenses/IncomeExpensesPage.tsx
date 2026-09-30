@@ -339,7 +339,7 @@ function FigureLine({
         }
       />
       <Figure
-        label={figures?.remaining.tone === "overspent" ? "Overspent" : "Kept"}
+        label={figures?.remaining.tone === "overspent" ? "Overspent" : "Saved"}
         value={figures?.remaining.figure}
         note={figures?.remaining.share ?? null}
         className={

@@ -387,7 +387,7 @@ describe("Income and Expenses", () => {
     expect(text()).toContain(
       "Nothing in your books falls between 1 Jan and 31 Jan 2025.",
     );
-    expect(text()).not.toContain("Kept");
+    expect(text()).not.toContain("Saved");
   });
 
   it("shows spending higher than income in ink, not as an error", async () => {
