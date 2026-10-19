@@ -1,9 +1,7 @@
 import { useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
-import type { LlmStatus } from "../../shared/index";
 import { Screen, ScreenTitle } from "../components/screen";
 import { Button } from "../components/ui/button";
 import { plural } from "../format";
@@ -11,9 +9,9 @@ import { importDraftsApi } from "../api";
 import {
   LiveImport,
   newProgressId,
+  useCategorizerStatus,
   type Finale,
 } from "../import-progress/LiveImport";
-import { chartSuggesterQuery } from "../queries";
 import { REVIEW_ROUTE } from "../review/routes";
 import { AgentUnavailableDialog } from "./categorization/AgentUnavailableDialog";
 import { agentUnavailable } from "./categorization/describeCategorization";
@@ -80,7 +78,7 @@ export function AutoImportStatements() {
   const [run, setRun] = useState<ImportRun>(CHOOSING);
   const finale = useRef<Finale | null>(null);
   // Who categorizes, for the progress's steps; asked before the import.
-  const categorizer = useQuery(chartSuggesterQuery).data ?? NO_CATEGORIZER;
+  const categorizer = useCategorizerStatus();
 
   function addFiles(incoming: File[]) {
     setFiles((prev) => {
@@ -336,7 +334,6 @@ export function AutoImportStatements() {
 }
 
 // Until the agent check answers, the steps leave the agent out.
-const NO_CATEGORIZER: LlmStatus = { ready: false, name: "", reason: "" };
 
 function readUploadProgress(progressId: string) {
   return importDraftsApi.statementsAutoProgress({

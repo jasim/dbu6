@@ -9,6 +9,7 @@ import { draftTransactionsContract } from "../../shared/index.js";
 import {
   loadCategorizer,
   type CategorizationLlm,
+  type CategorizationProgress,
 } from "../modules/categorization/index.js";
 import { accountsTable } from "../schema/accounts.js";
 import { draftTransactionsTable } from "../schema/draft-journals.js";
@@ -153,6 +154,40 @@ describe("classifyDraftTransactions", () => {
       comment: "Coffee Shop",
     });
 
+    sqlite.close();
+  });
+
+  it("says how far categorization has got, as an import does", async () => {
+    const { db, sqlite } = setupDatabase();
+    const projectDir = makeTempDir("draft-classification-project-");
+    vi.stubEnv("DBU6_ROOT", projectDir);
+    const configDir = join(projectDir, "user-config");
+    mkdirSync(configDir);
+    writeFileSync(
+      join(configDir, "transaction_mappings.mjs"),
+      `export const mappings = {
+        exact: {},
+        includes: [{ account: "Coffee", values: ["UPI debit"] }],
+      };`,
+    );
+
+    const progress: CategorizationProgress[] = [];
+    await classifyDraftTransactions({
+      db,
+      auth,
+      ids: [1],
+      customMappingsFilenames: [],
+      loadCategorizer,
+      onProgress: (event) => progress.push(event),
+    });
+
+    expect(progress).toEqual([
+      {
+        stage: "rules",
+        transactions: [expect.objectContaining({ narration: "UPI debit" })],
+        answers: new Map([[0, "Coffee"]]),
+      },
+    ]);
     sqlite.close();
   });
 });

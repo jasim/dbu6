@@ -381,6 +381,8 @@ describe("Run categorizer", () => {
     expect(JSON.parse(classify!.body!)).toEqual({
       ids: [1, 2, 3, 4],
       custom_mappings_filenames: ["custom_mappings_sample.prompt"],
+      // For the live progress while it runs.
+      progress_id: expect.any(String),
     });
     expect(refreshed).toBe(1);
     expect(dialog()).toBeNull();

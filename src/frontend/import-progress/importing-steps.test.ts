@@ -96,6 +96,21 @@ describe("the importing steps", () => {
     ]);
   });
 
+  it("names the first and last steps as the screen says", () => {
+    expect(
+      importingSteps(
+        { stage: "rules", rows: rows(4, 4) },
+        NO_AGENT,
+        "Read the drafts",
+        "Save the drafts",
+      ).map((step) => `${step.label} · ${step.state}`),
+    ).toEqual([
+      "Read the drafts · done",
+      "Apply your rules · done",
+      "Save the drafts · running",
+    ]);
+  });
+
   it("counts the time in minutes and seconds", () => {
     expect(elapsed(7.9)).toBe("0:07");
     expect(elapsed(102)).toBe("1:42");

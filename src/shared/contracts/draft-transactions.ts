@@ -4,6 +4,10 @@ import {
   categorizationReportSchema,
   categorizationTallySchema,
 } from "./import-drafts.js";
+import {
+  importProgressIdSchema,
+  importProgressSchema,
+} from "./import-progress.js";
 
 const c = initContract();
 
@@ -58,10 +62,12 @@ export const draftTransactionsContract = c.router({
   classifyDraftTransactions: c.mutation({
     method: "POST",
     path: "/draft-transactions/classify",
-    summary: "Classify selected draft transactions",
+    summary:
+      "Classify selected draft transactions; an optional `progress_id` for classifyProgress",
     body: z.object({
       ids: z.array(z.number().int()).min(1),
       custom_mappings_filenames: z.array(z.string()).optional(),
+      progress_id: importProgressIdSchema.optional(),
     }),
     responses: {
       200: draftClassificationSchema,
@@ -72,18 +78,33 @@ export const draftTransactionsContract = c.router({
   classifyDraftTransactionsWithGPay: c.mutation({
     method: "POST",
     path: "/draft-transactions/classify-with-gpay",
-    summary: "Enrich selected drafts from GPay HTML, then classify them",
+    summary:
+      "Enrich selected drafts from GPay HTML, then classify them; an optional `progress_id` for classifyProgress",
     contentType: "multipart/form-data",
     body: z.object({
       ids: repeatedFormIdSchema,
       custom_mappings_filenames: repeatedFormStringSchema
         .optional()
         .default([]),
+      progress_id: importProgressIdSchema.optional(),
     }),
     responses: {
       200: gpayDraftClassificationSchema,
       400: errorSchema,
       403: errorSchema,
+    },
+  }),
+  classifyProgress: c.query({
+    method: "GET",
+    path: "/draft-transactions/classify/progress/:progressId",
+    summary:
+      "How far the running classification sent with this `progress_id` has got, its drafts and their accounts so far. Stage `done` for a minute after it has answered; 404 before it starts and after that minute",
+    pathParams: z.object({ progressId: importProgressIdSchema }),
+    query: z.object({}),
+    responses: {
+      200: importProgressSchema,
+      403: errorSchema,
+      404: errorSchema,
     },
   }),
   setDraftsAccount: c.mutation({

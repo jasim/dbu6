@@ -15,14 +15,14 @@ import type {
   ImportProgressReport,
   LlmStatus,
 } from "../../shared/index";
-import { chartOfAccountsQuery } from "../queries";
+import { chartOfAccountsQuery, chartSuggesterQuery } from "../queries";
 import { elapsed, importingSteps, type ImportingStep } from "./importing-steps";
 import { huesByName } from "./live-ledger";
 import { LiveLedger, prefersStill, useLiveReveal } from "./LiveLedger";
 
 /*
  * A running import as it goes, wherever one is waited on (/add's card,
- * /import's page): each step as the server reports it, and the rows in a
+ * /import's page, Review's Run categorizer): each step as the server reports it, and the rows in a
  * live ledger, each account landing as it is answered, with the time it
  * has taken. The import is sent with a fresh `progress_id`
  * (`newProgressId`), which this polls by.
@@ -34,6 +34,16 @@ export function newProgressId(): string {
     ? crypto.randomUUID()
     : `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
+
+/**
+ * Who categorizes, for the steps, when the screen has no word of its own
+ * on it: the coding agent's status, not ready until it is read.
+ */
+export function useCategorizerStatus(): LlmStatus {
+  return useQuery(chartSuggesterQuery).data ?? NO_CATEGORIZER;
+}
+
+const NO_CATEGORIZER: LlmStatus = { ready: false, name: "", reason: "" };
 
 /**
  * What the screen does once the import has answered, before it moves on:
@@ -54,6 +64,7 @@ export function LiveImport({
   progressId,
   readProgress,
   firstStep,
+  lastStep,
   categorizer,
   finale,
   before,
@@ -63,6 +74,8 @@ export function LiveImport({
   readProgress: (progressId: string) => Promise<ImportProgressReport>;
   /** What the import does before the rules: "Set up the account". */
   firstStep: string;
+  /** What it does with the answers; "Save as drafts" unless it says. */
+  lastStep?: string;
   categorizer: LlmStatus;
   /** Set to this view's finale while it shows. */
   finale: MutableRefObject<Finale | null>;
@@ -95,7 +108,7 @@ export function LiveImport({
   const chart = useQuery(chartOfAccountsQuery);
   const seconds = useSeconds();
   const data = progress.data ?? null;
-  const steps = importingSteps(data, categorizer, firstStep);
+  const steps = importingSteps(data, categorizer, firstStep, lastStep);
   const rows = data?.rows ?? NO_ROWS;
   const stage = data?.stage ?? "account";
 

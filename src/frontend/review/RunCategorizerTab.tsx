@@ -12,6 +12,12 @@ import {
 } from "../../shared/index";
 import { draftTransactionsApi, importPresetsApi } from "../api";
 import { FactTable, type Fact } from "../components/fact-table";
+import {
+  LiveImport,
+  newProgressId,
+  useCategorizerStatus,
+  type Finale,
+} from "../import-progress/LiveImport";
 import { Button, buttonVariants } from "../components/ui/button";
 import { plural } from "../format";
 import { parseRowId } from "../row-id";
@@ -82,7 +88,9 @@ export function ReclassifyDraftsRedirect() {
  * Run categorizer: the categoriser again over the account's drafts that have
  * no account. One card says how many and runs it, with the account's own
  * instructions unless the user changes them, and optionally a Google Pay
- * export. After the run the card sums it up and points at what is left.
+ * export. While it runs the card is the import's live progress, each draft
+ * landing in its account as it is answered; after the run the card sums it
+ * up and points at what is left.
  */
 export function RunCategorizerTab() {
   const { detail, refresh, setup } = useReviewAccount();
@@ -99,7 +107,10 @@ export function RunCategorizerTab() {
   const [run, setRun] = useState<CategorizerRun | null>(null);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
-  const [classifying, setClassifying] = useState(false);
+  // The run under way, by the progress id it was sent with.
+  const [progressId, setProgressId] = useState<string | null>(null);
+  const finale = useRef<Finale | null>(null);
+  const categorizer = useCategorizerStatus();
   const [error, setError] = useState<string | null>(null);
   const rulesAdded = useRulesAdded(accountId);
 
@@ -148,8 +159,9 @@ export function RunCategorizerTab() {
       : accountPreset(presets ?? [], chosenPresetId);
 
   async function handleRun() {
-    if (uncategorized.length === 0) return;
-    setClassifying(true);
+    if (uncategorized.length === 0 || progressId !== null) return;
+    const runId = newProgressId();
+    setProgressId(runId);
     setChangingPreset(false);
     setError(null);
     setRun(null);
@@ -169,6 +181,7 @@ export function RunCategorizerTab() {
           form.append("custom_mappings_filenames", filename),
         );
         form.append("gpay", gpayFile);
+        form.append("progress_id", runId);
 
         const response = await fetch(
           `${getApiBase()}/draft-transactions/classify-with-gpay`,
@@ -192,9 +205,12 @@ export function RunCategorizerTab() {
           body: {
             ids: uncategorized.map((r) => r.id),
             custom_mappings_filenames: customMappings,
+            progress_id: runId,
           },
         });
       }
+      // The drafts' last answers, before the card sums the run up.
+      await finale.current?.();
       setRun({
         tally: updated.categorization_tally,
         report: updated.categorization,
@@ -220,7 +236,7 @@ export function RunCategorizerTab() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Classification failed");
     } finally {
-      setClassifying(false);
+      setProgressId(null);
     }
   }
 
@@ -251,7 +267,21 @@ export function RunCategorizerTab() {
     <ReportTab>
       <AgentUnavailableDialog problem={unavailable} />
       <div className="max-w-[640px] space-y-4">
-        {run && !unavailable ? (
+        {progressId !== null ? (
+          <section
+            aria-label="Categorizing"
+            className="rounded-card border bg-card p-5"
+          >
+            <LiveImport
+              progressId={progressId}
+              readProgress={readClassifyProgress}
+              firstStep="Read the drafts"
+              lastStep="Save the drafts"
+              categorizer={categorizer}
+              finale={finale}
+            />
+          </section>
+        ) : run && !unavailable ? (
           <RunResult
             run={run}
             draftsHref={inRun(needsAccountHref(accountId))}
@@ -340,7 +370,6 @@ export function RunCategorizerTab() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={classifying}
                         onClick={() => setChangingPreset(true)}
                       >
                         Change
@@ -377,7 +406,6 @@ export function RunCategorizerTab() {
                       <input
                         type="file"
                         accept=".html,.htm"
-                        disabled={classifying}
                         className="sr-only"
                         onChange={(event) => {
                           setGpayFile(event.target.files?.[0] ?? null);
@@ -389,7 +417,6 @@ export function RunCategorizerTab() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={classifying}
                       onClick={() => setGpayFile(null)}
                     >
                       Remove
@@ -400,15 +427,9 @@ export function RunCategorizerTab() {
             </dl>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <Button
-                onClick={handleRun}
-                waiting={runWaiting}
-                disabled={classifying}
-              >
-                {classifying ? <Loader2 className="animate-spin" /> : <Wand2 />}
-                {classifying
-                  ? "Categorizing…"
-                  : `Categorize ${plural(uncategorized.length, "draft")}`}
+              <Button onClick={handleRun} waiting={runWaiting}>
+                <Wand2 />
+                {`Categorize ${plural(uncategorized.length, "draft")}`}
               </Button>
               {!loadingRows && (
                 <Link
@@ -431,6 +452,13 @@ export function RunCategorizerTab() {
       </div>
     </ReportTab>
   );
+}
+
+function readClassifyProgress(progressId: string) {
+  return draftTransactionsApi.classifyProgress({
+    params: { progressId },
+    query: {},
+  });
 }
 
 /**

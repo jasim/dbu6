@@ -2,8 +2,10 @@ import { z } from "zod";
 
 /*
  * How far a running import has got, for the screen waiting on it: /add's
- * add and /import's batch each take a `progress_id` field and answer a
- * progress query under it while they run.
+ * add, /import's batch and the drafts' classify routes each take a
+ * `progress_id` field and answer a progress query under it while they run.
+ * A classification is an import's categorization alone: it stays at
+ * `account` until the rules run, and never reaches `saving`.
  */
 
 /**

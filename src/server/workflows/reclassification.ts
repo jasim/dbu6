@@ -15,6 +15,7 @@ import {
   categorize,
   tallyCategorization,
   type LoadCategorizer,
+  type OnCategorizationProgress,
 } from "../modules/categorization/index.js";
 import { categorizationLlm } from "../modules/coding-agent/index.js";
 import { loadAccountsByName } from "../modules/accounts/index.js";
@@ -48,7 +49,8 @@ export interface DraftClassificationResult {
 // Categorize drafts again, as an import categorizes its rows, optionally
 // after naming their Google Pay recipients from a staged Takeout: a draft's
 // source narration gets its recipient in front, if it hasn't one, and the
-// recipient becomes its comment if it has none.
+// recipient becomes its comment if it has none. Told how far categorization
+// has got, as an import is, for a screen waiting on it.
 export async function classifyDraftTransactions(input: {
   db: any;
   auth: LedgerAuth;
@@ -56,8 +58,10 @@ export async function classifyDraftTransactions(input: {
   customMappingsFilenames: readonly string[];
   gpayHtmlPath?: string;
   loadCategorizer: LoadCategorizer;
+  onProgress?: OnCategorizationProgress;
 }): Promise<DraftClassificationResult> {
-  const { db, auth, ids, customMappingsFilenames, gpayHtmlPath } = input;
+  const { db, auth, ids, customMappingsFilenames, gpayHtmlPath, onProgress } =
+    input;
   const categorizer = await input.loadCategorizer({
     customMappingsFilenames,
     llm: await categorizationLlm(),
@@ -71,7 +75,9 @@ export async function classifyDraftTransactions(input: {
     balance: null,
   }));
   const enrichment = gpayHtmlPath
-    ? enrichWithGPay(sourceTransactions, parseGPayHtml(gpayHtmlPath))
+    ? // A draft keeps no record of the account its statement printed, so
+      // any account's payment can name it.
+      enrichWithGPay(sourceTransactions, parseGPayHtml(gpayHtmlPath), null)
     : { enriched: sourceTransactions, recipients: [], matchCount: 0 };
 
   const accountsByName = loadAccountsByName(db, auth);
@@ -82,6 +88,7 @@ export async function classifyDraftTransactions(input: {
       baseAccountId: draft.base_account_id,
     })),
     accountsByName,
+    onProgress,
   );
   const accountNameById = new Map<number, string>();
   for (const [name, { id }] of accountsByName) accountNameById.set(id, name);

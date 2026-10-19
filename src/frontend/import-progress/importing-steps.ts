@@ -20,12 +20,14 @@ type StepKey = "account" | "rules" | "ask" | "save";
 
 /**
  * The steps, given the progress (null before the server has any: the
- * import is still on its first step, `firstStep`) and who categorizes.
+ * import is still on its first step, `firstStep`) and who categorizes;
+ * `lastStep` says what it does with the answers.
  */
 export function importingSteps(
   progress: ImportProgressReport | null,
   categorizer: LlmStatus,
   firstStep = "Set up the account",
+  lastStep = "Save as drafts",
 ): ImportingStep[] {
   const stage = progress?.stage ?? "account";
   const rows = progress?.rows ?? [];
@@ -86,7 +88,7 @@ export function importingSteps(
       detail: nothingToAsk ? "Nothing left to ask" : undefined,
     });
   }
-  steps.push({ label: "Save as drafts", state: state("save") });
+  steps.push({ label: lastStep, state: state("save") });
   return steps;
 }
 

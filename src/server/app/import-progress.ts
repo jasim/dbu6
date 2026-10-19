@@ -16,9 +16,11 @@ import type {
 
 /*
  * How far a running import has got, for the screen waiting on it (/add's
- * add, /import's batch). An import sent with a `progress_id` is tracked in
- * memory while it runs, and a minute after it answers, at stage `done`, for
- * the screen's last look to find the answers its polling missed.
+ * add, /import's batch, and Review's Run categorizer, whose run over the
+ * drafts is an import's categorization without the reading or the saving).
+ * One sent with a `progress_id` is tracked in memory while it runs, and a
+ * minute after it answers, at stage `done`, for the screen's last look to
+ * find the answers its polling missed.
  */
 
 // How long a finished import's progress stays readable.
@@ -73,7 +75,7 @@ export function progressBoard(): ProgressBoard {
 /** The 404 a progress query answers when nothing runs under its id. */
 export const NOT_RUNNING = {
   status: 404 as const,
-  body: { error: "No import is running under that id." },
+  body: { error: "Nothing is running under that id." },
 };
 
 /**
