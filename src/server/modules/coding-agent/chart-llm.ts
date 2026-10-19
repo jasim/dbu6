@@ -2,11 +2,9 @@ import { CODING_AGENTS } from "../../../shared/index.js";
 import type { ChartLlm } from "../chart-of-accounts/index.js";
 import {
   currentLlmEngine,
-  GATEWAY_MODEL,
-  GATEWAY_NAME,
   unavailableEngineName,
 } from "./categorization-llm.js";
-import { agentGetClient, gatewayGetClient } from "./nuabase.js";
+import { agentGetClient } from "./nuabase.js";
 
 /*
  * Where setup's chart of accounts is drawn: on the engine
@@ -23,20 +21,6 @@ const clients = new Map<string, ChartLlm>();
 export async function chartLlm(): Promise<ChartLlm> {
   const engine = await currentLlmEngine();
   switch (engine.kind) {
-    case "gateway":
-      return {
-        name: GATEWAY_NAME,
-        caller:
-          engine.apiKey === null
-            ? {
-                ready: false,
-                reason: "NUABASE_API_KEY is not set for the Nuabase gateway.",
-              }
-            : {
-                ready: true,
-                client: gatewayGetClient(engine.apiKey, GATEWAY_MODEL),
-              },
-      };
     case "unavailable":
       return {
         name: unavailableEngineName(engine.agent),

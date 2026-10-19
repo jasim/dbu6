@@ -40,10 +40,7 @@ import reportsApi from "./app/reports.js";
 import reviewApi from "./app/review.js";
 import searchApi from "./app/search.js";
 import setupApi from "./app/setup.js";
-import {
-  llmEngineSetting,
-  startCodingAgent,
-} from "./modules/coding-agent/index.js";
+import { startCodingAgent } from "./modules/coding-agent/index.js";
 import { startCommentWriter } from "./workflows/comment-writer.js";
 import type { DataLock } from "./data-lock.js";
 import type { Dbu6Runtime } from "./runtime.js";
@@ -186,8 +183,6 @@ export function serveDbu6(
   /** The folder's lock, held while serving; released at shutdown. */
   lock: DataLock,
 ): void {
-  // A bad LLM_ENGINE stops the server here rather than at the first import.
-  llmEngineSetting();
   // Detecting the coding agents and asking which of the chosen one's models
   // answer run their CLIs, so neither holds up startup, and each runs only
   // when dbu_config has no result yet. Settings shows what was found, checks

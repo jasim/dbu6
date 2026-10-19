@@ -8,7 +8,7 @@ vi.mock("nuabase/local-agent", () => ({
   detectLocalAgents,
   localAgent: vi.fn(),
 }));
-vi.mock("nuabase", () => ({ Nua: { direct: vi.fn(), gateway: vi.fn() } }));
+vi.mock("nuabase", () => ({ Nua: { direct: vi.fn() } }));
 
 import { Nua } from "nuabase";
 import { z } from "zod";

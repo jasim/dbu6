@@ -416,7 +416,6 @@ describe("pickCodingAgent", () => {
 
 describe("categorization after a failed call", () => {
   async function readyLlm() {
-    vi.stubEnv("LLM_ENGINE", "");
     detectLocalAgents.mockResolvedValue([CLAUDE, CODEX]);
     answering("opus", "sonnet");
     await models.startCodingAgent();

@@ -12,7 +12,7 @@ vi.mock("nuabase/local-agent", () => ({
   detectLocalAgents,
   localAgent: vi.fn(),
 }));
-vi.mock("nuabase", () => ({ Nua: { direct: vi.fn(), gateway: vi.fn() } }));
+vi.mock("nuabase", () => ({ Nua: { direct: vi.fn() } }));
 
 // The module shares a detection under way, so each test loads it afresh.
 let agents: typeof import("./agents.js");

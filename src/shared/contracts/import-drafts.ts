@@ -39,8 +39,7 @@ export type CategorizationFailure = z.infer<typeof categorizationFailureSchema>;
 // many transactions share it. When the rules map everything, or there is
 // nothing new, `sent_count` is 0.
 export const categorizationReportSchema = z.object({
-  // The coding agent categorization runs on. Null when it runs on none: no
-  // agent is installed, or the server uses the deprecated Nuabase gateway.
+  // The coding agent categorization runs on. Null when none is installed.
   agent: codingAgentSchema.nullable(),
   // Distinct descriptions that needed the LLM.
   sent_count: z.number(),

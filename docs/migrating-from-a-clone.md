@@ -212,7 +212,6 @@ only these, if the clone set them in `.env.development`, `.env.production` or
 `mise.toml`:
 
 - `SAPPORTA_MAIL_TRANSPORT`, `SAPPORTA_MAIL_FROM` and the `SMTP_*` values.
-- `LLM_ENGINE` and `NUABASE_API_KEY`, if you used the Nuabase gateway.
 - For a deployment: its `SAPPORTA_PUBLIC_APP_URL` and `SAPPORTA_API_PORT`, in
   the deployment's environment.
 

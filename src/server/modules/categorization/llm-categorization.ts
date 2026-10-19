@@ -15,8 +15,7 @@ import type { OnCategorizationProgress } from "./categorize.js";
 /*
  * What categorization needs of an LLM, and who can answer it: one call that
  * takes a prompt and a batch of descriptions and answers each by id. The
- * coding agent and the deprecated gateway both fill it, in
- * coding-agent/categorization-llm.ts.
+ * coding agent fills it, in coding-agent/categorization-llm.ts.
  */
 
 export type ListRow = { id: string; text: string };
@@ -39,8 +38,8 @@ export interface ListClient {
 
 export interface CategorizationLlm {
   /**
-   * The coding agent categorization runs on, for the report. Null when it runs
-   * on no agent: the deprecated gateway, or none installed.
+   * The coding agent categorization runs on, for the report. Null when none is
+   * installed.
    */
   agent: CodingAgent | null;
   /** What to call the engine in the log. */
@@ -50,12 +49,12 @@ export interface CategorizationLlm {
     | {
         ready: true;
         client: ListClient;
-        /** The most descriptions one call carries; null sends them all. */
-        maxRowsPerCall: number | null;
+        /** The most descriptions one call carries. */
+        maxRowsPerCall: number;
         /**
          * Asked after a call fails: the reason the engine can't be used, or
-         * null when it still answers. For a coding agent this is its one-word
-         * model check, whose result is kept, so later runs don't call it.
+         * null when it still answers. This is the agent's one-word model
+         * check, whose result is kept, so later runs don't call it.
          */
         confirmUnavailable(): Promise<string | null>;
       }
@@ -199,15 +198,12 @@ export interface LLMCategorization {
   report: CategorizationReport;
 }
 
-/**
- * Pure: the rows in calls of at most `maxRowsPerCall`, in order; one call
- * when there is no limit.
- */
+/** Pure: the rows in calls of at most `maxRowsPerCall`, in order. */
 export function splitIntoCalls<T>(
   rows: readonly T[],
-  maxRowsPerCall: number | null,
+  maxRowsPerCall: number,
 ): T[][] {
-  if (maxRowsPerCall === null || rows.length <= maxRowsPerCall) {
+  if (rows.length <= maxRowsPerCall) {
     return [[...rows]];
   }
   const calls: T[][] = [];

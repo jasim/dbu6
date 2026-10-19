@@ -11,78 +11,17 @@ import {
   currentCodingAgent,
   type CheckedAgentModels,
 } from "./models.js";
-import {
-  agentListClient,
-  gatewayListClient,
-  type InstalledAgent,
-} from "./nuabase.js";
+import { agentListClient, type InstalledAgent } from "./nuabase.js";
 
 /*
- * Where categorization's LLM runs:
- *
- * - The coding agent dbu6 uses (agents.ts), headless, billed to the user's own
- *   Claude or ChatGPT plan, on the least capable of its models that answered
- *   (models.ts). This is the default, and the only choice the app offers.
- * - The Nuabase gateway, paid for with NUABASE_API_KEY, when
- *   LLM_ENGINE=nuabase. Deprecated: kept for instances with no coding agent,
- *   such as the Docker image. The app never offers it, and the gateway is the
- *   only engine that isn't a coding agent, so a report of a run on it names no
- *   agent.
+ * Categorization's LLM is the coding agent dbu6 uses (agents.ts), headless,
+ * billed to the user's own Claude or ChatGPT plan, on the least capable of its
+ * models that answered (models.ts). It is the only engine: what categorization
+ * sends reaches the agent's own LLM provider and nothing else.
  */
 
-export type LlmEngineSetting =
-  { engine: "coding-agent" } | { engine: "nuabase"; apiKey: string | null };
-
-export type ParsedLlmEngineSetting =
-  { ok: true; setting: LlmEngineSetting } | { ok: false; message: string };
-
-/** Reads LLM_ENGINE and the key it uses. Blank values count as unset. */
-export function parseLlmEngineSetting(
-  env: Readonly<Record<string, string | undefined>>,
-): ParsedLlmEngineSetting {
-  const value = (name: string) => env[name]?.trim() || undefined;
-  const engine = value("LLM_ENGINE");
-  if (engine === undefined) {
-    return { ok: true, setting: { engine: "coding-agent" } };
-  }
-  if (engine === "nuabase") {
-    return {
-      ok: true,
-      setting: { engine: "nuabase", apiKey: value("NUABASE_API_KEY") ?? null },
-    };
-  }
-  return {
-    ok: false,
-    message: `LLM_ENGINE can only be "nuabase" (the deprecated Nuabase gateway); it is ${JSON.stringify(env.LLM_ENGINE)}. Unset it to use the coding agent chosen in Settings.`,
-  };
-}
-
-export const GATEWAY_NAME = "the Nuabase gateway";
-export const GATEWAY_MODEL = { provider: "openrouter", model: "z-ai/glm-5.2" };
-
-// A coding agent answers one call at a time per description batch, so calls
-// stay small; the gateway takes every description at once.
+// Each call is one CLI process, so calls stay small.
 const LOCAL_AGENT_ROWS_PER_CALL = 50;
-
-export function gatewayLlm(apiKey: string | null): CategorizationLlm {
-  return {
-    agent: null,
-    name: GATEWAY_NAME,
-    caller:
-      apiKey === null
-        ? {
-            ready: false,
-            reason: "NUABASE_API_KEY is not set for the Nuabase gateway.",
-          }
-        : {
-            ready: true,
-            client: gatewayListClient(apiKey, GATEWAY_MODEL),
-            maxRowsPerCall: null,
-            // The gateway has no check: a failed call is taken as passing.
-            confirmUnavailable: () => Promise.resolve(null),
-          },
-  };
-}
 
 /**
  * After a failed call: asks the agent's models again, which keeps the result,
@@ -116,39 +55,16 @@ export function localAgentLlm(
   };
 }
 
-let setting: LlmEngineSetting | null = null;
-
-/**
- * LLM_ENGINE, read once. Throws on a value that can never work; `serveDbu6` calls
- * it at startup so the server stops there.
- */
-export function llmEngineSetting(): LlmEngineSetting {
-  if (setting === null) {
-    const parsed = parseLlmEngineSetting(process.env);
-    if (!parsed.ok) throw new Error(parsed.message);
-    setting = parsed.setting;
-    if (setting.engine === "nuabase") {
-      console.log(
-        `[llm-engine] categorization and chart suggestions run on ${GATEWAY_NAME} (LLM_ENGINE=nuabase, deprecated)`,
-      );
-    }
-  }
-  return setting;
-}
-
-let gateway: CategorizationLlm | null = null;
 // One client per agent executable and model, so the limit on processes running
 // at once (nuabase.ts) holds across requests.
 const localAgents = new Map<string, CategorizationLlm>();
 
 /**
  * What an LLM call can run on right now, for categorization and for the
- * setup's chart of accounts (chart-llm.ts): the gateway when
- * LLM_ENGINE says so, else the coding agent dbu6 uses with its checked
- * models, or why neither can answer.
+ * setup's chart of accounts (chart-llm.ts): the coding agent dbu6 uses with
+ * its checked models, or why it can't answer.
  */
 export type LlmEngine =
-  | { kind: "gateway"; apiKey: string | null }
   | {
       kind: "agent";
       agent: InstalledAgent;
@@ -157,10 +73,6 @@ export type LlmEngine =
   | { kind: "unavailable"; agent: CodingAgent | null; reason: string };
 
 export async function currentLlmEngine(): Promise<LlmEngine> {
-  const current = llmEngineSetting();
-  if (current.engine === "nuabase") {
-    return { kind: "gateway", apiKey: current.apiKey };
-  }
   const inUse = await currentCodingAgent();
   if (inUse.agent === null) {
     return {
@@ -191,9 +103,6 @@ export function unavailableEngineName(agent: CodingAgent | null): string {
 export async function categorizationLlm(): Promise<CategorizationLlm> {
   const engine = await currentLlmEngine();
   switch (engine.kind) {
-    case "gateway":
-      gateway ??= gatewayLlm(engine.apiKey);
-      return gateway;
     case "unavailable":
       return {
         agent: engine.agent,

@@ -21,8 +21,10 @@ import type {
  * sees it.
  *
  * A headless call runs the coding agent's own CLI as a child process, billed
- * to the user's Claude or ChatGPT plan. The limits below are dbu6's, not
- * nuabase's defaults.
+ * to the user's Claude or ChatGPT plan. Every call goes through `Nua.direct`
+ * with a local agent, so what dbu6 sends reaches only the agent's own LLM
+ * provider, never the Nuabase API. The limits below are dbu6's, not nuabase's
+ * defaults.
  */
 
 // One call is one CLI process. A model check asks for one word; a
@@ -122,8 +124,6 @@ type UntypedNua = {
   list(prompt: string, options: Record<string, unknown>): Promise<unknown>;
 };
 
-type ProviderModel = { provider: string; model: string };
-
 // A nuabase answer, of which dbu6 reads whether it succeeded and either the
 // rows or the error. `get` answers with one value, `list` with a row each.
 const failedAnswerSchema = z.object({
@@ -204,22 +204,6 @@ export function agentListClient(
   });
   // A local agent takes its own model names only, and this client is already
   // set up with one, so no call names a model.
-  return listClient(nua, undefined);
-}
-
-/** Categorization on the deprecated Nuabase gateway, on a provider model. */
-export function gatewayListClient(
-  apiKey: string,
-  model: ProviderModel,
-): ListClient {
-  const nua: UntypedNua = Nua.gateway({ apiKey });
-  return listClient(nua, model);
-}
-
-function listClient(
-  nua: UntypedNua,
-  model: ProviderModel | undefined,
-): ListClient {
   return {
     async list(request: ListRequest): Promise<ListAnswer> {
       let answered: unknown;
@@ -228,7 +212,6 @@ function listClient(
           input: [...request.rows],
           primaryKey: "id",
           output: request.output,
-          ...(model === undefined ? {} : { model }),
         });
       } catch (error) {
         return failedList(
@@ -263,22 +246,6 @@ export function agentGetClient(
       concurrency: CONCURRENT_CALLS,
     }),
   });
-  return getClient(nua, undefined);
-}
-
-/** One structured answer on the deprecated Nuabase gateway. */
-export function gatewayGetClient(
-  apiKey: string,
-  model: ProviderModel,
-): GetClient {
-  const nua: UntypedNua = Nua.gateway({ apiKey });
-  return getClient(nua, model);
-}
-
-function getClient(
-  nua: UntypedNua,
-  model: ProviderModel | undefined,
-): GetClient {
   return {
     async get<T>(request: GetRequest<T>): Promise<GetAnswer<T>> {
       let answered: unknown;
@@ -286,7 +253,6 @@ function getClient(
         answered = await nua.get(request.prompt, {
           input: request.input,
           output: request.output,
-          ...(model === undefined ? {} : { model }),
         });
       } catch (error) {
         return failedGet(
@@ -326,7 +292,7 @@ const MAX_REPORTED_ERROR_LENGTH = 300;
 
 /**
  * Pure: a failure message short enough to show on a screen. An HTML error
- * page (a gateway's 500) is reduced to its title, whitespace is collapsed,
+ * page is reduced to its title, whitespace is collapsed,
  * and anything past 300 characters is cut.
  */
 export function reportedError(message: string): string {

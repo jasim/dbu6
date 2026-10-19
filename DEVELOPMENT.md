@@ -67,8 +67,8 @@ this checkout is in.
 - Node 22+ and pnpm 11 (the version is pinned in `package.json`).
 - `mise` is optional. Here `mise.toml` only pins the Node version and names a
   local Sapporta checkout; copy `mise.toml.example` to `mise.toml` if you want
-  it. A project folder keeps its ports and personal settings, such as
-  `NUABASE_API_KEY`, in its own `.env.development` or `mise.toml`.
+  it. A project folder keeps its ports and personal settings in its own
+  `.env.development` or `mise.toml`.
 - For automatic categorization and the Open in terminal buttons, Claude Code,
   Codex or Pi installed and logged in on this machine. See
   [LLM engine](#llm-engine).
@@ -828,7 +828,7 @@ through its `index.ts`:
 | `agents.ts` | `CODING_AGENT_RUN`: each agent's models, most capable first, and its auto-mode options. Detection, the saved choice, and which agent is active. |
 | `models.ts` | Which of an agent's models answer on this machine, and when to ask again. |
 | `nuabase.ts` | The only import of `nuabase`; every call into it and every value out of it. |
-| `categorization-llm.ts` | The engine categorization runs on: the agent, or the deprecated gateway. |
+| `categorization-llm.ts` | The engine categorization runs on: the agent with its checked models, or why it can't answer. |
 | `chart-llm.ts` | The same engine for setup's chart of accounts, on the agent's most capable model. |
 | `handoff.ts`, `launcher.ts` | Starting an agent on a prompt in a terminal. |
 | `errors.ts` | Why the server refused, as the routes state it. |
@@ -856,7 +856,7 @@ entry in each of those two tables.
   prompt in `modules/comment-writer/`): 50 distinct statement texts a call,
   two calls at once, never while an import or Run categorizer is
   categorizing. It runs at startup, so the first start after migration 0012
-  sends every past narration to the engine, the Nuabase gateway included.
+  sends every past narration to the agent.
 - **The chart of accounts** a new user describes at `/setup` is one
   more headless call (`Nua.direct`'s `get`, a structured answer checked
   against `chartProposalSchema`), on the most capable model that answered,
@@ -875,10 +875,9 @@ With no agent installed, or none of its models answering, categorization
 reports why and the import goes through uncategorized, and prompts can only be
 copied.
 
-`LLM_ENGINE=nuabase` is a deprecated override that categorizes on the Nuabase
-gateway (`Nua.gateway`), paid for with `NUABASE_API_KEY`, all descriptions in
-one call. The app never offers it, and a report of a run on it names no agent.
-Any other `LLM_ENGINE` stops the server at startup.
+What dbu6 sends an LLM reaches the agent's own provider and nothing else:
+every call is `Nua.direct` with `localAgent`, and dbu6 never uses the Nuabase
+gateway.
 
 Categorization failures don't fail an import: the transactions stay
 uncategorized, and the import result and the Classify drafts screen say how

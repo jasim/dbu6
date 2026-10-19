@@ -137,8 +137,7 @@ docker run -d --name my-books -p 3000:3000 \
 - Statement imports work: the image has `uv`, `python3` and `pdftotext`.
   There is no coding agent in it, so nothing is categorized automatically,
   Settings says no agent was found, and the app offers only **Copy prompt**
-  for the prompts it writes. The deprecated Nuabase gateway still categorizes
-  there: set `LLM_ENGINE=nuabase` and `NUABASE_API_KEY`.
+  for the prompts it writes.
 - The health check hits `/health` and treats any HTTP reply below 500 as
   healthy, so it holds under every `SAPPORTA_HEALTH_POLICY`.
 - Upgrading is `npx dbu6 upgrade` in the folder, commit, rebuild the image,
@@ -160,7 +159,6 @@ docker run -d --name my-books -p 3000:3000 \
 | `SAPPORTA_MAIL_TRANSPORT` | `stream` prints outgoing mail to the terminal; `smtp` sends it; `disabled`. |
 | `SAPPORTA_MAIL_FROM` | The sender of verification and reset mail, on a domain your SMTP provider will send for. |
 | `SMTP_URL`, or `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | The SMTP connection, when the transport is `smtp`. `SMTP_URL` wins when both are given. |
-| `LLM_ENGINE`, `NUABASE_API_KEY` | Deprecated: categorize on the Nuabase gateway instead of a coding agent on the machine. |
 | `SAPPORTA_API_TOKEN` | Not read by the server: the token the `sapporta` CLI and a coding agent send to a running dbu6 (`npx dbu6 docs books`). `npx dbu6 agent env` mints it into the gitignored `.env.agent`, which the CLI dbu6 ships reads by itself. The CLI finds the app from `SAPPORTA_API_PORT`; `SAPPORTA_API_URL` overrides that, and is needed only to reach an app on another host. |
 
 ## A reverse proxy

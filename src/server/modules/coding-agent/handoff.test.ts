@@ -20,7 +20,7 @@ const { detectLocalAgents, localAgent, direct, execFile } = vi.hoisted(() => ({
   execFile: vi.fn(),
 }));
 vi.mock("nuabase/local-agent", () => ({ detectLocalAgents, localAgent }));
-vi.mock("nuabase", () => ({ Nua: { direct, gateway: vi.fn() } }));
+vi.mock("nuabase", () => ({ Nua: { direct } }));
 vi.mock("node:child_process", async (importOriginal) => ({
   ...(await importOriginal<typeof import("node:child_process")>()),
   execFile,

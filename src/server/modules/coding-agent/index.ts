@@ -2,7 +2,7 @@
 // prompt to one, the Settings screen's reads and changes, and at its top the
 // engines categorization and setup's chart of accounts run on.
 // Import from here rather than from the files.
-export { categorizationLlm, llmEngineSetting } from "./categorization-llm.js";
+export { categorizationLlm } from "./categorization-llm.js";
 export { chartLlm } from "./chart-llm.js";
 export { llmStatus } from "./llm-status.js";
 export {

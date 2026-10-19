@@ -17,6 +17,7 @@ const listMock = vi.fn();
 // default.
 const confirmUnavailableMock = vi.fn(async (): Promise<string | null> => null);
 
+// A coding agent takes at most 50 descriptions a call.
 function engine(overrides: Partial<CategorizationLlm> = {}): CategorizationLlm {
   return {
     agent: "claude-code",
@@ -24,20 +25,12 @@ function engine(overrides: Partial<CategorizationLlm> = {}): CategorizationLlm {
     caller: {
       ready: true,
       client: { list: listMock },
-      maxRowsPerCall: null,
+      maxRowsPerCall: 50,
       confirmUnavailable: confirmUnavailableMock,
     },
     ...overrides,
   };
 }
-
-// A coding agent takes at most 50 descriptions a call.
-const batchedCaller = {
-  ready: true as const,
-  client: { list: listMock },
-  maxRowsPerCall: 50,
-  confirmUnavailable: confirmUnavailableMock,
-};
 
 const config: LLMCategorizationConfig = {
   promptTemplate:
@@ -288,8 +281,8 @@ describe("parseLLMResponse", () => {
 });
 
 describe("splitIntoCalls", () => {
-  it("sends every row in one call when there is no limit", () => {
-    expect(splitIntoCalls([1, 2, 3], null)).toEqual([[1, 2, 3]]);
+  it("sends rows that fit in one call together", () => {
+    expect(splitIntoCalls([1, 2, 3], 50)).toEqual([[1, 2, 3]]);
   });
 
   it("splits 120 rows into calls of 50, 50 and 20, in order", () => {
@@ -405,7 +398,7 @@ describe("categorizeViaLLM", () => {
       {
         ...config,
         llm: engine({
-          caller: { ready: false, reason: "NUABASE_API_KEY is not set" },
+          caller: { ready: false, reason: "Claude Code is not logged in." },
         }),
       },
     );
@@ -416,7 +409,7 @@ describe("categorizeViaLLM", () => {
         agent: "claude-code",
         sent_count: 2,
         failed_count: 2,
-        error: "NUABASE_API_KEY is not set",
+        error: "Claude Code is not logged in.",
         failure: "agent_unavailable",
       },
     });
@@ -445,7 +438,7 @@ describe("categorizeViaLLM", () => {
     const result = await categorizeViaLLM(
       txns,
       txns.map((_, i) => i),
-      { ...config, llm: engine({ caller: batchedCaller }) },
+      { ...config, llm: engine() },
     );
 
     expect(listMock.mock.calls.map((call) => call[0].rows.length)).toEqual([
@@ -470,7 +463,7 @@ describe("categorizeViaLLM", () => {
     await categorizeViaLLM(
       txns,
       txns.map((_, i) => i),
-      { ...config, llm: engine({ caller: batchedCaller }) },
+      { ...config, llm: engine() },
       (event) => progress.push(event),
     );
 
@@ -529,7 +522,7 @@ describe("categorizeViaLLM", () => {
     const result = await categorizeViaLLM(
       txns,
       txns.map((_, i) => i),
-      { ...config, llm: engine({ caller: batchedCaller }) },
+      { ...config, llm: engine() },
     );
 
     expect(result.report).toEqual({
@@ -556,7 +549,7 @@ describe("categorizeViaLLM", () => {
     const result = await categorizeViaLLM(
       txns,
       txns.map((_, i) => i),
-      { ...config, llm: engine({ caller: batchedCaller }) },
+      { ...config, llm: engine() },
     );
 
     expect(listMock).toHaveBeenCalledTimes(1);
@@ -584,7 +577,7 @@ describe("categorizeViaLLM", () => {
     const result = await categorizeViaLLM(
       txns,
       txns.map((_, i) => i),
-      { ...config, llm: engine({ caller: batchedCaller }) },
+      { ...config, llm: engine() },
     );
 
     expect(listMock).toHaveBeenCalledTimes(3);
