@@ -56,7 +56,17 @@ export const draftTransactions = sapportaTable({
     rowLabelColumns: ["source_narration"],
     rowScope: "workspaceUserScoped",
     defaultSort: desc(draftTransactionsTable.date),
-    search: { self: ["comment", "source_narration"] },
+    search: {
+      self: [
+        "comment",
+        "source_narration",
+        "source_reference",
+        "account_id",
+        "base_account_id",
+        "withdrawal",
+        "deposit",
+      ],
+    },
     columns: {
       workspace_id: { visuallyHidden: true },
       scoped_to_user_id: { visuallyHidden: true },

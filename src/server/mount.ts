@@ -38,6 +38,7 @@ import renderDraftHledgerApi from "./app/render-draft-hledger.js";
 import renderJournalsHledgerApi from "./app/render-journals-hledger.js";
 import reportsApi from "./app/reports.js";
 import reviewApi from "./app/review.js";
+import searchApi from "./app/search.js";
 import setupApi from "./app/setup.js";
 import {
   llmEngineSetting,
@@ -115,6 +116,7 @@ export function loadDbu6App(
   mountApi(api, categorizationRuleRequestsApi);
   mountApi(api, homeApi);
   mountApi(api, reviewApi);
+  mountApi(api, searchApi);
   mountApi(api, openingBalancesApi);
   mountApi(api, setupApi());
   mountApi(api, addAccountApi(loadCategorizer));

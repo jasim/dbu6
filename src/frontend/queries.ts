@@ -26,6 +26,7 @@ import {
   importPresetsApi,
   openingBalancesApi,
   reviewApi,
+  searchApi,
   setupApi,
 } from "./api";
 
@@ -60,6 +61,17 @@ export const reviewAccountsQuery = queryOptions({
     reviewApi.accounts({ query: {} }).then((body) => body.accounts),
   ...FRESH_QUERY,
 });
+
+/** The Search page's results for `q`; the last results stay while the next load. */
+export function searchQuery(q: string) {
+  return queryOptions({
+    queryKey: ["search", q],
+    queryFn: () => searchApi.search({ query: { q } }),
+    enabled: q.trim() !== "",
+    placeholderData: keepPreviousData,
+    ...FRESH_QUERY,
+  });
+}
 
 export function reviewAccountQuery(accountId: number) {
   return queryOptions({

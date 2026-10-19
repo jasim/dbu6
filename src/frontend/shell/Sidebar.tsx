@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useState, type ReactNode } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Search } from "lucide-react";
 import { cn } from "@sapporta/ui/cn";
 import {
   AuthAccountMenu,
@@ -8,6 +9,7 @@ import {
 } from "@sapporta/frontend/shell";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { Brand } from "../components/brand";
+import { SEARCH_ROUTE, searchHref } from "../views/search/routes";
 import {
   badgeCount,
   type Navigation,
@@ -100,6 +102,60 @@ export function NavItem({
       </span>
       {count !== null && <CountBadge count={count} compact={rail} />}
     </Link>
+  );
+}
+
+/**
+ * The search over the whole books: a field that opens the Search page with
+ * its words, or in the rail an icon that opens the page.
+ */
+function SidebarSearch({
+  rail,
+  onSearch,
+}: {
+  rail: boolean;
+  onSearch: () => void;
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [value, setValue] = useState("");
+  if (rail) {
+    return (
+      <div className="px-2 pb-1">
+        <NavItem
+          item={{ label: "Search", icon: Search, to: SEARCH_ROUTE }}
+          active={location.pathname === SEARCH_ROUTE}
+          count={null}
+          rail
+        />
+      </div>
+    );
+  }
+  return (
+    <form
+      role="search"
+      className="px-2 pb-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        navigate(searchHref(value));
+        setValue("");
+        onSearch();
+      }}
+    >
+      <label className="flex h-sap-ctl items-center gap-1.5 rounded-control border border-sap-border bg-card px-1 text-row focus-within:ring-2 focus-within:ring-ring/60">
+        <span className="flex size-[22px] shrink-0 items-center justify-center text-sap-nav-icon">
+          <Search className="size-[16px]" strokeWidth={1.5} />
+        </span>
+        <input
+          type="search"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder="Search"
+          aria-label="Search the books"
+          className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-ink-meta"
+        />
+      </label>
+    </form>
   );
 }
 
@@ -227,6 +283,7 @@ export function Sidebar({
           </>
         )}
       </div>
+      <SidebarSearch rail={rail} onSearch={sidebar.closeTemporary} />
       <nav
         aria-label="Primary"
         className="flex-1 overflow-y-auto px-2 py-1"

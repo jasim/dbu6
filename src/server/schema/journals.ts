@@ -73,11 +73,22 @@ export const journals = sapportaTable({
     rowScope: "workspaceUserScoped",
     defaultSort: desc(journalsTable.date),
     // An imported journal's description becomes its comment once the comment
-    // writer reaches it, so the entries' texts are searched too: the bank's
-    // references find it still.
+    // writer reaches it, so the entries are searched too: the bank's text and
+    // reference find it still, and so do its accounts and amounts.
     search: {
       self: ["description"],
-      children: { journal_entries: { self: ["comment", "source_narration"] } },
+      children: {
+        journal_entries: {
+          self: [
+            "comment",
+            "source_narration",
+            "source_reference",
+            "account_id",
+            "debit",
+            "credit",
+          ],
+        },
+      },
     },
     children: [
       {

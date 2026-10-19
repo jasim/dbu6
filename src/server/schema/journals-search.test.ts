@@ -30,11 +30,11 @@ function books() {
     INSERT INTO journals (id, workspace_id, scoped_to_user_id, date, description, created_at, updated_at) VALUES
       (10, ${SCOPE}, '2026-01-05', 'UPI Sample Cafe', ${AT}),
       (11, ${SCOPE}, '2026-01-06', 'Sample rent', ${AT});
-    INSERT INTO journal_entries (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit, comment, source_narration, created_at, updated_at) VALUES
-      (101, ${SCOPE}, 10, 2, 100, 0, 'UPI Sample Cafe', 'UPI/050505123456/SAMPLE CAFE/Q0505051@YBL', ${AT}),
-      (102, ${SCOPE}, 10, 1, 0, 100, NULL, NULL, ${AT}),
-      (111, ${SCOPE}, 11, 2, 50, 0, 'NOPII typed note', NULL, ${AT}),
-      (112, ${SCOPE}, 11, 1, 0, 50, NULL, NULL, ${AT});
+    INSERT INTO journal_entries (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit, comment, source_narration, source_reference, created_at, updated_at) VALUES
+      (101, ${SCOPE}, 10, 2, 100, 0, 'UPI Sample Cafe', 'UPI/050505123456/SAMPLE CAFE/Q0505051@YBL', '0505059876', ${AT}),
+      (102, ${SCOPE}, 10, 1, 0, 100, NULL, NULL, NULL, ${AT}),
+      (111, ${SCOPE}, 11, 2, 1000, 0, 'NOPII typed note', NULL, NULL, ${AT}),
+      (112, ${SCOPE}, 11, 1, 0, 1000, NULL, NULL, NULL, ${AT});
   `);
   const catalog = createTableCatalog([accounts, journals, journalEntries]);
   const auth = testLedgerAuth();
@@ -58,5 +58,20 @@ describe("journals search", () => {
     expect(await search("sample cafe")).toEqual([10]);
     expect(await search("050505123456")).toEqual([10]);
     expect(await search("typed note")).toEqual([11]);
+  });
+
+  it("finds a journal by its entries' reference, accounts and amounts", async () => {
+    const { search } = books();
+    expect(await search("0505059876")).toEqual([10]);
+    expect(await search("eating out")).toEqual([11, 10]);
+    expect(await search("1,000")).toEqual([11]);
+    expect(await search("100")).toEqual([10]);
+  });
+
+  it("needs every word, each anywhere in the journal", async () => {
+    const { search } = books();
+    expect(await search("rent 1000")).toEqual([11]);
+    expect(await search("savings cafe")).toEqual([10]);
+    expect(await search("rent cafe")).toEqual([]);
   });
 });

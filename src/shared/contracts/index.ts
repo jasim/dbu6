@@ -281,3 +281,15 @@ export {
   type ImportProgressReport,
   type ImportProgressRow,
 } from "./import-progress.js";
+export {
+  searchContract,
+  searchAccountSchema,
+  searchDraftSchema,
+  searchJournalSchema,
+  searchResultsSchema,
+  SEARCH_LIMIT,
+  type SearchAccount,
+  type SearchDraft,
+  type SearchJournal,
+  type SearchResults,
+} from "./search.js";

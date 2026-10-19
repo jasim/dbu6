@@ -28,6 +28,7 @@ import {
   journalsContract,
   openingBalancesContract,
   reviewContract,
+  searchContract,
   setupContract,
 } from "../shared/index";
 
@@ -83,6 +84,10 @@ export const homeApi = createApiClient(homeContract, {
 });
 
 export const reviewApi = createApiClient(reviewContract, {
+  baseUrl: getApiBase,
+});
+
+export const searchApi = createApiClient(searchContract, {
   baseUrl: getApiBase,
 });
 

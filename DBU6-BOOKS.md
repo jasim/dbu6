@@ -102,11 +102,14 @@ Look up an account's id with
   older grouped journal gives one row per statement transaction in it; a
   compound entry, such as a salary, lists every account on its other side.
 - **"Find the transaction …"**
-  For transactions in the books: `npx sapporta rows list journal_entries --q "<words>"`.
-  For drafts waiting in Review:
-  `npx sapporta rows list draft_transactions --q "<words>"`. Both search the
-  `comment` and the `source_narration` ([Two texts](#two-texts-the-banks-and-the-persons)).
-  For anything fuzzier, use SQL.
+  `npx sapporta api get /api/search --query '{"q":"<words>"}'` searches the
+  whole books, as the app's Search page does. It returns matching journals
+  (with their accounts and amount), drafts waiting in Review, and accounts,
+  newest first, at most 100 of each. Every word must match, each anywhere in
+  the row: description, `comment`, `source_narration`
+  ([Two texts](#two-texts-the-banks-and-the-persons)), the bank's reference,
+  an account's name, or an amount (`2,500` matches 2500 exactly). A phrase in
+  double quotes is one word. For anything fuzzier, use SQL.
 
 ### Transactions waiting in Review
 

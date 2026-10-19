@@ -51,6 +51,8 @@ import { ADD_OTHER_ROUTE, ADD_ROUTE } from "./add-account/state";
 import { AutoImportStatements } from "./views/AutoImportStatements";
 import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
 import { JournalsTable } from "./views/JournalsTable";
+import { SearchPage } from "./views/search/SearchPage";
+import { SEARCH_ROUTE } from "./views/search/routes";
 import { RenderDraftHledger } from "./views/RenderDraftHledger";
 import { Settings as SettingsPage } from "./views/settings/Settings";
 import { BanksAndCards } from "./views/settings/BanksAndCards";
@@ -156,6 +158,7 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
         path="reports/:reportName"
         element={<Navigate to="/reports" replace />}
       />
+      <Route path={SEARCH_ROUTE.slice(1)} element={<SearchPage />} />
       <Route path="settings" element={<SettingsPage />} />
       <Route path={BANKS_SETTINGS_ROUTE.slice(1)} element={<BanksAndCards />}>
         {/* One bank or card's form, each its own URL. */}
