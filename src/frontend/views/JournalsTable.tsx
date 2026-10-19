@@ -10,6 +10,7 @@ import {
   sanitizeSortDescriptors,
   SchemaTableGridView,
   useSchemaStore,
+  useShowTableRowFromLocation,
   type SchemaTableRowsByLevel,
   type SchemaTableGridViewSource,
   type TableGridActionsProps,
@@ -82,6 +83,9 @@ function JournalsTableWithSchema({
     [searchParams, tableSchema],
   );
   useExpandJournal(session, singleJournalId);
+  // New record comes back here with the saved journal; show it on the page
+  // the form was opened from.
+  useShowTableRowFromLocation(JOURNALS_TABLE, session);
   const source = useMemo<SchemaTableGridViewSource>(
     () => ({
       table: tableSchema,
@@ -139,7 +143,8 @@ function JournalsTableWithSchema({
         onNewRecord={
           tableSchema.immutable
             ? undefined
-            : () => navigateToNewRecord(tableSchema.name)
+            : () =>
+                navigateToNewRecord(tableSchema.name, searchParams.toString())
         }
         viewRelatedRows
       />
