@@ -24,3 +24,12 @@ export const EDIT_ACCOUNT_PATH = ":accountId/edit";
 
 /** The new-account form's path, under the chart's route. */
 export const NEW_ACCOUNT_PATH = "new";
+
+/**
+ * What the chart hands the forms in front of it: `showAccount` brings an
+ * account into view and onto the cursor once the form has closed, which is
+ * how a new account is found in a long chart.
+ */
+export type AccountsOutletContext = {
+  showAccount: (accountId: number) => void;
+};

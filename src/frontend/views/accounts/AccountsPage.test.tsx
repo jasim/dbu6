@@ -62,12 +62,28 @@ const ROWS = [
 let host: HTMLDivElement;
 let root: Root;
 let requests: string[];
+/** The accounts the stubbed server holds; a POST adds to them. */
+let rows: (typeof ROWS)[number][];
 
 beforeAll(() => {
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
 });
+
+/** The accounts a search finds, with the branches above them. */
+function searched(q: string | null): typeof rows {
+  if (q === null) return rows;
+  const kept = new Set<number>();
+  for (const found of rows.filter((one) => one.name.includes(q))) {
+    let at: (typeof rows)[number] | undefined = found;
+    while (at !== undefined) {
+      kept.add(at.id);
+      at = rows.find((one) => one.id === at?.parent_id);
+    }
+  }
+  return rows.filter((one) => kept.has(one.id));
+}
 
 function rowsResponse(data: unknown[]): Response {
   return Response.json({
@@ -81,6 +97,7 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   requests = [];
+  rows = [...ROWS];
   useSchemaStore.setState({
     tables: [ACCOUNTS],
     loaded: true,
@@ -97,11 +114,19 @@ beforeEach(() => {
 
       const one = /\/tables\/accounts\/(\d+)$/.exec(url.pathname);
       if (method === "GET" && one) {
-        const row = ROWS.find((account) => account.id === Number(one[1]));
+        const row = rows.find((account) => account.id === Number(one[1]));
         return Response.json({ data: row });
       }
       if (method === "GET" && url.pathname.endsWith("/tables/accounts")) {
-        return rowsResponse(ROWS);
+        return rowsResponse(searched(url.searchParams.get("q")));
+      }
+      if (method === "POST" && url.pathname.endsWith("/tables/accounts")) {
+        const body = JSON.parse(
+          String(request ? await request.text() : init?.body),
+        ) as Omit<(typeof ROWS)[number], "id">;
+        const created = { id: rows.length + 1, ...body };
+        rows = [...rows, created];
+        return Response.json({ data: created }, { status: 201 });
       }
       if (method === "GET" && url.pathname.endsWith("/import-presets")) {
         return Response.json({ institutions: [] });
@@ -332,5 +357,115 @@ describe("the chart with a form open", () => {
     expect(chartScroller()).toBe(scroller);
     expect(scroller.scrollTop).toBe(240);
     expect(chartReads()).toBe(readsBefore);
+  });
+});
+
+/** The input a label names; the form renders in a portal. */
+function field(label: string): HTMLInputElement {
+  const found = [...document.querySelectorAll("label")].find(
+    (one) => one.textContent?.trim() === label,
+  );
+  const input = found && document.getElementById(found.htmlFor);
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error(`No ${label} field in:\n${text()}`);
+  }
+  return input;
+}
+
+function type(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/** Opens the combobox a control names, and picks an option by its text. */
+async function choose(triggerLabel: string, option: string) {
+  const trigger = button(triggerLabel);
+  await act(async () => {
+    trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    trigger.click();
+  });
+  await settle();
+  const choice = [
+    ...document.querySelectorAll<HTMLElement>('[role="option"]'),
+  ].find((one) => one.textContent?.includes(option));
+  if (!choice) throw new Error(`No option ${option} in:\n${text()}`);
+  await act(async () => choice.click());
+  await settle();
+}
+
+/** Saves a new account from the New record form. */
+async function addAccount(name: string, parent?: string) {
+  await click("New record");
+  await act(async () => type(field("Name"), name));
+  if (parent !== undefined) await choose("Show the choices", parent);
+  await click("Save");
+}
+
+/** The rows the grid scrolled into view, by their text. */
+function scrolledTo(): string[] {
+  return scrolls.map(
+    (one) => one.closest("[data-grid-part=row]")?.textContent ?? "",
+  );
+}
+
+let scrolls: Element[];
+const scrollIntoView = Element.prototype.scrollIntoView;
+
+beforeEach(() => {
+  scrolls = [];
+  Element.prototype.scrollIntoView = function (this: Element) {
+    scrolls.push(this);
+  };
+});
+
+afterEach(() => {
+  Element.prototype.scrollIntoView = scrollIntoView;
+});
+
+describe("a new account", () => {
+  it("is on screen with the cursor on it once saved", async () => {
+    await render();
+
+    await addAccount("Sample Holiday");
+
+    expect(location()).toBe("/accounts");
+    const row = rowOf("Sample Holiday");
+    expect(row.getAttribute("data-row-active")).toBe("true");
+    expect(scrolledTo().some((one) => one.includes("Sample Holiday"))).toBe(
+      true,
+    );
+  });
+
+  it("opens the branches above it", async () => {
+    useSchemaStore.setState({
+      tables: [
+        { ...ACCOUNTS, tree: { ...ACCOUNTS.tree!, defaultExpanded: false } },
+      ],
+    });
+    await render();
+    expect(text()).not.toContain("Sample Savings");
+
+    await addAccount("Sample Deposit", "Bank Accounts");
+
+    expect(rowOf("Sample Deposit").getAttribute("data-row-active")).toBe(
+      "true",
+    );
+    expect(text()).toContain("Bank Accounts");
+  });
+
+  it("drops a search that would hide it", async () => {
+    await render("/accounts?q=Savings&sort=name");
+
+    await addAccount("Sample Holiday");
+
+    expect(location()).toBe("/accounts?sort=name");
+    expect(rowOf("Sample Holiday").getAttribute("data-row-active")).toBe(
+      "true",
+    );
   });
 });

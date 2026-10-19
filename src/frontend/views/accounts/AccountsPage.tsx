@@ -1,6 +1,14 @@
-import { useMemo } from "react";
-import { Link, Outlet, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { Pencil } from "lucide-react";
+import { makeRowId } from "@sapporta/grid";
+import { controllerFor, cursorManagerFor } from "@sapporta/grid/advanced";
 import {
   openResolvedLink,
   SchemaTableGridView,
@@ -9,9 +17,15 @@ import {
   type SchemaTableGridViewSource,
   type SchemaTableRowsByLevel,
   type TGridCellRenderContext,
+  type TGridSession,
 } from "@sapporta/frontend";
 import { parseRowId } from "../../row-id";
-import { ACCOUNTS_ROUTE, NEW_ACCOUNT_ROUTE, editAccountHref } from "./routes";
+import {
+  ACCOUNTS_ROUTE,
+  NEW_ACCOUNT_ROUTE,
+  editAccountHref,
+  type AccountsOutletContext,
+} from "./routes";
 
 /*
  * The Accounts page: the chart as one tree, read-only, with an Edit button on
@@ -28,6 +42,11 @@ import { ACCOUNTS_ROUTE, NEW_ACCOUNT_ROUTE, editAccountHref } from "./routes";
  * below, so a form can be linked to, bookmarked and reloaded. The chart stays
  * mounted behind them — the same session, on the same page of rows — and
  * Close steps back to it as it was.
+ *
+ * A new account is the exception: once its form closes, the chart scrolls to
+ * it, opens the branches above it and puts the cursor on it, since a new name
+ * in a long chart is otherwise hard to find. A search, a filter or a page that
+ * would hide it is dropped for it.
  */
 
 const ACCOUNTS_TABLE = "accounts";
@@ -67,7 +86,15 @@ const ACCOUNT_COLUMNS: SchemaTableColumns = (c) => [
 
 export function AccountsPage() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
+  const sessionRef = useRef<TGridSession<SchemaTableRowsByLevel>>(null);
+  // The account a closing form asked the chart to show, until it is shown.
+  const [shown, setShown] = useState<number | null>(null);
+  const outlet = useMemo<AccountsOutletContext>(
+    () => ({ showAccount: setShown }),
+    [],
+  );
   const accountsSchema = useSchemaStore((state) =>
     state.tables.find((table) => table.name === ACCOUNTS_TABLE),
   );
@@ -109,6 +136,33 @@ export function AccountsPage() {
     [navigate, searchParams],
   );
 
+  useEffect(() => {
+    const session = sessionRef.current;
+    // The form steps back to the chart first; showing waits for it, so the
+    // chart's own entry, not the form's, is the one whose view may change.
+    if (shown === null || session === null || pathname !== ACCOUNTS_ROUTE) {
+      return;
+    }
+    let current = true;
+    void showAccountInChart(session, shown, () => current).then((showing) => {
+      if (!current) return;
+      const view = viewWithoutQuery(searchParams);
+      if (!showing && view !== null) {
+        // The account is outside the search, filters or page on screen. The
+        // whole chart has it; this effect runs again on the new URL.
+        void navigate(
+          { pathname: ACCOUNTS_ROUTE, search: view },
+          { replace: true },
+        );
+        return;
+      }
+      setShown(null);
+    });
+    return () => {
+      current = false;
+    };
+  }, [navigate, pathname, searchParams, shown]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col [--sap-page-header-inset:0px]">
       {source ? (
@@ -116,6 +170,7 @@ export function AccountsPage() {
           source={source}
           route={route}
           registerAs={ACCOUNTS_TABLE}
+          sessionRef={sessionRef}
           columns={ACCOUNT_COLUMNS}
           onNewRecord={() => void navigate(NEW_ACCOUNT_ROUTE)}
           viewRelatedRows
@@ -127,7 +182,7 @@ export function AccountsPage() {
         </p>
       )}
       {/* The open form, as `/accounts/new` or `/accounts/:accountId/edit`. */}
-      <Outlet />
+      <Outlet context={outlet} />
     </div>
   );
 }
@@ -157,6 +212,55 @@ function EditCell({
       Edit
     </Link>
   );
+}
+
+/**
+ * Puts the cursor on an account's row, with every branch above it open and
+ * the row scrolled into view. Reads the rows again when the chart doesn't
+ * have it yet. False when the chart, as filtered, still doesn't, or when
+ * `wanted` says the page moved on during the read.
+ */
+async function showAccountInChart(
+  session: TGridSession<SchemaTableRowsByLevel>,
+  accountId: number,
+  wanted: () => boolean,
+): Promise<boolean> {
+  const level = session.runtime.root;
+  const rowKey = String(accountId);
+  const loaded = () => {
+    const state = level.data.state();
+    return (
+      state.status === "ready" &&
+      state.snapshot.nodes.some((node) => node.rowKey === rowKey)
+    );
+  };
+  if (!loaded()) await session.reloadRows();
+  // A page that moved on may have disposed this session's grid.
+  if (!wanted() || !loaded()) return false;
+  const rowId = makeRowId(level.path, rowKey);
+  level.tree?.reveal(rowId);
+  const coord = { rowId, colId: TREE_COLUMN };
+  cursorManagerFor(session.runtime).moveCellCursorTo({
+    path: level.path,
+    ...coord,
+  });
+  controllerFor(session.runtime, level.path).revealCell(coord);
+  return true;
+}
+
+/** The column the chart's tree is drawn in, where the cursor lands. */
+const TREE_COLUMN = "name";
+
+/**
+ * The chart's URL with only its sort kept, or null when there is nothing
+ * else to drop: no search, no filter, no page.
+ */
+function viewWithoutQuery(searchParams: URLSearchParams): string | null {
+  const sort = searchParams.get("sort");
+  const kept = new URLSearchParams(sort === null ? {} : { sort });
+  return kept.toString() === searchParams.toString()
+    ? null
+    : `?${kept.toString()}`;
 }
 
 /** The account a grid row is, for its form's URL. */

@@ -27,6 +27,7 @@ import {
   importPresetsQuery,
   refreshAccounts,
 } from "../../queries";
+import { parseRowId } from "../../row-id";
 import { BANKS_SETTINGS_ROUTE } from "../settings/routes";
 import {
   NEW_ACCOUNT_DRAFT,
@@ -64,10 +65,13 @@ type Editing = AccountRow | "new";
 export function AccountDialog({
   editing,
   onClose,
+  onCreated,
 }: {
   /** The account being edited: "new", or the one it is. */
   editing: Editing;
   onClose: () => void;
+  /** Hears a new account's id once it is saved, before the form closes. */
+  onCreated?: (accountId: number) => void;
 }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -76,6 +80,7 @@ export function AccountDialog({
           key={editing === "new" ? "new" : editing.id}
           account={editing === "new" ? null : editing}
           onClose={onClose}
+          onCreated={onCreated}
         />
       </DialogContent>
     </Dialog>
@@ -85,9 +90,11 @@ export function AccountDialog({
 function DialogBody({
   account,
   onClose,
+  onCreated,
 }: {
   account: AccountRow | null;
   onClose: () => void;
+  onCreated?: (accountId: number) => void;
 }) {
   const ids = {
     name: useId(),
@@ -165,12 +172,16 @@ function DialogBody({
         account_type: reading.draft.account_type,
         parent_id: reading.draft.parent_id,
       };
+      let createdId: number | null = null;
       if (account === null) {
-        await createTableRow("accounts", body);
+        const { data } = await createTableRow("accounts", body);
+        const created = Array.isArray(data) ? data[0] : data;
+        createdId = parseRowId(String(created?.id));
       } else {
         await accountsApi.changeAccount({ params: { id: account.id }, body });
       }
       await refreshAccounts(client);
+      if (createdId !== null) onCreated?.(createdId);
       onClose();
     } catch (error) {
       setProblem({

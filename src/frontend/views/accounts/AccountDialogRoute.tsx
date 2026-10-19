@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useOutletContext, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@sapporta/shared/client";
 import { apiErrorMessage } from "../../api";
@@ -8,7 +8,7 @@ import { accountQuery } from "../../queries";
 import { parseRowId } from "../../row-id";
 import { AccountDialog } from "./AccountDialog";
 import { accountRow } from "./account-form";
-import { ACCOUNTS_ROUTE } from "./routes";
+import { ACCOUNTS_ROUTE, type AccountsOutletContext } from "./routes";
 
 /*
  * The chart's two forms as routes: /accounts/new, and /accounts/:accountId/edit
@@ -22,9 +22,16 @@ import { ACCOUNTS_ROUTE } from "./routes";
  * the chart's own page of rows stops at a thousand accounts.
  */
 
-/** The new-account form. */
+/** The new-account form. The chart behind it shows the account once saved. */
 export function NewAccountDialog() {
-  return <AccountDialog editing="new" onClose={useFormClose(ACCOUNTS_ROUTE)} />;
+  const chart = useOutletContext<AccountsOutletContext | undefined>();
+  return (
+    <AccountDialog
+      editing="new"
+      onClose={useFormClose(ACCOUNTS_ROUTE)}
+      onCreated={chart?.showAccount}
+    />
+  );
 }
 
 /** One account's edit form, by the id in the URL. */
