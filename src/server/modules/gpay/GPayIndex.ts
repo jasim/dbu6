@@ -1,8 +1,17 @@
 import { readFileSync } from "node:fs";
+import type { StatementAccount } from "../../../shared/contracts/index.js";
 import type { Abacus } from "../statement/index.js";
 import { isWithdrawal } from "../values/index.js";
 
-export type GPayIndex = Map<string, string[]>;
+// One Google Pay payment, under its date and amount in the index.
+export interface GPayActivity {
+  recipient: string;
+  // The digits Google Pay prints after the mask of the account it paid
+  // from ("using Bank Account XXXXXX1234" -> "1234"); null when it names none.
+  paidFrom: string | null;
+}
+
+export type GPayIndex = Map<string, GPayActivity[]>;
 
 const DATE_DELTAS = [0, -1, 1] as const;
 
@@ -13,9 +22,10 @@ export function parseGPayHtml(path: string): GPayIndex {
   const idx: GPayIndex = new Map();
   for (const entry of extractEntries(htmlToPlaintext(html))) {
     const k = key(entry.date, entry.amount);
+    const activity = { recipient: entry.recipient, paidFrom: entry.paidFrom };
     const bucket = idx.get(k);
-    if (bucket) bucket.push(entry.recipient);
-    else idx.set(k, [entry.recipient]);
+    if (bucket) bucket.push(activity);
+    else idx.set(k, [activity]);
   }
   return idx;
 }
@@ -28,12 +38,21 @@ export interface EnrichmentResult {
   matchCount: number;
 }
 
+// `account` is the account the statement printed, null when it printed
+// none. A Takeout covers every account the person pays from, so a payment
+// Google Pay made from another account never names a row of this one.
 export function enrichWithGPay(
   txns: readonly Abacus[],
   idx: GPayIndex,
+  account: StatementAccount | null,
 ): EnrichmentResult {
   const available = new Map(
-    [...idx].map(([entryKey, recipients]) => [entryKey, [...recipients]]),
+    [...idx].map(([entryKey, activities]) => [
+      entryKey,
+      activities
+        .filter((activity) => paidFromAccount(activity, account))
+        .map((activity) => activity.recipient),
+    ]),
   );
   const enriched = [...txns];
   const recipientsByRow: (string | null)[] = txns.map(() => null);
@@ -79,6 +98,19 @@ export function enrichWithGPay(
   }
 
   return { enriched, recipients: recipientsByRow, matchCount };
+}
+
+// An activity that names no account, or a statement that names none, cannot
+// rule the pairing out.
+function paidFromAccount(
+  activity: GPayActivity,
+  account: StatementAccount | null,
+): boolean {
+  return (
+    activity.paidFrom === null ||
+    account === null ||
+    account.identifier.endsWith(activity.paidFrom)
+  );
 }
 
 function groupUnassignedTransactions(
@@ -155,10 +187,9 @@ function normalizePartyName(value: string): string {
     .replace(/[^a-z0-9]/g, "");
 }
 
-interface GPayEntry {
+interface GPayEntry extends GPayActivity {
   date: string;
   amount: number;
-  recipient: string;
 }
 
 function key(date: string, amount: number): string {
@@ -195,11 +226,11 @@ function htmlToPlaintext(html: string): string {
 }
 
 const AMOUNT_LINE =
-  /^\s*(?:Sent|Paid)\s+(?:Rs\.?\s*|\u20b9\s*|\$\s*)?([\d,]+(?:\.\d+)?)\s+to\s+(.+?)(?:\s+using\s+Bank\s+Account.*)?$/i;
+  /^\s*(?:Sent|Paid)\s+(?:Rs\.?\s*|\u20b9\s*|\$\s*)?([\d,]+(?:\.\d+)?)\s+to\s+(.+?)(?:\s+using\s+Bank\s+Account\b\s*[X*]*(\d*).*)?$/i;
 
 function extractEntries(plaintext: string): GPayEntry[] {
   const out: GPayEntry[] = [];
-  let pending: { amount: number; recipient: string } | null = null;
+  let pending: (GPayActivity & { amount: number }) | null = null;
 
   for (const raw of plaintext.split("\n")) {
     const line = raw.trim();
@@ -209,16 +240,12 @@ function extractEntries(plaintext: string): GPayEntry[] {
       const amount = parseAmount(m[1]);
       const recipient = m[2].trim();
       if (amount === null || !recipient) continue;
-      pending = { amount, recipient };
+      pending = { amount, recipient, paidFrom: m[3] || null };
     } else {
       if (!line) continue;
       const date = parseGPayDate(line);
       if (date) {
-        out.push({
-          date,
-          amount: pending.amount,
-          recipient: pending.recipient,
-        });
+        out.push({ date, ...pending });
       }
       pending = null;
     }

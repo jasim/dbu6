@@ -4,6 +4,7 @@ import {
   type DatedBalance,
   type DateSpan,
   type ImportAccount,
+  type StatementAccount,
 } from "../../../shared/index.js";
 import type {
   CategorizationLlm,
@@ -154,6 +155,8 @@ export function pickClosingBalance(
 export interface CheckedStatement {
   opening: number | null;
   closing: number | null;
+  // The account the parts print, when they agree on one.
+  account: StatementAccount | null;
   // Assembled and keyed, as the parts print them.
   transactions: Chrono<Abacus>;
   // The same rows with every balance filled in and walked to the closing.
@@ -240,6 +243,7 @@ export function checkStatement(
   return {
     opening,
     closing,
+    account: assembled.account,
     transactions,
     withBalances,
     resolvedOpening,
@@ -278,6 +282,7 @@ export async function runStatementImport(
   const {
     opening,
     closing,
+    account,
     transactions,
     withBalances,
     resolvedOpening,
@@ -311,7 +316,7 @@ export async function runStatementImport(
   let comments: (string | null)[] = [];
   let gpayEnrichedCount = 0;
   if (opts.gpay && survivors.length > 0) {
-    const enrichment = enrichWithGPay(survivors, opts.gpay);
+    const enrichment = enrichWithGPay(survivors, opts.gpay, account);
     importable = unsafeAsChrono(enrichment.enriched);
     comments = enrichment.recipients;
     gpayEnrichedCount = enrichment.matchCount;

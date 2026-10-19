@@ -57,7 +57,9 @@ const BASE_ACCOUNT = parseAccount("Federal Bank");
 // A Federal-style statement: printed per-row balances, verbatim narrations,
 // bank references on the UPI rows (reference-keyed identity) and none on the
 // charges row (narration-keyed identity).
-function statement(): AbacusStatement {
+function statement(
+  account: AbacusStatement["account"] = null,
+): AbacusStatement {
   const rows: Abacus[] = [
     {
       date: "2026-07-01",
@@ -87,7 +89,7 @@ function statement(): AbacusStatement {
     transactions: normalizeChronological(rows, "ascending"),
     opening: null,
     closing: null,
-    account: null,
+    account,
     institution: null,
   };
 }
@@ -178,6 +180,25 @@ describe("Google Pay enrichment on the statement import", () => {
       expect.stringContaining(
         "[statement-import] GPay takeout: 1 (date,amount) keys; enriched 1 of 3 narration(s)",
       ),
+    );
+  });
+
+  it("leaves a row a payment from another account would name", async () => {
+    const html = takeout(
+      dir,
+      `<div>Paid ₹1,200.00 to sample Cafe using Bank Account XXXXXX0505</div>
+       <div>Jul 2, 2026, 9:15 AM</div>`,
+    );
+
+    const result = await runStatementImport(
+      [statement({ kind: "bank", identifier: "0505050000121234" })],
+      options(html),
+      testImportLedger(BASE_ACCOUNT),
+    );
+
+    expect(result.gpay_enriched_count).toBe(0);
+    expect(draftImportCalls[0].transactions[1].narration).toBe(
+      "UPIOUT/050505000005/q050505@ybl/UPI/0505",
     );
   });
 
