@@ -12,7 +12,7 @@ describe("noAgentModelReason", () => {
         { ...TERRA, reason: "Not logged in" },
       ]),
     ).toBe(
-      "Codex didn't answer on GPT-5.6 Sol or GPT-5.6 Terra, and dbu6 doesn't use less capable models. GPT-5.6 Terra said: Not logged in. See Settings.",
+      "Codex didn't answer on GPT-5.6 Sol or GPT-5.6 Terra, and dbu6 doesn't use less capable models. GPT-5.6 Terra said: Not logged in. To fix it, run `codex login` in a terminal to check that Codex is signed in and has usage left, then press Check again in dbu6's Settings, or choose another agent there.",
     );
   });
 });

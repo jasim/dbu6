@@ -191,7 +191,10 @@ export function serveDbu6(
   // when dbu_config has no result yet. Settings shows what was found, checks
   // the other agents only when it shows them, and detects again on request.
   const codingAgentChecked = startCodingAgent().catch((error: unknown) => {
-    console.error("[coding-agent] startup check failed:", error);
+    console.error(
+      "[coding-agent] couldn't check the coding agents at startup, so categorization and agent prompts may not work. Open dbu6's Settings and press Check again; the error was:",
+      error,
+    );
   });
   // Writes the comments still missing, the backlog after migration 0012
   // included. It waits on the coding agent's check, and on categorization.

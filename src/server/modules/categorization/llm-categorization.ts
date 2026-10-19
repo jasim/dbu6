@@ -320,7 +320,7 @@ export async function categorizeViaLLM(
     const unavailable = await caller.confirmUnavailable();
     if (unavailable !== null) {
       console.error(
-        `[${llm.name}] can't be used, so no further calls are sent: ${unavailable}`,
+        `[${llm.name}] can't be used, so categorization stopped and sends no more calls. ${unavailable}`,
       );
       return {
         mappings: new Map(),

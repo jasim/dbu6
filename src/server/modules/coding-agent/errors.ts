@@ -46,9 +46,18 @@ export class CodingAgentNotInstalledError extends CodingAgentError {
 }
 
 /**
+ * What to do about an agent that is installed but doesn't answer: the usual
+ * causes are a lapsed sign-in or a used-up plan, both seen by running it.
+ */
+export function agentNotAnsweringFix(agent: CodingAgent): string {
+  const { label, signInCommand } = CODING_AGENTS[agent];
+  return `To fix it, run \`${signInCommand}\` in a terminal to check that ${label} is signed in and has usage left, then press Check again in dbu6's Settings, or choose another agent there.`;
+}
+
+/**
  * Why an agent none of whose models answered can't be used, in the server's
  * words: the sentence Settings also shows, the floor model's own reason, and
- * where to look. Categorization reports it instead of throwing it, so it is a
+ * what to do. Categorization reports it instead of throwing it, so it is a
  * function of its own as well.
  */
 export function noAgentModelReason(
@@ -58,7 +67,7 @@ export function noAgentModelReason(
   const floor = unavailable[unavailable.length - 1];
   const said =
     floor === undefined ? "" : ` ${floor.label} said: ${floor.reason}.`;
-  return `${noAgentModelMessage(agent, unavailable)}${said} See Settings.`;
+  return `${noAgentModelMessage(agent, unavailable)}${said} ${agentNotAnsweringFix(agent)}`;
 }
 
 export class NoAgentModelError extends CodingAgentError {

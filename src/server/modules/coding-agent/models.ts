@@ -17,6 +17,7 @@ import {
   installedCodingAgents,
   saveChosenCodingAgent,
 } from "./agents.js";
+import { noAgentModelReason } from "./errors.js";
 import {
   askModel,
   type DetectedAgent,
@@ -240,27 +241,39 @@ export async function currentCodingAgent(): Promise<AgentInUse<DetectedAgent>> {
  */
 export async function startCodingAgent(): Promise<void> {
   const inUse = await currentCodingAgent();
-  logCodingAgent(inUse);
-  if (inUse.agent?.loggedIn) await agentModels(inUse.agent);
-}
-
-function logCodingAgent(inUse: AgentInUse<DetectedAgent>): void {
-  console.log(
-    inUse.agent === null
-      ? `[coding-agent] ${noCodingAgentMessage(inUse.why)} Categorization and agent prompts are off.`
-      : `[coding-agent] using ${CODING_AGENTS[inUse.agent.agent].label} (${inUse.agent.binaryPath})`,
-  );
+  if (inUse.agent === null) {
+    console.log(
+      `[coding-agent] ${noCodingAgentMessage(inUse.why)} Until then, categorization and agent prompts are off.`,
+    );
+    return;
+  }
+  const { agent } = inUse;
+  const { label, signInCommand } = CODING_AGENTS[agent.agent];
+  if (!agent.loggedIn) {
+    console.log(
+      `[coding-agent] ${label} isn't signed in, so categorization and agent prompts are off. To fix it, run \`${signInCommand}\` in a terminal and sign in, then press Check again in dbu6's Settings.`,
+    );
+    return;
+  }
+  console.log(`[coding-agent] using ${label} (${agent.binaryPath})`);
+  // A new check logs itself when it ends. A kept one is said here only when
+  // the agent didn't answer, so a startup never hides that it can't be used.
+  const stored = storedCheck(agent);
+  if (stored === null) await agentModels(agent);
+  else if (stored.state === "no_model") logAgentModels(agent.agent, stored);
 }
 
 function logAgentModels(agent: CodingAgent, models: CheckedAgentModels) {
   const label = CODING_AGENTS[agent].label;
+  if (models.state === "no_model") {
+    console.log(
+      `[coding-agent] ${label} can't be used, so categorization and agent prompts are off. ${noAgentModelReason(agent, models.unavailable)}`,
+    );
+    return;
+  }
   const unavailable = models.unavailable
     .map((model) => `${model.label} didn't answer (${model.reason})`)
     .join("; ");
-  if (models.state === "no_model") {
-    console.log(`[coding-agent] ${label}: no model answered: ${unavailable}`);
-    return;
-  }
   console.log(
     `[coding-agent] ${label}: prompts open on ${models.session.label}, categorization runs on ${models.categorization.label}${unavailable && `; ${unavailable}`}`,
   );
