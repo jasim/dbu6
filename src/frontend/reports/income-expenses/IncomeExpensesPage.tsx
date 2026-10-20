@@ -1,5 +1,6 @@
 import {
   apiErrorMessage,
+  Button,
   ChevronDown,
   cn,
   EmptyState,
@@ -28,13 +29,16 @@ import {
   useSearchParams,
   useState,
 } from "../../report-kit";
+import { FileSpreadsheet } from "lucide-react";
 import { reportsApi } from "../client";
 import type { DateSpan, IncomeExpenses } from "../../../shared/index";
 import { AccountTable } from "./AccountTable";
 import { barByKey, barSeries, chartBars, type ChartBar } from "./chart";
 import { EntriesPanel } from "./EntriesPanel";
+import { incomeExpensesFileName, incomeExpensesSheets } from "./export";
 import { figures, isEmptyPeriod, type Figures } from "./figures";
 import { MonthChart, MonthChartSkeleton } from "./MonthChart";
+import { downloadXlsx } from "../../xlsx";
 import {
   activePreset,
   emptyPeriodSentence,
@@ -138,7 +142,7 @@ export function IncomeExpensesPage() {
         </div>
       ) : report === null ? (
         <>
-          <FigureLine figures={null} scope={null} />
+          <FigureLine className="mt-5" figures={null} scope={null} />
           {!withinOneMonth(dates) && <MonthChartSkeleton />}
         </>
       ) : isEmptyPeriod(report) ? (
@@ -152,6 +156,7 @@ export function IncomeExpensesPage() {
           report={report}
           dates={dates}
           today={day}
+          loading={query.isPlaceholderData}
           search={search}
           setSearch={setSearch}
         />
@@ -164,12 +169,15 @@ function PeriodReport({
   report,
   dates,
   today,
+  loading,
   search,
   setSearch,
 }: {
   report: IncomeExpenses;
   dates: DateSpan;
   today: string;
+  /** Whether the figures are still the last period's, while it loads. */
+  loading: boolean;
   search: URLSearchParams;
   setSearch: (next: URLSearchParams, options?: { replace?: boolean }) => void;
 }) {
@@ -235,7 +243,23 @@ function PeriodReport({
 
   return (
     <>
-      <FigureLine figures={figures(scope)} scope={selectedBar} />
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-x-8 gap-y-3">
+        <FigureLine figures={figures(scope)} scope={selectedBar} />
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={loading}
+          onClick={() =>
+            downloadXlsx(
+              incomeExpensesFileName(dates),
+              incomeExpensesSheets(report),
+            )
+          }
+        >
+          <FileSpreadsheet aria-hidden="true" />
+          Export to Excel
+        </Button>
+      </div>
       {showChart && (
         <MonthChart
           bars={bars}
@@ -308,12 +332,16 @@ function PeriodReport({
 function FigureLine({
   figures,
   scope,
+  className,
 }: {
   figures: Figures | null;
   scope: ChartBar | null;
+  className?: string;
 }) {
   return (
-    <dl className="mt-5 flex flex-wrap items-baseline gap-x-8 gap-y-2">
+    <dl
+      className={cn("flex flex-wrap items-baseline gap-x-8 gap-y-2", className)}
+    >
       {scope && (
         <div className="flex items-baseline">
           <dt className="sr-only">Showing</dt>
