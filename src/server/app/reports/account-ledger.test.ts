@@ -172,7 +172,8 @@ describe("Account Ledger result", () => {
       "Open journal entry",
     ]);
 
-    const rows = result.nodes;
+    // Newest first, the opening balance under the oldest.
+    const rows = [...result.nodes].reverse();
     expect(rows[0]).toMatchObject({
       rowKey: "opening:2026-01-01",
       kind: "opening",
@@ -307,8 +308,8 @@ describe("Account Ledger result", () => {
         columns.balance,
       ]),
     ).toEqual([
-      ["Bank", 500, 0, 500],
       ["Savings", 0, 500, 0],
+      ["Bank", 500, 0, 500],
     ]);
   });
 

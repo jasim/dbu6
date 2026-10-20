@@ -9,14 +9,24 @@ export type LedgerLinkInput = {
   to_date?: string;
 };
 
+/**
+ * An account's ledger. Without `input` it opens on the ledger's default
+ * period; a report's period carries over, so a report over all time asks
+ * for all time and its totals match the ledger's.
+ */
 export function accountLedgerHref(
   accountId: unknown,
   input?: LedgerLinkInput,
 ): string | null {
   const id = asId(accountId);
   if (!id) return null;
+  const allTime =
+    input !== undefined &&
+    input.from_date === undefined &&
+    input.to_date === undefined;
   return createSnapshotUrl("/reports/account-ledger", {
     account_id: id,
+    period: allTime ? "all-time" : undefined,
     from_date: input?.from_date,
     to_date: input?.to_date,
   });

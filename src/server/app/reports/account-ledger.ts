@@ -279,8 +279,10 @@ export function ledgerPostings(
 
 /**
  * The account's postings in the period as the report's rows (`ledgerPostings`),
- * each with the balance it leaves and links to its journal. The label names
- * the account, for the screen's title; the footer closes the period.
+ * each with the balance it leaves and links to its journal, newest first: the
+ * balances run from the oldest, and the opening balance is the last row. The
+ * label names the account, for the screen's title; the footer closes the
+ * period.
  */
 export function toAccountLedgerResult(
   account: AccountInfoRow | null,
@@ -381,7 +383,7 @@ export function toAccountLedgerResult(
     label: `Account Ledger: ${account.name}`,
     rootLevel: "entries",
     levels,
-    nodes: [...opening, ...postings],
+    nodes: [...postings.reverse(), ...opening],
     footerRows: [
       // One row: the period's debits and credits under their columns, and
       // the balance they leave. Labelled in Against, as the opening row is:

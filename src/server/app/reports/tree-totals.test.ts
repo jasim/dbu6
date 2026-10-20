@@ -766,13 +766,14 @@ describe("reports over a deep account tree, with drafts filed on parents", () =>
     const food = await januaryLedger(treeLedger(), 1);
     const spending = food.nodes.filter((row) => row.columns.journal_id === 11);
 
+    // Newest first: the journal's lines read last to first.
     expect(
       spending.map(({ columns }) => [columns.entry_id, columns.against]),
     ).toEqual([
-      [111, "Sample Savings"],
-      [112, "Sample Savings"],
-      [113, "Sample Savings"],
       [114, "Sample Savings"],
+      [113, "Sample Savings"],
+      [112, "Sample Savings"],
+      [111, "Sample Savings"],
     ]);
   });
 
