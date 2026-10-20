@@ -72,7 +72,7 @@ function books() {
 const ids = (rows: readonly { id: number }[]) => rows.map((row) => row.id);
 
 describe("GET /api/search", () => {
-  it("returns matching journals newest first, with their accounts and amount", async () => {
+  it("returns matching journals newest first, with their entries and amount", async () => {
     const { search } = books();
     const results = await search("sample market");
 
@@ -82,8 +82,25 @@ describe("GET /api/search", () => {
         id: 11,
         date: "2026-02-05",
         description: "NOPII sample market",
-        accounts: expect.arrayContaining(["Groceries", "Sample Savings"]),
         amount: 1000,
+        entries: [
+          {
+            account: "Groceries",
+            debit: 1000,
+            credit: 0,
+            comment: null,
+            narration: null,
+            reference: null,
+          },
+          {
+            account: "Sample Savings",
+            debit: 0,
+            credit: 1000,
+            comment: null,
+            narration: null,
+            reference: null,
+          },
+        ],
       },
       expect.objectContaining({ id: 10, amount: 2500 }),
     ]);
@@ -94,7 +111,19 @@ describe("GET /api/search", () => {
     const { search } = books();
     const results = await search("sample-payee");
 
-    expect(ids(results.journals)).toEqual([10]);
+    expect(results.journals).toEqual([
+      expect.objectContaining({
+        id: 10,
+        entries: [
+          expect.objectContaining({
+            account: "Groceries",
+            narration: "UPI-sample-payee-050505",
+            reference: "0505051111",
+          }),
+          expect.objectContaining({ account: "Sample Savings", credit: 2500 }),
+        ],
+      }),
+    ]);
     expect(results.drafts).toEqual([
       {
         id: 201,

@@ -104,7 +104,8 @@ Look up an account's id with
 - **"Find the transaction …"**
   `npx sapporta api get /api/search --query '{"q":"<words>"}'` searches the
   whole books, as the app's Search page does. It returns matching journals
-  (with their accounts and amount), drafts waiting in Review, and accounts,
+  (with their amount and each entry's account, debit, credit and texts),
+  drafts waiting in Review, and accounts,
   newest first, at most 100 of each. Every word must match, each anywhere in
   the row: description, `comment`, `source_narration`
   ([Two texts](#two-texts-the-banks-and-the-persons)), the bank's reference,

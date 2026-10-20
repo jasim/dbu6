@@ -10,10 +10,20 @@ export const searchJournalSchema = z.object({
   id: z.number(),
   date: z.string(),
   description: z.string(),
-  // Its entries' accounts, each once.
-  accounts: z.array(z.string()),
-  // The journal's total debit.
+  // The journal's total debit: how much moved.
   amount: z.number(),
+  // Its entries in the order they were made, each with its own text: the
+  // search may have matched an entry rather than the description.
+  entries: z.array(
+    z.object({
+      account: z.string(),
+      debit: z.number(),
+      credit: z.number(),
+      comment: z.string().nullable(),
+      narration: z.string().nullable(),
+      reference: z.string().nullable(),
+    }),
+  ),
 });
 export type SearchJournal = z.infer<typeof searchJournalSchema>;
 

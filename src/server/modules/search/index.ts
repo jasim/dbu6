@@ -109,25 +109,36 @@ function journalRows(
     id: number;
     date: string;
     description: string;
-    accounts: string;
     amount: number;
+    entries: string;
   }>(
     sqlite,
     auth,
     `SELECT j.id, j.date, j.description,
-       json_group_array(DISTINCT a.name) AS accounts,
-       coalesce(sum(e.debit), 0) AS amount
+       (SELECT coalesce(sum(debit), 0) FROM scoped_journal_entries
+        WHERE journal_id = j.id) AS amount,
+       (SELECT json_group_array(json_object(
+          'account', t.account,
+          'debit', t.debit,
+          'credit', t.credit,
+          'comment', t.comment,
+          'narration', t.source_narration,
+          'reference', t.source_reference))
+        FROM (SELECT a.name AS account, coalesce(e.debit, 0) AS debit,
+                coalesce(e.credit, 0) AS credit, e.comment,
+                e.source_narration, e.source_reference
+              FROM scoped_journal_entries e
+              JOIN scoped_accounts a ON a.id = e.account_id
+              WHERE e.journal_id = j.id
+              ORDER BY e.id) t) AS entries
      FROM scoped_journals j
-     JOIN scoped_journal_entries e ON e.journal_id = j.id
-     JOIN scoped_accounts a ON a.id = e.account_id
      WHERE j.id IN (SELECT value FROM json_each(@ids))
-     GROUP BY j.id
      ORDER BY j.date DESC, j.id DESC`,
     { ids: JSON.stringify(ids) },
   );
   return rows.map((row) => ({
     ...row,
-    accounts: JSON.parse(row.accounts) as string[],
+    entries: JSON.parse(row.entries) as SearchJournal["entries"],
   }));
 }
 
