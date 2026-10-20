@@ -73,11 +73,14 @@ export interface Problem {
     // Why, in a sentence or three. With an agent, its last sentence leads into
     // the prompt. It must read whole without the facts.
     context: string | null;
-    // The numbers and names behind it, folded under Details.
+    // Why, at more length, behind the info button beside the title: for a
+    // problem whose title and buttons say enough on their own.
+    about?: string;
+    // The numbers and names behind it, behind the info button.
     facts: Stat[];
     actions: ProblemAction[];
     agent: ProblemPrompt | null;
-    // The server's own words, folded under Details.
+    // The server's own words, behind the info button.
     technical: string | null;
 }
 
@@ -178,10 +181,11 @@ function planProblems(
                     key: `unrecognized:${row.file_name}`,
                     fileNames: [row.file_name],
                     subject: row.file_name,
-                    title: "Could not recognize this statement format",
-                    fix: "We don't have a parser for this format. Automatically create one below.",
-                    context:
-                        "Unable to read transactions from this file, since its format was not recognized by any existing parser. Please create a parser for this file format and upload again.",
+                    title: "New statement format",
+                    fix: null,
+                    context: null,
+                    about:
+                        "dbu6 hasn't seen this bank's format before. Your coding agent can write a parser for it in a minute. Then drop the file again. Or import the rows freeform instead.",
                     facts: [
                         tried.length === 0
                             ? {
@@ -204,7 +208,7 @@ function planProblems(
                     agent: {
                         prompt: unrecognizedPrompt(row),
                         afterwards: REDROP_FILE,
-                        goal: "Create new parser automatically",
+                        goal: "Set up this format",
                     },
                     technical: planTechnical,
                 });

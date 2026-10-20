@@ -16,7 +16,7 @@ import { LEDGER_ACCOUNT_TYPE, type AccountKind } from "../../shared/index";
 import { apiErrorMessage } from "../api";
 import { FRESH_QUERY } from "../queries";
 import { freeformTransactionsPrompt } from "./freeform-transactions/freeformTransactionsPrompt";
-import { AgentPrompt } from "../components/agent-prompt";
+import { AgentButton } from "../components/agent-prompt";
 
 interface LedgerAccount {
   id: number;
@@ -140,8 +140,8 @@ export function ImportFreeformTransactions() {
               Choose the kind and the account to see the prompt.
             </p>
           ) : (
-            <AgentPrompt
-              title="Turn your transactions into drafts"
+            <AgentButton
+              label="Turn your transactions into drafts"
               prompt={prompt}
               afterwards="Paste the transactions when you say go. It asks for the balance just before the earliest and just after the latest."
             />

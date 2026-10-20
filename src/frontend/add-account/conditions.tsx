@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { Input } from "@sapporta/ui";
 import type { AccountKind } from "../../shared/index";
-import { AgentActions, PromptText } from "../components/agent-prompt";
+import { AgentButton } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
 import { Button } from "../components/ui/button";
 import { formatDate, joinNames } from "../format";
@@ -32,7 +32,7 @@ import {
 function teachPrompt(file: Unreadable): { prompt: string; goal: string } {
   return file.status === "ambiguous"
     ? { prompt: addAmbiguousPrompt(file), goal: "Tell the formats apart" }
-    : { prompt: addUnrecognizedPrompt(file), goal: "Teach dbu6 this format" };
+    : { prompt: addUnrecognizedPrompt(file), goal: "Set up this format" };
 }
 
 /**
@@ -90,18 +90,13 @@ export function Teach({
         {joinNames(files.map((file) => file.file_name))}
       </p>
       <div className="mt-4">
-        <AgentActions standalone prompt={prompt} goal={goal} />
+        <AgentButton label={goal} prompt={prompt} primary={false} />
       </div>
       {stillUnreadable && (
         <p role="status" className="mt-3 text-meta text-ink-meta">
           Still can't read it. Let the agent finish, then check again.
         </p>
       )}
-      <div className="mt-2">
-        <Disclosure tone="assist" summary="Show the prompt">
-          <PromptText prompt={prompt} />
-        </Disclosure>
-      </div>
     </FocusCard>
   );
 }
@@ -424,11 +419,11 @@ function ProblemBody({ problem }: { problem: Problem }) {
   return (
     <div className="space-y-2">
       {problem.agent && (
-        <AgentActions
-          standalone
+        <AgentButton
+          label={problem.agent.goal}
           prompt={problem.agent.prompt}
           afterwards={problem.agent.afterwards}
-          goal={problem.agent.goal}
+          primary={false}
         />
       )}
       {(problem.context || problem.technical || problem.facts.length > 0) && (

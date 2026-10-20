@@ -1,92 +1,55 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Copy, Sparkles, SquareTerminal } from "lucide-react";
+import { Menu } from "@base-ui/react/menu";
+import { ChevronDown, Copy, SquareTerminal } from "lucide-react";
 import { cn } from "@sapporta/ui/cn";
+import { comboboxClassNames } from "@sapporta/ui/combobox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@sapporta/ui/dialog";
 import { CODING_AGENTS, type AgentHandoff } from "../../shared/index";
-import { planFirst } from "../agent-prompt-rules";
+import { PLAN_FIRST_RULE, planFirst } from "../agent-prompt-rules";
 import { agentHandoffApi, apiRefusalMessage } from "../api";
 import { agentHandoffAvailabilityQuery } from "../queries";
 import { Disclosure } from "./disclosure";
 import { Button } from "./ui/button";
 
 /**
- * The one panel for every prompt the app hands to the user's coding agent
- * (freeform import, Review; Import's problems take its buttons alone,
- * `AgentActions`). It is violet, and nothing else in the app is, so an
- * AI-assisted prompt is recognisable before it is read.
+ * The one control for every prompt the app hands to the user's coding agent.
+ * Handing work to the agent is an ordinary action in dbu6, so it is an
+ * ordinary button: its label is the task ("Fix the parser"), and a terminal
+ * icon is all that says the agent does it. Its arrow holds the rest: where it
+ * opens, Copy prompt, and View prompt.
  *
- * It gives the user as little to read as it can: the `title`, and buttons
- * that say what they do. `afterwards` is for once the agent has the prompt,
- * so it waits until the user has taken it somewhere.
+ * Once the agent has the prompt, the button gives way to a line saying so,
+ * with a way to open it again, and the command to run, when the terminal
+ * didn't open, and `afterwards`: what the user does next.
  *
- * `prompt` is the request alone. What the user copies, hands off and
- * previews has the plan-first rule on top (agent-prompt-rules.ts), so the
- * agent's first reply is its plan and it does nothing until the user says go.
+ * Where the server can't start an agent, the button copies the prompt
+ * instead, for whatever agent the user runs in the project.
+ *
+ * `prompt` is the request alone. What the user copies, hands off and views
+ * has the plan-first rule on top (agent-prompt-rules.ts), so the agent's
+ * first reply is its plan and it does nothing until the user says go. That is
+ * said once, in the rule, not beside every button.
  *
  * Which agent is started, and whether the server can open a terminal for it,
  * is the server's to decide: the button only asks, and the result says what
- * happened. The session is interactive, so the user carries the conversation
- * on there; it runs in auto mode, so once the user has approved the plan its
- * edits don't wait on approval.
+ * happened.
  */
-export function AgentPrompt({
-  title,
-  prompt,
-  afterwards,
-  children,
-}: {
-  /** What this prompt gets done, in one short line. */
-  title: string;
-  prompt: string;
-  /** What the user does once the agent has the prompt. */
-  afterwards?: ReactNode;
-  /** What the prompt hands over, where the user can see it, under the title. */
-  children?: ReactNode;
-}) {
-  return (
-    <section className="rounded-card border border-assist-border bg-assist-bg px-4 py-[18px]">
-      <p className="flex items-center gap-1.5 text-label uppercase text-assist-ink">
-        <Sparkles aria-hidden="true" className="size-[15px]" />
-        AI assisted
-      </p>
-      <h3 className="mt-1.5 text-subheading text-foreground [overflow-wrap:anywhere]">
-        {title}
-      </h3>
-      {children !== undefined && <div className="mt-3">{children}</div>}
-      <div className="mt-3">
-        <AgentActions prompt={prompt} afterwards={afterwards} />
-      </div>
-      <div className="mt-2">
-        <Disclosure tone="assist" summary="Preview the prompt">
-          <PromptText prompt={prompt} />
-        </Disclosure>
-      </div>
-    </section>
-  );
-}
-
-/**
- * The panel's buttons and what follows them. `standalone`, they stand
- * without the panel, where the text around them already says what the prompt
- * is for and a violet box would be one box too many: the violet button takes
- * the panel's sparkle, and Copy prompt goes quiet beside it. The prompt
- * itself is then shown elsewhere, with `PromptText`.
- *
- * `commit`, they are the one action a region ends on rather than a row of
- * equal controls: the button takes the region's whole width and a size above
- * an in-row one, and Copy prompt drops to a quiet line under it beside
- * `beside`. That is the shape a reader takes for "this is the last step",
- * where a button sharing a row with Copy prompt reads as one way among two.
- */
-export function AgentActions({
+export function AgentButton({
+  label,
   prompt,
   afterwards,
   onActed,
-  goal,
-  standalone = false,
-  commit = false,
-  beside,
+  primary = true,
+  wide = false,
 }: {
+  /** What the agent gets done, in a few words: "Fix the parser". */
+  label: string;
   prompt: string;
   /** What the user does once the agent has the prompt. */
   afterwards?: ReactNode;
@@ -97,19 +60,14 @@ export function AgentActions({
    */
   onActed?: (how: "copied" | "opened" | "command") => void;
   /**
-   * What the agent does, for the button to say in place of "Open in". Where
-   * it opens then drops to a muted second line, under the sparkle.
+   * The screen's one obvious next step. Where the screen already has one
+   * (Check again), the button is an outline beside it.
    */
-  goal?: string;
-  standalone?: boolean;
-  /** The region's commit: the button whole-width, Copy prompt under it. */
-  commit?: boolean;
-  /** On a commit's quiet line, beside Copy prompt: the prompt itself. */
-  beside?: ReactNode;
+  primary?: boolean;
+  /** The region's last step: the button takes its whole width. */
+  wide?: boolean;
 }) {
   const availability = useQuery(agentHandoffAvailabilityQuery).data;
-  // The button shows only where the server can start an agent; copying is
-  // offered everywhere, and on its own is the whole of the panel's advice.
   const handsOff = availability !== undefined && availability.mode !== "none";
   const handoff = useMutation({
     mutationFn: (sent: string) =>
@@ -117,127 +75,220 @@ export function AgentActions({
   });
   const text = planFirst(prompt);
   const [copied, setCopied] = useState<string>();
+  // The last result, kept while a retry is out so the line stays put.
+  const [result, setResult] = useState<{
+    text: string;
+    handoff: AgentHandoff;
+  }>();
+  const [justCopied, setJustCopied] = useState(false);
+  const [viewing, setViewing] = useState(false);
+  useEffect(() => {
+    if (!justCopied) return;
+    const timer = setTimeout(() => setJustCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [justCopied]);
+
   // A result, and the advice that follows it, belong to the prompt they were
   // made for; a new prompt leaves both behind.
   const asked = handoff.variables === text;
-  const acted = copied === text || (asked && handoff.isSuccess);
+  const handedOff = result?.text === text ? result.handoff : undefined;
+  const acted = copied === text || handedOff !== undefined;
   const agent = handsOff ? CODING_AGENTS[availability.agent].label : "";
-  const terminal = handsOff && availability.mode === "terminal";
+  const where =
+    handsOff && availability.mode === "terminal"
+      ? `Open in ${agent}`
+      : `Command for ${agent}`;
 
-  const copy = (quiet: boolean) => (
-    <CopyButton
-      text={text}
-      label="Copy prompt"
-      quiet={quiet}
-      onCopied={(copiedText) => {
-        setCopied(copiedText);
-        onActed?.("copied");
-      }}
-    />
-  );
+  const copy = () => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(text);
+      setJustCopied(true);
+      onActed?.("copied");
+    });
+  };
+  const handOff = () =>
+    handoff.mutate(text, {
+      onSuccess: (handedOver) => {
+        setResult({ text, handoff: handedOver });
+        onActed?.(handedOver.mode === "terminal" ? "opened" : "command");
+      },
+    });
 
+  const variant = primary ? "default" : "outline";
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-        {handsOff && (
+      {handedOff ? (
+        <HandoffResult
+          handoff={handedOff}
+          retry={handOff}
+          retrying={handoff.isPending}
+        />
+      ) : (
+        <div className={cn("flex", wide ? "w-full" : "inline-flex max-w-full")}>
           <Button
             type="button"
-            variant="assist"
-            size="sm"
+            variant={variant}
             className={cn(
-              goal === undefined
-                ? undefined
-                : "h-auto min-h-sap-ctl px-4 py-2.5 text-left",
-              commit && "w-full py-3 text-row",
+              "h-auto min-h-[calc(var(--height-sap-ctl)+2px)] min-w-0 whitespace-normal rounded-r-none py-1.5 text-left",
+              wide && "flex-1 justify-start",
             )}
             disabled={handoff.isPending}
-            onClick={() =>
-              handoff.mutate(text, {
-                onSuccess: (result) =>
-                  onActed?.(result.mode === "terminal" ? "opened" : "command"),
-              })
-            }
+            onClick={handsOff ? handOff : copy}
           >
-            {goal === undefined ? (
-              <>
-                {standalone ? <Sparkles /> : <SquareTerminal />}
-                {terminal ? `Open in ${agent}` : `Command for ${agent}`}
-              </>
+            {handsOff ? (
+              <SquareTerminal aria-hidden="true" />
             ) : (
-              // What gets done, and under it, muted, the AI that does it.
-              <span className="flex flex-col gap-0.5">
-                <span>{goal}</span>
-                <span className="sr-only">. </span>
-                <span className="flex items-center gap-1 text-[13px] font-normal text-assist-foreground/75 [&_svg]:size-[13px]">
-                  <Sparkles aria-hidden="true" />
-                  {terminal ? `Opens in ${agent}` : `Command for ${agent}`}
-                </span>
-              </span>
+              <Copy aria-hidden="true" />
             )}
+            <span>{justCopied ? "Copied" : label}</span>
+            {/* Said to a screen reader; on screen the icon says it. */}
+            <span className="sr-only">
+              {handsOff ? `. ${where}` : ". Copies the prompt"}
+            </span>
           </Button>
-        )}
-        {/* Beside the violet button, copying is the lesser way; alone, it
-            keeps its outline. */}
-        {!commit && copy(handsOff && standalone)}
-      </div>
-      {!handsOff && (
-        <p className="mt-2 text-meta text-ink-meta">
-          Run your agent in this app's repo.
-        </p>
-      )}
-      {commit && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-2">
-          {copy(handsOff)}
-          {beside !== undefined && <div className="min-w-0 grow">{beside}</div>}
+          <Menu.Root>
+            <Menu.Trigger
+              render={
+                <Button
+                  type="button"
+                  variant={variant}
+                  aria-label="More ways to give this to your agent"
+                  className={cn(
+                    "h-auto rounded-l-none border-l px-2",
+                    primary ? "border-l-primary-foreground/30" : "-ml-px",
+                  )}
+                />
+              }
+            >
+              <ChevronDown aria-hidden="true" />
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Positioner
+                className={comboboxClassNames.positioner}
+                align="end"
+                sideOffset={4}
+              >
+                <Menu.Popup
+                  className={cn(
+                    comboboxClassNames.popup,
+                    "w-auto min-w-48 p-1",
+                  )}
+                >
+                  {handsOff && (
+                    <Menu.Item
+                      className={comboboxClassNames.item}
+                      onClick={handOff}
+                    >
+                      {where}
+                    </Menu.Item>
+                  )}
+                  <Menu.Item className={comboboxClassNames.item} onClick={copy}>
+                    Copy prompt
+                  </Menu.Item>
+                  <Menu.Item
+                    className={comboboxClassNames.item}
+                    onClick={() => setViewing(true)}
+                  >
+                    View prompt
+                  </Menu.Item>
+                </Menu.Popup>
+              </Menu.Positioner>
+            </Menu.Portal>
+          </Menu.Root>
         </div>
       )}
       <div aria-live="polite">
-        {asked && handoff.isSuccess && <HandoffResult handoff={handoff.data} />}
         {asked && handoff.isError && (
-          <p className="mt-3 text-body text-destructive [overflow-wrap:anywhere]">
+          <p className="mt-2 text-body text-destructive [overflow-wrap:anywhere]">
             {apiRefusalMessage(handoff.error)}
           </p>
         )}
         {acted && afterwards !== undefined && (
-          <div className="mt-3 text-body text-ink-soft">{afterwards}</div>
+          <div className="mt-2 text-body text-ink-soft">{afterwards}</div>
         )}
       </div>
+      <Dialog open={viewing} onOpenChange={setViewing}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-heading">{label}</DialogTitle>
+          </DialogHeader>
+          <PromptText prompt={prompt} />
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" size="sm" onClick={copy}>
+              <Copy aria-hidden="true" />
+              {justCopied ? "Copied" : "Copy prompt"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-/** The prompt as the agent gets it, with the plan-first rule on top. */
-export function PromptText({ prompt }: { prompt: string }) {
+/**
+ * The prompt as the agent gets it: the request, and under a fold, the
+ * plan-first rule dbu6 puts above it.
+ */
+function PromptText({ prompt }: { prompt: string }) {
   return (
-    <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control border border-assist-border bg-card p-3 font-mono text-meta">
-      {planFirst(prompt)}
-    </pre>
+    <div className="space-y-2">
+      <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-control border border-sap-border bg-sap-nested p-3 font-mono text-meta">
+        {prompt}
+      </pre>
+      <Disclosure summary="dbu6's rule above it: plan first">
+        <pre className="whitespace-pre-wrap break-words font-mono text-meta text-ink-soft">
+          {PLAN_FIRST_RULE}
+        </pre>
+      </Disclosure>
+    </div>
   );
 }
 
-function HandoffResult({ handoff }: { handoff: AgentHandoff }) {
+/**
+ * Where the prompt went, in place of the button that sent it. Where the
+ * terminal didn't open, Try again opens it once more and shows the command
+ * beside it, for when that doesn't open either.
+ */
+function HandoffResult({
+  handoff,
+  retry,
+  retrying,
+}: {
+  handoff: AgentHandoff;
+  retry: () => void;
+  retrying: boolean;
+}) {
   const label = CODING_AGENTS[handoff.agent].label;
-  if (handoff.mode === "command") {
-    return (
-      <div className="mt-3 space-y-2">
-        <p className="text-body text-ink-soft">
-          Run this in a terminal. {label} shows its steps there and waits for
-          your go-ahead.
-        </p>
-        <Command command={handoff.command} />
-      </div>
-    );
-  }
+  const [showCommand, setShowCommand] = useState(handoff.mode === "command");
   return (
-    <div className="mt-3">
-      <p className="text-body text-ink-soft">
-        {label} is open in a terminal. It shows its steps there and waits for
-        your go-ahead.
-      </p>
-      <Disclosure tone="assist" summary="Didn't open?">
-        <p className="text-body text-ink-soft">Run this instead:</p>
-        <Command command={handoff.command} />
-      </Disclosure>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="inline-flex items-center gap-2 rounded-full border border-sap-border bg-card py-1 pl-2.5 pr-3 text-meta text-ink-soft">
+          <span
+            aria-hidden="true"
+            className="size-[7px] rounded-full bg-primary"
+          />
+          {handoff.mode === "terminal"
+            ? `Opened in ${label} — continue in your terminal`
+            : `Run this to start ${label}. It shows its plan first.`}
+        </span>
+        {handoff.mode === "terminal" && !showCommand && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-ink-meta"
+            disabled={retrying}
+            onClick={() => {
+              setShowCommand(true);
+              retry();
+            }}
+          >
+            Didn't open? Try again
+          </Button>
+        )}
+      </div>
+      {showCommand && <Command command={handoff.command} />}
     </div>
   );
 }
@@ -245,7 +296,7 @@ function HandoffResult({ handoff }: { handoff: AgentHandoff }) {
 function Command({ command }: { command: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2.5">
-      <code className="min-w-0 flex-1 break-all rounded-control border border-assist-border bg-card px-3 py-2 font-mono text-meta">
+      <code className="min-w-0 flex-1 break-all rounded-control border border-sap-border bg-card px-3 py-2 font-mono text-meta">
         {command}
       </code>
       <CopyButton text={command} label="Copy" />
@@ -253,19 +304,8 @@ function Command({ command }: { command: string }) {
   );
 }
 
-/** Copies text, says so for two seconds, and tells the panel what it copied. */
-export function CopyButton({
-  text,
-  label,
-  quiet = false,
-  onCopied,
-}: {
-  text: string;
-  label: string;
-  /** A link-like button in the panel's violet, instead of an outline. */
-  quiet?: boolean;
-  onCopied?: (text: string) => void;
-}) {
+/** Copies text, and says so for two seconds. */
+export function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -275,14 +315,10 @@ export function CopyButton({
   return (
     <Button
       type="button"
-      variant={quiet ? "ghost" : "outline"}
+      variant="outline"
       size="sm"
-      className={quiet ? "text-assist-ink" : undefined}
       onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          onCopied?.(text);
-        });
+        void navigator.clipboard.writeText(text).then(() => setCopied(true));
       }}
     >
       <Copy />

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { Check } from "lucide-react";
-import { AgentPrompt } from "../components/agent-prompt";
+import { AgentButton } from "../components/agent-prompt";
 import { LoadError } from "../components/load-error";
 import { ReportResultBody, useReportResult } from "../reports/shared";
 
@@ -101,11 +101,7 @@ export function AskYourAgent({
 }) {
   return (
     <div className="mt-5 max-w-[760px]">
-      <AgentPrompt
-        title={title}
-        prompt={prompt}
-        afterwards="Nothing changes in your books until you tell the agent to."
-      />
+      <AgentButton label={title} prompt={prompt} />
     </div>
   );
 }

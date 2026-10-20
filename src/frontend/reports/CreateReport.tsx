@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { AgentPrompt } from "../components/agent-prompt";
+import { AgentButton } from "../components/agent-prompt";
 import { createReportPrompt } from "./createReportPrompt";
 
 /**
- * Create a report: the user says what they want to see, and the panel hands
+ * Create a report: the user says what they want to see, and a button hands
  * their coding agent a prompt to write it into the project's reports/.
  */
 export function CreateReport({ takenIds }: { takenIds: readonly string[] }) {
@@ -24,11 +24,11 @@ export function CreateReport({ takenIds }: { takenIds: readonly string[] }) {
       </label>
       {wanted.trim() === "" ? (
         <p className="text-meta text-ink-meta">
-          Describe the report to see the prompt for your coding agent.
+          Describe the report, and your coding agent builds it.
         </p>
       ) : (
-        <AgentPrompt
-          title="Build this report in your project"
+        <AgentButton
+          label="Build this report"
           prompt={createReportPrompt(wanted, takenIds)}
           afterwards="The agent writes it in your project's reports/ folder. Restart dbu6 when it is done, and the report is here under Your reports."
         />

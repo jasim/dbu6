@@ -1,12 +1,13 @@
 import { Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { CreditCard, Landmark } from "lucide-react";
+import { CreditCard, Info, Landmark } from "lucide-react";
 import type {
   AutoImportGroupResult,
   AutoImportPlanFile,
 } from "../../../shared/index";
 import { cn } from "@sapporta/ui/cn";
-import { AgentActions, PromptText } from "../../components/agent-prompt";
+import { Popover, PopoverContent, PopoverTrigger } from "@sapporta/ui/popover";
+import { AgentButton } from "../../components/agent-prompt";
 import { Disclosure } from "../../components/disclosure";
 import { Button } from "../../components/ui/button";
 import { statusTextClass, type StatusTone } from "../../components/status-chip";
@@ -175,9 +176,10 @@ function ClosingLine({ closing }: { closing: ClosingBalance }) {
 
 /**
  * One thing that stopped the import, under the file it concerns: what's
- * wrong, what to do, why, and the fix. The numbers behind it, the prompt
- * and the server's words fold under Details, for whoever wants them. The
- * file row above is its header, so it says nothing of the file itself.
+ * wrong, what to do, why, and the fix. The longer why, the numbers behind
+ * it and the server's words sit behind an info button beside the title, for
+ * whoever wants them. The file row above is its header, so it says nothing
+ * of the file itself.
  */
 export function ProblemDetail({
   problem,
@@ -187,22 +189,27 @@ export function ProblemDetail({
   onAction: (action: ProblemAction) => void;
 }) {
   // With an agent to hand the fix to, the app's own actions are the lesser
-  // ways out, beside Details; without one, they are the fix.
+  // ways out, at the end of its row; without one, they are the fix.
   const { agent } = problem;
   const fixes = agent ? [] : problem.actions;
   const asides = agent ? problem.actions : [];
-  const details =
-    problem.facts.length > 0 || agent !== null || problem.technical !== null;
+  const info =
+    problem.about !== undefined ||
+    problem.facts.length > 0 ||
+    problem.technical !== null;
   return (
-    <div>
+    <div className="pb-3">
       {problem.fileNames.length > 1 && (
         <p className="mb-1 text-meta text-ink-meta [overflow-wrap:anywhere]">
           {problem.subject} · {joinNames(problem.fileNames)}
         </p>
       )}
-      <h3 className="text-subheading text-foreground [overflow-wrap:anywhere]">
-        {problem.title}
-      </h3>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-subheading text-foreground [overflow-wrap:anywhere]">
+          {problem.title}
+        </h3>
+        {info && <ProblemInfo problem={problem} />}
+      </div>
       {problem.fix && (
         <p className="mt-3 text-body font-medium text-foreground [overflow-wrap:anywhere]">
           {problem.fix}
@@ -219,13 +226,24 @@ export function ProblemDetail({
         </p>
       )}
       {agent ? (
-        <div className="mt-4">
-          <AgentActions
-            standalone
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <AgentButton
+            label={agent.goal}
             prompt={agent.prompt}
             afterwards={agent.afterwards}
-            goal={agent.goal}
           />
+          {asides.length > 0 && (
+            <div className="flex flex-wrap gap-x-3">
+              {asides.map((action) => (
+                <ActionButton
+                  key={action.label}
+                  action={action}
+                  variant="ghost"
+                  onAction={onAction}
+                />
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         fixes.length > 0 && (
@@ -241,37 +259,31 @@ export function ProblemDetail({
           </div>
         )
       )}
-      {details ? (
-        <div className="mt-2">
-          <Disclosure
-            summary="Details"
-            aside={
-              asides.length > 0 ? (
-                <div className="flex flex-wrap gap-x-3">
-                  {asides.map((action) => (
-                    <ActionButton
-                      key={action.label}
-                      action={action}
-                      variant="ghost"
-                      onAction={onAction}
-                    />
-                  ))}
-                </div>
-              ) : undefined
-            }
-          >
-            <DetailList rows={problem.facts} technical={problem.technical} />
-            {agent && (
-              <Disclosure tone="assist" summary="Show the prompt">
-                <PromptText prompt={agent.prompt} />
-              </Disclosure>
-            )}
-          </Disclosure>
-        </div>
-      ) : (
-        <div className="pb-3" />
-      )}
     </div>
+  );
+}
+
+// The ⓘ beside a problem's title: the longer why, then the numbers and the
+// server's words.
+function ProblemInfo({ problem }: { problem: Problem }) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label="More about this problem"
+        className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-ink-meta outline-none hover:bg-tile-bg hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+      >
+        <Info aria-hidden="true" className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="max-h-[60vh] w-[min(28rem,calc(100vw-2rem))] space-y-3 overflow-y-auto"
+      >
+        {problem.about && (
+          <p className="text-body text-foreground">{problem.about}</p>
+        )}
+        <DetailList rows={problem.facts} technical={problem.technical} />
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -328,8 +340,8 @@ function ActionButton({
   );
 }
 
-// Label and value side by side, without a box: they sit under Details, where
-// the card's border is enough. The server's words come last, as it sent them.
+// Label and value side by side, without a box: they sit in the problem's
+// info popover, where its border is enough. The server's words come last, as it sent them.
 function DetailList({
   rows,
   technical,

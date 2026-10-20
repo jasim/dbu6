@@ -13,12 +13,12 @@ import {
 } from "vitest";
 import type { AgentHandoffAvailability } from "../../shared/index";
 import { PLAN_FIRST_RULE, planFirst } from "../agent-prompt-rules";
-import { AgentActions, AgentPrompt } from "./agent-prompt";
+import { AgentButton } from "./agent-prompt";
 
 /*
- * The panel shows its title and its buttons and nothing else to read. Copy
- * prompt always shows; an Open or Command button shows for the agent the
- * server can start, and a click shows what happened. What the user does next
+ * One button, named for the task, hands the prompt to the agent the server
+ * can start, or copies it where none can be; its arrow holds the other ways.
+ * A click shows what happened in the button's place. What the user does next
  * waits until they have taken the prompt somewhere. Whichever way the prompt
  * goes, it opens by asking the agent for its plan and a go-ahead.
  */
@@ -31,7 +31,7 @@ let posts: unknown[];
 let clipboard: string[];
 
 const PROMPT = "Build a parser for NOPII sample statement 050505.";
-const TITLE = "Build a reader for this file's layout";
+const LABEL = "Set up this format";
 const AFTERWARDS = "Drop the file again once the agent says it is done.";
 const LAUNCHER = "/sample/dbu6/tmp/agent-prompts/sample-claude-code.command";
 
@@ -97,18 +97,29 @@ function handedOffIn(mode: "terminal" | "command", agent = "claude-code") {
 
 let client: QueryClient;
 
-async function render(prompt = PROMPT, afterwards?: string) {
+type Props = Partial<Parameters<typeof AgentButton>[0]>;
+
+async function render(prompt = PROMPT, afterwards?: string, props: Props = {}) {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  await rerender(prompt, afterwards);
+  await rerender(prompt, afterwards, props);
 }
 
-async function rerender(prompt: string, afterwards?: string) {
+async function rerender(
+  prompt: string,
+  afterwards?: string,
+  props: Props = {},
+) {
   await act(async () => {
     root.render(
       createElement(
         QueryClientProvider,
         { client },
-        createElement(AgentPrompt, { title: TITLE, prompt, afterwards }),
+        createElement(AgentButton, {
+          label: LABEL,
+          prompt,
+          afterwards,
+          ...props,
+        }),
       ),
     );
   });
@@ -123,165 +134,158 @@ async function settle() {
   }
 }
 
+/** The buttons, by what a screen reader hears. */
 function buttons(): string[] {
-  return [...host.querySelectorAll("button")].map((b) => b.textContent ?? "");
+  return [...host.querySelectorAll("button")].map(
+    (b) => b.getAttribute("aria-label") ?? b.textContent ?? "",
+  );
 }
 
-async function click(label: string) {
-  const button = [...host.querySelectorAll("button")].find(
-    (b) => b.textContent === label,
-  );
-  if (!button) throw new Error(`No button ${label}`);
+async function press(element: Element | undefined, what: string) {
+  if (!(element instanceof HTMLElement)) throw new Error(`No ${what}`);
   await act(async () => {
-    button.click();
+    element.click();
   });
   await settle();
 }
 
-describe("AgentPrompt", () => {
-  it("says what the prompt gets done, and leaves the buttons to say the rest", async () => {
+async function click(label: string) {
+  await press(
+    [...host.querySelectorAll("button")].find((b) => b.textContent === label),
+    `button ${label}`,
+  );
+}
+
+const MORE = "More ways to give this to your agent";
+
+/** The arrow's menu, opened: its items, which render outside the host. */
+async function openMenu(): Promise<string[]> {
+  await press(
+    host.querySelector(`[aria-label="${MORE}"]`) ?? undefined,
+    "arrow",
+  );
+  return [...document.querySelectorAll('[role="menuitem"]')].map(
+    (item) => item.textContent ?? "",
+  );
+}
+
+async function choose(item: string) {
+  await press(
+    [...document.querySelectorAll('[role="menuitem"]')].find(
+      (i) => i.textContent === item,
+    ),
+    `menu item ${item}`,
+  );
+}
+
+describe("AgentButton", () => {
+  it("names the task, and says where it opens only to a screen reader", async () => {
     offers({ mode: "terminal", agent: "claude-code" });
     await render(PROMPT, AFTERWARDS);
 
-    expect(host.querySelector("h3")?.textContent).toBe(TITLE);
-    expect(host.textContent).toContain("AI assisted");
-    expect(buttons()).toEqual(["Open in Claude Code", "Copy prompt"]);
-    expect(host.textContent).not.toContain("terminal");
+    expect(buttons()).toEqual([`${LABEL}. Open in Claude Code`, MORE]);
     expect(host.textContent).not.toContain(AFTERWARDS);
-    expect(host.querySelector("pre")?.textContent).toBe(planFirst(PROMPT));
+    expect(host.querySelector("pre")).toBeNull();
+  });
+
+  it("keeps the other ways in its arrow", async () => {
+    offers({ mode: "terminal", agent: "codex" });
+    await render();
+
+    expect(await openMenu()).toEqual([
+      "Open in Codex",
+      "Copy prompt",
+      "View prompt",
+    ]);
   });
 
   it("asks the agent for its plan and a go-ahead before the prompt, however it goes", async () => {
     offers({ mode: "terminal", agent: "claude-code" });
     await render();
 
-    await click("Copy prompt");
-    await click("Open in Claude Code");
+    await openMenu();
+    await choose("Copy prompt");
+    await openMenu();
+    await choose("Open in Claude Code");
 
     const given = `${PLAN_FIRST_RULE}\n\n${PROMPT}`;
     expect(clipboard).toEqual([given]);
     expect(posts).toEqual([{ prompt: given }]);
-    expect(host.querySelector("pre")?.textContent).toBe(given);
     expect(PLAN_FIRST_RULE).toContain("wait for my go-ahead");
     expect(PLAN_FIRST_RULE).toContain("until I say go");
   });
 
-  it("says where to run the agent when it can't start one", async () => {
-    offers({ mode: "none" });
-    await render();
-
-    expect(host.querySelector("h3")?.textContent).toBe(TITLE);
-    expect(host.textContent).toContain("Run your agent in this app's repo.");
-    expect(host.textContent).not.toContain("terminal");
-  });
-
-  it("opens the agent dbu6 uses in a terminal on macOS", async () => {
-    offers({ mode: "terminal", agent: "codex" });
-    await render();
-
-    expect(buttons()).toEqual(["Open in Codex", "Copy prompt"]);
-  });
-
-  it("says what the agent does, and where it opens, when given a goal", async () => {
+  it("shows the request on View prompt, with the plan-first rule folded under it", async () => {
     offers({ mode: "terminal", agent: "claude-code" });
-    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    await act(async () => {
-      root.render(
-        createElement(
-          QueryClientProvider,
-          { client },
-          createElement(AgentActions, {
-            prompt: PROMPT,
-            goal: "Create new parser automatically",
-            standalone: true,
-          }),
-        ),
-      );
-    });
-    await settle();
-
-    expect(buttons()).toEqual([
-      "Create new parser automatically. Opens in Claude Code",
-      "Copy prompt",
-    ]);
-  });
-
-  it("offers a command where no terminal can be opened", async () => {
-    offers({ mode: "command", agent: "codex" });
     await render();
 
-    expect(buttons()).toEqual(["Command for Codex", "Copy prompt"]);
-  });
+    await openMenu();
+    await choose("View prompt");
 
-  it("gives a commit the whole width, with Copy prompt and the prompt under it", async () => {
-    offers({ mode: "terminal", agent: "claude-code" });
-    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    await act(async () => {
-      root.render(
-        createElement(
-          QueryClientProvider,
-          { client },
-          createElement(AgentActions, {
-            prompt: PROMPT,
-            goal: "Add 3 to categorization rules",
-            standalone: true,
-            commit: true,
-            beside: createElement("span", null, "Preview the prompt"),
-          }),
-        ),
-      );
-    });
-    await settle();
-
-    // The button takes the region's width, and Copy prompt is no longer
-    // beside it: it shares the commit's own line, with what the region puts
-    // there.
-    const button = [...host.querySelectorAll("button")][0];
-    expect(button?.className).toContain("w-full");
-    expect(button?.parentElement?.textContent).toBe(
-      "Add 3 to categorization rules. Opens in Claude Code",
+    const shown = [...document.querySelectorAll("pre")].map(
+      (p) => p.textContent,
     );
-    expect(button?.parentElement?.nextElementSibling?.textContent).toBe(
-      "Copy promptPreview the prompt",
+    expect(shown).toEqual([PROMPT, PLAN_FIRST_RULE]);
+    expect(document.body.textContent).toContain(
+      "dbu6's rule above it: plan first",
     );
   });
 
-  it("offers only Copy prompt when the server hands nothing off, or can't be asked", async () => {
+  it("copies the prompt where the server hands nothing off, or can't be asked", async () => {
     offers({ mode: "none" });
     await render();
-    expect(buttons()).toEqual(["Copy prompt"]);
+    expect(buttons()).toEqual([`${LABEL}. Copies the prompt`, MORE]);
+    expect(await openMenu()).toEqual(["Copy prompt", "View prompt"]);
 
     availability = { status: 403, body: { error: "Forbidden" } };
     await render();
-    expect(buttons()).toEqual(["Copy prompt"]);
+    expect(buttons()[0]).toBe(`${LABEL}. Copies the prompt`);
   });
 
-  it("asks the server to open the agent, and says where to continue", async () => {
-    offers({ mode: "terminal", agent: "claude-code" });
-    await render();
+  it("says what to do next after a copy, with no agent to start", async () => {
+    offers({ mode: "none" });
+    await render(PROMPT, AFTERWARDS);
+    expect(host.textContent).not.toContain(AFTERWARDS);
 
-    await click("Open in Claude Code");
+    await click(`${LABEL}. Copies the prompt`);
+
+    expect(clipboard).toEqual([planFirst(PROMPT)]);
+    expect(buttons()[0]).toBe("Copied. Copies the prompt");
+    expect(host.textContent).toContain(AFTERWARDS);
+  });
+
+  it("gives its place to where the agent is, with a retry and the command for when it didn't open", async () => {
+    offers({ mode: "terminal", agent: "claude-code" });
+    await render(PROMPT, AFTERWARDS);
+
+    await click(`${LABEL}. Open in Claude Code`);
 
     expect(posts).toEqual([{ prompt: planFirst(PROMPT) }]);
     expect(host.textContent).toContain(
-      "Claude Code is open in a terminal. It shows its steps there and waits for your go-ahead.",
+      "Opened in Claude Code — continue in your terminal",
     );
-    expect(host.querySelector("summary")?.textContent).toContain(
-      "Didn't open?",
-    );
+    expect(host.textContent).toContain(AFTERWARDS);
+    expect(host.querySelector("code")).toBeNull();
+
+    await click("Didn't open? Try again");
+
+    expect(posts).toEqual([
+      { prompt: planFirst(PROMPT) },
+      { prompt: planFirst(PROMPT) },
+    ]);
     expect(host.querySelector("code")?.textContent).toBe(`sh '${LAUNCHER}'`);
   });
 
-  it("shows the command to run after a Command click", async () => {
+  it("shows the command to run where no terminal can be opened", async () => {
     offers({ mode: "command", agent: "claude-code" });
     handedOffIn("command");
     await render();
+    expect(buttons()[0]).toBe(`${LABEL}. Command for Claude Code`);
 
-    await click("Command for Claude Code");
+    await click(`${LABEL}. Command for Claude Code`);
 
-    expect(posts).toEqual([{ prompt: planFirst(PROMPT) }]);
     expect(host.textContent).toContain(
-      "Run this in a terminal. Claude Code shows its steps there and waits for your go-ahead.",
+      "Run this to start Claude Code. It shows its plan first.",
     );
     expect(host.querySelector("code")?.textContent).toBe(`sh '${LAUNCHER}'`);
     expect(buttons()).toContain("Copy");
@@ -292,45 +296,33 @@ describe("AgentPrompt", () => {
     handedOffIn("terminal", "codex");
     await render();
 
-    await click("Open in Claude Code");
+    await click(`${LABEL}. Open in Claude Code`);
 
-    expect(host.textContent).toContain("Codex is open in a terminal.");
+    expect(host.textContent).toContain("Opened in Codex");
   });
 
   it("drops the result, and what to do next, when the prompt changes", async () => {
     offers({ mode: "command", agent: "claude-code" });
     handedOffIn("command");
     await render(PROMPT, AFTERWARDS);
-    await click("Command for Claude Code");
+    await click(`${LABEL}. Command for Claude Code`);
     expect(host.querySelector("code")).not.toBeNull();
     expect(host.textContent).toContain(AFTERWARDS);
 
     await rerender("A different NOPII sample prompt.", AFTERWARDS);
 
     expect(host.querySelector("code")).toBeNull();
-    expect(host.textContent).not.toContain("Run this in a terminal");
     expect(host.textContent).not.toContain(AFTERWARDS);
+    expect(buttons()[0]).toBe(`${LABEL}. Command for Claude Code`);
   });
 
-  it("says what to do next once the agent has the prompt", async () => {
+  it("is an outline beside a screen's primary, and can take a region's width", async () => {
     offers({ mode: "terminal", agent: "claude-code" });
-    await render(PROMPT, AFTERWARDS);
-    expect(host.textContent).not.toContain(AFTERWARDS);
+    await render(PROMPT, undefined, { primary: false, wide: true });
 
-    await click("Open in Claude Code");
-
-    expect(host.textContent).toContain(AFTERWARDS);
-  });
-
-  it("says what to do next after a copy, with no agent to start", async () => {
-    offers({ mode: "none" });
-    await render(PROMPT, AFTERWARDS);
-    expect(host.textContent).not.toContain(AFTERWARDS);
-
-    await click("Copy prompt");
-
-    expect(buttons()).toEqual(["Copied"]);
-    expect(host.textContent).toContain(AFTERWARDS);
+    const button = host.querySelector("button");
+    expect(button?.className).toContain("border-sap-border-strong");
+    expect(button?.parentElement?.className).toContain("w-full");
   });
 
   it("shows the server's message when the handoff fails", async () => {
@@ -344,11 +336,11 @@ describe("AgentPrompt", () => {
     };
     await render();
 
-    await click("Open in Claude Code");
+    await click(`${LABEL}. Open in Claude Code`);
 
     expect(host.textContent).toContain(
       "Couldn't open a terminal window (sample failure).",
     );
-    expect(host.textContent).not.toContain("opened in a new terminal window");
+    expect(buttons()[0]).toBe(`${LABEL}. Open in Claude Code`);
   });
 });

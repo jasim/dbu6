@@ -1,7 +1,7 @@
 // The prompt behind Create a report: the user says what they want to see, and
 // their coding agent writes the report into the project's reports/ folder.
 // Like every prompt the app hands over, it reaches the agent with the
-// plan-first rule on top (the AgentPrompt panel puts it there).
+// plan-first rule on top (AgentButton puts it there).
 import { guideCommand } from "../../shared/index";
 import { PII_RULE, PROJECT_FILES_RULE } from "../agent-prompt-rules";
 

@@ -57,7 +57,6 @@ export function DescribeMoney({
       </p>
       <div className="mt-3">
         <Button
-          variant="assist"
           disabled={asking || description.trim() === ""}
           onClick={() => void propose()}
         >

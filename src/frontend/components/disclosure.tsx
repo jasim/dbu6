@@ -1,20 +1,11 @@
 import { useId, useState, type ReactNode } from "react";
-import { cn } from "@sapporta/ui/cn";
 
-type DisclosureTone = "assist";
-
-function summaryClass(tone: DisclosureTone | undefined): string {
-  return cn(
-    "inline-flex min-h-sap-ctl cursor-pointer list-none items-center gap-2 rounded-control text-row font-semibold outline-none hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden",
-    tone === "assist" ? "text-assist-ink" : "text-primary",
-  );
-}
+const summaryClass =
+  "inline-flex min-h-sap-ctl cursor-pointer list-none items-center gap-2 rounded-control text-row font-semibold text-primary outline-none hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden";
 
 /**
  * A section that starts collapsed behind a link-styled summary, with a ▸ that
- * turns to ▾ when open: technical details, a prompt's full text. Inside the
- * coding-agent panel it reads in the panel's violet, so the panel is one
- * thing; everywhere else in the app's green.
+ * turns to ▾ when open: technical details, a prompt's full text.
  *
  * An `aside` sits at the right of the summary's line, for quiet actions that
  * belong at the foot of a card. Without one, `open` and `onOpenChange` let
@@ -22,14 +13,12 @@ function summaryClass(tone: DisclosureTone | undefined): string {
  */
 export function Disclosure({
   summary,
-  tone,
   aside,
   open,
   onOpenChange,
   children,
 }: {
   summary: string;
-  tone?: DisclosureTone;
   aside?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -37,7 +26,7 @@ export function Disclosure({
 }) {
   if (aside !== undefined) {
     return (
-      <DisclosureRow summary={summary} tone={tone} aside={aside}>
+      <DisclosureRow summary={summary} aside={aside}>
         {children}
       </DisclosureRow>
     );
@@ -51,7 +40,7 @@ export function Disclosure({
     >
       {/* The markers follow their own <details> only, not an open one
           around it, so a disclosure inside another reads right. */}
-      <summary className={summaryClass(tone)}>
+      <summary className={summaryClass}>
         <span
           aria-hidden="true"
           className="w-3 text-ink-meta [details[open]>summary>&]:hidden"
@@ -76,12 +65,10 @@ export function Disclosure({
 // a button that shows and hides the content under the whole row.
 function DisclosureRow({
   summary,
-  tone,
   aside,
   children,
 }: {
   summary: string;
-  tone: DisclosureTone | undefined;
   aside: ReactNode;
   children: ReactNode;
 }) {
@@ -97,7 +84,7 @@ function DisclosureRow({
           aria-expanded={open}
           aria-controls={id}
           onClick={() => setOpen((was) => !was)}
-          className={summaryClass(tone)}
+          className={summaryClass}
         >
           <span aria-hidden="true" className="w-3 text-ink-meta">
             {open ? "▾" : "▸"}

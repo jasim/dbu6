@@ -743,7 +743,7 @@ describe("adding a bank or card", () => {
     await drop("sample.pdf");
 
     expect(title()).toBe("dbu6 can't read this statement yet");
-    expect(text()).toContain("Copy prompt");
+    expect(text()).toContain("Set up this format");
     expect(primary()).toEqual(["Check again"]);
     await click("Check again");
     expect(sent[1].files).toEqual(["sample.pdf"]);
@@ -770,8 +770,14 @@ describe("adding a bank or card", () => {
 
     expect(title()).toBe("dbu6 can't read this statement yet");
     expect(text()).toContain("More than one format claims it.");
-    // The prompt, under Show the prompt, points at the staged copy.
-    expect(text()).toContain("tmp/statement-uploads/050505/sample.csv");
+    // The prompt the button copies points at the staged copy.
+    const copied: string[] = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (t: string) => void copied.push(t) },
+    });
+    await click("Tell the formats apart. Copies the prompt");
+    expect(copied.join()).toContain("tmp/statement-uploads/050505/sample.csv");
   });
 
   it("shows another refusal as /import does, its fix the one primary", async () => {

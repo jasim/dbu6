@@ -1,6 +1,6 @@
 // What every prompt for the user's coding agent asks, wherever the app hands
 // one over (Import, Review). The PII rule sits inside each prompt; the plan
-// comes first in all of them, and the AI-assisted panel puts it there.
+// comes first in all of them, and AgentButton puts it there.
 import { guideCommand } from "../shared/index";
 
 // The conventions are in the parsers guide, which ships with dbu6; a user's
