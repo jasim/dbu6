@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Menu } from "@base-ui/react/menu";
-import { Plus } from "lucide-react";
+import { ChevronRight, CreditCard, Landmark, Plus } from "lucide-react";
 import { comboboxClassNames } from "@sapporta/ui/combobox";
 import { cn } from "@sapporta/ui/cn";
 import { useQuery } from "@tanstack/react-query";
@@ -41,7 +41,7 @@ export function Home() {
 
   return (
     <Screen
-      width="wide"
+      width="narrow"
       header={
         <>
           <p className="text-label uppercase text-ink-meta">{todayLabel()}</p>
@@ -170,35 +170,42 @@ function AccountTable({
   statementsTo: string;
 }) {
   return (
-    <div className="overflow-x-auto pb-2">
-      <table className="w-full text-row">
-        <thead className="text-left text-meta text-ink-meta">
-          <tr className="border-t border-line-inner">
-            <th scope="col" className="py-2.5 pl-6 pr-3 font-medium">
-              Account
-            </th>
-            <th scope="col" className="px-3 py-2.5 font-medium">
-              Statements imported until
-            </th>
-            <th scope="col" className="py-2.5 pl-3 pr-6">
-              <span className="sr-only">Drafts</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {accounts.map((account) => (
-            <AccountRow
-              key={account.account_id}
-              account={account}
-              statementsTo={statementsTo}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className="border-t border-line-inner pb-2">
+      <div
+        aria-hidden="true"
+        className="mx-2 flex items-center gap-3 px-4 pb-1 pt-2.5 text-meta text-ink-meta"
+      >
+        <span className="w-9 shrink-0" />
+        <span className={NAME_COLUMN}>Account</span>
+        <span className={DATE_COLUMN}>Imported until</span>
+        <span className="flex-1" />
+        <span className="w-4 shrink-0" />
+      </div>
+      <ul>
+        {accounts.map((account) => (
+          <AccountRow
+            key={account.account_id}
+            account={account}
+            statementsTo={statementsTo}
+          />
+        ))}
+      </ul>
     </div>
   );
 }
 
+/*
+ * The columns keep the same widths in the header and each row. The name's is
+ * fixed rather than stretching, so each date sits close to its account; the
+ * status takes the rest of the row.
+ */
+const NAME_COLUMN = "w-40 min-w-0 shrink-0 sm:w-56";
+const DATE_COLUMN = "w-28 shrink-0 text-right";
+
+/**
+ * One account. The whole row opens its ledger: the name's link stretches over
+ * the row, and the status link sits above it, going where the status points.
+ */
 function AccountRow({
   account,
   statementsTo,
@@ -210,19 +217,33 @@ function AccountRow({
     ? accountLedgerHref(account.account_id)
     : null;
   const status = accountStatus(account, statementsTo);
+  const Icon = account.kind === "card" ? CreditCard : Landmark;
   return (
-    <tr className="border-t border-line-inner">
-      <td className="py-2.5 pl-6 pr-3 align-top">
+    <li
+      className={cn(
+        "relative mx-2 flex items-center gap-3 rounded-control px-4 py-3",
+        ledger && "hover:bg-sap-row-hover",
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-tile-bg text-ink-soft"
+      >
+        <Icon className="size-[18px]" strokeWidth={1.75} />
+      </span>
+      <div className={NAME_COLUMN}>
         {account.in_ledger && ledger ? (
           <Link
             to={ledger}
             title={account.path}
-            className="font-semibold text-foreground no-underline hover:underline"
+            className="block truncate font-semibold text-foreground no-underline outline-none after:absolute after:inset-0 after:rounded-control after:content-[''] focus-visible:after:ring-[3px] focus-visible:after:ring-ring/40"
           >
             {account.name}
           </Link>
         ) : (
-          <span className="font-semibold text-foreground">{account.name}</span>
+          <span className="block truncate font-semibold text-foreground">
+            {account.name}
+          </span>
         )}
         {!account.in_ledger && (
           <div className="mt-0.5 text-meta text-ink-meta">
@@ -235,32 +256,36 @@ function AccountRow({
             </Link>
           </div>
         )}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2.5 align-top">
+      </div>
+      <span className={DATE_COLUMN}>
         <ImportedUntil account={account} />
-      </td>
-      <td className="py-2.5 pl-3 pr-6 text-right align-top">
+      </span>
+      <div className="flex min-w-0 flex-1 justify-end">
         {status &&
           (status.to ? (
             <Link
               to={status.to}
-              className="-my-2 inline-flex min-h-sap-ctl items-center rounded-control no-underline outline-none hover:[&>span]:underline hover:[&>span]:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40"
+              className="relative z-10 -my-2 inline-flex min-h-sap-ctl shrink-0 items-center rounded-control no-underline outline-none hover:[&>span]:underline hover:[&>span]:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/40"
             >
               <StatusChip tone={status.tone}>{status.label}</StatusChip>
             </Link>
           ) : (
-            <StatusChip tone={status.tone}>{status.label}</StatusChip>
+            <StatusChip tone={status.tone} className="shrink-0">
+              {status.label}
+            </StatusChip>
           ))}
-      </td>
-    </tr>
+      </div>
+      <span aria-hidden="true" className="w-4 shrink-0">
+        {ledger && <ChevronRight className="size-4 text-ink-meta" />}
+      </span>
+    </li>
   );
 }
 
 /** The date of the account's last posted balance assertion. */
 function ImportedUntil({ account }: { account: HomeAccount }) {
-  if (!account.in_ledger) return <span className="text-ink-meta">—</span>;
-  if (account.checkpoint === null) {
-    return <span className="text-ink-meta">Nothing yet</span>;
+  if (!account.in_ledger || account.checkpoint === null) {
+    return <span className="text-ink-meta">—</span>;
   }
   return <span className="tnum">{formatDate(account.checkpoint.date)}</span>;
 }

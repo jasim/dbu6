@@ -50,6 +50,18 @@ either by accident. Guides, prompts and `template/AGENTS.md` are read from an
 installed package, so they name guides by `npx dbu6 docs <name>`, never by a
 path in this repository.
 
+## Immediate UI feedback
+
+dbu6 should feel like a DOS program: every hover, click and keypress shows
+its result at once. Add no transitions, animations, fades or delays
+(`transition-*`, `duration-*`, `animate-*`, delayed tooltips) unless the
+owner asks for one. A loading indicator for real work is fine; easing a
+hover background in is not.
+
+Lay values out to be scanned, not read: a date, amount or count goes in its
+own aligned column under a label, not in a sentence such as "Imported until
+19 Oct 2026". Keep prose for messages that need explaining.
+
 ## Working with the books
 
 To answer questions about the user's accounts, review or post drafts, or fix

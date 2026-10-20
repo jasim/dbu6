@@ -4,9 +4,9 @@ import { cn } from "@sapporta/ui/cn";
 const WIDTH = {
   /** A report with a panel beside it: Income and Expenses. */
   full: "max-w-[1320px]",
-  /** Home: a dashboard column. */
+  /** Import instructions. */
   wide: "max-w-[1040px]",
-  /** A form-like flow: Import statements, freeform import. */
+  /** Home, and form-like flows: Import statements, freeform import. */
   narrow: "max-w-[872px]",
 } as const;
 
