@@ -63,7 +63,6 @@ export function ruleRequestsPrompt(
   ruleRequests: readonly CategorizationRuleRequest[],
 ): string {
   const { account } = detail;
-  const books = guideCommand("books");
   return `I'm adding categorization rules to my books app (this repository), on the
 screen ${reviewHref(account.account_id, "improve-categorization")}. These are
 drafts imported for ${account.name} (ledger account ${account.path}, account
@@ -73,16 +72,7 @@ the money moved, the amount, and the description:
 
 ${ruleRequests.map((ruleRequest, index) => ruleRequestText(account.account_id, ruleRequest, index)).join("\n\n")}
 
-The categorizer sees a transaction's description, which way the money
-moved, and the amount, never its date. It tries, in order: exact rules in
-user-config/transaction_mappings.mjs (a whole description, or a UPI ID
-inside one); contains rules there (a phrase in the description, optionally
-only one way and only within an amount range); then the AI, following the
-instruction files this account's import preset lists. A rule applies to every
-account; an instruction file applies to every account whose preset lists it.
-\`${books}\` says how to choose, under "Always put this under X — adding a
-mapping", and how to read this account's import preset. If this account lists
-no instruction file, or only an empty one, tell me, and propose which to use.
+${categorizerFacts()}
 
 Propose before you change anything. For each numbered rule request:
 
@@ -117,6 +107,24 @@ The rules and instruction files in user-config/ are my own settings: they
 may name payees and amount ranges. Everywhere else: ${PII_RULE}
 
 Report back what you did for each numbered rule request, or why you didn't.`;
+}
+
+/**
+ * What the categorizer sees and the order it tries its rules in, and where
+ * the books guide says how to choose between a rule and an instruction:
+ * every prompt that asks the agent for rules starts its work from this.
+ */
+export function categorizerFacts(): string {
+  return `The categorizer sees a transaction's description, which way the money
+moved, and the amount, never its date. It tries, in order: exact rules in
+user-config/transaction_mappings.mjs (a whole description, or a UPI ID
+inside one); contains rules there (a phrase in the description, optionally
+only one way and only within an amount range); then the AI, following the
+instruction files this account's import preset lists. A rule applies to every
+account; an instruction file applies to every account whose preset lists it.
+\`${guideCommand("books")}\` says how to choose, under "Always put this under X — adding a
+mapping", and how to read this account's import preset. If this account lists
+no instruction file, or only an empty one, tell me, and propose which to use.`;
 }
 
 function ruleRequestText(

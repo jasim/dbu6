@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import {
   SchemaTableGridView,
   useSchemaStore,
@@ -22,16 +22,22 @@ import {
   type FilterCondition,
 } from "@sapporta/shared/filter";
 import { apiErrorMessage, categorizationRuleRequestsApi } from "../api";
-import { AgentActions, PromptText } from "../components/agent-prompt";
-import { Disclosure } from "../components/disclosure";
+import { AgentButton } from "../components/agent-prompt";
 import { Field } from "../components/focus-card";
 import { Button } from "../components/ui/button";
 import { formatMoney, formatShortDate, plural } from "../format";
-import { categorizationRuleRequestsQuery } from "../queries";
-import { Chip } from "../views/import-instructions/rule-parts";
+import {
+  agentHandoffAvailabilityQuery,
+  categorizationRuleRequestsQuery,
+} from "../queries";
+import { Chip, TabList } from "../views/import-instructions/rule-parts";
 import { categorizationRulesHref } from "../views/import-instructions/routes";
-import type { CategorizationRuleRequest } from "../../shared/index";
+import {
+  CODING_AGENTS,
+  type CategorizationRuleRequest,
+} from "../../shared/index";
 import { ruleRequestsPrompt } from "./categorization-rule-requests";
+import { categorizeWithAgentPrompt } from "./categorize-with-agent";
 import { CheckPasses, ReportTab } from "./report-tab";
 import { useReviewAccount } from "./ReviewAccount";
 import {
@@ -77,6 +83,40 @@ const SHOWN_DESCRIPTIONS = 3;
 // contents stay short enough to keep the button in sight.
 const SHOWN_SELECTED = 4;
 
+/**
+ * The two ways to work: talking it through with the coding agent, which
+ * finds the groups itself and asks about the ones it isn't sure of, first
+ * and by default; or by hand, selecting drafts that go together and saying
+ * where.
+ */
+type Mode = "manual" | "agent";
+const MODES = [
+  { id: "agent", label: "With coding agent" },
+  { id: "manual", label: "Manual" },
+] as const satisfies readonly { id: Mode; label: string }[];
+// The way the user last chose, kept in this browser only: the grid rewrites
+// the URL's query as it sorts and filters, so the mode can't live there.
+const MODE_KEY = "dbu6:improve-categorization:mode";
+
+function useMode(): [Mode, (mode: Mode) => void] {
+  const [mode, setMode] = useState<Mode>(() => {
+    try {
+      return localStorage.getItem(MODE_KEY) === "manual" ? "manual" : "agent";
+    } catch {
+      return "agent";
+    }
+  });
+  const choose = useCallback((next: Mode) => {
+    setMode(next);
+    try {
+      localStorage.setItem(MODE_KEY, next);
+    } catch {
+      // Not remembered; the choice still holds on this visit.
+    }
+  }, []);
+  return [mode, choose];
+}
+
 /** A draft the user selected in the grid. */
 interface SelectedDraft {
   id: number;
@@ -106,6 +146,7 @@ interface SelectedDraft {
 export function ImproveCategorizationTab() {
   const { detail, setup } = useReviewAccount();
   const accountId = detail.account.account_id;
+  const [mode, setMode] = useMode();
   const tableSchema = useSchemaStore((state) =>
     state.tables.find((table) => table.name === DRAFT_TRANSACTIONS_TABLE),
   );
@@ -250,34 +291,62 @@ export function ImproveCategorizationTab() {
         aria-label="Improve categorization"
         className="shrink-0 space-y-5 overflow-y-auto border-sap-border px-4 py-4 max-md:order-last max-md:border-t md:w-[380px] md:border-r"
       >
-        <DraftRule
-          selected={selected}
-          uncategorised={detail.account.uncategorised}
-          inRuleRequests={
-            ruleRequests.data?.reduce(
-              (sum, ruleRequest) => sum + ruleRequest.transactions.length,
-              0,
-            ) ?? 0
-          }
-          onAdded={refreshRuleRequests}
+        <TabList
+          label="How to categorize"
+          tabs={MODES}
+          selected={mode}
+          onSelect={setMode}
+          tabId={(id) => `improve-mode-${id}`}
+          panelId="improve-mode-panel"
         />
-        {ruleRequests.isError ? (
-          <p className="text-meta text-destructive [overflow-wrap:anywhere]">
-            {apiErrorMessage(ruleRequests.error)}
-          </p>
-        ) : (
-          ruleRequests.data &&
-          ruleRequests.data.length > 0 && (
-            <NewRules
-              ruleRequests={ruleRequests.data}
-              allRulesHref={categorizationRulesHref("ai", accountId)}
-              onChanged={refreshRuleRequests}
-              prompt={ruleRequestsPrompt(detail, ruleRequests.data)}
+        <div
+          id="improve-mode-panel"
+          role="tabpanel"
+          aria-labelledby={`improve-mode-${mode}`}
+          className="space-y-5"
+        >
+          {mode === "agent" ? (
+            <WithAgent
+              drafts={detail.account.uncategorised}
+              prompt={categorizeWithAgentPrompt(
+                detail,
+                ruleRequests.data ?? [],
+              )}
               runCategorizerHref={runCategorizerHref}
-              onHandedOver={() => navigate(runCategorizerHref)}
             />
-          )
-        )}
+          ) : (
+            <>
+              <DraftRule
+                selected={selected}
+                uncategorised={detail.account.uncategorised}
+                inRuleRequests={
+                  ruleRequests.data?.reduce(
+                    (sum, ruleRequest) => sum + ruleRequest.transactions.length,
+                    0,
+                  ) ?? 0
+                }
+                onAdded={refreshRuleRequests}
+              />
+              {ruleRequests.isError ? (
+                <p className="text-meta text-destructive [overflow-wrap:anywhere]">
+                  {apiErrorMessage(ruleRequests.error)}
+                </p>
+              ) : (
+                ruleRequests.data &&
+                ruleRequests.data.length > 0 && (
+                  <NewRules
+                    ruleRequests={ruleRequests.data}
+                    allRulesHref={categorizationRulesHref("ai", accountId)}
+                    onChanged={refreshRuleRequests}
+                    prompt={ruleRequestsPrompt(detail, ruleRequests.data)}
+                    runCategorizerHref={runCategorizerHref}
+                    onHandedOver={() => navigate(runCategorizerHref)}
+                  />
+                )
+              )}
+            </>
+          )}
+        </div>
       </aside>
       <section
         aria-labelledby="uncategorised-heading"
@@ -710,15 +779,14 @@ function NewRules({
       {/* The commit: the state these rules are in until the agent writes
           each into the categorization rules, and the one action that ends
           it. Whole width and ruled off, so it reads as the column's last
-          step and not as one more control beside Copy prompt. */}
+          step and not as one more control in a row. */}
       <div className="border-t border-line-inner pt-3">
         <p className="text-meta text-ink-soft">Not added yet</p>
         <div className="mt-2.5">
-          <AgentActions
-            standalone
-            commit
+          <AgentButton
+            wide
             prompt={prompt}
-            goal={`Turn ${plural(ruleRequests.length, "rule request")} into rules`}
+            label={`Turn ${plural(ruleRequests.length, "rule request")} into rules`}
             onActed={(how) => {
               if (how !== "command") onHandedOver();
             }}
@@ -730,13 +798,79 @@ function NewRules({
                 Then run the categorizer
               </Link>
             }
-            beside={
-              <Disclosure tone="assist" summary="Preview the prompt">
-                <PromptText prompt={prompt} />
-              </Disclosure>
-            }
           />
         </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The other way: the coding agent reads every draft without an account,
+ * groups them, proposes an account and a rule for each group, and asks about
+ * the ones it isn't sure of, offering a few accounts to pick from.
+ *
+ * The card is headed by the job, how many drafts to categorize. The
+ * conversation goes on in the terminal while this stays put; running
+ * the categorizer is what the user comes back for, so it is a bar at the
+ * card's foot, and once the prompt is handed over it becomes the primary
+ * action.
+ */
+function WithAgent({
+  drafts,
+  prompt,
+  runCategorizerHref,
+}: {
+  /** The account's drafts that have no account. */
+  drafts: number;
+  prompt: string;
+  runCategorizerHref: string;
+}) {
+  const navigate = useNavigate();
+  const [handedOver, setHandedOver] = useState(false);
+  // The agent the server opens, by name; where it opens none, the button
+  // copies the prompt for whichever agent the user runs.
+  const availability = useQuery(agentHandoffAvailabilityQuery).data;
+  const agent =
+    availability !== undefined && availability.mode !== "none"
+      ? CODING_AGENTS[availability.agent].label
+      : "your agent";
+  return (
+    <section
+      aria-labelledby="with-agent-heading"
+      className="overflow-hidden rounded-card border border-sap-border bg-card shadow-card"
+    >
+      <div className="space-y-3 px-4 py-3.5">
+        <h2
+          id="with-agent-heading"
+          className="text-row font-semibold text-foreground"
+        >
+          Categorize {plural(drafts, "draft")}
+        </h2>
+        <p className="text-row text-foreground">
+          Let your agent group these and suggest the right accounts.
+        </p>
+        <AgentButton
+          wide
+          primary={!handedOver}
+          prompt={prompt}
+          label={`Create rules with ${agent}`}
+          onActed={() => setHandedOver(true)}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-3 border-t border-line-inner bg-sap-nested px-4 py-2.5">
+        <p className="text-meta text-ink-soft">
+          Rules updated? Re-run to categorize remaining drafts.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant={handedOver ? "default" : "outline"}
+          onClick={() => navigate(runCategorizerHref)}
+        >
+          Run categorizer
+          <ArrowRight aria-hidden="true" />
+        </Button>
       </div>
     </section>
   );

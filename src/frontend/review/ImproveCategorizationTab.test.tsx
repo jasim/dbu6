@@ -113,6 +113,9 @@ beforeEach(() => {
   root = createRoot(host);
   requests = [];
   ruleRequests = RULE_REQUESTS;
+  // Most tests here are about the manual way; the agent's tab opens by
+  // default, and its own test clears this.
+  localStorage.setItem("dbu6:improve-categorization:mode", "manual");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -130,6 +133,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount());
+  localStorage.clear();
   host.remove();
   vi.unstubAllGlobals();
 });
@@ -326,6 +330,39 @@ describe("Improve categorization", () => {
       (r) => r.method === "POST" && r.url.pathname.endsWith("/agent-handoff"),
     );
     expect(handoff).toBeDefined();
+    expect(host.textContent).toBe("run categorizer");
+  });
+
+  it("opens on With coding agent, first, and it hands every uncategorised draft to the agent", async () => {
+    localStorage.clear();
+    await render();
+
+    const tab = (label: string) =>
+      [...host.querySelectorAll('[role="tab"]')].find(
+        (each) => each.textContent === label,
+      ) as HTMLButtonElement | undefined;
+    expect(
+      [...host.querySelectorAll('[role="tab"]')].map(
+        (each) => each.textContent,
+      ),
+    ).toEqual(["With coding agent", "Manual"]);
+    expect(tab("With coding agent")?.getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    expect(panel()).not.toContain("Select drafts to categorize");
+    expect(region()).toBeNull();
+    expect(panel()).toContain("Categorize 4 drafts");
+    expect(panel()).toContain("Rules updated?");
+
+    await act(async () => button("Create rules with Claude Code")?.click());
+    await settle();
+    const handoff = requests.find(
+      (r) => r.method === "POST" && r.url.pathname.endsWith("/agent-handoff"),
+    );
+    expect(handoff).toBeDefined();
+    // The conversation goes on in the terminal, so the tab stays put, and
+    // running the categorizer is what the user comes back for.
+    await act(async () => button("Run categorizer")?.click());
     expect(host.textContent).toBe("run categorizer");
   });
 
