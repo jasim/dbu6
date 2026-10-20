@@ -38,6 +38,10 @@ theirs: `user-config/`, `custom-built-parsers/`, `reports/`, and the ledger in
   common job to its endpoint. `npx dbu6 docs` lists every guide; each is the
   one written for the installed version.
 
+- To find a transaction, a draft or an account, search first:
+  `npx sapporta api get /api/search --query '{"q":"<words>"}'`. It is the
+  app's Search page; reach for SQL only when it can't do the job.
+
 ## Rules
 
 - Never edit anything under `node_modules/@dbu6/app`. An install or an upgrade

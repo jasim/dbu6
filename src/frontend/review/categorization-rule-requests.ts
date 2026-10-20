@@ -124,7 +124,12 @@ instruction files this account's import preset lists. A rule applies to every
 account; an instruction file applies to every account whose preset lists it.
 \`${guideCommand("books")}\` says how to choose, under "Always put this under X — adding a
 mapping", and how to read this account's import preset. If this account lists
-no instruction file, or only an empty one, tell me, and propose which to use.`;
+no instruction file, or only an empty one, tell me, and propose which to use.
+
+To find where transactions like these went before, and what a rule would
+catch, search my books:
+\`npx sapporta api get /api/search --query '{"q":"<words>"}'\`. It matches
+every word against journals, drafts and accounts.`;
 }
 
 function ruleRequestText(
