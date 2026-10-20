@@ -5,20 +5,22 @@ import {
   buildSearchPredicate,
   createTableCatalog,
   scopedRows,
+  type TableDef,
 } from "@sapporta/server";
 import { describe, expect, it } from "vitest";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
 import { dbu6MigrationsDir } from "../paths.js";
 import { accounts } from "./accounts.js";
+import { draftTransactions } from "./draft-journals.js";
 import { journalEntries, journals } from "./journals.js";
 
 const SCOPE = "'workspace', 'user'";
 const AT = "'2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'";
 
 /*
- * The Journals page's search. A one-row import's description is its comment
- * once the comment writer reaches it, so the bank's text is found through
- * the entries.
+ * The Journals and Drafts pages' search. A one-row import's description is
+ * its comment once the comment writer reaches it, so the bank's text is
+ * found through the entries.
  */
 function books() {
   const sqlite = new Database(":memory:");
@@ -35,21 +37,33 @@ function books() {
       (102, ${SCOPE}, 10, 1, 0, 100, NULL, NULL, NULL, ${AT}),
       (111, ${SCOPE}, 11, 2, 1000, 0, 'NOPII typed note', NULL, NULL, ${AT}),
       (112, ${SCOPE}, 11, 1, 0, 1000, NULL, NULL, NULL, ${AT});
+    UPDATE journal_entries SET account_balance_assertion = 25000 WHERE id = 112;
+    INSERT INTO draft_transactions (id, workspace_id, scoped_to_user_id, date, account_id, source_narration, withdrawal, deposit, base_account_id, balance_assertion_base_account, created_at, updated_at) VALUES
+      (20, ${SCOPE}, '2026-01-07', 2, 'UPI Sample Bakery', 200, 0, 1, 7500, ${AT}),
+      (21, ${SCOPE}, '2026-01-08', NULL, 'NEFT NOPII', 0, 300, 1, NULL, ${AT});
   `);
-  const catalog = createTableCatalog([accounts, journals, journalEntries]);
+  const catalog = createTableCatalog([
+    accounts,
+    journals,
+    journalEntries,
+    draftTransactions,
+  ]);
   const auth = testLedgerAuth();
-  const rows = scopedRows(drizzle(sqlite), auth, journals);
-  const search = async (term: string) =>
+  const db = drizzle(sqlite);
+  const searcher = (table: TableDef) => async (term: string) =>
     (
-      await rows.page({
+      await scopedRows(db, auth, table).page({
         where: buildSearchPredicate(
-          catalog.searchPlanFor("journals"),
+          catalog.searchPlanFor(table.sqlName),
           term,
           auth,
         ),
       })
     ).data.map((row) => row.id);
-  return { search };
+  return {
+    search: searcher(journals),
+    searchDrafts: searcher(draftTransactions),
+  };
 }
 
 describe("journals search", () => {
@@ -68,10 +82,24 @@ describe("journals search", () => {
     expect(await search("100")).toEqual([10]);
   });
 
+  it("finds a journal by an entry's balance assertion", async () => {
+    const { search } = books();
+    expect(await search("25,000")).toEqual([11]);
+  });
+
   it("needs every word, each anywhere in the journal", async () => {
     const { search } = books();
     expect(await search("rent 1000")).toEqual([11]);
     expect(await search("savings cafe")).toEqual([10]);
     expect(await search("rent cafe")).toEqual([]);
+  });
+});
+
+describe("drafts search", () => {
+  it("finds a draft by its amounts and by its balance assertion", async () => {
+    const { searchDrafts } = books();
+    expect(await searchDrafts("200")).toEqual([20]);
+    expect(await searchDrafts("300")).toEqual([21]);
+    expect(await searchDrafts("7,500")).toEqual([20]);
   });
 });

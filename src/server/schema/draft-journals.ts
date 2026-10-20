@@ -65,6 +65,7 @@ export const draftTransactions = sapportaTable({
         "base_account_id",
         "withdrawal",
         "deposit",
+        "balance_assertion_base_account",
       ],
     },
     columns: {

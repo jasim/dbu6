@@ -74,7 +74,9 @@ export const journals = sapportaTable({
     defaultSort: desc(journalsTable.date),
     // An imported journal's description becomes its comment once the comment
     // writer reaches it, so the entries are searched too: the bank's text and
-    // reference find it still, and so do its accounts and amounts.
+    // reference find it still, and so do its accounts and amounts. The
+    // balance assertion is searched as an amount too: a statement's running
+    // balance finds the entry that ends on it.
     search: {
       self: ["description"],
       children: {
@@ -86,6 +88,7 @@ export const journals = sapportaTable({
             "account_id",
             "debit",
             "credit",
+            "account_balance_assertion",
           ],
         },
       },
