@@ -10,7 +10,7 @@ import { cn } from "@sapporta/ui/cn";
  * Base UI marks it `data-disabled` whether it renders a button or a link.
  */
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-control text-row font-semibold outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-control text-row font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {

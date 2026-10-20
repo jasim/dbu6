@@ -30,7 +30,7 @@ export function LinkCard({
     <Link
       to={to}
       className={cn(
-        "group flex gap-3 rounded-card border bg-card text-foreground no-underline transition-colors hover:bg-sap-row-hover",
+        "group flex gap-3 rounded-card border bg-card text-foreground no-underline hover:bg-sap-row-hover",
         tile ? "items-start px-4 py-3 shadow-card" : "items-center px-4 py-2",
       )}
     >
@@ -59,7 +59,7 @@ export function LinkCard({
       </span>
       <ArrowRight
         className={cn(
-          "size-4 shrink-0 text-sap-subtle transition-transform group-hover:translate-x-0.5",
+          "size-4 shrink-0 text-sap-subtle group-hover:translate-x-0.5",
           tile && "mt-1.5",
         )}
         strokeWidth={1.8}

@@ -124,7 +124,7 @@ function ChartTreeRow({
   const name = account.note ? (
     <Tooltip>
       <TooltipTrigger
-        delay={200}
+        delay={0}
         render={<span tabIndex={0} />}
         className={cn(
           nameClass,

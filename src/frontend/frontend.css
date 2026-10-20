@@ -337,7 +337,6 @@ body {
 :where([data-shell-scroll-region]) a:where(:not([class])) {
   color: var(--sap-link);
   text-decoration: none;
-  transition: color 120ms ease;
 }
 
 :where([data-shell-scroll-region]) a:where(:not([class])):hover {

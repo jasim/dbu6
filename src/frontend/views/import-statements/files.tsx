@@ -73,7 +73,7 @@ export function Dropzone({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        "rounded-card border-2 border-dashed px-4 py-5 text-center transition-colors duration-150 sm:p-6",
+        "rounded-card border-2 border-dashed px-4 py-5 text-center sm:p-6",
         disabled
           ? "cursor-not-allowed border-waiting-border bg-waiting-bg"
           : dragging
@@ -276,7 +276,7 @@ export function GooglePayRow({
             aria-hidden="true"
             className="flex size-[38px] shrink-0 items-center justify-center rounded-[10px] border border-dashed border-waiting-marker bg-waiting-bg text-ink-meta"
           >
-            <Plus className="size-4 transition-transform duration-150 group-open/gpay:rotate-45" />
+            <Plus className="size-4 group-open/gpay:rotate-45" />
           </span>
           <span className="text-row font-semibold text-foreground">
             Names from Google Pay{" "}

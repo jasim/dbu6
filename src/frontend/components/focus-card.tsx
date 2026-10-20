@@ -201,7 +201,7 @@ export function Choice({
   return (
     <label
       className={cn(
-        "flex min-h-[calc(var(--height-sap-ctl)+18px)] cursor-pointer items-center gap-3 rounded-control border px-3.5 py-2 text-body text-foreground transition-colors duration-150",
+        "flex min-h-[calc(var(--height-sap-ctl)+18px)] cursor-pointer items-center gap-3 rounded-control border px-3.5 py-2 text-body text-foreground",
         checked ? "border-primary bg-card" : "border-sap-border hover:bg-muted",
       )}
     >

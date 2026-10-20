@@ -126,7 +126,7 @@ export function MonthChart({
                   >
                     <span
                       className={cn(
-                        "relative flex h-[116px] w-full items-end justify-center gap-[3px] rounded-t-control border-b border-sap-border-strong transition-colors duration-150 group-hover:bg-muted",
+                        "relative flex h-[116px] w-full items-end justify-center gap-[3px] rounded-t-control border-b border-sap-border-strong group-hover:bg-muted",
                         isSelected && "bg-muted",
                       )}
                     >
@@ -270,7 +270,7 @@ function Bar({
     <span
       aria-hidden="true"
       className={cn(
-        "rounded-t-[3px] transition-opacity duration-150",
+        "rounded-t-[3px]",
         wide ? "w-[56%] max-w-[36px]" : "w-[34%] max-w-[26px]",
         dimmed && "opacity-25",
       )}

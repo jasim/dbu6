@@ -331,7 +331,7 @@ function Tabs({
               end={tab.end}
               className={({ isActive }) =>
                 cn(
-                  "inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-control px-2.5 text-body no-underline outline-none transition-colors duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:px-3",
+                  "inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-control px-2.5 text-body no-underline outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 sm:px-3",
                   isActive
                     ? "bg-muted font-semibold text-foreground"
                     : "font-medium text-ink-soft hover:bg-muted/70 hover:text-foreground",

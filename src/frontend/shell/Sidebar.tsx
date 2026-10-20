@@ -36,7 +36,7 @@ interface NavigationProps {
  * in darker text at the same weight, so its label keeps its width.
  */
 const ITEM_BASE =
-  "flex items-center font-medium no-underline transition-[background-color] duration-[20ms] ease-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60";
+  "flex items-center font-medium no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60";
 const ITEM_INACTIVE = "text-sap-nav-fg hover:bg-sap-nav-hover";
 const ITEM_ACTIVE = "bg-sap-nav-selected text-foreground";
 
@@ -180,7 +180,7 @@ function AccountCard({
               type="button"
               aria-label={`Open account menu for ${displayName}`}
               aria-expanded={open}
-              className="flex size-(--height-sap-ctl) items-center justify-center rounded-full transition-shadow duration-150 hover:ring-2 hover:ring-sap-border focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+              className="flex size-(--height-sap-ctl) items-center justify-center rounded-full hover:ring-2 hover:ring-sap-border focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
             >
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sidebar-avatar text-[12px] font-semibold text-ink-soft">
                 {initials}
@@ -201,7 +201,7 @@ function AccountCard({
             type="button"
             aria-label={`Open account menu for ${displayName}`}
             aria-expanded={open}
-            className="flex w-full items-center gap-2 rounded-card border border-sap-border bg-card p-2 text-left transition-colors duration-150 hover:bg-sap-nested focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+            className="flex w-full items-center gap-2 rounded-card border border-sap-border bg-card p-2 text-left hover:bg-sap-nested focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
           >
             <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sidebar-avatar text-[12px] font-semibold text-ink-soft">
               {initials}

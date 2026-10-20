@@ -48,7 +48,7 @@ export function NeedsAccount({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center rounded-full border border-dashed border-attention-border bg-attention-bg px-[14px] py-[6px] text-[13px] font-semibold text-attention-ink transition-colors duration-150 hover:bg-attention-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
+        "inline-flex items-center rounded-full border border-dashed border-attention-border bg-attention-bg px-[14px] py-[6px] text-[13px] font-semibold text-attention-ink hover:bg-attention-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
         className,
       )}
       {...props}

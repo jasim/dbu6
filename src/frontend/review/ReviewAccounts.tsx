@@ -122,7 +122,7 @@ function AccountRow({
     <li className="border-t border-line-inner first:border-t-0">
       <Link
         to={withReviewRun(reviewHref(account.account_id), { setup })}
-        className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-2.5 text-foreground no-underline outline-none transition-colors duration-150 hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
+        className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-2.5 text-foreground no-underline outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
       >
         <span className="min-w-0 flex-1 basis-[220px]">
           <span

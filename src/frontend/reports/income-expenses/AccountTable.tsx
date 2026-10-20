@@ -336,7 +336,7 @@ function Row({
       onClick={select}
       onKeyDown={onKeyDown}
       className={cn(
-        "col-span-full grid cursor-pointer grid-cols-subgrid items-center gap-x-4 pr-4 outline-none transition-colors duration-100",
+        "col-span-full grid cursor-pointer grid-cols-subgrid items-center gap-x-4 pr-4 outline-none",
         "focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40",
         !header && "min-h-[38px] border-t border-line-inner",
         selected
@@ -364,7 +364,7 @@ function Row({
             <ChevronRight
               aria-hidden="true"
               className={cn(
-                "size-4 transition-transform duration-150",
+                "size-4",
                 expander.open && "rotate-90",
               )}
             />
