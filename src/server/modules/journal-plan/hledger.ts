@@ -1,3 +1,4 @@
+import { normalizeIdentityText } from "../values/index.js";
 import type { JournalPlan, PlannedEntry } from "./JournalPlan.js";
 
 /** An account as its hledger name needs it: its own name and its parent. */
@@ -39,54 +40,64 @@ export function hledgerAccountNames(
 
 /**
  * A journal plan as hledger text. The draft preview, the import summary and
- * posted journals (read back as a plan) all render here. A plan names each
- * account by its name in the ledger, and `hledgerNames`
- * (`hledgerAccountNames`) gives the name hledger writes for it; a name the
- * ledger doesn't have, such as an answer naming no account, is written as it
- * is. An entry's comment follows it, and its source narration after that as
- * `source: …`, so an export keeps the statement's references; either one
- * that only repeats the description is left out. The first text shown sits
- * on the posting's line, a second on the line below it.
+ * posted journals (read back as a plan) all render here. Each account is
+ * written by its name in the ledger, never its path down the account tree:
+ * names are unique, and a person's often carry their parent's already. An
+ * entry's comment follows it, unless it only repeats the description,
+ * and its source narration after that in parentheses, so an export keeps the
+ * statement's text: where there is no comment, or where the comment says
+ * something else (`sayTheSame`); never when it only repeats the description.
  *
  *   {date} {description}
- *       {account:<35} {amount:>10.2f}[ = {assertion:.2f}][ ; {comment}]
- *           [; source: {source narration}]
+ *       {account:<35} {amount:>10.2f}[ = {assertion:.2f}][ ; {comment}][ ({source narration})]
  */
-export function formatHledger(
-  plan: JournalPlan<string>,
-  hledgerNames: ReadonlyMap<string, string>,
-): string {
+export function formatHledger(plan: JournalPlan<string>): string {
   return plan
     .map((journal) =>
       [
         `${journal.date} ${journal.description}`,
         ...journal.entries.map((entry) =>
-          formatEntry(entry, journal.description, hledgerNames),
+          formatEntry(entry, journal.description),
         ),
       ].join("\n"),
     )
     .join("\n\n");
 }
 
-function formatEntry(
-  entry: PlannedEntry<string>,
-  description: string,
-  hledgerNames: ReadonlyMap<string, string>,
-): string {
-  const account = hledgerNames.get(entry.account) ?? entry.account;
+function formatEntry(entry: PlannedEntry<string>, description: string): string {
+  const { account } = entry;
   const assertion =
     entry.assertion === null ? "" : ` = ${entry.assertion.toFixed(2)}`;
-  const comments = [
-    entry.comment && entry.comment !== description ? entry.comment : null,
-    entry.sourceNarration && entry.sourceNarration !== description
-      ? `source: ${entry.sourceNarration}`
+  const comment = entry.comment?.trim() || null;
+  const source = entry.sourceNarration?.trim() || null;
+  const texts = [
+    comment !== null && comment !== description ? comment : null,
+    source !== null &&
+    source !== description &&
+    (comment === null || !sayTheSame(comment, source))
+      ? `(${source})`
       : null,
   ].filter((text): text is string => text !== null);
-  const [sameLine, ...below] = comments;
   // hledger ends an account name at two spaces, since names hold single ones.
-  // A comment on the lines below a posting is indented past it.
-  return [
-    `    ${`${account} `.padEnd(35)} ${entry.amount.toFixed(2).padStart(10)}${assertion}${sameLine ? ` ; ${sameLine}` : ""}`,
-    ...below.map((text) => `        ; ${text}`),
-  ].join("\n");
+  return `    ${`${account} `.padEnd(35)} ${entry.amount.toFixed(2).padStart(10)}${assertion}${texts.length > 0 ? ` ; ${texts.join(" ")}` : ""}`;
+}
+
+/**
+ * Whether a comment says what the statement's narration says, as one
+ * rewritten from it does: at least half of the comment's words are in the
+ * narration. Words are compared without case, and without digits or
+ * punctuation, so a narration's reference numbers and its bank's wrapper
+ * (`UPI/…/sample@ybl`) don't count against it.
+ */
+function sayTheSame(comment: string, narration: string): boolean {
+  const commentWords = words(comment);
+  const narrationWords = new Set(words(narration));
+  const shared = commentWords.filter((word) => narrationWords.has(word));
+  return shared.length * 2 >= commentWords.length;
+}
+
+function words(text: string): string[] {
+  return normalizeIdentityText(text)
+    .split(/[^\p{L}]+/u)
+    .filter((word) => word !== "");
 }

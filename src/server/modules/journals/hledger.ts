@@ -6,7 +6,6 @@ import {
   type JournalPlan,
   type PlannedJournal,
 } from "../journal-plan/index.js";
-import { loadHledgerAccountNames } from "../accounts/index.js";
 import type { LedgerAuth } from "../ledger-sql/index.js";
 import { accountsTable } from "../../schema/accounts.js";
 import {
@@ -26,6 +25,7 @@ type JournalHledgerRow = {
   date: typeof journalsTable.$inferSelect.date;
   description: string;
   entryId: number;
+  accountId: number;
   account: string;
   debit: number;
   credit: number;
@@ -37,15 +37,19 @@ type JournalHledgerRow = {
 };
 
 // Posted journals as hledger text, in the order asked for: read back as the
-// plan they were written from and rendered like any other plan.
+// plan they were written from and rendered like any other plan. Given
+// `assertionAccountIds`, only those accounts' lines keep their balance
+// assertions, as a ledger asserts its own accounts' balances and no others.
 export function renderVisibleJournalsAsHledger({
   db,
   auth,
   journalIds,
+  assertionAccountIds,
 }: {
   db: BetterSQLite3Database;
   auth: LedgerAuth;
   journalIds: readonly number[];
+  assertionAccountIds?: readonly number[];
 }): RenderedJournalsHledger {
   const ids = uniqueIds(journalIds);
   if (ids.length === 0) {
@@ -54,10 +58,19 @@ export function renderVisibleJournalsAsHledger({
 
   const rows = loadJournalHledgerRows({ db, auth, journalIds: ids });
   const order = new Map(ids.map((id, index) => [id, index]));
-  const plan = groupRowsIntoPlan(rows, order);
+  const asserted =
+    assertionAccountIds === undefined ? null : new Set(assertionAccountIds);
+  const plan = groupRowsIntoPlan(
+    asserted === null
+      ? rows
+      : rows.map((row) =>
+          asserted.has(row.accountId) ? row : { ...row, assertion: null },
+        ),
+    order,
+  );
 
   return {
-    hledger_journal: formatHledger(plan, loadHledgerAccountNames(db, auth)),
+    hledger_journal: formatHledger(plan),
     journal_count: plan.length,
   };
 }
@@ -80,6 +93,7 @@ function loadJournalHledgerRows({
       date: journalsTable.date,
       description: journalsTable.description,
       entryId: journalEntriesTable.id,
+      accountId: accountsTable.id,
       account: accountsTable.name,
       debit: journalEntriesTable.debit,
       credit: journalEntriesTable.credit,

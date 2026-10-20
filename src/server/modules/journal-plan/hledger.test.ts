@@ -83,7 +83,7 @@ describe("hledger text of a plan", () => {
       ),
     ]);
 
-    expect(formatHledger(planJournals(rows, BASE), new Map())).toBe(
+    expect(formatHledger(planJournals(rows, BASE))).toBe(
       [
         "2026-02-01 NOPII grocer",
         "    Groceries                               100.00",
@@ -124,34 +124,31 @@ describe("hledger text of a plan", () => {
       sourceReference: null,
       sourceTransactionKey: null,
     };
-    const output = formatHledger(
-      [
-        {
-          date: "2026-07-09",
-          description: "Expenses",
-          entries: [
-            {
-              ...entry,
-              account: "Food",
-              amount: 125.5,
-              comment: "Lunch",
-            },
-            {
-              ...entry,
-              account: "Bank",
-              amount: -125.5,
-              assertion: 999.25,
-            },
-          ],
-        },
-        {
-          date: "2026-07-10",
-          description: "Deposits",
-          entries: [{ ...entry, account: "Bank", amount: 2000 }],
-        },
-      ],
-      new Map(),
-    );
+    const output = formatHledger([
+      {
+        date: "2026-07-09",
+        description: "Expenses",
+        entries: [
+          {
+            ...entry,
+            account: "Food",
+            amount: 125.5,
+            comment: "Lunch",
+          },
+          {
+            ...entry,
+            account: "Bank",
+            amount: -125.5,
+            assertion: 999.25,
+          },
+        ],
+      },
+      {
+        date: "2026-07-10",
+        description: "Deposits",
+        entries: [{ ...entry, account: "Bank", amount: 2000 }],
+      },
+    ]);
 
     expect(output).toBe(
       [
@@ -165,7 +162,7 @@ describe("hledger text of a plan", () => {
     );
   });
 
-  it("describes a commented row by its comment and keeps its statement text as a source line", () => {
+  it("describes a commented row by its comment and leaves out the statement text it was rewritten from", () => {
     const commented: PlanRow<Account> = {
       ...row(
         "2026-02-01",
@@ -177,67 +174,63 @@ describe("hledger text of a plan", () => {
       comment: "UPI Sample Cafe",
     };
 
-    expect(
-      formatHledger(planJournals(unsafeAsChrono([commented]), BASE), new Map()),
-    ).toBe(
+    expect(formatHledger(planJournals(unsafeAsChrono([commented]), BASE))).toBe(
       [
         "2026-02-01 UPI Sample Cafe",
-        "    Eating Out                              100.00 ; source: UPI/050505123456/SAMPLE CAFE/sample@ybl",
+        "    Eating Out                              100.00",
         "    Sample Savings                         -100.00",
       ].join("\n"),
     );
   });
 
-  it("puts a posted entry's comment on its line and its source narration below it", () => {
-    const output = formatHledger(
-      [
-        {
-          date: "2026-07-09",
-          description: "Expenses",
-          entries: [
-            {
-              account: "Food",
-              amount: 125.5,
-              assertion: null,
-              comment: "Lunch",
-              sourceNarration: "POS 050505 SAMPLE DINER",
-              sourceReference: null,
-              sourceTransactionKey: null,
-            },
-            {
-              account: "Food",
-              amount: 20,
-              assertion: null,
-              comment: null,
-              sourceNarration: "POS 050505 SAMPLE KIOSK",
-              sourceReference: null,
-              sourceTransactionKey: null,
-            },
-          ],
-        },
-      ],
-      new Map(),
-    );
+  it("follows a posted entry's comment with its source narration in parentheses when they differ, and shows the narration alone without one", () => {
+    const output = formatHledger([
+      {
+        date: "2026-07-09",
+        description: "Expenses",
+        entries: [
+          {
+            account: "Food",
+            amount: 125.5,
+            assertion: null,
+            comment: "Lunch",
+            sourceNarration: "POS 050505 SAMPLE DINER",
+            sourceReference: null,
+            sourceTransactionKey: null,
+          },
+          {
+            account: "Food",
+            amount: 20,
+            assertion: null,
+            comment: null,
+            sourceNarration: "POS 050505 SAMPLE KIOSK",
+            sourceReference: null,
+            sourceTransactionKey: null,
+          },
+          {
+            account: "Food",
+            amount: 30,
+            assertion: null,
+            comment: "Sample Bakery",
+            sourceNarration: "UPI/050505000012/SAMPLE BAKERY/sample@ybl",
+            sourceReference: null,
+            sourceTransactionKey: null,
+          },
+        ],
+      },
+    ]);
 
     expect(output).toBe(
       [
         "2026-07-09 Expenses",
-        "    Food                                    125.50 ; Lunch",
-        "        ; source: POS 050505 SAMPLE DINER",
-        "    Food                                     20.00 ; source: POS 050505 SAMPLE KIOSK",
+        "    Food                                    125.50 ; Lunch (POS 050505 SAMPLE DINER)",
+        "    Food                                     20.00 ; (POS 050505 SAMPLE KIOSK)",
+        "    Food                                     30.00 ; Sample Bakery",
       ].join("\n"),
     );
   });
 
-  it("writes each account by its path down the account tree", () => {
-    const hledgerNames = hledgerAccountNames([
-      { id: 1, name: "Expenses", parent_id: null },
-      { id: 2, name: "Food", parent_id: 1 },
-      { id: 3, name: "Dining Out", parent_id: 2 },
-      { id: 4, name: "Assets", parent_id: null },
-      { id: 5, name: "Bank", parent_id: 4 },
-      { id: 6, name: "Sample Bank With A Long Account Name", parent_id: 5 },
-    ]);
+  it("writes each account by its name in the ledger, not its path", () => {
     const entry = {
       assertion: null,
       comment: null,
@@ -245,32 +238,27 @@ describe("hledger text of a plan", () => {
       sourceReference: null,
       sourceTransactionKey: null,
     };
-    const output = formatHledger(
-      [
-        {
-          date: "2026-07-09",
-          description: "Expenses",
-          entries: [
-            { ...entry, account: "Dining Out", amount: 150000 },
-            {
-              ...entry,
-              account: "Sample Bank With A Long Account Name",
-              amount: -150000,
-            },
-            { ...entry, account: "Not In The Ledger", amount: 0 },
-          ],
-        },
-      ],
-      hledgerNames,
-    );
+    const output = formatHledger([
+      {
+        date: "2026-07-09",
+        description: "Expenses",
+        entries: [
+          { ...entry, account: "Dining Out", amount: 150000 },
+          {
+            ...entry,
+            account: "Assets:Sample Bank With A Long Account Name",
+            amount: -150000,
+          },
+        ],
+      },
+    ]);
 
     expect(output).toBe(
       [
         "2026-07-09 Expenses",
-        "    Expenses:Food:Dining Out             150000.00",
+        "    Dining Out                           150000.00",
         // Two spaces end a name, however long, before a ten-character amount.
-        "    Assets:Bank:Sample Bank With A Long Account Name  -150000.00",
-        "    Not In The Ledger                         0.00",
+        "    Assets:Sample Bank With A Long Account Name  -150000.00",
       ].join("\n"),
     );
   });

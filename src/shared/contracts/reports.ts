@@ -230,6 +230,25 @@ export const reportsContract = c.router({
       403: errorBodySchema,
     },
   }),
+  accountLedgerHledger: c.query({
+    method: "GET",
+    path: "/reports/account-ledger/hledger",
+    summary: "Account Ledger's journals as hledger journal text",
+    metadata: { tags: ["reports"] },
+    query: z.object({
+      account_id: z.coerce.number().int().positive(),
+      from_date: z.string().optional(),
+      to_date: z.string().optional(),
+    }),
+    responses: {
+      200: z.object({
+        hledger_journal: z.string(),
+        journal_count: z.number(),
+      }),
+      400: errorBodySchema,
+      403: errorBodySchema,
+    },
+  }),
   dayBook: c.query({
     method: "GET",
     path: "/reports/day-book",

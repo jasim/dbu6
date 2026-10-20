@@ -117,6 +117,10 @@ export { Amount, formatAmount, type Direction } from "./components/amount";
 export { Screen, ScreenTitle } from "./components/screen";
 export { EmptyState } from "./components/empty-state";
 export { LoadError } from "./components/load-error";
+export {
+  HledgerDialog,
+  type RenderedHledger,
+} from "./components/hledger-dialog";
 export { Button } from "./components/ui/button";
 export {
   Select,

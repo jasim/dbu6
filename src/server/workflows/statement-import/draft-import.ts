@@ -17,7 +17,6 @@ import {
   formatHledger,
   planJournals,
 } from "../../modules/journal-plan/index.js";
-import { loadHledgerAccountNames } from "../../modules/accounts/index.js";
 import { toDraftRows, persistDrafts } from "../../modules/drafts/index.js";
 import type { OnImportProgress } from "./statement-import.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
@@ -105,7 +104,6 @@ export async function runDraftImport(
       ),
       baseAccount,
     ),
-    loadHledgerAccountNames(db, auth),
   );
   const persisted = persistDrafts(db, draftRows, expectedClosingByDate, auth);
   console.log(

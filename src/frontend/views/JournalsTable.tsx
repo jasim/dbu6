@@ -17,21 +17,13 @@ import {
   type TGridSession,
 } from "@sapporta/frontend";
 import { AppPage } from "@sapporta/frontend/shell";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@sapporta/ui/dialog";
 import { journalsApi } from "../api";
+import {
+  HledgerDialog,
+  type RenderedHledger,
+} from "../components/hledger-dialog";
 import { Button } from "../components/ui/button";
-
-type RenderResult = {
-  hledger_journal: string;
-  journal_count: number;
-};
+import { plural } from "../format";
 
 const JOURNALS_TABLE = "journals";
 const STANDARD_TABLE_PAGE_SIZE = 50;
@@ -73,7 +65,7 @@ function JournalsTableWithSchema({
 }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [renderResult, setRenderResult] = useState<RenderResult | null>(null);
+  const [renderResult, setRenderResult] = useState<RenderedHledger | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
   const [session, setSession] =
@@ -119,7 +111,7 @@ function JournalsTableWithSchema({
           : await journalsApi.renderHledger({
               body: { journal_ids: visibleJournalIds },
             });
-      setRenderResult(result as RenderResult);
+      setRenderResult(result as RenderedHledger);
     } catch (err) {
       setRenderResult(null);
       setRenderError(
@@ -151,11 +143,11 @@ function JournalsTableWithSchema({
       <HledgerDialog
         result={renderResult}
         error={renderError}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRenderResult(null);
-            setRenderError(null);
-          }
+        description={plural(renderResult?.journal_count ?? 0, "visible journal")}
+        empty="No visible journals to render."
+        onClose={() => {
+          setRenderResult(null);
+          setRenderError(null);
         }}
       />
     </RenderHledgerContext.Provider>
@@ -279,56 +271,5 @@ function RenderHledgerAction(
         {action.rendering ? "Rendering..." : "Render as hledger"}
       </span>
     </Button>
-  );
-}
-
-function HledgerDialog({
-  result,
-  error,
-  onOpenChange,
-}: {
-  result: RenderResult | null;
-  error: string | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const open = result !== null || error !== null;
-  const text = result?.hledger_journal ?? "";
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[82vh] max-w-5xl overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>hledger journal</DialogTitle>
-          <DialogDescription>
-            {result
-              ? `${result.journal_count} visible journal${result.journal_count === 1 ? "" : "s"}`
-              : "Render failed"}
-          </DialogDescription>
-        </DialogHeader>
-        {error ? (
-          <div className="rounded-card border border-destructive/30 bg-destructive/10 p-3 text-row text-destructive">
-            {error}
-          </div>
-        ) : text ? (
-          <pre className="tnum max-h-[58vh] overflow-auto rounded-control bg-muted p-3 font-mono text-meta whitespace-pre">
-            {text}
-          </pre>
-        ) : (
-          <div className="rounded-card border p-3 text-row text-ink-meta">
-            No visible journals to render.
-          </div>
-        )}
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigator.clipboard.writeText(text)}
-            waiting={text ? undefined : "Nothing to copy"}
-          >
-            Copy
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -1,5 +1,9 @@
 import {
   accountLedgerRow,
+  apiErrorMessage,
+  Button,
+  HledgerDialog,
+  type RenderedHledger,
   type LedgerLinkInput,
   LookupPicker,
   type LookupValue,
@@ -10,8 +14,10 @@ import {
   ReportScreenFrame,
   ReportToolbar,
   useReportPeriod,
+  plural,
   useReportResult,
   useSearchParams,
+  useState,
   useTableLookup,
 } from "../report-kit";
 import { reportsApi } from "./client";
@@ -26,7 +32,9 @@ const links = {
 export function AccountLedgerReport() {
   const [searchParams, setSearchParams] = useSearchParams();
   const accountId = searchParams.get("account_id") ?? "";
-  const { period, dates, setPeriod } = useReportPeriod();
+  const { period, dates, setPeriod } = useReportPeriod({
+    defaultPreset: "last-3-months",
+  });
   const accountLookup = useTableLookup("accounts");
   const selectedAccount = lookupValueFromParam(accountId);
   const hasAccount = accountId !== "";
@@ -38,6 +46,27 @@ export function AccountLedgerReport() {
       }),
     hasAccount,
   );
+  const [hledger, setHledger] = useState<RenderedHledger | null>(null);
+  const [hledgerError, setHledgerError] = useState<string | null>(null);
+  const [rendering, setRendering] = useState(false);
+
+  // The journals behind the ledger's rows, for the account and period shown.
+  const renderHledger = async () => {
+    setRendering(true);
+    setHledgerError(null);
+    try {
+      setHledger(
+        await reportsApi.accountLedgerHledger({
+          query: { account_id: Number(accountId), ...dates },
+        }),
+      );
+    } catch (error) {
+      setHledger(null);
+      setHledgerError(apiErrorMessage(error));
+    } finally {
+      setRendering(false);
+    }
+  };
 
   const setAccount = (value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -51,11 +80,22 @@ export function AccountLedgerReport() {
     <ReportScreenFrame title={report.result?.label ?? "Account Ledger"}>
       <ReportToolbar
         actions={
-          <ReportRunButton
-            loading={report.loading}
-            disabled={!hasAccount}
-            onClick={report.run}
-          />
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!hasAccount || rendering}
+              onClick={renderHledger}
+            >
+              {rendering ? "Rendering..." : "Render as hledger"}
+            </Button>
+            <ReportRunButton
+              loading={report.loading}
+              disabled={!hasAccount}
+              onClick={report.run}
+            />
+          </>
         }
       >
         <label className="flex items-center gap-2 text-sap-data">
@@ -75,6 +115,16 @@ export function AccountLedgerReport() {
         result={report.result}
         links={links}
         linkContext={{ input: dates }}
+      />
+      <HledgerDialog
+        result={hledger}
+        error={hledgerError}
+        description={plural(hledger?.journal_count ?? 0, "journal")}
+        empty="No journals in this period."
+        onClose={() => {
+          setHledger(null);
+          setHledgerError(null);
+        }}
       />
     </ReportScreenFrame>
   );
