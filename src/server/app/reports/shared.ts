@@ -11,6 +11,7 @@ import {
   type LedgerAuth,
   type ReportLedger,
 } from "../../modules/ledger-sql/index.js";
+import { parentPathColumnId } from "../../../shared/index.js";
 import { requireLedgerAuth } from "../workflow-auth.js";
 
 export function authorizeReport(
@@ -81,6 +82,20 @@ export function percentColumn(
 
 export function hiddenIdColumn(id: string, label: string): GridDatasetColumn {
   return { id, label, kind: "number", visuallyHidden: true };
+}
+
+/**
+ * The hidden column holding the parent path ("Expenses > Kitchen") of the
+ * account named in `nameColumnId`, which the report screens show under that
+ * name. Fill it from `scoped_account_paths.parent_path`.
+ */
+export function parentPathColumn(nameColumnId: string): GridDatasetColumn {
+  return {
+    id: parentPathColumnId(nameColumnId),
+    label: "Parent accounts",
+    kind: "text",
+    visuallyHidden: true,
+  };
 }
 
 export function openRecordLink(

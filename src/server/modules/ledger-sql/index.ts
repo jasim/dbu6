@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import type { SapportaAuthContext } from "@sapporta/server";
+import { ACCOUNT_PATH_SEPARATOR } from "../../../shared/index.js";
 import { accounts, accountsTable } from "../../schema/accounts.js";
 import {
   draftTransactions,
@@ -37,13 +38,25 @@ const dialect = new SQLiteSyncDialect();
 
 /**
  * `WITH RECURSIVE scoped_accounts AS (…), …`: one relation per ledger table,
- * holding only the rows `auth` may see, with the values its predicates bind.
+ * holding only the rows `auth` may see, with the values its predicates bind,
+ * and `scoped_account_paths` (id, parent_path, path) over the accounts.
  */
 function scopedLedger(auth: LedgerAuth): { sql: string; params: unknown[] } {
   const relations = [
     sql`scoped_accounts AS (
   SELECT * FROM ${accountsTable}
   WHERE ${auth.rowSecurity.forTable(accounts).ownedRows()}
+)`,
+    // Each account's parent path, "Expenses > Kitchen", as
+    // `accountParentPaths` gives it, and its path through itself for its
+    // children. Walked down from the top accounts, so a parent loop, which the
+    // database refuses, can't spin. Unread, it costs nothing.
+    sql`scoped_account_paths(id, parent_path, path) AS (
+  SELECT id, NULL, name FROM scoped_accounts WHERE parent_id IS NULL
+  UNION ALL
+  SELECT child.id, parent.path, parent.path || ${ACCOUNT_PATH_SEPARATOR} || child.name
+  FROM scoped_accounts child
+  JOIN scoped_account_paths parent ON child.parent_id = parent.id
 )`,
     sql`scoped_journals AS (
   SELECT * FROM ${journalsTable}

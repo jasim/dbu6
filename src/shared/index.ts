@@ -5,6 +5,7 @@
 
 export const APP_NAME = "dbu6";
 
+export * from "./account-path.js";
 export * from "./bank-names.js";
 export * from "./contracts/index.js";
 export * from "./guides.js";

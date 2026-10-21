@@ -7,6 +7,7 @@ import {
   type AccountType,
 } from "../../schema/accounts.js";
 import {
+  accountParentPaths,
   OPENING_BALANCES_NAME,
   type ChartAccount,
 } from "../../../shared/index.js";
@@ -217,6 +218,19 @@ export function loadAccountChart(db: any, auth: LedgerAuth): ChartedAccount[] {
     .where(access.ownedRows())
     .orderBy(accountsTable.id)
     .all();
+}
+
+/**
+ * Every account in scope's parent path by its id, "Expenses > Kitchen", or
+ * null for a top account: one read of the accounts for any number of them
+ * (`accountParentPaths`). For one account, `.get` its id; raw SQL joins
+ * `scoped_account_paths` instead.
+ */
+export function loadAccountParentPaths(
+  db: any,
+  auth: LedgerAuth,
+): Map<number, string | null> {
+  return accountParentPaths(loadAccountChart(db, auth));
 }
 
 /**

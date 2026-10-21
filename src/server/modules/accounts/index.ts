@@ -13,6 +13,7 @@ export {
   isInAccountBranch,
   isSuitableAccountParent,
   loadAccountChart,
+  loadAccountParentPaths,
   loadAccountsByName,
   loadHledgerAccountNames,
   loadLedgerAccounts,

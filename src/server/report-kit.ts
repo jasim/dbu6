@@ -31,6 +31,7 @@ export {
   moneyColumn,
   monthEnd,
   openRecordLink,
+  parentPathColumn,
   percentColumn,
   reportLedger,
   sum,

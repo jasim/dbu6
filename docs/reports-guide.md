@@ -78,6 +78,12 @@ reports, and returns a `ReportLedger`:
   rows. Your SQL is placed after a `WITH` clause that defines those relations,
   so write a plain `SELECT`, or start with a comma to add CTEs of your own
   (`, monthly AS (SELECT …) SELECT … FROM monthly`).
+- `scoped_account_paths` gives every account's `parent_path`, its parents'
+  names from the top down (`Expenses > Kitchen`, null for a top account).
+  `LEFT JOIN scoped_account_paths ap ON ap.id = a.id` and select
+  `ap.parent_path AS account_name_parent_path` beside `account_name`, with
+  `parentPathColumn("account_name")` beside its column: the report screen
+  shows it under the account's name.
 - Bind values by name (`@fromDate`) and pass them in `params`. Do not build SQL
   from request values.
 - A statement that writes is refused before it runs.
@@ -98,6 +104,8 @@ Helpers from `"@dbu6/app/server"`:
 - Columns: `textColumn`, `dateColumn`, `moneyColumn`, `percentColumn`,
   `hiddenIdColumn(id, label)`. Each takes `(id, label, options)`; `width` is
   in characters.
+- `parentPathColumn(nameColumnId)` is the hidden column of the parent path
+  shown under an account's name (see `scoped_account_paths` above).
 - `flatResult(name, label, { <level>: columns }, rows, { rowKey, footerRows })`
   builds a one-level `GridDataset`. `footerRow` and `sum` help with totals.
 - Links: `accountLedgerLink({ account_id: "<column>" })` on a column opens the
