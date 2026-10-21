@@ -1,4 +1,32 @@
-import { accountParentPaths, type PathAccount } from "../shared/index";
+import { ACCOUNT_PATH_SEPARATOR } from "../shared/index";
+
+/** An account as the tests hand it to the stand-in server. */
+type PathAccount = { id: number; name: string; parent_id: number | null };
+
+/** Each account's parent path by id, as the server's `treePath()` gives it. */
+function parentPaths(
+  rows: readonly PathAccount[],
+): Record<number, string | null> {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return Object.fromEntries(
+    rows.map((row) => {
+      const names: string[] = [];
+      const walked = new Set([row.id]);
+      for (
+        let at = row.parent_id === null ? undefined : byId.get(row.parent_id);
+        at !== undefined && !walked.has(at.id);
+        at = at.parent_id === null ? undefined : byId.get(at.parent_id)
+      ) {
+        walked.add(at.id);
+        names.unshift(at.name);
+      }
+      return [
+        row.id,
+        names.length === 0 ? null : names.join(ACCOUNT_PATH_SEPARATOR),
+      ];
+    }),
+  );
+}
 
 /**
  * A `GET /tables/accounts` page holding `rows`, for tests that stand in for
@@ -8,7 +36,7 @@ export function accountsTablePage(rows: readonly PathAccount[]) {
   return {
     data: rows,
     meta: { total: rows.length, page: 1, limit: 1000, pages: 1 },
-    computed: { parentPath: Object.fromEntries(accountParentPaths(rows)) },
+    computed: { parentPath: parentPaths(rows) },
   };
 }
 

@@ -1,4 +1,6 @@
 import Database from "better-sqlite3";
+import type { SQL } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/better-sqlite3";
 import { accountsTable } from "../../schema/accounts.js";
 import type { Ledger } from "../../modules/ledger-sql/index.js";
 import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
@@ -23,7 +25,8 @@ export function testImportLedger(
   const sqlite = new Database(":memory:");
   sqlite.exec(`
     CREATE TABLE accounts (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT,
+      parent_id INTEGER
     );
     CREATE TABLE journals (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT,
@@ -40,7 +43,7 @@ export function testImportLedger(
     );
   `);
   sqlite
-    .prepare("INSERT INTO accounts VALUES (1, 'workspace', 'user', ?)")
+    .prepare("INSERT INTO accounts VALUES (1, 'workspace', 'user', ?, NULL)")
     .run(account);
   if (checkpoint) {
     const rows = checkpoint.rows ?? [];
@@ -75,13 +78,15 @@ export function testImportLedger(
     );
   }
   return {
-    db: stubDb({ id: 1, name: account, parent_id: null }),
+    db: stubDb({ id: 1, name: account, parent_id: null }, sqlite),
     sqlite,
     auth: testLedgerAuth(),
   };
 }
 
-function stubDb(account: object): any {
+// Drizzle's query builder answers from `account`; raw SQL, such as the
+// accounts' parent paths, runs on the in-memory tables.
+function stubDb(account: object, sqlite: Database.Database): any {
   const rows = (table: unknown) => (table === accountsTable ? [account] : []);
   const query = (table: unknown): any => ({
     innerJoin: () => query(table),
@@ -93,6 +98,7 @@ function stubDb(account: object): any {
   });
   const db: any = {
     select: () => ({ from: (table: unknown) => query(table) }),
+    all: (statement: SQL) => drizzle(sqlite).all(statement),
     transaction: (run: (tx: any) => unknown) => run(db),
   };
   return db;

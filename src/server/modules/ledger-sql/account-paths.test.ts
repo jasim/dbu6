@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { computeFields } from "@sapporta/server";
 import { accounts } from "../../schema/accounts.js";
-import { accountParentPaths } from "../../../shared/index.js";
+import { loadAccountParentPaths } from "../accounts/index.js";
 import { allRows } from "./index.js";
 import { testLedgerAuth } from "./testing.js";
 
@@ -20,7 +20,7 @@ function chartDatabase(): Database.Database {
 }
 
 describe("scoped_account_paths", () => {
-  it("gives every account the parent path accountParentPaths gives it", () => {
+  it("gives every account its parent path, as loadAccountParentPaths does", () => {
     const sqlite = chartDatabase();
     const rows = allRows<{ id: number; parent_path: string | null }>(
       sqlite,
@@ -30,11 +30,6 @@ describe("scoped_account_paths", () => {
        LEFT JOIN scoped_account_paths p ON p.id = a.id
        ORDER BY a.id`,
     );
-    const chart = allRows<{ id: number; name: string; parent_id: number }>(
-      sqlite,
-      testLedgerAuth(),
-      `SELECT id, name, parent_id FROM scoped_accounts`,
-    );
     expect(rows).toEqual([
       { id: 1, parent_path: null },
       { id: 2, parent_path: "Expenses" },
@@ -42,7 +37,7 @@ describe("scoped_account_paths", () => {
       { id: 4, parent_path: null },
     ]);
     expect(new Map(rows.map((row) => [row.id, row.parent_path]))).toEqual(
-      accountParentPaths(chart),
+      loadAccountParentPaths(drizzle(sqlite), testLedgerAuth()),
     );
   });
 

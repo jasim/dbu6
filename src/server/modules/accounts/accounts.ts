@@ -1,13 +1,14 @@
 import type Database from "better-sqlite3";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { Temporal } from "@sapporta/shared/temporal";
+import { treePathRelation, type SapportaAuthContext } from "@sapporta/server";
 import {
   accounts,
   accountsTable,
   type AccountType,
 } from "../../schema/accounts.js";
 import {
-  accountParentPaths,
+  ACCOUNT_PATH_SEPARATOR,
   OPENING_BALANCES_NAME,
   type ChartAccount,
 } from "../../../shared/index.js";
@@ -226,15 +227,21 @@ export function loadAccountChart(db: any, auth: LedgerAuth): ChartedAccount[] {
 
 /**
  * Every account in scope's parent path by its id, "Expenses > Kitchen", or
- * null for a top account: one read of the accounts for any number of them
- * (`accountParentPaths`). For one account, `.get` its id; raw SQL joins
- * `scoped_account_paths` instead.
+ * null for a top account: one read for any number of them, from the same
+ * relation as `scoped_account_paths`. For one account, `.get` its id; raw SQL
+ * joins `scoped_account_paths` instead.
  */
 export function loadAccountParentPaths(
   db: any,
   auth: LedgerAuth,
 ): Map<number, string | null> {
-  return accountParentPaths(loadAccountChart(db, auth));
+  const paths = treePathRelation(accounts, auth as SapportaAuthContext, {
+    separator: ACCOUNT_PATH_SEPARATOR,
+  });
+  const rows: { id: number; parent_path: string | null }[] = db.all(
+    sql`WITH RECURSIVE ${paths} SELECT id, parent_path FROM tree_paths`,
+  );
+  return new Map(rows.map((row) => [row.id, row.parent_path]));
 }
 
 /**
