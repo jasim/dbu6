@@ -104,11 +104,16 @@ already linked in `package.json` is remembered, so a later `use:local` needs no
 paths. `pnpm package-sources status` lists every managed package and where it
 resolves.
 
-While the branch depends on framework changes that are not published yet, the
-links are committed, and three things are gated on them:
+The links are local and never committed: committed `package.json`,
+`pnpm-workspace.yaml` and `pnpm-lock.yaml` only ever pin released npm
+versions. While linked, stage explicit paths so those three files stay out of
+every commit. Code on `main` may use framework changes that are not published
+yet; until they are released and pinned, a fresh install (CI's included)
+resolves the older registry versions and fails to build. Three things are
+gated on a checkout that is linked:
 
-- `.github/workflows/ci.yml` finds the `link:` specs and skips every job that
-  installs, so CI neither fails nor pretends to pass; `pii-scan.yml` needs no
+- `.github/workflows/ci.yml` finds `link:` specs and skips every job that
+  installs, should a commit carry them by mistake; `pii-scan.yml` needs no
   install and always runs.
 - `scripts/pack.mjs` refuses to pack (a tarball would name registry versions
   that lack the checkout's changes) except with `--local-sapporta`, which
