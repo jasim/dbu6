@@ -24,6 +24,7 @@ import {
   EDIT_BALANCE_PATH,
   balanceFormHref,
 } from "./routes";
+import { accountsTablePage } from "../../accounts-page.testing";
 
 /*
  * Settings' Opening balances on screen: the recorded balances, what you
@@ -187,10 +188,7 @@ beforeEach(() => {
             );
       }
       if (method === "GET" && path === "/tables/accounts") {
-        return Response.json({
-          data: ACCOUNT_ROWS,
-          meta: { total: ACCOUNT_ROWS.length, page: 1, limit: 1000, pages: 1 },
-        });
+        return Response.json(accountsTablePage(ACCOUNT_ROWS));
       }
       return Response.json({ error: "Not here" }, { status: 404 });
     }),

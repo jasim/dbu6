@@ -5,6 +5,8 @@ import { Toaster } from "@sapporta/frontend/shell";
 import { AppShell } from "./shell/AppShell";
 import { FocusLayout } from "./components/focus-card";
 import { AuthGate } from "@sapporta/frontend/auth/runtime";
+import { RowDisplayProvider } from "@sapporta/frontend/lookup";
+import { accountRowDisplays } from "./components/account-name";
 import {
   appHomeRoute,
   appPublicShellRoutes,
@@ -43,48 +45,51 @@ export function SapportaApp({
           classNames: { toast: "text-body", title: "font-semibold" },
         }}
       />
-      <Routes>
-        {sapportaPublicRoutes}
-        {appPublicRoutes}
+      {/* Every account Sapporta draws carries its parent path. */}
+      <RowDisplayProvider displays={accountRowDisplays}>
+        <Routes>
+          {sapportaPublicRoutes}
+          {appPublicRoutes}
 
-        <Route
-          element={
-            <BootLoader>
-              <AppShell navigation={navigation} />
-            </BootLoader>
-          }
-        >
-          {appPublicShellRoutes}
-        </Route>
-
-        {/* Focus mode: signed in, one card, no sidebar. */}
-        <Route
-          element={
-            <BootLoader>
-              <AuthGate>
-                <FocusLayout />
-              </AuthGate>
-            </BootLoader>
-          }
-        >
-          {focusRoutes}
-        </Route>
-
-        <Route
-          element={
-            <BootLoader>
-              <AuthGate>
+          <Route
+            element={
+              <BootLoader>
                 <AppShell navigation={navigation} />
-              </AuthGate>
-            </BootLoader>
-          }
-        >
-          {appHomeRoute}
-          {protectedRoutes}
-          {sapportaProtectedRoutes}
-          {sapportaNotFoundRoute}
-        </Route>
-      </Routes>
+              </BootLoader>
+            }
+          >
+            {appPublicShellRoutes}
+          </Route>
+
+          {/* Focus mode: signed in, one card, no sidebar. */}
+          <Route
+            element={
+              <BootLoader>
+                <AuthGate>
+                  <FocusLayout />
+                </AuthGate>
+              </BootLoader>
+            }
+          >
+            {focusRoutes}
+          </Route>
+
+          <Route
+            element={
+              <BootLoader>
+                <AuthGate>
+                  <AppShell navigation={navigation} />
+                </AuthGate>
+              </BootLoader>
+            }
+          >
+            {appHomeRoute}
+            {protectedRoutes}
+            {sapportaProtectedRoutes}
+            {sapportaNotFoundRoute}
+          </Route>
+        </Routes>
+      </RowDisplayProvider>
     </>
   );
 }

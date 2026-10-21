@@ -100,12 +100,11 @@ export {
 
 // --- Account names with their parent paths ("Expenses > Kitchen") ---
 // A report column with a `parentPathColumn` sibling shows its path by itself
-// (ReportResultBody); these are for a screen that draws a name on its own,
-// and for a picker over the accounts lookup.
+// (ReportResultBody), and a LookupPicker over the accounts lookup shows it
+// for each choice; these are for a screen that draws a name on its own.
 export {
   AccountName,
   AccountParentPath,
-  accountLookupItemDisplay,
   useAccountParentPaths,
   type AccountParentPaths,
 } from "./components/account-name";

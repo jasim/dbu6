@@ -23,6 +23,7 @@ import {
   EDIT_STATEMENT_ACCOUNT_PATH,
   statementAccountHref,
 } from "./routes";
+import { accountsTablePage } from "../../accounts-page.testing";
 
 /*
  * Settings' Banks & cards on screen: one flat table with its marks, the
@@ -123,10 +124,7 @@ beforeEach(() => {
         return Response.json(accounts);
       }
       if (method === "GET" && url.pathname.endsWith("/tables/accounts")) {
-        return Response.json({
-          data: ACCOUNT_ROWS,
-          meta: { total: ACCOUNT_ROWS.length, page: 1, limit: 1000, pages: 1 },
-        });
+        return Response.json(accountsTablePage(ACCOUNT_ROWS));
       }
       return Response.json({ error: "Not here" }, { status: 404 });
     }),

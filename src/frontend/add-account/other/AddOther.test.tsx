@@ -18,6 +18,7 @@ import type {
   StatementAccounts,
 } from "../../../shared/index";
 import { AddOther } from "./AddOther";
+import { accountsTablePage } from "../../accounts-page.testing";
 
 /*
  * /add/other end to end against a stubbed server: card 6 on the first run,
@@ -159,10 +160,7 @@ const ACCOUNT_ROWS = [
   { id: 3, name: "Sample Car Loan", parent_id: 12 },
   { id: 4, name: "Sample Savings", parent_id: 1 },
 ];
-const ACCOUNTS_TABLE = {
-  data: ACCOUNT_ROWS,
-  meta: { total: ACCOUNT_ROWS.length, page: 1, limit: 1000, pages: 1 },
-};
+const ACCOUNTS_TABLE = accountsTablePage(ACCOUNT_ROWS);
 
 const STATEMENT_ACCOUNTS: StatementAccounts = {
   institutions: [{ name: "Sample Bank", parsers: ["sample-bank-xls"] }],

@@ -11,7 +11,6 @@ import {
 } from "@sapporta/frontend";
 import { eqCondition } from "@sapporta/shared/filter";
 import { Button } from "../components/ui/button";
-import { AccountName, useAccountParentPaths } from "../components/account-name";
 import {
   draftTransactionQuickFilters,
   findActiveDraftTransactionQuickFilter,
@@ -28,7 +27,7 @@ const DRAFTS_TAB_COLUMNS: SchemaTableColumns = (c) => [
   // small and muted: bulk categorizing filters on it, and a filter on the
   // comment would miss the rows the comment writer hasn't reached.
   c.table("date"),
-  c.table("account_id", { renderCell: AccountCell }),
+  c.table("account_id"),
   c.table("comment", { minWidth: 24, renderCell: CommentCell }),
   c.table("withdrawal"),
   c.table("deposit"),
@@ -109,21 +108,6 @@ export function DraftsTab() {
         )}
       </div>
     </div>
-  );
-}
-
-/** A draft's account, with its parent path under it. */
-function AccountCell({
-  value,
-  defaultContent,
-}: TGridCellRenderContext<SchemaTableRowsByLevel, unknown, string>) {
-  const paths = useAccountParentPaths();
-  return (
-    <AccountName
-      name={defaultContent}
-      parentPath={paths.byId(typeof value === "number" ? value : null)}
-      dense
-    />
   );
 }
 

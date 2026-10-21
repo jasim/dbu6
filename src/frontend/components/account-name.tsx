@@ -1,29 +1,29 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { LookupPickerItemProps } from "@sapporta/frontend/lookup";
+import {
+  defineRowDisplays,
+  type LabelSlotProps,
+} from "@sapporta/frontend/lookup";
 import type { ReportCellRenderers } from "@sapporta/frontend/report";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { cn } from "@sapporta/ui/cn";
-import {
-  accountParentPaths,
-  parentPathColumnId,
-  type PathAccount,
-} from "../../shared/index";
+import { parentPathColumnId } from "../../shared/index";
 import { accountChartQuery } from "../queries";
 
 /*
  * An account's name as the screens show it outside the account tree: the
- * name, and under it, subtly, where it sits, "Expenses > Kitchen"
- * (`accountParentPaths`). Inside a tree, which shows the parents already, a
- * screen shows the name alone.
+ * name, and under it, subtly, where it sits, "Expenses > Kitchen". Inside a
+ * tree, which shows the parents already, a screen shows the name alone.
  *
  * Where the path comes from:
+ * - wherever Sapporta draws an account (grid cells at any level, pickers,
+ *   forms, the record sheet), the accounts table's computed `parentPath`,
+ *   drawn by `accountRowDisplays`;
  * - a server read that carries `parent_path` beside the name, from
  *   `loadAccountParentPaths` or `scoped_account_paths`;
  * - a report column with its hidden `parentPathColumnId` sibling, which
  *   `accountPathCells` draws for every report screen;
- * - anything else, such as a Sapporta lookup or grid cell that only holds an
- *   account's id, or a screen that only has its name, through
+ * - a screen of dbu6's own that only has an account's id or name, through
  *   `useAccountParentPaths`: one cached read of the accounts per screen.
  */
 
@@ -93,60 +93,69 @@ export function useAccountParentPaths(): AccountParentPaths {
   return data === undefined ? NO_PATHS : pathsOf(data);
 }
 
-const NO_PATHS = parentPathsOf([]);
+type Chart = {
+  rows: readonly Record<string, unknown>[];
+  parentPaths: Readonly<Record<string, unknown>>;
+};
 
-// Each read of the chart's paths, worked out once however many cells and
-// choices on the screen ask for them.
-const pathsByChart = new WeakMap<object, AccountParentPaths>();
+const NO_PATHS: AccountParentPaths = { byId: () => null, byName: () => null };
 
-function pathsOf(data: readonly Record<string, unknown>[]): AccountParentPaths {
-  let paths = pathsByChart.get(data);
+// Each read of the chart, indexed by name once however many cells and
+// choices on the screen ask for its paths.
+const pathsByChart = new WeakMap<Chart, AccountParentPaths>();
+
+function pathsOf(chart: Chart): AccountParentPaths {
+  let paths = pathsByChart.get(chart);
   if (paths === undefined) {
-    paths = parentPathsOf(data.flatMap(pathAccount));
-    pathsByChart.set(data, paths);
+    const pathOf = (id: unknown): string | null => {
+      const path = chart.parentPaths[String(id)];
+      return typeof path === "string" ? path : null;
+    };
+    const idByName = new Map(chart.rows.map((row) => [row.name, row.id]));
+    paths = {
+      byId: (id) => (id == null ? null : pathOf(id)),
+      byName: (name) =>
+        name == null || !idByName.has(name) ? null : pathOf(idByName.get(name)),
+    };
+    pathsByChart.set(chart, paths);
   }
   return paths;
 }
 
-function parentPathsOf(chart: readonly PathAccount[]): AccountParentPaths {
-  const byId = accountParentPaths(chart);
-  const byName = new Map(
-    chart.map((account) => [account.name, byId.get(account.id) ?? null]),
-  );
-  return {
-    byId: (id) => (id == null ? null : (byId.get(id) ?? null)),
-    byName: (name) => (name == null ? null : (byName.get(name) ?? null)),
-  };
-}
-
-/** A row of the accounts table as its parent path needs it; none if not one. */
-function pathAccount(row: Record<string, unknown>): PathAccount[] {
-  const { id, name, parent_id } = row;
-  return typeof id === "number" &&
-    typeof name === "string" &&
-    (parent_id === null || typeof parent_id === "number")
-    ? [{ id, name, parent_id }]
-    : [];
-}
-
 /**
- * A `LookupPicker` choice from the accounts lookup: the account's label, with
- * its parent path under it. Pass as `itemDisplay={accountLookupItemDisplay}`.
+ * How Sapporta draws an account wherever it shows one: the name, with its
+ * parent path under it, as `AccountName` draws it, at every grid level and in
+ * every picker. A tree, which shows the parents, and a filter chip, which
+ * has one line, keep the name alone; beside a picker's input, which shows
+ * the name, the path alone.
  */
-function AccountLookupItem({ entry }: LookupPickerItemProps) {
-  const paths = useAccountParentPaths();
+function AccountLabel({
+  label,
+  computed,
+  context,
+  defaultContent,
+}: LabelSlotProps) {
+  const path = computed.parentPath;
+  if (typeof path !== "string" || path === "") return defaultContent;
+  if (context.hierarchyShown || context.surface === "chip") {
+    return defaultContent;
+  }
+  if (context.surface === "selected") return <AccountParentPath path={path} />;
   return (
     <AccountName
-      name={entry.label}
-      parentPath={paths.byId(Number(entry.value))}
+      // A cell's default is the name as the grid draws it, such as a link;
+      // elsewhere the default already carries Sapporta's caption.
+      name={context.surface === "cell" ? defaultContent : label}
+      parentPath={path}
+      dense={context.density === "compact"}
     />
   );
 }
 
-export const accountLookupItemDisplay = {
-  fields: [],
-  component: AccountLookupItem,
-} as const;
+/** dbu6's row displays, for the `RowDisplayProvider` around the app. */
+export const accountRowDisplays = defineRowDisplays({
+  accounts: { label: { needs: ["parentPath"], render: AccountLabel } },
+});
 
 /**
  * Cell renderers for every report column that has a hidden parent-path

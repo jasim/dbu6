@@ -236,19 +236,25 @@ export function refreshDraftStatus(client: QueryClient): Promise<void> {
 
 /**
  * Every account in the books, which the edit form's parent choices are made
- * from. One page is not enough — the parent wanted may be the last account
- * in the books — so it asks for the table API's largest page.
+ * from, with each one's parent path as the server computes it (the accounts
+ * table's `parentPath`), by id. One page is not enough — the parent wanted
+ * may be the last account in the books — so it asks for the table API's
+ * largest page.
  */
 export const accountChartQuery = queryOptions({
   queryKey: [...tableQueryKeys.table("accounts"), "chart"],
-  queryFn: async () =>
-    (
-      await fetchTableRows({
-        tableName: "accounts",
-        limit: MAX_PAGE_SIZE,
-        sort: [{ colId: "name", direction: "asc" }],
-      })
-    ).data,
+  queryFn: async () => {
+    const page = await fetchTableRows({
+      tableName: "accounts",
+      limit: MAX_PAGE_SIZE,
+      sort: [{ colId: "name", direction: "asc" }],
+      computed: ["parentPath"],
+    });
+    return {
+      rows: page.data,
+      parentPaths: page.computed?.parentPath ?? {},
+    };
+  },
   ...FRESH_QUERY,
 });
 

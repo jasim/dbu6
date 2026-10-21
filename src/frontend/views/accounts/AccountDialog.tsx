@@ -125,7 +125,7 @@ function DialogBody({
   );
 
   const context = useMemo<AccountFormContext>(() => {
-    const chart = (chartQuery.data ?? [])
+    const chart = (chartQuery.data?.rows ?? [])
       .map(accountRow)
       .filter((one): one is AccountRow => one !== null);
     const statementAccounts = new Set(

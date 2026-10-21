@@ -4,7 +4,6 @@ import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
 import { AppPage } from "@sapporta/frontend/shell";
 import { draftTransactionsApi } from "../api";
 import { Button } from "../components/ui/button";
-import { accountLookupItemDisplay } from "../components/account-name";
 
 interface RenderResult {
   hledger_journal: string;
@@ -63,7 +62,6 @@ export function RenderDraftHledger() {
                 setBaseAccountId(id === null ? null : String(id))
               }
               placeholder="Select base account..."
-              itemDisplay={accountLookupItemDisplay}
               className="w-96"
             />
           </div>

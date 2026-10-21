@@ -18,6 +18,7 @@ import type {
   TransactionMappingsView,
 } from "../../../shared/index";
 import { ImportInstructions } from "./ImportInstructions";
+import { accountsTablePage } from "../../accounts-page.testing";
 
 /*
  * Automatic transaction categorization rules: three tabs in the order a
@@ -129,10 +130,7 @@ const ACCOUNTS = [
 
 function respond(url: URL): unknown {
   if (url.pathname.endsWith("/tables/accounts")) {
-    return {
-      data: ACCOUNTS,
-      meta: { total: ACCOUNTS.length, page: 1, limit: 1000, pages: 1 },
-    };
+    return accountsTablePage(ACCOUNTS);
   }
   if (url.pathname.endsWith("/import-presets")) return PRESETS;
   if (url.pathname.endsWith("/import-presets/transaction-mappings")) {

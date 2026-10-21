@@ -22,10 +22,7 @@ import {
   type FilterCondition,
 } from "@sapporta/shared/filter";
 import { apiErrorMessage, categorizationRuleRequestsApi } from "../api";
-import {
-  AccountParentPath,
-  accountLookupItemDisplay,
-} from "../components/account-name";
+import { AccountParentPath } from "../components/account-name";
 import type { AgentPrompt } from "../agent-prompt-rules";
 import { AgentButton } from "../components/agent-prompt";
 import { Field } from "../components/focus-card";
@@ -637,7 +634,6 @@ function DraftRule({
           id="rule-account"
           lookup={accountLookup}
           value={accountId}
-          itemDisplay={accountLookupItemDisplay}
           onChange={(id) => {
             setAccountId(id);
             setMissingAccount(false);

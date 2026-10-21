@@ -1,6 +1,5 @@
 import {
   accountLedgerRow,
-  accountLookupItemDisplay,
   apiErrorMessage,
   Button,
   HledgerDialog,
@@ -112,7 +111,6 @@ export function AccountLedgerReport() {
             lookup={accountLookup}
             value={selectedAccount}
             onChange={(value) => setAccount(value == null ? "" : String(value))}
-            itemDisplay={accountLookupItemDisplay}
             placeholder="Select account"
             className="h-sap-ctl min-w-[140px] rounded-[5px] text-sap-emph"
           />

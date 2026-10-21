@@ -38,7 +38,7 @@ export function ImportFreeformTransactions() {
   const kindLabelId = useId();
   // Every account in the books, the read the parent paths come from too.
   const accountsQuery = useQuery(accountChartQuery);
-  const ledgerAccounts = (accountsQuery.data ?? []).flatMap(ledgerAccount);
+  const ledgerAccounts = (accountsQuery.data?.rows ?? []).flatMap(ledgerAccount);
   const paths = useAccountParentPaths();
   const accountsError = accountsQuery.isError
     ? apiErrorMessage(accountsQuery.error)
