@@ -13,13 +13,13 @@ import {
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { createTableRow } from "@sapporta/frontend";
+import { LookupPicker, useTableLookup } from "@sapporta/frontend/lookup";
 import {
   LEDGER_ACCOUNT_TYPES,
   type LedgerAccountType,
 } from "../../../shared/index";
 import { ACCOUNT_TYPE_TERMS } from "../../account-type-terms";
 import { accountsApi, apiErrorMessage, removeAccount } from "../../api";
-import { AccountCombobox } from "../../components/account-pickers";
 import { Button } from "../../components/ui/button";
 import {
   accountChartQuery,
@@ -36,7 +36,6 @@ import {
   draftOf,
   moveNotice,
   nameLocked,
-  parentChoices,
   readDraft,
   refusalField,
   typeLock,
@@ -144,12 +143,14 @@ function DialogBody({
   const lock =
     account === null ? { locked: false as const } : typeLock(account, context);
   // A fixed type keeps the parent to accounts of that type; otherwise any
-  // account will do, and the type follows the one chosen.
-  const choices = parentChoices(
-    context.chart,
-    lock.locked ? draft.account_type : null,
-    account?.id ?? null,
-  );
+  // account will do, and the type follows the one chosen. Never the account
+  // itself or one under it, which would make a loop.
+  const parentLookup = useTableLookup<number>("accounts", {
+    filter: lock.locked
+      ? [{ column: "account_type", op: "eq", value: draft.account_type }]
+      : [],
+    notUnder: account?.id,
+  });
   const parent =
     context.chart.find((one) => one.id === draft.parent_id) ?? null;
   const notice =
@@ -245,16 +246,18 @@ function DialogBody({
         </Field>
 
         <Field label="Belongs under" htmlFor={ids.parent}>
-          <AccountCombobox
+          {/* Cleared, it is a top-level account. */}
+          <LookupPicker
             id={ids.parent}
-            choices={choices}
+            lookup={parentLookup}
             value={draft.parent_id}
             onChange={(parent_id) =>
               set(withParent(draft, parent_id, context.chart))
             }
+            selectedCaption="below"
             placeholder="None — this is a top-level account"
-            clearLabel="Make it a top-level account"
-            invalid={problem?.field === "parent_id"}
+            ariaInvalid={problem?.field === "parent_id"}
+            className="w-full"
           />
         </Field>
 

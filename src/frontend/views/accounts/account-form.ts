@@ -6,7 +6,6 @@ import type { Row } from "@sapporta/shared/contracts";
 import {
   LEDGER_ACCOUNT_TYPES,
   OPENING_BALANCES_NAME,
-  type ChartChoice,
   type LedgerAccountType,
 } from "../../../shared/index";
 import { ACCOUNT_TYPE_TERMS } from "../../account-type-terms";
@@ -96,49 +95,22 @@ export function accountBranch(
 }
 
 /**
- * The accounts a parent may be for an account sitting in `self`'s place: any
- * account, or only those of `accountType` when the type is fixed, less the
- * account itself and anything under it. Ordered by name, as the chart is.
+ * Whether `parentId` may be the parent of an account sitting in `self`'s
+ * place: an account of `accountType`, not the account itself or anything
+ * under it. The parent picker offers the same set through the accounts
+ * lookup (`account_type` filter, `notUnder`).
  */
-export function parentChoices(
+export function parentFits(
   chart: readonly AccountRow[],
-  accountType: LedgerAccountType | null,
+  accountType: LedgerAccountType,
   self: number | null,
-): ChartChoice[] {
-  const branch = self === null ? new Set<number>() : accountBranch(chart, self);
-  return chart
-    .filter(
-      (account) =>
-        (accountType === null || account.account_type === accountType) &&
-        !branch.has(account.id),
-    )
-    .map((account) => ({
-      id: account.id,
-      name: account.name,
-      path: accountPath(chart, account),
-    }))
-    .sort((a, b) => a.path.localeCompare(b.path));
-}
-
-/** The account's path down the tree, as `Assets:Bank Accounts:Savings`. */
-export function accountPath(
-  chart: readonly AccountRow[],
-  account: AccountRow,
-): string {
-  const byId = new Map(chart.map((one) => [one.id, one]));
-  const names = [account.name];
-  const walked = new Set<number>([account.id]);
-  for (
-    let at = account.parent_id;
-    at !== null && !walked.has(at);
-    at = byId.get(at)?.parent_id ?? null
-  ) {
-    walked.add(at);
-    const parent = byId.get(at);
-    if (parent === undefined) break;
-    names.unshift(parent.name);
+  parentId: number,
+): boolean {
+  const parent = chart.find((account) => account.id === parentId);
+  if (parent === undefined || parent.account_type !== accountType) {
+    return false;
   }
-  return names.join(":");
+  return self === null || !accountBranch(chart, self).has(parentId);
 }
 
 /** Whether `id` is a bank or card account, or holds one. */
@@ -214,9 +186,7 @@ export function withType(
   if (draft.parent_id === null || draft.account_type === accountType) {
     return { ...draft, account_type: accountType };
   }
-  const fits = parentChoices(chart, accountType, self).some(
-    (choice) => choice.id === draft.parent_id,
-  );
+  const fits = parentFits(chart, accountType, self, draft.parent_id);
   return {
     ...draft,
     account_type: accountType,
@@ -318,12 +288,15 @@ export function readDraft(
       field: "name",
     };
   }
-  const fits = parentChoices(
-    context.chart,
-    draft.account_type,
-    account?.id ?? null,
-  ).some((choice) => choice.id === draft.parent_id);
-  if (draft.parent_id !== null && !fits) {
+  if (
+    draft.parent_id !== null &&
+    !parentFits(
+      context.chart,
+      draft.account_type,
+      account?.id ?? null,
+      draft.parent_id,
+    )
+  ) {
     return {
       ok: false,
       problem: `A parent has to be ${withArticle(draft.account_type)} account of its own, outside ${name}'s sub-accounts.`,

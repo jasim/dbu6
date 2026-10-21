@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { Input } from "@sapporta/ui";
+import { LookupPicker } from "@sapporta/frontend/lookup";
 import type {
   StatementAccountChange,
   StatementAccountRow,
@@ -16,8 +17,8 @@ import { apiErrorMessage } from "../../api";
 import { Disclosure } from "../../components/disclosure";
 import { Button } from "../../components/ui/button";
 import {
-  AccountCombobox,
   InstitutionCombobox,
+  useStatementParentLookup,
 } from "../../components/account-pickers";
 import {
   draftOf,
@@ -87,6 +88,7 @@ function DialogBody({
   const [moreOpen, setMoreOpen] = useState(false);
   const set = (patch: Partial<StatementAccountDraft>) =>
     setDraft({ ...draft, ...patch });
+  const parentLookup = useStatementParentLookup(draft.kind, row.account_id);
 
   const layout = formLayout(draft, data, row);
   // A problem with a field under More options opens it, so the field shows.
@@ -134,12 +136,15 @@ function DialogBody({
       hint="The parent account grouping it belongs to in your chart."
       htmlFor={ids.parent}
     >
-      <AccountCombobox
+      <LookupPicker
         id={ids.parent}
-        choices={data.parents[draft.kind]}
+        lookup={parentLookup}
         value={draft.parentId}
         onChange={(parentId) => set({ parentId })}
+        selectedCaption="below"
         placeholder="Choose an account…"
+        allowClear={false}
+        className="w-full"
       />
     </Field>
   );

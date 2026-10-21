@@ -15,6 +15,7 @@ import {
 import { EditAccountDialog, NewAccountDialog } from "./AccountDialogRoute";
 import { editAccountHref, NEW_ACCOUNT_ROUTE } from "./routes";
 import type { AccountRow } from "./account-form";
+import { accountsLookup } from "../../accounts-page.testing";
 
 /*
  * The Accounts page's forms as URLs: /accounts/new and
@@ -79,6 +80,10 @@ beforeEach(() => {
       }
       if (method === "GET" && url.pathname.endsWith("/tables/accounts")) {
         return rowsResponse(CHART);
+      }
+      if (url.pathname.endsWith("/tables/accounts/_lookup")) {
+        // The form's parent picker.
+        return Response.json(accountsLookup(CHART, url));
       }
       if (method === "GET" && url.pathname.endsWith("/import-presets")) {
         return Response.json({

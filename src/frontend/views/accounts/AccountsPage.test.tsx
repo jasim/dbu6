@@ -18,6 +18,7 @@ import {
 import { AccountsPage } from "./AccountsPage";
 import { EditAccountDialog, NewAccountDialog } from "./AccountDialogRoute";
 import { EDIT_ACCOUNT_PATH, NEW_ACCOUNT_PATH, editAccountHref } from "./routes";
+import { accountsLookup } from "../../accounts-page.testing";
 
 /*
  * The chart on screen with a form open: the chart is not rebuilt. The grid
@@ -119,6 +120,10 @@ beforeEach(() => {
       }
       if (method === "GET" && url.pathname.endsWith("/tables/accounts")) {
         return rowsResponse(searched(url.searchParams.get("q")));
+      }
+      if (url.pathname.endsWith("/tables/accounts/_lookup")) {
+        // The form's parent picker.
+        return Response.json(accountsLookup(rows, url));
       }
       if (method === "POST" && url.pathname.endsWith("/tables/accounts")) {
         const body = JSON.parse(
@@ -402,7 +407,7 @@ async function choose(triggerLabel: string, option: string) {
 async function addAccount(name: string, parent?: string) {
   await click("New record");
   await act(async () => type(field("Name"), name));
-  if (parent !== undefined) await choose("Show the choices", parent);
+  if (parent !== undefined) await choose("Open popup", parent);
   await click("Save");
 }
 

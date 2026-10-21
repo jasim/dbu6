@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from "react";
 import { Input } from "@sapporta/ui";
+import { LookupPicker } from "@sapporta/frontend/lookup";
 import type {
   AccountKind,
   AddAccountCandidate,
@@ -14,6 +15,7 @@ import { formatBalance, formatDate } from "../format";
 import {
   AccountCombobox,
   InstitutionCombobox,
+  useStatementParentLookup,
 } from "../components/account-pickers";
 import {
   confirmDraft,
@@ -252,6 +254,7 @@ function AccountFields({
   const layout = confirmLayout(account, kind, data);
   const existing = draft.existingId !== null;
   const [moreOpen, setMoreOpen] = useState(false);
+  const parentLookup = useStatementParentLookup(kind);
 
   const parent = (
     <Field
@@ -259,12 +262,15 @@ function AccountFields({
       label="Parent account"
       aside={layout.parentOptional ? "optional" : undefined}
     >
-      <AccountCombobox
+      <LookupPicker
         id={ids.parent}
-        choices={data.parents[kind]}
+        lookup={parentLookup}
         value={draft.parentId}
         onChange={(parentId) => update({ ...draft, parentId })}
+        selectedCaption="below"
         placeholder="Pick an account"
+        allowClear={false}
+        className="w-full"
       />
     </Field>
   );
@@ -273,6 +279,8 @@ function AccountFields({
     !parentInView && !existing && parent,
     layout.canUseExisting && (
       <Field id={ids.existing} label="Use an existing account">
+        {/* A combobox of its own: no table filter says "no bank or card
+            uses it, and nothing sits under it" (`unlisted`). */}
         <AccountCombobox
           id={ids.existing}
           choices={unlistedOf(data, kind)}

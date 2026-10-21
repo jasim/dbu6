@@ -325,6 +325,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* A popup opened inside a dialog, such as a LookupPicker's list, portals
+   into the dialog's own portal, beside the dialog, at the popover layer,
+   which is under the dialog's. Lift it over the dialog. */
+[data-base-ui-portal] [data-base-ui-portal] > * {
+  z-index: calc(var(--sap-z-modal-content) + 1);
+}
+
 /* Every figure is mono and tabular; `.mono` and `.font-mono` already set
    tabular numbers through font-feature-settings. */
 .tnum {

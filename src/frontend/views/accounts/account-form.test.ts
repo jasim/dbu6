@@ -5,7 +5,7 @@ import {
   draftOf,
   moveNotice,
   nameLocked,
-  parentChoices,
+  parentFits,
   readDraft,
   refusalField,
   typeLock,
@@ -53,43 +53,22 @@ describe("accountBranch", () => {
   });
 });
 
-describe("parentChoices", () => {
-  it("offers only the account's own type", () => {
-    expect(parentChoices(CHART, "Expense", 2).map((one) => one.name)).toEqual([
-      "Expenses",
-      "Groceries",
-    ]);
-  });
-
-  it("offers every type when the type is not fixed", () => {
-    expect(parentChoices(CHART, null, 2).map((one) => one.name)).toEqual([
-      "Assets",
-      "Equity",
-      "Opening Balances",
-      "Expenses",
-      "Groceries",
-      "Income",
-      "Salary",
-    ]);
+describe("parentFits", () => {
+  it("takes only the account's own type", () => {
+    expect(parentFits(CHART, "Expense", 2, 6)).toBe(true);
+    expect(parentFits(CHART, "Expense", 2, 1)).toBe(false);
   });
 
   it("leaves out the account itself and its branch", () => {
-    expect(parentChoices(CHART, "Asset", 2).map((one) => one.name)).toEqual([
-      "Assets",
-    ]);
-    // A leaf does not exclude itself from another account's choices.
-    expect(parentChoices(CHART, "Asset", null).map((one) => one.name)).toEqual([
-      "Assets",
-      "Bank Accounts",
-      "Sample Savings",
-      "Sample Wallet",
-    ]);
+    expect(parentFits(CHART, "Asset", 2, 1)).toBe(true);
+    expect(parentFits(CHART, "Asset", 2, 2)).toBe(false);
+    expect(parentFits(CHART, "Asset", 2, 3)).toBe(false);
+    // A new account has no branch to leave out.
+    expect(parentFits(CHART, "Asset", null, 3)).toBe(true);
   });
 
-  it("names each choice by its path in the tree", () => {
-    expect(parentChoices(CHART, "Expense", null)[1].path).toBe(
-      "Expenses:Groceries",
-    );
+  it("refuses an account the chart doesn't have", () => {
+    expect(parentFits(CHART, "Asset", null, 99)).toBe(false);
   });
 });
 

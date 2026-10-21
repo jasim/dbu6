@@ -20,6 +20,7 @@ import type {
 } from "../../shared/index";
 import { carriedFiles } from "../views/import-statements/files";
 import { AddAccount } from "./AddAccount";
+import { accountsLookup } from "../accounts-page.testing";
 
 /*
  * /add end to end against a stubbed server: drop, read, the cards the read
@@ -96,6 +97,9 @@ beforeEach(() => {
           fields,
         });
       }
+      if (path === "/tables/accounts/_lookup") {
+        return Response.json(accountsLookup(ACCOUNT_ROWS, url));
+      }
       if (path.startsWith("/add-account/progress/")) {
         return progress === null
           ? Response.json({ error: "No add is running." }, { status: 404 })
@@ -119,10 +123,10 @@ const ok = (body: unknown): Answer => ({ status: 200, body });
 
 // The books' accounts, which the parent choices' paths come from.
 const ACCOUNT_ROWS = [
-  { id: 10, name: "Assets", parent_id: null },
-  { id: 11, name: "Liabilities", parent_id: null },
-  { id: 1, name: "Bank Accounts", parent_id: 10 },
-  { id: 2, name: "Credit Cards", parent_id: 11 },
+  { id: 10, name: "Assets", parent_id: null, account_type: "Asset" },
+  { id: 11, name: "Liabilities", parent_id: null, account_type: "Liability" },
+  { id: 1, name: "Bank Accounts", parent_id: 10, account_type: "Asset" },
+  { id: 2, name: "Credit Cards", parent_id: 11, account_type: "Liability" },
 ];
 const ACCOUNTS_TABLE = {
   data: ACCOUNT_ROWS,
@@ -373,6 +377,29 @@ describe("adding a bank or card", () => {
     expect(where()).toBe(
       "/review/12?imported=1&drafts=40&categorized=30 files:",
     );
+  });
+
+  it("offers a bank the Asset accounts to sit under", async () => {
+    answers["POST /add-account/read"] = () => ok(reading([candidate()]));
+    await render("/add?from=2025-01");
+    await drop("jan.xls", "feb.xls");
+
+    const trigger = host.querySelector<HTMLElement>(
+      '[aria-label="Open popup"]',
+    );
+    if (trigger === null) throw new Error(`No parent picker in: ${text()}`);
+    await act(async () => {
+      trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+      trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      trigger.click();
+    });
+    await settle();
+    // The usual parent, chosen, comes first.
+    expect(
+      [...document.querySelectorAll('[role="option"]')].map(
+        (one) => one.textContent,
+      ),
+    ).toEqual(["Bank Accounts", "Assets"]);
   });
 
   it("shows the add's steps while it runs, then hands off", async () => {

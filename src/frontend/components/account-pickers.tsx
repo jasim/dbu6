@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
+import { useTableLookup } from "@sapporta/frontend/lookup";
 import { Combobox, comboboxClassNames } from "@sapporta/ui/combobox";
 import { cn } from "@sapporta/ui/cn";
-import { knownInstitution, type ChartChoice } from "../../shared/index";
+import {
+  LEDGER_ACCOUNT_TYPE,
+  knownInstitution,
+  type AccountKind,
+  type ChartChoice,
+} from "../../shared/index";
 import {
   AccountName,
   AccountParentPath,
@@ -10,11 +16,28 @@ import {
 } from "./account-name";
 
 /*
- * The banks-and-cards form's two searchable pickers, on Base UI's Combobox
- * with Sapporta's style tokens. Their items come from the step's own read
- * (the accounts of one type, the banks it knows), not from a table
- * lookup, which can't narrow the accounts to a type.
+ * The banks-and-cards forms' pickers. A bank's or card's parent is a
+ * Sapporta `LookupPicker` over `useStatementParentLookup`. The two
+ * comboboxes below, on Base UI's Combobox with Sapporta's style tokens,
+ * take their items from a read of the screen's own instead: the banks the
+ * books know, and accounts picked by what no table filter can say (no bank
+ * or card uses them yet, they have no opening balance yet).
  */
+
+/**
+ * The accounts lookup narrowed to where a bank or card of `kind` can sit:
+ * the accounts of its type, as `parents` of `GET /setup/statement-accounts`
+ * lists them, less `self` and anything under it when it is already in the
+ * chart.
+ */
+export function useStatementParentLookup(kind: AccountKind, self?: number) {
+  return useTableLookup<number>("accounts", {
+    filter: [
+      { column: "account_type", op: "eq", value: LEDGER_ACCOUNT_TYPE[kind] },
+    ],
+    notUnder: self,
+  });
+}
 
 function Popup({
   empty,

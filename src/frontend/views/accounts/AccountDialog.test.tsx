@@ -14,6 +14,7 @@ import {
 } from "vitest";
 import { AccountDialog } from "./AccountDialog";
 import type { AccountRow } from "./account-form";
+import { accountsLookup } from "../../accounts-page.testing";
 
 /*
  * The Accounts page's edit form on screen: a new account on the table API,
@@ -50,6 +51,7 @@ let root: Root;
 let sent: Sent[];
 let refusal: { error: string; code: string; field: string | null } | null;
 let closed: number;
+let lookups: URL[];
 
 beforeAll(() => {
   (
@@ -71,6 +73,7 @@ beforeEach(() => {
   sent = [];
   refusal = null;
   closed = 0;
+  lookups = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -86,6 +89,10 @@ beforeEach(() => {
 
       if (method === "GET" && url.pathname.endsWith("/tables/accounts")) {
         return rowsResponse(CHART);
+      }
+      if (url.pathname.endsWith("/tables/accounts/_lookup")) {
+        lookups.push(url);
+        return Response.json(accountsLookup(CHART, url));
       }
       if (method === "GET" && url.pathname.endsWith("/import-presets")) {
         return Response.json({
@@ -220,8 +227,8 @@ function button(label: string): HTMLElement {
   return found;
 }
 
-/** Opens the combobox a control names, and picks an option by its text. */
-async function choose(triggerLabel: string, option: string) {
+/** Opens the combobox a control names, and lists its options' text. */
+async function open(triggerLabel: string): Promise<string[]> {
   const trigger = button(triggerLabel);
   await act(async () => {
     trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
@@ -229,9 +236,17 @@ async function choose(triggerLabel: string, option: string) {
     trigger.click();
   });
   await settle();
-  const choice = [
-    ...document.querySelectorAll<HTMLElement>('[role="option"]'),
-  ].find((one) => one.textContent?.includes(option));
+  return options().map((one) => one.textContent ?? "");
+}
+
+function options(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+}
+
+/** Opens the combobox a control names, and picks an option by its text. */
+async function choose(triggerLabel: string, option: string) {
+  await open(triggerLabel);
+  const choice = options().find((one) => one.textContent?.includes(option));
   if (!choice) throw new Error(`No option ${option} in:\n${text()}`);
   await act(async () => choice.click());
   await settle();
@@ -267,7 +282,7 @@ describe("AccountDialog", () => {
     await render("new");
 
     await act(async () => type(field("Name"), "Sample Holiday"));
-    await choose("Show the choices", "Groceries");
+    await choose("Open popup", "Groceries");
 
     await save();
 
@@ -287,7 +302,7 @@ describe("AccountDialog", () => {
   it("clears the parent to make a top-level account", async () => {
     await render(accountOf("Groceries"));
 
-    await act(async () => button("Make it a top-level account").click());
+    await act(async () => button("Clear selection").click());
     await settle();
     await save();
 
@@ -297,6 +312,30 @@ describe("AccountDialog", () => {
         path: "/api/accounts/6",
         body: { name: "Groceries", account_type: "Expense", parent_id: null },
       },
+    ]);
+  });
+
+  it("offers a fixed type's accounts as parents, outside its own branch", async () => {
+    // Bank Accounts holds a bank, so it stays an Asset.
+    await render(accountOf("Bank Accounts"));
+
+    expect(await open("Open popup")).toEqual(["Assets"]);
+    // The last search, once the form knows the type is fixed.
+    const search = lookups.filter((url) => !url.searchParams.has("ids")).at(-1);
+    expect(search?.searchParams.get("filter[account_type][eq]")).toBe("Asset");
+    expect(search?.searchParams.get("notUnder")).toBe("2");
+  });
+
+  it("offers any account as a parent while the type is free", async () => {
+    await render(accountOf("Groceries"));
+
+    // Its own parent, chosen, comes first.
+    expect(await open("Open popup")).toEqual([
+      "Expenses",
+      "Assets",
+      "Bank Accounts",
+      "Sample Savings",
+      "Sample Wallet",
     ]);
   });
 

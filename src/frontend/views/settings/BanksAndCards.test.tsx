@@ -23,7 +23,7 @@ import {
   EDIT_STATEMENT_ACCOUNT_PATH,
   statementAccountHref,
 } from "./routes";
-import { accountsTablePage } from "../../accounts-page.testing";
+import { accountsLookup, accountsTablePage } from "../../accounts-page.testing";
 
 /*
  * Settings' Banks & cards on screen: one flat table with its marks, the
@@ -71,12 +71,12 @@ const card: StatementAccountRow = {
 
 // The books' accounts, which each row's parent path comes from.
 const ACCOUNT_ROWS = [
-  { id: 1, name: "Assets", parent_id: null },
-  { id: 3, name: "Liabilities", parent_id: null },
-  { id: 2, name: "Bank Accounts", parent_id: 1 },
-  { id: 4, name: "Credit Cards", parent_id: 3 },
-  { id: 8, name: "Sample Bank Savings", parent_id: 2 },
-  { id: 9, name: "Sample Card", parent_id: 4 },
+  { id: 1, name: "Assets", parent_id: null, account_type: "Asset" },
+  { id: 3, name: "Liabilities", parent_id: null, account_type: "Liability" },
+  { id: 2, name: "Bank Accounts", parent_id: 1, account_type: "Asset" },
+  { id: 4, name: "Credit Cards", parent_id: 3, account_type: "Liability" },
+  { id: 8, name: "Sample Bank Savings", parent_id: 2, account_type: "Asset" },
+  { id: 9, name: "Sample Card", parent_id: 4, account_type: "Liability" },
 ];
 
 function books(rows: StatementAccountRow[]): StatementAccounts {
@@ -125,6 +125,9 @@ beforeEach(() => {
       }
       if (method === "GET" && url.pathname.endsWith("/tables/accounts")) {
         return Response.json(accountsTablePage(ACCOUNT_ROWS));
+      }
+      if (url.pathname.endsWith("/tables/accounts/_lookup")) {
+        return Response.json(accountsLookup(ACCOUNT_ROWS, url));
       }
       return Response.json({ error: "Not here" }, { status: 404 });
     }),
@@ -348,6 +351,25 @@ describe("BanksAndCards", () => {
       },
     ]);
     expect(document.querySelector("form")).toBeNull();
+  });
+
+  it("offers the accounts of its type to sit under, but not itself", async () => {
+    await renderPage([savings, card]);
+    await choose("Sample Bank Savings", "Edit");
+
+    const trigger = button("Open popup");
+    await act(async () => {
+      trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+      trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      trigger.click();
+    });
+    await settle();
+    // Its parent, chosen, comes first.
+    expect(
+      [...document.querySelectorAll('[role="option"]')].map(
+        (one) => one.textContent,
+      ),
+    ).toEqual(["Bank Accounts", "Assets"]);
   });
 
   it("asks for the number in view when the bank has another account", async () => {
