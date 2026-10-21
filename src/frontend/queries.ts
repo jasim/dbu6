@@ -10,6 +10,7 @@ import { ApiError } from "@sapporta/shared/client";
 import { MAX_PAGE_SIZE } from "@sapporta/shared/contracts";
 import { mintFilterId } from "@sapporta/shared/filter";
 import { fetchTableRows, reloadTGridRows } from "@sapporta/frontend";
+import { invalidateRows } from "@sapporta/frontend/lookup";
 // `tableQueryKeys` is not reachable through the package's `.` entry: its
 // `export * from './table'` meets the build's `table/query.js` stub, which
 // has no declarations beside it. The package publishes this subpath for it.
@@ -218,9 +219,12 @@ export const openingBalancesQuery = queryOptions({
  * Refreshes what setting up an account changes: the setup reads (its
  * account, its opening), the accounts table's reads (the chart every screen
  * takes parent paths from, `useAccountParentPaths`), Home and Review (its
- * drafts), and the import presets (its bank, parser and number).
+ * drafts), and the import presets (its bank, parser and number). Sapporta's
+ * own screens on show (grid cells, pickers, the record sheet) read their
+ * accounts' names and paths again too (`invalidateRows`).
  */
 export function refreshSetup(client: QueryClient): Promise<void> {
+  invalidateRows("accounts");
   return Promise.all([
     client.invalidateQueries({ queryKey: SETUP_KEY }),
     client.invalidateQueries({ queryKey: tableQueryKeys.table("accounts") }),
