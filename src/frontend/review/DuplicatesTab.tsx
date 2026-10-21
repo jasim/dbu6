@@ -58,7 +58,7 @@ export function DuplicatesTab() {
       />
       <AskYourAgent
         title="Check whether each pair is one transaction"
-        prompt={duplicatesPrompt(detail, window.location.origin)}
+        prompt={duplicatesPrompt(detail)}
       />
     </ReportTab>
   );

@@ -156,7 +156,7 @@ export function AutoImportStatements() {
   // Each problem sits under the last of its files in the list, so the list
   // is the one place that says what became of every file.
   const placed = placeProblems(
-    failure ? describeProblems(failure, window.location.origin) : [],
+    failure ? describeProblems(failure) : [],
     files.map((file) => file.name),
   );
   const failed =

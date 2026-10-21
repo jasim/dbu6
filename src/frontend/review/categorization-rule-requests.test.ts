@@ -4,8 +4,10 @@ import type {
   CategorizationRuleRequestTransaction,
   ReviewAccountDetail,
 } from "../../shared/index";
+import { PLAN_FIRST_RULE } from "../agent-prompt-rules";
 import {
   amountsSeen,
+  RULE_FACTS,
   RULE_REQUEST_TRANSACTION_LIMIT,
   ruleRequestsPrompt,
 } from "./categorization-rule-requests";
@@ -14,9 +16,9 @@ const detail: ReviewAccountDetail = {
   account: {
     account_id: 7,
     path: "Assets:Sample Card",
+    parent_path: null,
     name: "Sample Card",
     kind: "card",
-    parent_path: null,
     drafts: 21,
     uncategorised: 4,
     duplicates: 0,
@@ -74,7 +76,7 @@ describe("amountsSeen", () => {
 });
 
 describe("ruleRequestsPrompt", () => {
-  it("numbers each rule request with its drafts, amounts, account and note", () => {
+  it("opens with the outcome, then numbers each rule request with its drafts, amounts, account and note", () => {
     const prompt = ruleRequestsPrompt(detail, [
       ruleRequest(
         [
@@ -92,9 +94,11 @@ describe("ruleRequestsPrompt", () => {
       ),
     ]);
 
-    expect(prompt).toContain("/review/7/improve-categorization");
+    expect(prompt).toMatch(
+      /^Outcome: Turn my 3 rule requests for Sample Card into categorization rules/,
+    );
     expect(prompt).toContain(
-      "(ledger account Assets:Sample Card, account\nid 7)",
+      "Account: Sample Card (Assets:Sample Card, account id 7)\nScreen: /review/7/improve-categorization",
     );
     expect(prompt).toContain(
       [
@@ -111,32 +115,32 @@ describe("ruleRequestsPrompt", () => {
     );
   });
 
-  it("asks for a proposal first, and for pushback on drafts alike only in how they were paid", () => {
+  it("adds only what the books guide's mapping section leaves easy to get wrong", () => {
     const prompt = ruleRequestsPrompt(detail, [
       ruleRequest([draft("NOPII SAMPLE 050505")]),
     ]);
 
-    expect(prompt).toContain("Propose before you change anything.");
-    expect(prompt).toContain("If all they share is how they were paid");
-    expect(prompt).toContain("never the exact amounts");
-    expect(prompt).toContain(
-      "check it against the transactions already in my books",
-    );
-    expect(prompt).toContain("Then stop, and wait for me.");
-  });
-
-  it("leaves the choice of rule or guidance to the agent, by the guide", () => {
-    const prompt = ruleRequestsPrompt(detail, [
-      ruleRequest([draft("NOPII SAMPLE 050505")]),
-    ]);
-
-    expect(prompt).toContain("`npx dbu6 docs books`");
-    expect(prompt).toContain("user-config/transaction_mappings.mjs");
-    expect(prompt).toContain("Don't categorise the drafts yourself");
+    expect(prompt).toContain(RULE_FACTS);
+    expect(RULE_FACTS).toContain("never its\ndate");
+    expect(RULE_FACTS).toContain("How it was paid (UPI, NEFT, card)");
+    expect(RULE_FACTS).toContain("60–480 becomes 50–500");
+    expect(RULE_FACTS).toContain("Don't run the categorizer");
+    expect(RULE_FACTS).toContain("`npx dbu6 docs books`");
     expect(prompt).toContain(
       "`npx sapporta api delete /api/categorization-rule-requests/<rule request id>`",
     );
     expect(prompt).not.toContain("My note");
+  });
+
+  it("ends with the plan-first rule and a short report, answer first", () => {
+    const prompt = ruleRequestsPrompt(detail, [
+      ruleRequest([draft("NOPII SAMPLE 050505")]),
+    ]);
+
+    expect(prompt).toContain(PLAN_FIRST_RULE);
+    expect(prompt).toMatch(
+      /\n\*\*Rules added\*\*: .*\n\*\*Still on my list\*\*: .*\n\*\*Next\*\*: Run categorizer, on Review\.$/,
+    );
   });
 
   it("counts the drafts past the limit, and says where to read them", () => {

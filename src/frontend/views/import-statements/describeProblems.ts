@@ -18,6 +18,7 @@ import {
     reconciliationPrompt,
     unrecognizedPrompt,
 } from "./agentPrompts";
+import type {AgentPrompt} from "../../agent-prompt-rules";
 import type {StatusTone} from "../../components/status-chip";
 import {balancesHref} from "../settings/routes";
 import type {Stat} from "./describeGroup";
@@ -41,7 +42,7 @@ export type ProblemAction =
 // What a problem hands to the user's coding agent: the prompt, and what the
 // user does once the agent reports back.
 export interface ProblemPrompt {
-    prompt: string;
+    prompt: AgentPrompt;
     afterwards: string;
     // What the agent gets done, in the button's words: "Fix the parser".
     goal: string;
@@ -163,7 +164,6 @@ function technical(error: StatementImportError): string {
 // One problem per file the plan could not place. Nothing was imported.
 function planProblems(
     failure: Extract<ImportFailure, { kind: "files-unresolved" }>,
-    origin: string,
 ): ProblemBody[] {
     const planTechnical = [
         "auto_import_files_unresolved",
@@ -239,7 +239,7 @@ function planProblems(
                 });
                 break;
             case "unresolved":
-                problems.push(unresolvedProblem(row, planTechnical, origin));
+                problems.push(unresolvedProblem(row, planTechnical));
                 break;
         }
     }
@@ -249,7 +249,6 @@ function planProblems(
 function unresolvedProblem(
     row: Extract<AutoImportPlanFile, { status: "unresolved" }>,
     planTechnical: string,
-    origin: string,
 ): ProblemBody {
     const parserFact: Stat = {
         label: "Parser",
@@ -280,7 +279,7 @@ function unresolvedProblem(
                     "All the transactions in your statement were parsed. However, you haven't specified which account these transactions should be entered into. You only need to set this up once per account. It can be set up automatically using the following AI prompt.",
                 facts: [parserFact],
                 agent: {
-                    prompt: noAccountPrompt(row, origin),
+                    prompt: noAccountPrompt(row),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Set up the account",
                 },
@@ -319,7 +318,6 @@ function unresolvedProblem(
 // The one problem for the account whose import failed.
 function refusalProblem(
     refusal: AccountRefusal,
-    origin: string,
 ): ProblemBody {
     const group = refusal.failed_group;
     const base = {
@@ -340,7 +338,7 @@ function refusalProblem(
                 context: `The account in your books that ${group.account_name} imports into has been deleted, so its transactions would belong to no account. The following AI prompt can set it up.`,
                 actions: [{kind: "link", label: "Open accounts", to: "/accounts"}],
                 agent: {
-                    prompt: missingAccountPrompt(refusal, origin),
+                    prompt: missingAccountPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Set up the account",
                 },
@@ -368,7 +366,7 @@ function refusalProblem(
                     {label: "Difference", value: formatMoney(refusal.difference)},
                 ],
                 agent: {
-                    prompt: balanceMismatchPrompt(refusal, origin),
+                    prompt: balanceMismatchPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: gap ? "Find what's missing" : "Find the misread row",
                 },
@@ -398,7 +396,7 @@ function refusalProblem(
                     {label: "Difference", value: formatMoney(refusal.difference)},
                 ],
                 agent: {
-                    prompt: balanceMismatchPrompt(refusal, origin),
+                    prompt: balanceMismatchPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Find the misread row",
                 },
@@ -450,7 +448,7 @@ function refusalProblem(
                     },
                 ],
                 agent: {
-                    prompt: boundaryGapPrompt(refusal, origin),
+                    prompt: boundaryGapPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Find the missing period",
                 },
@@ -481,7 +479,7 @@ function refusalProblem(
                     fileNames: [part],
                 })),
                 agent: {
-                    prompt: disagreementPrompt(refusal, origin),
+                    prompt: disagreementPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Work out which file is right",
                 },
@@ -515,7 +513,7 @@ function refusalProblem(
                     "Its own opening or closing balance doesn't match its rows: either the bank's export is broken, or the parser misread it. The following AI prompt can find out which.",
                 facts: [{label: "Detail", value: detail, face: "words"}],
                 agent: {
-                    prompt: partInvalidPrompt(refusal, origin),
+                    prompt: partInvalidPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Check the file and the parser",
                 },
@@ -528,7 +526,7 @@ function refusalProblem(
                 fix: "Line it up with your last confirmed balance.",
                 context: `Your books were last confirmed at ${formatMoney(refusal.checkpoint_balance)} on ${formatDate(refusal.checkpoint_date)}, but none of the statement's rows that day shows that balance, so the app can't tell which transactions are new. The following AI prompt can find where they drifted apart.`,
                 agent: {
-                    prompt: reconciliationPrompt(refusal, origin),
+                    prompt: reconciliationPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Compare with your books",
                 },
@@ -557,7 +555,7 @@ function refusalProblem(
                 context:
                     "Without the total amount owed, the import can't be checked against the bank. The statement usually prints one, and the parser missed it. The following AI prompt can fix the parser.",
                 agent: {
-                    prompt: closingBalancePrompt(refusal, origin),
+                    prompt: closingBalancePrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Fix the parser",
                 },
@@ -570,7 +568,7 @@ function refusalProblem(
                 context:
                     "The statement's closing balance for that day doesn't match the one already confirmed in your books. The following AI prompt can find out which is right.",
                 agent: {
-                    prompt: genericFailurePrompt(refusal, origin),
+                    prompt: genericFailurePrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Find which balance is right",
                 },
@@ -584,7 +582,7 @@ function refusalProblem(
                 fix: "Investigate the error.",
                 context: `${refusal.message} The following AI prompt can investigate it.`,
                 agent: {
-                    prompt: genericFailurePrompt(refusal, origin),
+                    prompt: genericFailurePrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
                     goal: "Investigate the error",
                 },
@@ -592,25 +590,17 @@ function refusalProblem(
     }
 }
 
-// `origin` is where the screen was served from: a prompt that re-runs the
-// import sends the agent there.
-export function describeProblems(
-    failure: ImportFailure,
-    origin: string,
-): Problem[] {
+export function describeProblems(failure: ImportFailure): Problem[] {
     const tone = problemTone(failure);
-    return problemBodies(failure, origin).map((body) => ({...body, tone}));
+    return problemBodies(failure).map((body) => ({...body, tone}));
 }
 
-function problemBodies(
-    failure: ImportFailure,
-    origin: string,
-): ProblemBody[] {
+function problemBodies(failure: ImportFailure): ProblemBody[] {
     switch (failure.kind) {
         case "files-unresolved":
-            return planProblems(failure, origin);
+            return planProblems(failure);
         case "account-refused":
-            return [refusalProblem(failure.refusal, origin)];
+            return [refusalProblem(failure.refusal)];
         case "forbidden":
             return [
                 {

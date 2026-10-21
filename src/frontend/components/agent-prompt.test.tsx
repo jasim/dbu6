@@ -12,7 +12,11 @@ import {
   vi,
 } from "vitest";
 import type { AgentHandoffAvailability } from "../../shared/index";
-import { PLAN_FIRST_RULE, planFirst } from "../agent-prompt-rules";
+import {
+  agentPrompt,
+  PLAN_FIRST_RULE,
+  type AgentPrompt,
+} from "../agent-prompt-rules";
 import { AgentButton } from "./agent-prompt";
 
 /*
@@ -20,7 +24,7 @@ import { AgentButton } from "./agent-prompt";
  * can start, or copies it where none can be; its arrow holds the other ways.
  * A click shows what happened in the button's place. What the user does next
  * waits until they have taken the prompt somewhere. Whichever way the prompt
- * goes, it opens by asking the agent for its plan and a go-ahead.
+ * goes, it goes as agentPrompt wrote it, plan-first rule and all.
  */
 
 let host: HTMLDivElement;
@@ -30,7 +34,15 @@ let handoff: { status: number; body: unknown };
 let posts: unknown[];
 let clipboard: string[];
 
-const PROMPT = "Build a parser for NOPII sample statement 050505.";
+const PROMPT = sample("Build a parser for NOPII sample statement 050505.");
+
+function sample(outcome: string): AgentPrompt {
+  return agentPrompt({
+    outcome,
+    facts: "File: tmp/sample-050505.pdf",
+    report: [{ heading: "Result", says: "whether it reads." }],
+  });
+}
 const LABEL = "Set up this format";
 const AFTERWARDS = "Drop the file again once the agent says it is done.";
 const LAUNCHER = "/sample/dbu6/tmp/agent-prompts/sample-claude-code.command";
@@ -105,7 +117,7 @@ async function render(prompt = PROMPT, afterwards?: string, props: Props = {}) {
 }
 
 async function rerender(
-  prompt: string,
+  prompt: AgentPrompt,
   afterwards?: string,
   props: Props = {},
 ) {
@@ -199,7 +211,7 @@ describe("AgentButton", () => {
     ]);
   });
 
-  it("asks the agent for its plan and a go-ahead before the prompt, however it goes", async () => {
+  it("hands over the prompt as agentPrompt wrote it, plan-first rule included, however it goes", async () => {
     offers({ mode: "terminal", agent: "claude-code" });
     await render();
 
@@ -208,14 +220,12 @@ describe("AgentButton", () => {
     await openMenu();
     await choose("Open in Claude Code");
 
-    const given = `${PLAN_FIRST_RULE}\n\n${PROMPT}`;
-    expect(clipboard).toEqual([given]);
-    expect(posts).toEqual([{ prompt: given }]);
-    expect(PLAN_FIRST_RULE).toContain("wait for my go-ahead");
-    expect(PLAN_FIRST_RULE).toContain("until I say go");
+    expect(clipboard).toEqual([PROMPT]);
+    expect(posts).toEqual([{ prompt: PROMPT }]);
+    expect(PROMPT).toContain(PLAN_FIRST_RULE);
   });
 
-  it("shows the request on View prompt, with the plan-first rule folded under it", async () => {
+  it("shows the whole prompt on View prompt, in one block", async () => {
     offers({ mode: "terminal", agent: "claude-code" });
     await render();
 
@@ -225,10 +235,7 @@ describe("AgentButton", () => {
     const shown = [...document.querySelectorAll("pre")].map(
       (p) => p.textContent,
     );
-    expect(shown).toEqual([PROMPT, PLAN_FIRST_RULE]);
-    expect(document.body.textContent).toContain(
-      "dbu6's rule above it: plan first",
-    );
+    expect(shown).toEqual([PROMPT]);
   });
 
   it("copies the prompt where the server hands nothing off, or can't be asked", async () => {
@@ -249,7 +256,7 @@ describe("AgentButton", () => {
 
     await click(`${LABEL}. Copies the prompt`);
 
-    expect(clipboard).toEqual([planFirst(PROMPT)]);
+    expect(clipboard).toEqual([PROMPT]);
     expect(buttons()[0]).toBe("Copied. Copies the prompt");
     expect(host.textContent).toContain(AFTERWARDS);
   });
@@ -260,7 +267,7 @@ describe("AgentButton", () => {
 
     await click(`${LABEL}. Open in Claude Code`);
 
-    expect(posts).toEqual([{ prompt: planFirst(PROMPT) }]);
+    expect(posts).toEqual([{ prompt: PROMPT }]);
     expect(host.textContent).toContain(
       "Opened in Claude Code — continue in your terminal",
     );
@@ -269,10 +276,7 @@ describe("AgentButton", () => {
 
     await click("Didn't open? Try again");
 
-    expect(posts).toEqual([
-      { prompt: planFirst(PROMPT) },
-      { prompt: planFirst(PROMPT) },
-    ]);
+    expect(posts).toEqual([{ prompt: PROMPT }, { prompt: PROMPT }]);
     expect(host.querySelector("code")?.textContent).toBe(`sh '${LAUNCHER}'`);
   });
 
@@ -309,7 +313,7 @@ describe("AgentButton", () => {
     expect(host.querySelector("code")).not.toBeNull();
     expect(host.textContent).toContain(AFTERWARDS);
 
-    await rerender("A different NOPII sample prompt.", AFTERWARDS);
+    await rerender(sample("A different NOPII sample prompt."), AFTERWARDS);
 
     expect(host.querySelector("code")).toBeNull();
     expect(host.textContent).not.toContain(AFTERWARDS);

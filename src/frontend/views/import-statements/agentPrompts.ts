@@ -1,31 +1,29 @@
-// Prompts the user copies into their coding agent when the importer cannot
-// go further on its own. Every prompt states what the app was doing, what
-// it said (with the concrete facts from the response), what the agent should
-// do, which guides govern the work, and what to report back.
-// Prompts that let the agent retry the import end with `rerunBlock`.
+// The tasks /import hands the user's coding agent when the importer can't go
+// further on its own: the outcome, the case's facts as the server sent them,
+// and only what the guides don't say. How to reach the app, upload a file,
+// change the import presets and ask before changing the books are in
+// `npx dbu6 docs books`; how to write or fix a parser, and where it goes, in
+// the parser guides.
 //
-// The app stages every upload of a batch it could not import under the
-// project's own tmp/, so a prompt names the file by a path relative to the
-// project the agent starts in and never asks the user to find it again.
-//
-// The guides ship inside dbu6, which in a user's project is an installed
-// package: a prompt names the command that prints a guide (\`npx dbu6 docs\`),
-// never a file of ours, and says that what the agent writes goes in the
-// project's own directories.
-//
-// Each prompt takes the server's own reply for its case, a plan file or an
-// account's refusal, and reads the contract's fields as they are named. One
-// that re-runs the import also takes the origin the screen was served from,
-// which answers `/api` too, so the agent needs no address of its own.
+// The app stages every upload it could not import under the project's own
+// tmp/, so a prompt names each file by that path and the agent reads it, and
+// may upload it again, without asking the user to find it.
 
 import { guideCommand, type AutoImportPlanFile } from "../../../shared/index";
-import { PII_RULE, PROJECT_FILES_RULE } from "../../agent-prompt-rules";
-import { parserLabel } from "../../format";
 import {
-  fingerprintTightening,
-  parserWritingSteps,
-  PRESET_CHANGES_NOTE,
+  agentPrompt,
+  PII_RULE,
+  type AgentPrompt,
+  type ReportSection,
+} from "../../agent-prompt-rules";
+import {
+  FIX_PARSER,
+  NEW_PARSER_REPORT,
+  PART_PARSERS,
+  PARTED_PARSERS_REPORT,
+  PRESETS_SECTION,
   triedParsers,
+  WRITE_PARSER,
 } from "../../parser-prompts";
 import type { AccountRefusal, RefusalOf } from "./outcome";
 
@@ -34,35 +32,28 @@ type PlanFile<Status extends AutoImportPlanFile["status"]> = Extract<
   { status: Status }
 >;
 
-const PARSERS_GUIDE = guideCommand("parsers");
+const BOOKS_GUIDE = guideCommand("books");
 const PARSER_GUIDE = guideCommand("parser-guide");
 
-// A prompt names a parser as the app does, by its directory name.
-const SAVED_PARSERS_NOTE = `A saved parser is named by its directory: the one of that name in this
-project's custom-built-parsers/, or else the one bundled with dbu6, which
-\`${PARSERS_GUIDE}\` lists.`;
+const REIMPORT = `Once it's fixed you may import the files again yourself ("Uploads" under
+"Reaching the app" in \`${BOOKS_GUIDE}\`).`;
 
-function rerunBlock(origin: string, paths: readonly string[]): string {
-  const uploads = paths.map((path) => `    -F "files=@${path}"`).join(" \\\n");
-  return `Re-running the import yourself: with the dev server running, POST the statement
-file(s) to the same endpoint the screen uses. The upload is multipart, which the
-Sapporta command cannot send, so use curl. The app is at ${origin}; the agent
-token is in the gitignored \`.env.agent\` (\`npx dbu6 agent env\` writes one if
-the project has none), so put it into the shell first:
-
-  set -a; . ./.env.agent; set +a
-
-  curl -sS -X POST "${origin}/api/import-draft/statements/auto" \\
-    -H "Authorization: Bearer $SAPPORTA_API_TOKEN" \\
-${uploads}
-
-A 200 response has \`files\` (how each upload was recognised and which account
-it went to) and \`groups\` (one per account: draft_transaction_count,
-transaction_count, duplicate_count, skipped_reconciled_count,
-balance_metadata, statement_period, reconciliation_checkpoint). Errors are
-4xx/5xx JSON with an \`error\` code and a \`message\`. Imports only create Draft
-transactions; they never post to the books.`;
-}
+const PRESETS_REPORT: ReportSection = {
+  heading: "Import presets",
+  says: "what changed in them.",
+};
+const REDROP_REPORT: ReportSection = {
+  heading: "Next",
+  says: "drop the file at /import again.",
+};
+const REIMPORT_REPORT: ReportSection = {
+  heading: "Next",
+  says: "the files imported again, with what that added to Review, or that I should drop them again.",
+};
+const PARSER_CHANGE = (says: string): ReportSection => ({
+  heading: "The fix",
+  says,
+});
 
 // Where the agent will find an upload: the staged copy inside this
 // project, or the name the user dropped when the app kept none.
@@ -73,141 +64,135 @@ function stagedAt(file: {
   return file.saved_path ?? file.file_name;
 }
 
-function quoted(message: string): string {
-  return `\nServer message: "${message}"\n`;
+function said(message: string): string {
+  return `Server message: "${message}"`;
 }
 
 function list(items: readonly string[]): string {
   return items.join(", ");
 }
 
-export function unrecognizedPrompt(file: PlanFile<"unrecognized">): string {
-  return `I tried to import a bank statement into my books app (dbu6, run from this project) through
-the automatic importer at /import. It said no saved parser
-recognised the file, so nothing was imported. Please build a deterministic
-parser for this statement format so the import works.
-
-The file is in this project at ${stagedAt(file)}.
-Ask me which bank and which of my accounts it belongs to if the file doesn't
-make that obvious. ${triedParsers(file.candidate_parser_paths)}
-
-${parserWritingSteps()}
-6. Tie the parser to my account in the import presets, as below. If an
-   institution there already covers this bank, add the parser to it by its
-   directory name (add_parser); otherwise add the institution with the parser
-   (add_institution). If my account is not among the institution's accounts
-   yet, add it (add_account) with account_identifiers set to the identifier
-   the parser emits; ask me for its name, its ledger account and whether it
-   is a credit card.
-7. Run the parser on that file and on the fixture, run the tests, and report
-   the opening balance, closing balance, date range, and row count you found so
-   I can check them against the statement.
-
-${PRESET_CHANGES_NOTE}
-
-When you are done, tell me. I will drop the file into the importer again myself.`;
+export function unrecognizedPrompt(
+  file: PlanFile<"unrecognized">,
+): AgentPrompt {
+  return agentPrompt({
+    outcome: `Import ${file.file_name}, a statement format no saved parser recognises, by writing a parser for it.`,
+    facts: `File: ${stagedAt(file)}
+${triedParsers(file.candidate_parser_paths)}`,
+    how: `${WRITE_PARSER}
+Then tie it to my account in the import presets (${PRESETS_SECTION}):
+add_parser to the institution that covers this bank, or add_institution; and
+add_account with the identifier the parser emits if my account isn't listed.
+Ask me the bank, the account, its ledger account and whether it's a credit
+card when the file doesn't say.`,
+    report: [NEW_PARSER_REPORT, PRESETS_REPORT, REDROP_REPORT],
+  });
 }
 
-export function ambiguousPrompt(file: PlanFile<"ambiguous">): string {
-  return `The automatic statement importer of my books app (dbu6, run from this project)
-(POST /api/import-draft/statements/auto, screen /import)
-reported that ${file.file_name} matched more than one saved parser:
-${list(file.matching_parser_paths)}. Auto-detection requires exactly one match,
-so nothing was imported.
+export function ambiguousPrompt(file: PlanFile<"ambiguous">): AgentPrompt {
+  return agentPrompt({
+    outcome: `Import ${file.file_name}, which more than one saved parser recognises, by making only one of them read it.`,
+    facts: `File: ${stagedAt(file)}
+Parsers that read it: ${list(file.matching_parser_paths)}`,
+    how: PART_PARSERS,
+    report: [
+      PARTED_PARSERS_REPORT,
+      PARSER_CHANGE("what changed in each parser."),
+      REDROP_REPORT,
+    ],
+  });
+}
 
-${fingerprintTightening(stagedAt(file))}
-
-Tell me when it is done and I will retry the import.`;
+// What the importer knew of a file it couldn't tie to an account.
+function unresolvedFacts(file: PlanFile<"unresolved">): string {
+  const identifier = file.account?.identifier ?? "none emitted";
+  return `File: ${stagedAt(file)}
+Parser: ${file.parser_path}
+Account identifier on the statement: ${identifier}`;
 }
 
 // The account a statement goes to isn't set up: no institution lists its
 // parser, or the one that does has no accounts.
-export function noAccountPrompt(
+export function noAccountPrompt(file: PlanFile<"unresolved">): AgentPrompt {
+  const institution = file.institution_name;
+  const presets =
+    institution === null
+      ? `no institution lists ${file.parser_path}`
+      : `"${institution}" lists ${file.parser_path} but has no accounts`;
+  const add =
+    institution === null
+      ? `add_parser to the institution that covers this bank, or add_institution
+with parsers ["${file.parser_path}"]; then add_account to it`
+      : `add_account to "${institution}"`;
+  const identifiers =
+    file.account === null
+      ? "leave account_identifiers empty unless the statement prints one the parser should emit"
+      : `with account_identifiers ["${file.account.identifier}"]`;
+  return agentPrompt({
+    outcome: `Import ${file.file_name} by setting up the account it's for in the import presets.`,
+    facts: `${unresolvedFacts(file)}
+Import presets: ${presets}`,
+    how: `In the import presets (${PRESETS_SECTION}): ${add}, ${identifiers}.
+Ask me its name, ledger account, whether it's a credit card and its
+custom_mappings_filenames when the other accounts don't show them.
+${REIMPORT}`,
+    report: [
+      { heading: "Account", says: "the account the statement now goes to." },
+      PRESETS_REPORT,
+      REIMPORT_REPORT,
+    ],
+  });
+}
+
+export function identifierRequiredPrompt(
   file: PlanFile<"unresolved">,
-  origin: string,
-): string {
-  const { account } = file;
-  const parser = parserLabel(file.parser_path);
-  const who =
-    account === null
-      ? "but the parser reported no account identifier"
-      : `and found it is a ${file.institution ?? "bank"} statement for ${account.kind === "card" ? "card" : "account"} identifier ${account.identifier}`;
-  const identifierLine =
-    account === null
-      ? "Leave account_identifiers empty unless the statement prints an identifier the parser should be emitting."
-      : `Set its account_identifiers to ["${account.identifier}"].`;
+): AgentPrompt {
   const institution = file.institution_name;
-  const found =
-    institution === null
-      ? "no institution in my import presets lists that parser"
-      : `the institution "${institution}" in my import presets lists that parser but has no accounts`;
-  const steps =
-    institution === null
-      ? `If an institution there already covers this bank, add ${parser} to it
-(add_parser); otherwise add the institution with parsers ["${parser}"]
-(add_institution). Then add my account to it (add_account).`
-      : `Add my account to "${institution}" (add_account).`;
-  return `The automatic statement importer of my books app (dbu6, run from this project) read ${file.file_name}
-with ${parser} ${who}, but ${found}, so nothing was imported.
-The upload is in this project at ${stagedAt(file)}.
-
-${steps} Ask me for the account's name, its ledger account, whether it is a
-credit card, and which custom_mappings_filenames to use if you cannot infer
-them from the existing accounts. ${identifierLine}
-
-${PRESET_CHANGES_NOTE}
-
-Then tell me it is done and I will retry the import, or re-run it yourself.
-
-${rerunBlock(origin, [stagedAt(file)])}`;
+  return agentPrompt({
+    outcome: `Import ${file.file_name} by making ${file.parser_path} emit the account number it prints, so it goes to one of "${institution}"'s accounts.`,
+    facts: `${unresolvedFacts(file)}
+Accounts of "${institution}": ${list(file.candidate_account_names)}
+${said(file.message)}`,
+    how: `Emit it as "Emitted account identifier" in \`${PARSER_GUIDE}\` says. ${FIX_PARSER}
+If the statement prints no identifier, stop and tell me: clearing an
+account's identifiers (update_account with account_identifiers []) works only
+for an institution with one account. Don't guess an identifier.`,
+    report: [
+      {
+        heading: "Account number",
+        says: "the number the statement prints, and the account it goes to.",
+      },
+      PARSER_CHANGE("what changed in the parser."),
+      REDROP_REPORT,
+    ],
+  });
 }
 
-export function identifierRequiredPrompt(file: PlanFile<"unresolved">): string {
-  return `The automatic statement importer of my books app (dbu6, run from this project) read ${file.file_name}
-with ${file.parser_path}, but the parser emitted no \`account\` identifier and
-the institution "${file.institution_name}" in my import presets needs one to
-tell its accounts (${list(file.candidate_account_names)}) apart, so nothing
-was imported.${quoted(file.message)}
-The upload is in this project at ${stagedAt(file)}.
-Either make the parser emit the account or card number the statement prints
-(run \`${PARSER_GUIDE}\` and see its "Emitted account identifier" section)
-with a sanitized fixture and test, or, if the statement genuinely prints no identifier, tell me
-and we will decide whether to clear the account's identifiers
-(update_account with account_identifiers []), which only an institution with
-one account allows. Do not guess an identifier.
-${PII_RULE}
-
-${SAVED_PARSERS_NOTE} ${PROJECT_FILES_RULE}
-
-${PRESET_CHANGES_NOTE}
-
-Tell me when it is done and I will retry the import.`;
-}
-
-export function identifierMismatchPrompt(file: PlanFile<"unresolved">): string {
-  const identifier = file.account?.identifier ?? null;
+export function identifierMismatchPrompt(
+  file: PlanFile<"unresolved">,
+): AgentPrompt {
+  const identifier = file.account?.identifier ?? "(ask me)";
   const institution = file.institution_name;
-  return `The automatic statement importer of my books app (dbu6, run from this project) read ${file.file_name}
-with ${file.parser_path}. It reports account identifier ${identifier ?? "(none)"},
-but none of the accounts of the institution "${institution}" in my import
-presets (${list(file.candidate_account_names)}) lists it, so nothing was imported.${quoted(file.message)}
-The upload is in this project at ${stagedAt(file)}.
-Ask me which account the statement is for. If it is an account I have not set
-up yet, add it to "${institution}" (add_account) with account_identifiers
-["${identifier ?? "(ask me)"}"]; ask me for its name, its ledger account, and
-whether it is a credit card. If it is one of the accounts above, printed
-under another number, add the identifier to it (update_account with the
-account's whole account_identifiers list, the new one included). Keep the
-other accounts unchanged.
-
-${PRESET_CHANGES_NOTE}
-
-Tell me when it is done and I will retry the import.`;
+  return agentPrompt({
+    outcome: `Import ${file.file_name}, a statement for ${identifier}, by tying it to one of "${institution}"'s accounts in the import presets.`,
+    facts: `${unresolvedFacts(file)}
+Accounts of "${institution}": ${list(file.candidate_account_names)}
+${said(file.message)}`,
+    how: `Ask me which account it is, then change the import presets (${PRESETS_SECTION}).
+A new account: add_account to "${institution}" with account_identifiers
+["${identifier}"], and ask me its name, ledger account and whether it's a
+credit card. One of those above, printed under another number: update_account
+with its whole account_identifiers list plus this one. Change no other account.`,
+    report: [
+      { heading: "Account", says: "the account the statement now goes to." },
+      PRESETS_REPORT,
+      REDROP_REPORT,
+    ],
+  });
 }
 
 // Where the failed account's uploads are, in the order the account holds
-// them: the staged copies inside this project, for the agent to read and
-// to post back.
+// them: the staged copies inside this project.
 function groupPaths(refusal: AccountRefusal): string[] {
   return refusal.failed_group.file_names.map(
     (name) =>
@@ -215,184 +200,232 @@ function groupPaths(refusal: AccountRefusal): string[] {
   );
 }
 
-// What every refusal prompt opens with: the account, its files and where they
-// are, the error code as the server sent it, and the saved parsers that read
-// those files.
-function groupIntro(refusal: AccountRefusal): string {
-  const group = refusal.failed_group;
-  const parserPaths = Array.from(
+// The saved parsers that read the failed account's files.
+function groupParsers(refusal: AccountRefusal): string[] {
+  const names = refusal.failed_group.file_names;
+  return Array.from(
     new Set(
       refusal.files.flatMap((file) =>
-        file.status === "resolved" && group.file_names.includes(file.file_name)
+        file.status === "resolved" && names.includes(file.file_name)
           ? [file.parser_path]
           : [],
       ),
     ),
   );
-  const parsers =
-    parserPaths.length === 0
-      ? "the saved parser"
-      : `the saved parser (${list(parserPaths)})`;
-  return `The automatic statement importer of my books app (dbu6, run from this project) refused to import
-${list(group.file_names)} into ${group.account_name} (${group.base_account}) with
-error ${refusal.error}. The files were read by ${parsers}.
-The uploads are in this project at ${list(groupPaths(refusal))}.
+}
 
-${SAVED_PARSERS_NOTE} ${PROJECT_FILES_RULE}
-`;
+interface RefusalTask {
+  /** Why the importer refused, finishing "…, which the importer refused because". */
+  because: string;
+  /**
+   * The refusal's own figures, as labelled lines. Without them the
+   * server's message stands in; with them it would only repeat them.
+   */
+  facts?: string;
+  how: string;
+  report: readonly ReportSection[];
+}
+
+// Every refusal is one account's statements turned away: the outcome is to
+// import them, and the facts open with the account, its files, parser and
+// the error code.
+function refusalPrompt(
+  refusal: AccountRefusal,
+  task: RefusalTask,
+): AgentPrompt {
+  const group = refusal.failed_group;
+  const parsers = groupParsers(refusal);
+  const facts = [
+    `Account: ${group.account_name} (${group.base_account})`,
+    `Files: ${list(groupPaths(refusal))}`,
+    ...(parsers.length > 0 ? [`Parser: ${list(parsers)}`] : []),
+    `Error: ${refusal.error}`,
+    task.facts ?? said(refusal.message),
+  ].join("\n");
+  return agentPrompt({
+    outcome: `Import ${list(group.file_names)} into ${group.account_name}, which the importer refused because ${task.because}.`,
+    facts,
+    how: `${task.how}\n${REIMPORT}`,
+    report: task.report,
+  });
 }
 
 export function balanceMismatchPrompt(
   refusal: RefusalOf<"balance_mismatch" | "segment_balance_mismatch">,
-  origin: string,
-): string {
-  const numbers =
+): AgentPrompt {
+  const figures =
     refusal.error === "balance_mismatch"
-      ? ` Computed final balance ${refusal.computed_final}, statement closing ${refusal.statement_closing}, difference ${refusal.difference}.`
-      : ` From the balance ${refusal.from_balance} printed on ${refusal.from_date}, the rows lead to ${refusal.walked} on ${refusal.to_date}, where the statement prints ${refusal.printed}, difference ${refusal.difference}. The suspect rows are between ${refusal.from_date} and ${refusal.to_date}.`;
-  return `${groupIntro(refusal)}${numbers}${quoted(refusal.message)}
-Please find out why. Run the saved parser on those file(s) and compare its
-output with the statement: check the opening and closing balances it emits,
-every printed running balance, and whether the files together cover the whole
-period with no gap. If a row is mis-parsed, fix the parser with a
-sanitized fixture and a regression test, never by loosening validation. If the
-statements leave a gap, tell me which dates are missing so I can download that
-statement. ${PII_RULE}
-
-Once fixed, you may re-run the import yourself or tell me and I will retry
-from the screen.
-
-${rerunBlock(origin, groupPaths(refusal))}`;
+      ? `Rows add up to: ${refusal.computed_final}
+Statement closing: ${refusal.statement_closing}
+Difference: ${refusal.difference}`
+      : `Printed on ${refusal.from_date}: ${refusal.from_balance}
+Rows lead on ${refusal.to_date} to: ${refusal.walked}
+Printed on ${refusal.to_date}: ${refusal.printed}
+Difference: ${refusal.difference}`;
+  const hint =
+    refusal.error === "balance_mismatch" && refusal.hint !== undefined
+      ? `\nServer hint: "${refusal.hint}"`
+      : "";
+  return refusalPrompt(refusal, {
+    because: "the statement's rows don't add up to its balances",
+    facts: figures + hint,
+    how: `Compare the parser's output with the statement: opening, closing, every
+printed running balance, and whether the files cover the period with no gap.
+${FIX_PARSER}
+If a period is missing, change nothing and tell me its dates.`,
+    report: [
+      {
+        heading: "What's wrong",
+        says: "why the balances don't add up, in one sentence.",
+      },
+      PARSER_CHANGE(
+        "what changed in the parser, or the dates of the missing statement.",
+      ),
+      REIMPORT_REPORT,
+    ],
+  });
 }
 
 export function boundaryGapPrompt(
   refusal: RefusalOf<"statement_boundary_mismatch">,
-  origin: string,
-): string {
-  return `${groupIntro(refusal)} ${refusal.earlier_source} ends at
-${refusal.earlier_closing} and ${refusal.later_source} starts at ${refusal.later_opening},
-difference ${refusal.difference}.${quoted(refusal.message)}
-Run the saved parser on both files and tell me the exact last date of the
-earlier one and the first date of the later one, and whether the difference
-could be explained by rows at those edges rather than by a missing statement.
-If a statement is missing, tell me which period to download. If the parser is
-mis-reading an edge row, fix it with a sanitized fixture and test. ${PII_RULE}
-
-Then re-run the import yourself or tell me and I will retry.
-
-${rerunBlock(origin, groupPaths(refusal))}`;
+): AgentPrompt {
+  return refusalPrompt(refusal, {
+    because: "one statement doesn't start where the earlier one ends",
+    facts: `${refusal.earlier_source} ends at: ${refusal.earlier_closing}
+${refusal.later_source} starts at: ${refusal.later_opening}
+Difference: ${refusal.difference}`,
+    how: `Find the earlier file's last date and the later one's first, and whether rows
+at those edges explain the difference or a statement is missing.
+${FIX_PARSER}`,
+    report: [
+      {
+        heading: "What's wrong",
+        says: "why the two files don't meet: a missing statement, with the period to download, or a misread row.",
+      },
+      PARSER_CHANGE("what changed in the parser, if anything."),
+      REIMPORT_REPORT,
+    ],
+  });
 }
 
 export function disagreementPrompt(
   refusal: RefusalOf<"statement_disagreement">,
-  origin: string,
-): string {
-  return `${groupIntro(refusal)} The parts disagree on ${refusal.date}
-(${list(refusal.parts)}); the first differing row is ${JSON.stringify(refusal.row)}.${quoted(refusal.message)}
-Run the saved parser on both files, print every row each one has on
-${refusal.date}, and tell me which file is right, or whether both are and the
-importer should accept this case, which is a change to dbu6 itself and not
-something to patch here. If the parser is the cause, fix it with a sanitized fixture
-and test. ${PII_RULE}
-
-Then re-run the import with the correct file(s) or tell me which one to drop.
-
-${rerunBlock(origin, groupPaths(refusal))}`;
+): AgentPrompt {
+  return refusalPrompt(refusal, {
+    because: `two of them disagree on ${refusal.date}`,
+    facts: `Parts: ${list(refusal.parts)}
+First differing row: ${JSON.stringify(refusal.row)}`,
+    how: `Compare each file's rows on ${refusal.date} and find which is right. If both are,
+the importer should accept this, which is a change to dbu6 itself: tell me,
+don't patch it here.
+${FIX_PARSER}`,
+    report: [
+      {
+        heading: "What's wrong",
+        says: "which file is right, and why the other differs.",
+      },
+      PARSER_CHANGE("what changed in the parser, or which file to leave out."),
+      REIMPORT_REPORT,
+    ],
+  });
 }
 
 export function partInvalidPrompt(
   refusal: RefusalOf<"statement_part_invalid">,
-  origin: string,
-): string {
-  return `${groupIntro(refusal)} The part ${refusal.part} is not
-self-consistent: ${refusal.detail}.${quoted(refusal.message)}
-Run the saved parser on that file and compare its emitted opening, closing,
-and running balances with what the statement prints. Decide whether the bank's
-export is broken or the parser misreads it. If the parser is the cause, fix it
-with a sanitized fixture and test, never by loosening validation. ${PII_RULE}
-
-Then re-run the import yourself or tell me and I will retry.
-
-${rerunBlock(origin, groupPaths(refusal))}`;
+): AgentPrompt {
+  return refusalPrompt(refusal, {
+    because: `${refusal.part}'s own balances don't add up`,
+    facts: `Part: ${refusal.part}
+Detail: ${refusal.detail}`,
+    how: `Compare the parser's opening, closing and running balances with the
+statement's, and decide whether the bank's export or the parser is wrong.
+${FIX_PARSER}`,
+    report: [
+      {
+        heading: "What's wrong",
+        says: "whether the bank's export or the parser is wrong, and where.",
+      },
+      PARSER_CHANGE("what changed in the parser."),
+      REIMPORT_REPORT,
+    ],
+  });
 }
 
 export function reconciliationPrompt(
   refusal: RefusalOf<"reconciliation_match_failed">,
-  origin: string,
-): string {
-  return `${groupIntro(refusal)} The ledger's last reconciled
-balance for that account is ${refusal.checkpoint_balance} on ${refusal.checkpoint_date},
-but no statement row on that date carries that balance and the statement's
-opening does not match it either.${quoted(refusal.message)}
-Please compare the ledger and the statement around ${refusal.checkpoint_date}:
-find the balance assertion for ${refusal.failed_group.base_account} on that date, list the
-ledger postings for that account on and just before that date, run the saved
-parser on the file and list the statement's rows for that day with their
-printed balances, and tell me exactly where they diverge and what the correct
-fix is (a missing or wrong entry in the ledger, or a statement problem). Do not
-change the ledger or the assertion without telling me what you are about to
-change and why. ${PII_RULE}
-
-After the fix you may re-run the import.
-
-${rerunBlock(origin, groupPaths(refusal))}`;
+): AgentPrompt {
+  const date = refusal.checkpoint_date;
+  return refusalPrompt(refusal, {
+    because: "they don't continue from the last statement balance in my books",
+    facts: `Last statement balance in the books: ${refusal.checkpoint_balance} on ${date}
+${said(refusal.message)}`,
+    how: `Compare my books and the statement around ${date}: the balance printed
+there, my transactions on and just before it, and the statement's rows that
+day. Find where they part: a missing or wrong transaction in my books, a
+statement in between that was never imported, or a statement problem.`,
+    report: [
+      {
+        heading: "What's wrong",
+        says: "where my books and the statement part, and why.",
+      },
+      {
+        heading: "The fix",
+        says: "each change to my books, or the statement period to download.",
+      },
+      { heading: "Next", says: "ask whether to apply it." },
+    ],
+  });
 }
 
 export function missingAccountPrompt(
   refusal: RefusalOf<"import_account_not_found">,
-  origin: string,
-): string {
+): AgentPrompt {
   const { account_id, account_name } = refusal.failed_group;
-  return `${groupIntro(refusal)} The account ${account_name} in my import presets
-imports into the ledger account with id ${account_id}, which has been deleted,
-so nothing was imported into it.${quoted(refusal.message)}
-Ask me whether to recreate that ledger account (then ask me its name, its type
-and which account it goes under, and add it to the Accounts table), or to
-import into another account I have. Either way, point the preset account at
-the ledger account: remove it (remove_account with account_id ${account_id})
-and add it again with the new id (add_account), keeping its other fields.
-Tell me what you changed.
-
-${PRESET_CHANGES_NOTE}
-
-Then re-run the import yourself or tell me and I will retry.
-
-${rerunBlock(origin, groupPaths(refusal))}`;
+  return refusalPrompt(refusal, {
+    because: "its import preset names a deleted ledger account",
+    facts: `Deleted ledger account id: ${account_id}`,
+    how: `Ask me whether to recreate the ledger account (its name, type and parent)
+or import into another. Then point the preset at it in one batch:
+remove_account with account_id ${account_id}, and add_account with the new id
+and the same other fields (${PRESETS_SECTION}).`,
+    report: [
+      { heading: "Account", says: "the ledger account it now imports into." },
+      PRESETS_REPORT,
+      REIMPORT_REPORT,
+    ],
+  });
 }
 
 export function closingBalancePrompt(
   refusal: RefusalOf<"closing_balance_unavailable">,
-  origin: string,
-): string {
-  return `${groupIntro(refusal)} This is a credit-card
-statement and the parser emitted no closing balance and no printed running
-balance on the last row, so the importer cannot verify it.${quoted(refusal.message)}
-Check whether the statement prints a total amount due or closing balance. If
-it does, make the parser emit it as \`closing\` through abacus.ledger_balance
-(run \`${PARSER_GUIDE}\` for how), with a sanitized fixture and test. If it
-truly prints none, stop and tell me what the statement
-does print about the amount owed. ${PII_RULE}
-
-Then re-run the import yourself or tell me and I will retry.
-
-${rerunBlock(origin, groupPaths(refusal))}`;
+): AgentPrompt {
+  return refusalPrompt(refusal, {
+    because: "the parser reads no closing balance from this card statement",
+    how: `If the statement prints a total amount due or closing balance, make the parser
+emit it as \`closing\` through abacus.ledger_balance (\`${PARSER_GUIDE}\`).
+${FIX_PARSER}
+If it prints none, stop and tell me what it prints about the amount owed.`,
+    report: [
+      {
+        heading: "Closing balance",
+        says: "the one the statement prints, or what it prints instead.",
+      },
+      PARSER_CHANGE("what changed in the parser."),
+      REIMPORT_REPORT,
+    ],
+  });
 }
 
 // For a code without a prompt of its own: the whole reply goes to the agent.
-export function genericFailurePrompt(
-  refusal: AccountRefusal,
-  origin: string,
-): string {
-  return `${groupIntro(refusal)}${quoted(refusal.message)}
-The full error payload was:
-
-${JSON.stringify(refusal, null, 2)}
-
-Please find out what went wrong, starting from the error code and message
-above and the file(s) named in it, and tell me what the fix is before changing
-the ledger. ${PII_RULE}
-
-Once fixed, you may re-run the import yourself or tell me and I will retry.
-
-${rerunBlock(origin, groupPaths(refusal))}`;
+export function genericFailurePrompt(refusal: AccountRefusal): AgentPrompt {
+  return refusalPrompt(refusal, {
+    because: `of ${refusal.error}`,
+    facts: `Full reply:\n${JSON.stringify(refusal, null, 2)}`,
+    how: `Start from the error and the files it names. ${PII_RULE}`,
+    report: [
+      { heading: "What's wrong", says: "in one sentence." },
+      PARSER_CHANGE("what changed."),
+      REIMPORT_REPORT,
+    ],
+  });
 }

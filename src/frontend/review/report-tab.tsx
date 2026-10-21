@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { Check } from "lucide-react";
+import type { AgentPrompt } from "../agent-prompt-rules";
 import { AgentButton } from "../components/agent-prompt";
 import { LoadError } from "../components/load-error";
 import { ReportResultBody, useReportResult } from "../reports/shared";
@@ -97,7 +98,7 @@ export function AskYourAgent({
   prompt,
 }: {
   title: string;
-  prompt: string;
+  prompt: AgentPrompt;
 }) {
   return (
     <div className="mt-5 max-w-[760px]">

@@ -11,10 +11,9 @@ import {
   DialogTitle,
 } from "@sapporta/ui/dialog";
 import { CODING_AGENTS, type AgentHandoff } from "../../shared/index";
-import { PLAN_FIRST_RULE, planFirst } from "../agent-prompt-rules";
+import type { AgentPrompt } from "../agent-prompt-rules";
 import { agentHandoffApi, apiRefusalMessage } from "../api";
 import { agentHandoffAvailabilityQuery } from "../queries";
-import { Disclosure } from "./disclosure";
 import { Button } from "./ui/button";
 
 /**
@@ -31,10 +30,10 @@ import { Button } from "./ui/button";
  * Where the server can't start an agent, the button copies the prompt
  * instead, for whatever agent the user runs in the project.
  *
- * `prompt` is the request alone. What the user copies, hands off and views
- * has the plan-first rule on top (agent-prompt-rules.ts), so the agent's
- * first reply is its plan and it does nothing until the user says go. That is
- * said once, in the rule, not beside every button.
+ * `prompt` comes from agentPrompt (agent-prompt-rules.ts), which carries the
+ * plan-first rule, so the agent's first reply is its plan and it does nothing
+ * until the user says go. That is said once, in the rule, not beside every
+ * button.
  *
  * Which agent is started, and whether the server can open a terminal for it,
  * is the server's to decide: the button only asks, and the result says what
@@ -50,7 +49,7 @@ export function AgentButton({
 }: {
   /** What the agent gets done, in a few words: "Fix the parser". */
   label: string;
-  prompt: string;
+  prompt: AgentPrompt;
   /** What the user does once the agent has the prompt. */
   afterwards?: ReactNode;
   /**
@@ -73,7 +72,7 @@ export function AgentButton({
     mutationFn: (sent: string) =>
       agentHandoffApi.handOffPrompt({ body: { prompt: sent } }),
   });
-  const text = planFirst(prompt);
+  const text: string = prompt;
   const [copied, setCopied] = useState<string>();
   // The last result, kept while a retry is out so the line stays put.
   const [result, setResult] = useState<{
@@ -225,22 +224,12 @@ export function AgentButton({
   );
 }
 
-/**
- * The prompt as the agent gets it: the request, and under a fold, the
- * plan-first rule dbu6 puts above it.
- */
+/** The prompt as the agent gets it. */
 function PromptText({ prompt }: { prompt: string }) {
   return (
-    <div className="space-y-2">
-      <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-control border border-sap-border bg-sap-nested p-3 font-mono text-meta">
-        {prompt}
-      </pre>
-      <Disclosure summary="dbu6's rule above it: plan first">
-        <pre className="whitespace-pre-wrap break-words font-mono text-meta text-ink-soft">
-          {PLAN_FIRST_RULE}
-        </pre>
-      </Disclosure>
-    </div>
+    <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-control border border-sap-border bg-sap-nested p-3 font-mono text-meta">
+      {prompt}
+    </pre>
   );
 }
 

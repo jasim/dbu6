@@ -26,6 +26,7 @@ import {
   AccountParentPath,
   accountLookupItemDisplay,
 } from "../components/account-name";
+import type { AgentPrompt } from "../agent-prompt-rules";
 import { AgentButton } from "../components/agent-prompt";
 import { Field } from "../components/focus-card";
 import { Button } from "../components/ui/button";
@@ -703,7 +704,7 @@ function NewRules({
   /** Every rule the books have, for whoever wants to see them all. */
   allRulesHref: string;
   onChanged: () => void;
-  prompt: string;
+  prompt: AgentPrompt;
   runCategorizerHref: string;
   /** The agent has them, or the user copied the prompt for it. */
   onHandedOver: () => void;
@@ -831,7 +832,7 @@ function WithAgent({
 }: {
   /** The account's drafts that have no account. */
   drafts: number;
-  prompt: string;
+  prompt: AgentPrompt;
   runCategorizerHref: string;
 }) {
   const navigate = useNavigate();

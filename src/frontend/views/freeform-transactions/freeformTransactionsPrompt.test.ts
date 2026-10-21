@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PLAN_FIRST_RULE } from "../../agent-prompt-rules";
 import {
   FREEFORM_TRANSACTIONS_GUIDE,
   freeformTransactionsPrompt,
@@ -10,11 +11,9 @@ describe("freeformTransactionsPrompt", () => {
       kind: "card",
       name: "Sample Credit Card",
     });
+    expect(prompt).toMatch(/^Outcome: Import my credit card transactions/);
     expect(prompt).toContain(
-      "I have transactions from a credit card in freeform",
-    );
-    expect(prompt).toContain(
-      "They go into the ledger account Sample Credit Card.",
+      "Ledger account: Sample Credit Card\nKind: credit card",
     );
     // The guide is inside the installed package: the prompt names the
     // command that prints it, not a file.
@@ -24,16 +23,28 @@ describe("freeformTransactionsPrompt", () => {
 
     expect(
       freeformTransactionsPrompt({ kind: "bank", name: "Sample Bank" }),
-    ).toContain("I have transactions from a bank account in freeform");
+    ).toContain("Kind: bank account");
   });
 
-  it("always asks for both balances before importing", () => {
+  it("asks for both balances before importing", () => {
     const prompt = freeformTransactionsPrompt({
       kind: "bank",
       name: "Sample Bank",
     });
-    expect(prompt).toContain("ask me for the opening balance");
-    expect(prompt).toContain("the closing balance");
-    expect(prompt).toContain("Do not import without both.");
+    expect(prompt).toContain(
+      "Don't import until I've given you\nthe opening and closing balances.",
+    );
+  });
+
+  it("ends on the line the pasted transactions follow, after the plan and report rules", () => {
+    const prompt = freeformTransactionsPrompt({
+      kind: "bank",
+      name: "Sample Bank",
+    });
+    const rules = prompt.indexOf(PLAN_FIRST_RULE);
+    const follow = prompt.indexOf("My transactions follow");
+    expect(rules).toBeGreaterThan(0);
+    expect(follow).toBeGreaterThan(prompt.indexOf("**Next**: check them in Review."));
+    expect(prompt.endsWith("once I say go.\n")).toBe(true);
   });
 });

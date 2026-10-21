@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { Input } from "@sapporta/ui";
 import type { AccountKind } from "../../shared/index";
+import type { AgentPrompt } from "../agent-prompt-rules";
 import { AgentButton } from "../components/agent-prompt";
 import { Disclosure } from "../components/disclosure";
 import { Button } from "../components/ui/button";
@@ -29,7 +30,10 @@ import {
  */
 
 /** The Teach card's prompt for a file it can't read, and what it's for. */
-function teachPrompt(file: Unreadable): { prompt: string; goal: string } {
+function teachPrompt(file: Unreadable): {
+  prompt: AgentPrompt;
+  goal: string;
+} {
   return file.status === "ambiguous"
     ? { prompt: addAmbiguousPrompt(file), goal: "Tell the formats apart" }
     : { prompt: addUnrecognizedPrompt(file), goal: "Set up this format" };

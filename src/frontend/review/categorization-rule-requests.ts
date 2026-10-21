@@ -14,9 +14,9 @@ import {
   type CategorizationRuleRequestTransaction,
   type ReviewAccountDetail,
 } from "../../shared/index";
-import { PII_RULE } from "../agent-prompt-rules";
+import { agentPrompt, type AgentPrompt } from "../agent-prompt-rules";
 import { agree, plural } from "../format";
-import { reviewHref } from "./routes";
+import { IMPROVE_CATEGORIZATION_TAB, reviewHref } from "./routes";
 
 /** Drafts listed under a rule request before the rest are only counted. */
 export const RULE_REQUEST_TRANSACTION_LIMIT = 20;
@@ -53,83 +53,55 @@ export function amountsSeen(
 }
 
 /**
- * The request to the coding agent: each rule request as the user gave it,
- * amounts and all. The agent proposes first, and pushes back on a rule
- * request whose drafts share nothing the categorizer can see; how a rule
- * request is encoded is decided with the user, by the books guide.
+ * The rule requests, as the user made them, handed to the coding agent to
+ * encode. The books guide's mapping section says how; the prompt adds what
+ * these drafts make easy to get wrong.
  */
 export function ruleRequestsPrompt(
   detail: ReviewAccountDetail,
   ruleRequests: readonly CategorizationRuleRequest[],
-): string {
+): AgentPrompt {
   const { account } = detail;
-  return `I'm adding categorization rules to my books app (this repository), on the
-screen ${reviewHref(account.account_id, "improve-categorization")}. These are
-drafts imported for ${account.name} (ledger account ${account.path}, account
-id ${account.account_id}) that the categorizer couldn't place, grouped as I
-picked them, and where I've said they go. Each draft is its date, which way
-the money moved, the amount, and the description:
+  return agentPrompt({
+    outcome: `Turn my ${plural(ruleRequests.length, "rule request")} for ${account.name} into categorization rules, so the categorizer places drafts like these.`,
+    facts: `${accountLine(detail)}
+Screen: ${reviewHref(account.account_id, IMPROVE_CATEGORIZATION_TAB)}
 
-${ruleRequests.map((ruleRequest, index) => ruleRequestText(account.account_id, ruleRequest, index)).join("\n\n")}
+Rule requests (date · out or in, amount · description):
+${ruleRequests.map((ruleRequest, index) => ruleRequestText(account.account_id, ruleRequest, index)).join("\n\n")}`,
+    how: `${RULE_FACTS}
 
-${categorizerFacts()}
-
-Propose before you change anything. For each numbered rule request:
-
-1. Say what these drafts have in common that the categorizer can see: a
-   payee, a UPI ID, a merchant's name, a phrase. That I picked them together
-   doesn't make them alike. If all they share is how they were paid (UPI,
-   NEFT, IMPS, a card, an ATM), or nothing at all, say so plainly, propose no
-   rule, and ask me what I meant. Drafts that only need filing once, I set by
-   hand on the Drafts tab.
-2. Propose the change: exact rule, contains rule or instruction, its exact
-   text as it will read, and the file it goes in.
-3. Limit it to an amount range when the amount is part of what makes these
-   drafts alike, or when the phrase alone would catch other payments too.
-   Take the range from the amounts I picked, rounded out to round figures
-   (60 to 480 becomes 50 to 500), never the exact amounts, which change.
-   Leave the range out when the payee alone settles it.
-4. For a rule, check it against the transactions already in my books: how
-   many it would have caught that are in a different account, with a few
-   of them. Say whether that makes the rule wrong.
-
-Then stop, and wait for me. Make only the changes I agree to.
-
-Don't categorise the drafts yourself: once the rules are in, I run the
-categoriser from the app.
-
-When a rule request is encoded, delete it from my list with
-\`npx sapporta api delete /api/categorization-rule-requests/<rule request id>\`, and do
-the same for a rule request I tell you to drop. Leave any other rule request
-on the list.
-
-The rules and instruction files in user-config/ are my own settings: they
-may name payees and amount ranges. Everywhere else: ${PII_RULE}
-
-Report back what you did for each numbered rule request, or why you didn't.`;
+${DELETE_ENCODED}`,
+    report: [
+      {
+        heading: "Rules added",
+        says: "for each rule request, the rule or line now in place and its file, or why none.",
+      },
+      { heading: "Still on my list", says: "the rule requests left." },
+      { heading: "Next", says: "Run categorizer, on Review." },
+    ],
+  });
 }
 
 /**
- * What the categorizer sees and the order it tries its rules in, and where
- * the books guide says how to choose between a rule and an instruction:
- * every prompt that asks the agent for rules starts its work from this.
+ * What a prompt asking for rules needs beyond the books guide's mapping
+ * section: the limits it sets out, put where these drafts trip on them.
  */
-export function categorizerFacts(): string {
-  return `The categorizer sees a transaction's description, which way the money
-moved, and the amount, never its date. It tries, in order: exact rules in
-user-config/transaction_mappings.mjs (a whole description, or a UPI ID
-inside one); contains rules there (a phrase in the description, optionally
-only one way and only within an amount range); then the AI, following the
-instruction files this account's import preset lists. A rule applies to every
-account; an instruction file applies to every account whose preset lists it.
-\`${guideCommand("books")}\` says how to choose, under "Always put this under X — adding a
-mapping", and how to read this account's import preset. If this account lists
-no instruction file, or only an empty one, tell me, and propose which to use.
+export const RULE_FACTS = `The categorizer sees a draft's description, direction and amount, never its
+date. How it was paid (UPI, NEFT, card) is not something drafts share. Round
+an amount range out (60–480 becomes 50–500). My user-config/ files may name
+payees and amounts. Don't run the categorizer: I run it from the app. The
+rest is under "Always put this under X — adding a mapping" in
+\`${guideCommand("books")}\`.`;
 
-To find where transactions like these went before, and what a rule would
-catch, search my books:
-\`npx sapporta api get /api/search --query '{"q":"<words>"}'\`. It matches
-every word against journals, drafts and accounts.`;
+/** Takes a rule request off the user's list once the agent is done with it. */
+export const DELETE_ENCODED = `Delete a rule request once it's encoded, or when I drop it:
+\`npx sapporta api delete /api/categorization-rule-requests/<rule request id>\`.`;
+
+/** The account line both categorization prompts open their facts with. */
+export function accountLine(detail: ReviewAccountDetail): string {
+  const { account } = detail;
+  return `Account: ${account.name} (${account.path}, account id ${account.account_id})`;
 }
 
 function ruleRequestText(
