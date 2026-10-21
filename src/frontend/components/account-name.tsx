@@ -155,8 +155,13 @@ function AccountLabel({
 }
 
 // Grids whose account cells show the name alone: journal entries, one line
-// each, scanned down the page. Picking an account there still shows its path.
-const NAME_ONLY_CELLS: ReadonlySet<string> = new Set(["journal_entries"]);
+// each, scanned down the page, and the accounts tree, whose parent column
+// names a row the tree already shows above. Picking an account there still
+// shows its path.
+const NAME_ONLY_CELLS: ReadonlySet<string> = new Set([
+  "journal_entries",
+  "accounts",
+]);
 
 /** dbu6's row displays, for the `RowDisplayProvider` around the app. */
 export const accountRowDisplays = defineRowDisplays({
