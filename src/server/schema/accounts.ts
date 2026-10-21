@@ -5,7 +5,14 @@ import {
   uniqueIndex,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
-import { sapportaTable, select, text, timestamp } from "@sapporta/server/table";
+import {
+  sapportaTable,
+  select,
+  text,
+  timestamp,
+  treePath,
+} from "@sapporta/server/table";
+import { ACCOUNT_PATH_SEPARATOR } from "../../shared/account-path.js";
 import { Temporal } from "@sapporta/shared/temporal";
 
 const accountTypeOptions = [
@@ -58,6 +65,10 @@ export const accounts = sapportaTable({
     rowScope: "workspaceUserScoped",
     // The Accounts page shows one indented tree; siblings sort by name.
     tree: { parentColumn: "parent_id" },
+    // Outside the tree, Sapporta draws an account with its parent path,
+    // "Expenses > Kitchen", under its name: in pickers, the record sheet,
+    // and wherever the frontend's label slot (`accountRowDisplays`) draws it.
+    rowCaption: "parentPath",
     defaultSort: asc(accountsTable.name),
     search: { self: ["name"] },
     columns: {
@@ -99,4 +110,5 @@ export const accounts = sapportaTable({
       },
     ],
   },
+  computed: { parentPath: treePath({ separator: ACCOUNT_PATH_SEPARATOR }) },
 });
