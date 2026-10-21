@@ -867,7 +867,7 @@ entry in each of those two tables.
   agent's auto mode: the agent's own reviewer approves edits and commands, so
   the user isn't asked for each one. Every prompt opens with
   `PLAN_FIRST_RULE` (`src/frontend/agent-prompt-rules.ts`), which the
-  AI-assisted panel puts on top of whatever it copies or hands off: the
+  `AgentButton` puts on top of whatever it copies or hands off: the
   agent's first reply is the big idea in a sentence and a few short steps, and
   it touches nothing until the user says go.
 
