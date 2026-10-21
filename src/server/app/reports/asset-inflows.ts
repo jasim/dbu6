@@ -1,30 +1,38 @@
 import {
+  accountNameColumn,
   dateColumn,
   flatResult,
   type GridDataset,
   hiddenIdColumn,
   moneyColumn,
   openRecordLink,
-  parentPathColumn,
   type ReportLedger,
   reportLedger,
   type SapportaEnv,
   textColumn,
   TsRestApi,
+  withReferenceCaptions,
 } from "../../report-kit.js";
 import { reportsContract } from "../../../shared/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
-api.register("assetInflows", reportsContract.assetInflows, ({ c, request }) => {
-  const ledger = reportLedger(c, "asset-inflows");
-  const rows = loadAssetInflows(ledger, {
-    fromDate: request.query.from_date ?? null,
-    toDate: request.query.to_date ?? null,
-  });
+api.register(
+  "assetInflows",
+  reportsContract.assetInflows,
+  async ({ c, request }) => {
+    const ledger = reportLedger(c, "asset-inflows");
+    const rows = loadAssetInflows(ledger, {
+      fromDate: request.query.from_date ?? null,
+      toDate: request.query.to_date ?? null,
+    });
 
-  return { status: 200, body: toAssetInflowsResult(rows) };
-});
+    return {
+      status: 200,
+      body: await withReferenceCaptions(c, toAssetInflowsResult(rows)),
+    };
+  },
+);
 
 export type AssetInflowRow = {
   entry_id: number;
@@ -32,8 +40,6 @@ export type AssetInflowRow = {
   account_id: number;
   date: string;
   asset_account: string;
-  /** Null for a top account. */
-  asset_account_parent_path: string | null;
   source_accounts: string | null;
   description: string;
   comment: string | null;
@@ -57,7 +63,6 @@ export function loadAssetInflows(
       asset.id AS account_id,
       j.date,
       asset.name AS asset_account,
-      ap.parent_path AS asset_account_parent_path,
       (
         SELECT GROUP_CONCAT(name, ', ')
         FROM (
@@ -76,7 +81,6 @@ export function loadAssetInflows(
     FROM scoped_journal_entries je
     JOIN scoped_journals j ON j.id = je.journal_id
     JOIN scoped_accounts asset ON asset.id = je.account_id
-    LEFT JOIN scoped_account_paths ap ON ap.id = asset.id
     WHERE asset.account_type = 'Asset'
       AND je.debit > 0
       AND (@fromDate IS NULL OR j.date >= @fromDate)
@@ -105,8 +109,9 @@ export function toAssetInflowsResult(rows: AssetInflowRow[]): GridDataset {
         hiddenIdColumn("journal_id", "Journal ID"),
         hiddenIdColumn("account_id", "Account ID"),
         dateColumn("date", "Date", { width: 12 }),
-        textColumn("asset_account", "Asset Account", { width: 42 }),
-        parentPathColumn("asset_account"),
+        accountNameColumn("asset_account", "Asset Account", "account_id", {
+          width: 42,
+        }),
         textColumn("source_accounts", "Source Accounts", { width: 42 }),
         textColumn("description", "Description", {
           width: 50,

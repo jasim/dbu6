@@ -99,9 +99,10 @@ export {
 } from "./reports/links";
 
 // --- Account names with their parent paths ("Expenses > Kitchen") ---
-// A report column with a `parentPathColumn` sibling shows its path by itself
-// (ReportResultBody), and a LookupPicker over the accounts lookup shows it
-// for each choice; these are for a screen that draws a name on its own.
+// A report column made with `accountNameColumn` shows its path by itself (the
+// accounts table's label slot), and a LookupPicker over the accounts lookup
+// shows it for each choice; these are for a screen that draws a name on its
+// own.
 export {
   AccountName,
   AccountParentPath,

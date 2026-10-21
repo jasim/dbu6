@@ -1,5 +1,8 @@
 import Database from "better-sqlite3";
-import { gridDatasetSchema } from "@sapporta/shared/grid-dataset";
+import {
+  gridDatasetReferenceProblems,
+  gridDatasetSchema,
+} from "@sapporta/shared/grid-dataset";
 import { describe, expect, it } from "vitest";
 import { draftBalanceAssertionsReport } from "./draft-balance-assertions.js";
 import { duplicateDraftsReport } from "./duplicate-drafts.js";
@@ -87,24 +90,26 @@ describe("draft reports narrowed to one account", () => {
     expect(one.nodes.map((node) => node.columns.draft_id)).toEqual([203]);
     const columns = one.levels[one.rootLevel]!.columns;
     expect(columns.map((column) => column.id)).not.toContain("account_name");
-    expect(columns.map((column) => column.id)).not.toContain(
-      "account_name_parent_path",
-    );
     expect(
       columns.find((column) => column.id === "date")?.links?.[0],
     ).toMatchObject({ kind: "report", report: "account-ledger" });
+    // The Account column names the account in the hidden account_id.
     expect(
-      every.levels[every.rootLevel]!.columns.map((column) => column.id),
-    ).toContain("account_name");
-    // Each account's parent path beside its name, null for a top account.
+      every.levels[every.rootLevel]!.columns.find(
+        (column) => column.id === "account_name",
+      ),
+    ).toMatchObject({
+      reference: { table: "accounts", idColumn: "account_id" },
+    });
+    expect(gridDatasetReferenceProblems(every)).toEqual([]);
     expect(
       every.nodes.map((node) => [
         node.columns.account_name,
-        node.columns.account_name_parent_path,
+        node.columns.account_id,
       ]),
     ).toEqual([
-      ["No Preset Bank", null],
-      ["Sample Savings", "Sample Banks"],
+      ["No Preset Bank", 4],
+      ["Sample Savings", 2],
     ]);
   });
 
@@ -128,20 +133,29 @@ describe("draft reports narrowed to one account", () => {
     expect(
       every.levels[every.rootLevel]!.columns.map((column) => column.id),
     ).toContain("base_account");
-    expect(
-      one.levels[one.rootLevel]!.columns.map((column) => column.id),
-    ).not.toContain("base_account_parent_path");
-    // Each account's parent path beside its name, null for a top account
-    // and for a draft without an account.
+    // Each account column names its account in a hidden id column, null
+    // for a draft without an account.
+    const references = Object.fromEntries(
+      every.levels[every.rootLevel]!.columns.flatMap((column) =>
+        column.reference ? [[column.id, column.reference]] : [],
+      ),
+    );
+    expect(references).toEqual({
+      base_account: { table: "accounts", idColumn: "base_account_id" },
+      draft_account: { table: "accounts", idColumn: "draft_account_id" },
+      matched_account: { table: "accounts", idColumn: "matched_account_id" },
+    });
+    expect(gridDatasetReferenceProblems(every)).toEqual([]);
+    expect(gridDatasetReferenceProblems(one)).toEqual([]);
     expect(
       every.nodes.map((node) => [
-        node.columns.base_account_parent_path,
-        node.columns.draft_account_parent_path,
-        node.columns.matched_account_parent_path,
+        node.columns.base_account_id,
+        node.columns.draft_account_id,
+        node.columns.matched_account_id,
       ]),
     ).toEqual([
-      [null, null, null],
-      ["Sample Banks", "Household", "Household"],
+      [4, null, null],
+      [2, 3, 3],
     ]);
   });
 });

@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { appTimeZone } from "@sapporta/frontend";
 import {
@@ -11,7 +10,6 @@ import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { Temporal } from "@sapporta/shared/temporal";
 import { Input } from "@sapporta/ui";
 import { apiErrorMessage } from "../api";
-import { accountPathCells } from "../components/account-name";
 import { FRESH_QUERY } from "../queries";
 
 /**
@@ -68,16 +66,6 @@ export function ReportResultBody<TInput = unknown>({
   renderCell?: ReportCellRenderers;
   result: GridDataset | null;
 }) {
-  // Account names with a parent-path column show the path under them; the
-  // report's own renderers win on the columns they draw.
-  const cells = useMemo(() => {
-    if (result === null) return renderCell;
-    const merged = accountPathCells(result);
-    for (const [level, columns] of Object.entries(renderCell ?? {})) {
-      merged[level] = { ...merged[level], ...columns };
-    }
-    return merged;
-  }, [result, renderCell]);
   return (
     <>
       {error ? <ReportError error={error} /> : null}
@@ -87,7 +75,7 @@ export function ReportResultBody<TInput = unknown>({
             dataset={result}
             links={links}
             linkContext={linkContext}
-            renderCell={cells}
+            renderCell={renderCell}
             columnSizing={REPORT_COLUMN_SIZING}
           />
         ) : null}

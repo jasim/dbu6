@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountParentPaths, parentPathColumnId } from "./account-path.js";
+import { accountParentPaths } from "./account-path.js";
 
 describe("accountParentPaths", () => {
   const chart = [
@@ -39,11 +39,5 @@ describe("accountParentPaths", () => {
     ]);
     expect(paths.get(1)).toBe("B");
     expect(paths.get(2)).toBeNull();
-  });
-});
-
-describe("parentPathColumnId", () => {
-  it("suffixes the name column", () => {
-    expect(parentPathColumnId("account_name")).toBe("account_name_parent_path");
   });
 });

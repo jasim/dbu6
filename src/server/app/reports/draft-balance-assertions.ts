@@ -8,11 +8,11 @@ import {
   readOnlyLedger,
   type SapportaEnv,
   TsRestApi,
+  withReferenceCaptions,
 } from "../../report-kit.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 import { reportsContract } from "../../../shared/index.js";
 import { assertionColumns } from "./assertion-grid.js";
-import { loadPathedAccounts } from "./account-paths.js";
 import {
   findFailingChecks,
   type FailingCheck,
@@ -23,14 +23,17 @@ const api = new TsRestApi<SapportaEnv>();
 api.register(
   "draftBalanceAssertions",
   reportsContract.draftBalanceAssertions,
-  ({ c, request }) => {
+  async ({ c, request }) => {
     const auth = authorizeReport(c, "draft-balance-assertions");
     return {
       status: 200,
-      body: draftBalanceAssertionsReport(
-        c.get("sqlite"),
-        auth,
-        request.query.base_account_id,
+      body: await withReferenceCaptions(
+        c,
+        draftBalanceAssertionsReport(
+          c.get("sqlite"),
+          auth,
+          request.query.base_account_id,
+        ),
       ),
     };
   },
@@ -45,21 +48,16 @@ export function draftBalanceAssertionsReport(
   auth: LedgerAuth,
   accountId?: number,
 ): GridDataset {
-  const accounts = new Map(
-    loadPathedAccounts(readOnlyLedger(sqlite, auth)).map((account) => [
-      account.id,
-      account,
-    ]),
+  const names = new Map(
+    readOnlyLedger(sqlite, auth)
+      .all<{ id: number; name: string }>(`SELECT id, name FROM scoped_accounts`)
+      .map((account) => [account.id, account.name]),
   );
   const rows = findFailingChecks(sqlite, auth, { accountId })
-    .map((row) => {
-      const account = accounts.get(row.account_id);
-      return {
-        ...row,
-        account_name: account?.name ?? "",
-        account_name_parent_path: account?.parent_path ?? null,
-      };
-    })
+    .map((row) => ({
+      ...row,
+      account_name: names.get(row.account_id) ?? "",
+    }))
     // By account name, as SQLite's binary collation orders it; the checks
     // already come by date and draft within an account.
     .sort((a, b) =>
@@ -72,10 +70,7 @@ export function draftBalanceAssertionsReport(
   return toDraftBalanceAssertionsResult(rows, accountId === undefined);
 }
 
-type DraftBalanceAssertionRow = FailingCheck & {
-  account_name: string;
-  account_name_parent_path: string | null;
-};
+type DraftBalanceAssertionRow = FailingCheck & { account_name: string };
 
 function toDraftBalanceAssertionsResult(
   rows: DraftBalanceAssertionRow[],

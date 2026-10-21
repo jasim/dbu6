@@ -1,52 +1,44 @@
 import {
   authorizeReport,
   accountLedgerLink,
+  accountNameColumn,
   dateColumn,
   flatResult,
   type GridDataset,
   hiddenIdColumn,
   moneyColumn,
   openRecordLink,
-  parentPathColumn,
-  readOnlyLedger,
   type SapportaEnv,
-  textColumn,
   TsRestApi,
+  withReferenceCaptions,
 } from "../../report-kit.js";
 import { reportsContract } from "../../../shared/index.js";
 import {
   loadLastReconciled,
   type LastReconciledRow,
 } from "../../modules/journals/index.js";
-import { loadPathedAccounts } from "./account-paths.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
-api.register("lastReconciled", reportsContract.lastReconciled, ({ c }) => {
-  const auth = authorizeReport(c, "last-reconciled");
-  const sqlite = c.get("sqlite");
-  const paths = new Map(
-    loadPathedAccounts(readOnlyLedger(sqlite, auth)).map((account) => [
-      account.id,
-      account.parent_path,
-    ]),
-  );
-  const rows = loadLastReconciled(sqlite, auth).map((row) => ({
-    ...row,
-    account_name_parent_path: paths.get(row.account_id) ?? null,
-  }));
+api.register(
+  "lastReconciled",
+  reportsContract.lastReconciled,
+  async ({ c }) => {
+    const auth = authorizeReport(c, "last-reconciled");
+    const rows = loadLastReconciled(c.get("sqlite"), auth);
+    return {
+      status: 200,
+      body: await withReferenceCaptions(c, toLastReconciledResult(rows)),
+    };
+  },
+);
 
-  return { status: 200, body: toLastReconciledResult(rows) };
-});
-
-function toLastReconciledResult(
-  rows: (LastReconciledRow & { account_name_parent_path: string | null })[],
-): GridDataset {
+function toLastReconciledResult(rows: LastReconciledRow[]): GridDataset {
   const levelColumns = {
     account: [
       hiddenIdColumn("account_id", "Account ID"),
       hiddenIdColumn("journal_id", "Journal ID"),
-      textColumn("account_name", "Account", {
+      accountNameColumn("account_name", "Account", "account_id", {
         width: 52,
         links: [
           accountLedgerLink({
@@ -55,7 +47,6 @@ function toLastReconciledResult(
           }),
         ],
       }),
-      parentPathColumn("account_name"),
       dateColumn("last_reconciled_date", "Last Reconciled", {
         width: 16,
         links: [openRecordLink("journals", "journal_id", "Open journal")],

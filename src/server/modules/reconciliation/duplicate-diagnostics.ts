@@ -94,7 +94,11 @@ export interface DuplicateDiagnostic extends Record<string, unknown> {
   source_transaction_key: string | null;
   other_source_reference: string | null;
   other_source_transaction_key: string | null;
+  /** The account the draft is categorized to, if any. */
+  draft_account_id: number | null;
   draft_account: string | null;
+  /** The matched draft's account, or the matched journal entry's. */
+  matched_account_id: number | null;
   matched_account: string | null;
 }
 
@@ -177,7 +181,9 @@ export function findDuplicateDiagnostics(
         source_transaction_key: left.source_transaction_key,
         other_source_reference: right.source_reference,
         other_source_transaction_key: right.source_transaction_key,
+        draft_account_id: left.account_id,
         draft_account: left.draft_account,
+        matched_account_id: right.account_id,
         matched_account: right.draft_account,
       });
     }
@@ -205,7 +211,9 @@ export function findDuplicateDiagnostics(
           source_transaction_key: left.source_transaction_key,
           other_source_reference: entry.source_reference,
           other_source_transaction_key: entry.source_transaction_key,
+          draft_account_id: left.account_id,
           draft_account: left.draft_account,
+          matched_account_id: entry.account_id,
           matched_account: entry.account,
         });
       }

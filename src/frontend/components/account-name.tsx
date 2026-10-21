@@ -4,10 +4,7 @@ import {
   defineRowDisplays,
   type LabelSlotProps,
 } from "@sapporta/frontend/lookup";
-import type { ReportCellRenderers } from "@sapporta/frontend/report";
-import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { cn } from "@sapporta/ui/cn";
-import { parentPathColumnId } from "../../shared/index";
 import { accountChartQuery } from "../queries";
 
 /*
@@ -16,13 +13,12 @@ import { accountChartQuery } from "../queries";
  * tree, which shows the parents already, a screen shows the name alone.
  *
  * Where the path comes from:
- * - wherever Sapporta draws an account (grid cells at any level, pickers,
- *   forms, the record sheet), the accounts table's computed `parentPath`,
- *   drawn by `accountRowDisplays`;
+ * - wherever Sapporta draws an account (grid cells at any level, report
+ *   columns that reference the accounts table, pickers, forms, the record
+ *   sheet), the accounts table's computed `parentPath`, drawn by
+ *   `accountRowDisplays`;
  * - a server read that carries `parent_path` beside the name, from
  *   `loadAccountParentPaths` or `scoped_account_paths`;
- * - a report column with its hidden `parentPathColumnId` sibling, which
- *   `accountPathCells` draws for every report screen;
  * - a screen of dbu6's own that only has an account's id or name, through
  *   `useAccountParentPaths`: one cached read of the accounts per screen.
  */
@@ -166,28 +162,3 @@ const NAME_ONLY_CELLS: ReadonlySet<string> = new Set(["journal_entries"]);
 export const accountRowDisplays = defineRowDisplays({
   accounts: { label: { needs: ["parentPath"], render: AccountLabel } },
 });
-
-/**
- * Cell renderers for every report column that has a hidden parent-path
- * sibling (`parentPathColumnId`): the name, with the path under it. Keyed as
- * `ReportCellRenderers` want, by level and column.
- */
-export function accountPathCells(dataset: GridDataset): ReportCellRenderers {
-  const cells: ReportCellRenderers = {};
-  for (const [levelName, level] of Object.entries(dataset.levels)) {
-    const ids = new Set(level.columns.map((column) => column.id));
-    for (const column of level.columns) {
-      const pathId = parentPathColumnId(column.id);
-      if (!ids.has(pathId)) continue;
-      (cells[levelName] ??= {})[column.id] = ({ row, defaultContent }) => {
-        const path = row.columns[pathId];
-        return typeof path === "string" && path !== "" ? (
-          <AccountName name={defaultContent} parentPath={path} dense />
-        ) : (
-          defaultContent
-        );
-      };
-    }
-  }
-  return cells;
-}

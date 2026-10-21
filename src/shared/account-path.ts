@@ -13,9 +13,9 @@
  *   accounts each.
  * - Raw SQL joins `scoped_account_paths` (modules/ledger-sql), which yields
  *   the same `parent_path` for every account in the same statement.
- * - A report puts an account's parent path in a hidden column beside its name
- *   column, named by `parentPathColumnId`, and the report screens show it
- *   under the name.
+ * - A report names an account in a column that references the accounts
+ *   table (`accountNameColumn`), and Sapporta draws the table's computed
+ *   `parentPath` under the name.
  */
 
 /** What joins the names of a parent path, in TypeScript and in SQL. */
@@ -67,12 +67,4 @@ export function accountParentPaths(
 
   for (const account of accounts) parentPathOf(account, new Set());
   return pathTo;
-}
-
-/**
- * The id of the hidden report column holding the parent path of the account
- * named in `columnId`: `account_name` → `account_name_parent_path`.
- */
-export function parentPathColumnId(columnId: string): string {
-  return `${columnId}_parent_path`;
 }

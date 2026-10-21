@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { SapportaEnv } from "@sapporta/server";
+import { attachReferenceComputed, type SapportaEnv } from "@sapporta/server";
 import type { NavLink } from "@sapporta/shared/contracts";
 import type {
   GridDataset,
@@ -11,7 +11,11 @@ import {
   type LedgerAuth,
   type ReportLedger,
 } from "../../modules/ledger-sql/index.js";
-import { parentPathColumnId } from "../../../shared/index.js";
+import { accounts } from "../../schema/accounts.js";
+import { categorizationRuleRequests } from "../../schema/categorization-rule-requests.js";
+import { draftTransactions } from "../../schema/draft-journals.js";
+import { importPresets } from "../../schema/import-presets.js";
+import { journalEntries, journals } from "../../schema/journals.js";
 import { requireLedgerAuth } from "../workflow-auth.js";
 
 export function authorizeReport(
@@ -85,17 +89,49 @@ export function hiddenIdColumn(id: string, label: string): GridDatasetColumn {
 }
 
 /**
- * The hidden column holding the parent path ("Expenses > Kitchen") of the
- * account named in `nameColumnId`, which the report screens show under that
- * name. Fill it from `scoped_account_paths.parent_path`.
+ * The column naming an account by its name, drawn as the screens draw an
+ * account: the name, with its parent path ("Expenses > Kitchen") under it.
+ * `idColumn` is the row's hidden column holding the account's id. Send the
+ * report through `withReferenceCaptions` so the path draws with the report.
  */
-export function parentPathColumn(nameColumnId: string): GridDatasetColumn {
-  return {
-    id: parentPathColumnId(nameColumnId),
-    label: "Parent accounts",
-    kind: "text",
-    visuallyHidden: true,
-  };
+export function accountNameColumn(
+  id: string,
+  label: string,
+  idColumn: string,
+  options: Partial<GridDatasetColumn> = {},
+): GridDatasetColumn {
+  return textColumn(id, label, {
+    ...options,
+    reference: { table: "accounts", idColumn },
+  });
+}
+
+// The tables a report's `reference` columns may name.
+const REFERENCE_TABLES = [
+  accounts,
+  journals,
+  journalEntries,
+  draftTransactions,
+  importPresets,
+  categorizationRuleRequests,
+];
+
+/**
+ * The report, with the captions of the rows its `reference` columns name
+ * computed beside it (`dataset.computed`), such as each account's parent
+ * path, so they draw with the report rather than a lookup later. The ids must
+ * come from the report's own reads of the signed-in user's books, as every
+ * `ReportLedger` read's do.
+ */
+export function withReferenceCaptions(
+  c: Context<SapportaEnv>,
+  dataset: GridDataset,
+): Promise<GridDataset> {
+  return attachReferenceComputed(dataset, {
+    db: c.get("db"),
+    auth: c.get("auth"),
+    tables: REFERENCE_TABLES,
+  });
 }
 
 export function openRecordLink(

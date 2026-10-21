@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import {
+  accountNameColumn,
   authorizeReport,
   dateColumn,
   flatResult,
@@ -7,32 +8,33 @@ import {
   hiddenIdColumn,
   moneyColumn,
   openRecordLink,
-  parentPathColumn,
   percentColumn,
-  readOnlyLedger,
   type SapportaEnv,
   textColumn,
   TsRestApi,
+  withReferenceCaptions,
 } from "../../report-kit.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 import { reportsContract } from "../../../shared/index.js";
 import type { DuplicateDiagnostic } from "../../modules/reconciliation/index.js";
 import { findDraftDuplicates } from "../../modules/drafts/index.js";
-import { loadPathedAccounts } from "./account-paths.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
 api.register(
   "duplicateDrafts",
   reportsContract.duplicateDrafts,
-  ({ c, request }) => {
+  async ({ c, request }) => {
     const auth = authorizeReport(c, "duplicate-drafts");
     return {
       status: 200,
-      body: duplicateDraftsReport(
-        c.get("sqlite"),
-        auth,
-        request.query.base_account_id,
+      body: await withReferenceCaptions(
+        c,
+        duplicateDraftsReport(
+          c.get("sqlite"),
+          auth,
+          request.query.base_account_id,
+        ),
       ),
     };
   },
@@ -47,33 +49,14 @@ export function duplicateDraftsReport(
   auth: LedgerAuth,
   accountId?: number,
 ): GridDataset {
-  // The diagnostics name their accounts; a name is unique in a user's books,
-  // so it finds the account's parent path.
-  const paths = new Map(
-    loadPathedAccounts(readOnlyLedger(sqlite, auth)).map((account) => [
-      account.name,
-      account.parent_path,
-    ]),
+  return toDuplicateDraftsResult(
+    findDraftDuplicates(sqlite, auth, { accountId }),
+    accountId === undefined,
   );
-  const pathOf = (name: string | null) =>
-    name === null ? null : (paths.get(name) ?? null);
-  const rows = findDraftDuplicates(sqlite, auth, { accountId }).map((row) => ({
-    ...row,
-    base_account_parent_path: pathOf(row.base_account),
-    draft_account_parent_path: pathOf(row.draft_account),
-    matched_account_parent_path: pathOf(row.matched_account),
-  }));
-  return toDuplicateDraftsResult(rows, accountId === undefined);
 }
 
-type DuplicateDraftRow = DuplicateDiagnostic & {
-  base_account_parent_path: string | null;
-  draft_account_parent_path: string | null;
-  matched_account_parent_path: string | null;
-};
-
 function toDuplicateDraftsResult(
-  rows: DuplicateDraftRow[],
+  rows: DuplicateDiagnostic[],
   accountColumn: boolean,
 ): GridDataset {
   return flatResult(
@@ -82,6 +65,8 @@ function toDuplicateDraftsResult(
     {
       match: [
         hiddenIdColumn("base_account_id", "Base Account ID"),
+        hiddenIdColumn("draft_account_id", "Draft Account ID"),
+        hiddenIdColumn("matched_account_id", "Matched Account ID"),
         hiddenIdColumn("draft_id", "Draft ID"),
         hiddenIdColumn("other_draft_id", "Other Draft ID"),
         hiddenIdColumn("matched_journal_id", "Journal ID"),
@@ -101,8 +86,12 @@ function toDuplicateDraftsResult(
         percentColumn("confidence", "Confidence", { width: 14 }),
         ...(accountColumn
           ? [
-              textColumn("base_account", "Base Account", { width: 34 }),
-              parentPathColumn("base_account"),
+              accountNameColumn(
+                "base_account",
+                "Base Account",
+                "base_account_id",
+                { width: 34 },
+              ),
             ]
           : []),
         textColumn("direction", "Direction", { width: 14 }),
@@ -132,10 +121,20 @@ function toDuplicateDraftsResult(
             ),
           ],
         }),
-        textColumn("draft_account", "Draft Account", { width: 34 }),
-        parentPathColumn("draft_account"),
-        textColumn("matched_account", "Matched Account", { width: 34 }),
-        parentPathColumn("matched_account"),
+        accountNameColumn(
+          "draft_account",
+          "Draft Account",
+          "draft_account_id",
+          {
+            width: 34,
+          },
+        ),
+        accountNameColumn(
+          "matched_account",
+          "Matched Account",
+          "matched_account_id",
+          { width: 34 },
+        ),
         textColumn("source_reference", "Source Reference", { width: 30 }),
         textColumn("source_transaction_key", "Source Key", { width: 44 }),
         textColumn("other_source_reference", "Matched Reference", {

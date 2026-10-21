@@ -1,9 +1,11 @@
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import {
   gridDatasetLinkProblems,
+  gridDatasetReferenceProblems,
   gridDatasetSchema,
   gridDatasetTreeProblems,
 } from "@sapporta/shared/grid-dataset";
+import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
 import dayBookApi, { dayBookReport, dayLabel } from "./day-book.js";
 import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
@@ -230,8 +232,8 @@ describe("Day Book", () => {
     ]);
   });
 
-  it("puts each line's account's parent path beside its name, and nothing on a day or journal", () => {
-    const { books, grouped } = sampleBooks();
+  it("names each line's account by its id, and no account on a day or journal", () => {
+    const { books, grouped, food, travel, bank } = sampleBooks();
 
     const result = dayBookReport(books.ledger, {
       fromDate: "2026-01-10",
@@ -240,9 +242,12 @@ describe("Day Book", () => {
 
     expect(
       result.levels.day_book?.columns.find(
-        (column) => column.id === "particulars_parent_path",
+        (column) => column.id === "particulars",
       ),
-    ).toMatchObject({ kind: "text", visuallyHidden: true });
+    ).toMatchObject({
+      reference: { table: "accounts", idColumn: "account_id" },
+    });
+    expect(gridDatasetReferenceProblems(result)).toEqual([]);
     expect(
       result.nodes
         .filter(
@@ -251,16 +256,13 @@ describe("Day Book", () => {
             node.rowKey === `journal:${grouped}` ||
             node.columns.parent_key === `journal:${grouped}`,
         )
-        .map((node) => [
-          node.columns.particulars,
-          node.columns.particulars_parent_path,
-        ]),
+        .map((node) => [node.columns.particulars, node.columns.account_id]),
     ).toEqual([
       ["Saturday, 10 January 2026", undefined],
       ["Expenses", undefined],
-      ["Food", "Household"],
-      ["Travel", null],
-      ["Sample Bank", null],
+      ["Food", food],
+      ["Travel", travel],
+      ["Sample Bank", bank],
     ]);
   });
 
@@ -294,11 +296,12 @@ describe("Day Book", () => {
 });
 
 describe("Day Book route", () => {
-  it("answers the period's day book, with links and a tree the grid accepts", async () => {
-    const { books } = sampleBooks();
+  it("answers the period's day book, with links, a tree the grid accepts and its accounts' parent paths", async () => {
+    const { books, food, bank } = sampleBooks();
     const app = new TsRestApi<SapportaEnv>();
     app.use(async (c, next) => {
       c.set("sqlite", books.sqlite);
+      c.set("db", drizzle(books.sqlite));
       c.set(
         "auth",
         testLedgerAuth(books.owner.scoped_to_user_id, books.owner.workspace_id),
@@ -320,6 +323,12 @@ describe("Day Book route", () => {
         .filter((node) => node.columns.parent_key === null)
         .map((node) => node.columns.date),
     ).toEqual(["2026-01-12"]);
+    // Sent with the report, so the paths draw with the first paint: Food
+    // sits under Household, and the bank is a top account.
+    expect(result.computed?.accounts?.parentPath).toEqual({
+      [String(food)]: "Household",
+      [String(bank)]: null,
+    });
   });
 });
 

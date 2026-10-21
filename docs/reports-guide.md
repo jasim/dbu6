@@ -78,12 +78,6 @@ reports, and returns a `ReportLedger`:
   rows. Your SQL is placed after a `WITH` clause that defines those relations,
   so write a plain `SELECT`, or start with a comma to add CTEs of your own
   (`, monthly AS (SELECT …) SELECT … FROM monthly`).
-- `scoped_account_paths` gives every account's `parent_path`, its parents'
-  names from the top down (`Expenses > Kitchen`, null for a top account).
-  `LEFT JOIN scoped_account_paths ap ON ap.id = a.id` and select
-  `ap.parent_path AS account_name_parent_path` beside `account_name`, with
-  `parentPathColumn("account_name")` beside its column: the report screen
-  shows it under the account's name.
 - Bind values by name (`@fromDate`) and pass them in `params`. Do not build SQL
   from request values.
 - A statement that writes is refused before it runs.
@@ -104,8 +98,16 @@ Helpers from `"@dbu6/app/server"`:
 - Columns: `textColumn`, `dateColumn`, `moneyColumn`, `percentColumn`,
   `hiddenIdColumn(id, label)`. Each takes `(id, label, options)`; `width` is
   in characters.
-- `parentPathColumn(nameColumnId)` is the hidden column of the parent path
-  shown under an account's name (see `scoped_account_paths` above).
+- `accountNameColumn(id, label, idColumn, options)` is a column of account
+  names that the screen draws as it draws an account everywhere: the name,
+  with its parents (`Expenses > Kitchen`) under it. Select the account's id
+  too, in a `hiddenIdColumn` named by `idColumn`; a row without an id shows
+  the text alone. It is a `textColumn` with
+  `reference: { table: "accounts", idColumn }`.
+- `withReferenceCaptions(c, dataset)` adds what those names are drawn with to
+  the grid, so the parents show with the report rather than a moment later:
+  `body: await withReferenceCaptions(c, myReport(...))`, in an `async` route.
+  Without it the screen looks them up itself.
 - `flatResult(name, label, { <level>: columns }, rows, { rowKey, footerRows })`
   builds a one-level `GridDataset`. `footerRow` and `sum` help with totals.
 - Links: `accountLedgerLink({ account_id: "<column>" })` on a column opens the

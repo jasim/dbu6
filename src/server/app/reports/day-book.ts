@@ -1,32 +1,31 @@
 import {
   accountLedgerLink,
+  accountNameColumn,
   footerRow,
   type GridDataset,
   type GridDatasetNode,
   hiddenIdColumn,
   moneyColumn,
   openRecordLink,
-  parentPathColumn,
   type ReportLedger,
   reportLedger,
   type SapportaEnv,
   sum,
   textColumn,
   TsRestApi,
+  withReferenceCaptions,
 } from "../../report-kit.js";
 import { reportsContract } from "../../../shared/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
-api.register("dayBook", reportsContract.dayBook, ({ c, request }) => {
+api.register("dayBook", reportsContract.dayBook, async ({ c, request }) => {
   const ledger = reportLedger(c, "day-book");
-  return {
-    status: 200,
-    body: dayBookReport(ledger, {
-      fromDate: request.query.from_date ?? null,
-      toDate: request.query.to_date ?? null,
-    }),
-  };
+  const dataset = dayBookReport(ledger, {
+    fromDate: request.query.from_date ?? null,
+    toDate: request.query.to_date ?? null,
+  });
+  return { status: 200, body: await withReferenceCaptions(c, dataset) };
 });
 
 /** One line of a journal in the period, with its journal's date and description. */
@@ -37,8 +36,6 @@ export type DayBookLineRow = {
   entry_id: number;
   account_id: number;
   account_name: string;
-  /** Null for a top account. */
-  account_parent_path: string | null;
   debit: number;
   credit: number;
   comment: string | null;
@@ -62,7 +59,6 @@ export function loadDayBookLines(
       je.id AS entry_id,
       je.account_id,
       a.name AS account_name,
-      ap.parent_path AS account_parent_path,
       je.debit,
       je.credit,
       -- The person's comment, else the statement's text.
@@ -70,7 +66,6 @@ export function loadDayBookLines(
     FROM scoped_journal_entries je
     JOIN scoped_journals j ON j.id = je.journal_id
     JOIN scoped_accounts a ON a.id = je.account_id
-    LEFT JOIN scoped_account_paths ap ON ap.id = a.id
     WHERE (@fromDate IS NULL OR j.date >= @fromDate)
       AND (@toDate IS NULL OR j.date <= @toDate)
     ORDER BY j.date, j.id, je.id`,
@@ -118,7 +113,9 @@ export function toDayBookResult(lines: DayBookLineRow[]): GridDataset {
       visuallyHidden: true,
     },
     { id: "date", label: "Date", kind: "date" as const, visuallyHidden: true },
-    textColumn("particulars", "Particulars", {
+    // Only a line has an account_id, so only a line's account is drawn as
+    // an account; a day or journal row shows its text alone.
+    accountNameColumn("particulars", "Particulars", "account_id", {
       minWidth: 28,
       maxWidth: 64,
       // Only a journal row has a journal_id, and only a line an
@@ -128,7 +125,6 @@ export function toDayBookResult(lines: DayBookLineRow[]): GridDataset {
         accountLedgerLink({ account_id: "account_id", to_date: "date" }),
       ],
     }),
-    parentPathColumn("particulars"),
     moneyColumn("debit", "Debit", { width: 16, zeroDisplay: "blank" }),
     moneyColumn("credit", "Credit", { width: 16, zeroDisplay: "blank" }),
     textColumn("comment", "Comment", {
@@ -174,7 +170,6 @@ export function toDayBookResult(lines: DayBookLineRow[]): GridDataset {
             account_id: line.account_id,
             date: day.key,
             particulars: line.account_name,
-            particulars_parent_path: line.account_parent_path,
             debit: line.debit,
             credit: line.credit,
             comment: line.comment,

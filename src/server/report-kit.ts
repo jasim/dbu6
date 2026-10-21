@@ -23,6 +23,7 @@ export { openTestLedger, type TestLedger } from "./app/reports/testing.js";
 // Columns, footers, links and the flat grid.
 export {
   accountLedgerLink,
+  accountNameColumn,
   authorizeReport,
   dateColumn,
   flatResult,
@@ -31,11 +32,11 @@ export {
   moneyColumn,
   monthEnd,
   openRecordLink,
-  parentPathColumn,
   percentColumn,
   reportLedger,
   sum,
   textColumn,
+  withReferenceCaptions,
   type ReportFooterInput,
 } from "./app/reports/shared.js";
 // Income and spending per account, and the account tree with totals.
