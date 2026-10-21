@@ -125,9 +125,9 @@ function pathsOf(chart: Chart): AccountParentPaths {
 /**
  * How Sapporta draws an account wherever it shows one: the name, with its
  * parent path under it, as `AccountName` draws it, at every grid level and in
- * every picker. A tree, which shows the parents, and a filter chip, which
- * has one line, keep the name alone; beside a picker's input, which shows
- * the name, the path alone.
+ * every picker. A tree, which shows the parents, a filter chip, which has one
+ * line, and the cells of the tables in `NAME_ONLY_CELLS` keep the name alone;
+ * beside a picker's input, which shows the name, the path alone.
  */
 function AccountLabel({
   label,
@@ -138,6 +138,12 @@ function AccountLabel({
   const path = computed.parentPath;
   if (typeof path !== "string" || path === "") return defaultContent;
   if (context.hierarchyShown || context.surface === "chip") {
+    return defaultContent;
+  }
+  if (
+    context.surface === "cell" &&
+    NAME_ONLY_CELLS.has(context.source?.table ?? "")
+  ) {
     return defaultContent;
   }
   if (context.surface === "selected") return <AccountParentPath path={path} />;
@@ -151,6 +157,10 @@ function AccountLabel({
     />
   );
 }
+
+// Grids whose account cells show the name alone: journal entries, one line
+// each, scanned down the page. Picking an account there still shows its path.
+const NAME_ONLY_CELLS: ReadonlySet<string> = new Set(["journal_entries"]);
 
 /** dbu6's row displays, for the `RowDisplayProvider` around the app. */
 export const accountRowDisplays = defineRowDisplays({

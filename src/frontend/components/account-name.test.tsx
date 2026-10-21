@@ -63,4 +63,12 @@ describe("accountRowDisplays", () => {
     expect(draw({ surface: "chip" })).toBe("<i>default</i>");
     expect(draw({ surface: "option" }, null)).toBe("<i>default</i>");
   });
+
+  it("keeps the name alone in a journal entry's cell, not in its picker", () => {
+    const source = { table: "journal_entries", column: "account_id" };
+    expect(draw({ surface: "cell", source })).toBe("<i>default</i>");
+    expect(draw({ surface: "option", source })).toContain(
+      "Expenses &gt; Kitchen",
+    );
+  });
 });
