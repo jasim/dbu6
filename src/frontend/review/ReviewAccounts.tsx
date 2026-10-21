@@ -8,6 +8,7 @@ import {
 } from "../../shared/index";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { apiErrorMessage } from "../api";
+import { AccountName } from "../components/account-name";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Screen, ScreenTitle } from "../components/screen";
@@ -125,11 +126,13 @@ function AccountRow({
         className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-2.5 text-foreground no-underline outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40"
       >
         <span className="min-w-0 flex-1 basis-[220px]">
-          <span
-            title={account.path}
-            className="block text-[14.5px] font-semibold"
-          >
-            {account.name}
+          <span title={account.path} className="block">
+            <AccountName
+              name={account.name}
+              parentPath={account.parent_path}
+              dense
+              className="text-[14.5px] font-semibold"
+            />
           </span>
           <span className="mt-0.5 block text-meta text-ink-meta">
             {draftsLine(account)}

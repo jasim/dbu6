@@ -48,8 +48,9 @@ describe("Account Ledger journal entry query", () => {
       INSERT INTO accounts VALUES
         (1, 'workspace', 'user', 'Assets', NULL),
         (2, 'workspace', 'user', 'Bank', 1),
-        (3, 'workspace', 'user', 'Groceries', NULL),
-        (4, 'workspace', 'other-user', 'Other user account', NULL);
+        (3, 'workspace', 'user', 'Groceries', 5),
+        (4, 'workspace', 'other-user', 'Other user account', NULL),
+        (5, 'workspace', 'user', 'Household', NULL);
 
       INSERT INTO journals VALUES
         (10, 'workspace', 'user', '2026-01-10', 'Matched descendant'),
@@ -79,6 +80,7 @@ describe("Account Ledger journal entry query", () => {
         journal_id: 10,
         account_id: 2,
         account_name: "Bank",
+        account_parent_path: "Assets",
         debit: 100,
         credit: 0,
         comment: "Bank line",
@@ -89,6 +91,7 @@ describe("Account Ledger journal entry query", () => {
         journal_id: 10,
         account_id: 3,
         account_name: "Groceries",
+        account_parent_path: "Household",
         debit: 0,
         credit: 100,
         comment: null,
@@ -102,7 +105,11 @@ describe("Account Ledger result", () => {
   const line = (
     entry_id: number,
     journal_id: number,
-    [account_id, account_name]: [number, string],
+    [account_id, account_name, account_parent_path = null]: [
+      number,
+      string,
+      (string | null)?,
+    ],
     debit: number,
     credit: number,
     comment: string | null,
@@ -112,14 +119,15 @@ describe("Account Ledger result", () => {
     journal_id,
     account_id,
     account_name,
+    account_parent_path,
     debit,
     credit,
     comment,
     source_narration,
   });
   const bank: [number, string] = [1, "Bank"];
-  const income: [number, string] = [3, "Income"];
-  const food: [number, string] = [4, "Food"];
+  const income: [number, string, string] = [3, "Income", "Revenue"];
+  const food: [number, string, string] = [4, "Food", "Expenses"];
   const fuel: [number, string] = [5, "Fuel"];
   const loan: [number, string] = [6, "Loan"];
   const interest: [number, string] = [7, "Interest"];
@@ -185,6 +193,7 @@ describe("Account Ledger result", () => {
         narration: columns.narration,
         against: columns.against,
         against_account_id: columns.against_account_id,
+        against_parent_path: columns.against_parent_path,
         debit: columns.debit,
         credit: columns.credit,
         balance: columns.balance,
@@ -197,6 +206,7 @@ describe("Account Ledger result", () => {
         narration: "NOPII sample employer",
         against: "Income",
         against_account_id: 3,
+        against_parent_path: "Revenue",
         debit: 2000,
         credit: 0,
         balance: 2050,
@@ -207,6 +217,7 @@ describe("Account Ledger result", () => {
         narration: "UPI-sample-grocer-050505",
         against: "Food",
         against_account_id: 4,
+        against_parent_path: "Expenses",
         debit: 0,
         credit: 100,
         balance: 1950,
@@ -216,6 +227,7 @@ describe("Account Ledger result", () => {
         narration: "UPI-sample-fuel-050505",
         against: "Fuel",
         against_account_id: 5,
+        against_parent_path: null,
         debit: 0,
         credit: 50,
         balance: 1900,
@@ -226,6 +238,7 @@ describe("Account Ledger result", () => {
         narration: "Loan instalment",
         against: "Loan, Interest",
         against_account_id: null,
+        against_parent_path: null,
         debit: 0,
         credit: 1000,
         balance: 900,
@@ -263,6 +276,7 @@ describe("Account Ledger result", () => {
         narration: "UPI-sample-grocer-050505",
         against: "Bank",
         against_account_id: 1,
+        against_parent_path: null,
         debit: 100,
         credit: 0,
         balance: 100,

@@ -138,21 +138,6 @@ export function recordedSections(
     .filter((one) => one.accounts.length > 0);
 }
 
-/**
- * Where the account sits, under its name: its parents below the type's top
- * account, "Investments > Mutual Funds". Null directly under the top.
- */
-export function parentLine(
-  account: Pick<OpeningBalanceAccount, "name" | "path">,
-): string | null {
-  const { name, path } = account;
-  const parents = path.endsWith(`:${name}`)
-    ? path.slice(0, -name.length - 1)
-    : path.slice(0, Math.max(0, path.lastIndexOf(":")));
-  const below = parents.split(":").slice(1);
-  return below.length === 0 ? null : below.join(" > ");
-}
-
 /** The recorded balance as its table reads it; null with none. */
 export function openingFigure(
   section: OpeningSection,

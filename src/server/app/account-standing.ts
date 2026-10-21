@@ -20,6 +20,8 @@ import { loadLedgerAccounts } from "../modules/accounts/index.js";
 export interface AccountStanding extends AccountLabel {
   account_id: number;
   path: string;
+  /** Where the ledger account sits, "Assets > Bank"; null for a top account. */
+  parent_path: string | null;
   /** The last posted balance assertion; null before the first. */
   checkpoint: DatedBalance | null;
   /** Posted balance assertions its running balance misses. */
@@ -59,6 +61,7 @@ export function loadAccountStandings(
         {
           account_id: account.id,
           path: account.name,
+          parent_path: account.parent_path,
           ...accountLabel(account, institutions),
           checkpoint: checkpoints.get(account.id) ?? null,
           statement_differences: differences.get(account.id) ?? 0,

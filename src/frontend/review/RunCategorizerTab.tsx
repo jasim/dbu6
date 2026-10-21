@@ -552,6 +552,7 @@ function RunResult({
   const sent = counts.categorized + counts.remaining;
   const figures: Fact[] = run.tally.accounts.map((account) => ({
     label: account.account_name,
+    sublabel: account.parent_path ?? undefined,
     value: String(account.count),
   }));
   if (run.gpayEnrichedCount !== null) {

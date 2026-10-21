@@ -60,6 +60,7 @@ function detail(account: Partial<ReviewAccountDetail["account"]> = {}) {
     account: {
       account_id: 5,
       path: "Sample Savings",
+      parent_path: null,
       name: "Sample Savings",
       kind: "bank",
       drafts: 23,

@@ -1,5 +1,6 @@
 import {
   accountLedgerRow,
+  accountLookupItemDisplay,
   apiErrorMessage,
   Button,
   HledgerDialog,
@@ -18,6 +19,7 @@ import {
   useReportResult,
   useSearchParams,
   useState,
+  useAccountParentPaths,
   useTableLookup,
 } from "../report-kit";
 import { reportsApi } from "./client";
@@ -36,6 +38,7 @@ export function AccountLedgerReport() {
     defaultPreset: "last-3-months",
   });
   const accountLookup = useTableLookup("accounts");
+  const parentPaths = useAccountParentPaths();
   const selectedAccount = lookupValueFromParam(accountId);
   const hasAccount = accountId !== "";
   const report = useReportResult(
@@ -76,8 +79,13 @@ export function AccountLedgerReport() {
   };
 
   return (
-    // The report's label names the account.
-    <ReportScreenFrame title={report.result?.label ?? "Account Ledger"}>
+    // The report's label names the account, and the subtitle where it sits.
+    <ReportScreenFrame
+      title={report.result?.label ?? "Account Ledger"}
+      subtitle={
+        (hasAccount && parentPaths.byId(Number(accountId))) || undefined
+      }
+    >
       <ReportToolbar
         actions={
           <>
@@ -104,6 +112,7 @@ export function AccountLedgerReport() {
             lookup={accountLookup}
             value={selectedAccount}
             onChange={(value) => setAccount(value == null ? "" : String(value))}
+            itemDisplay={accountLookupItemDisplay}
             placeholder="Select account"
             className="h-sap-ctl min-w-[140px] rounded-[5px] text-sap-emph"
           />

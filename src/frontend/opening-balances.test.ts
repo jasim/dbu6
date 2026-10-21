@@ -12,7 +12,6 @@ import {
   lockedJournal,
   lockText,
   openingFigure,
-  parentLine,
   readBalance,
   recordedSections,
   signReadback,
@@ -150,15 +149,6 @@ describe("balanceSections", () => {
 });
 
 describe("a row's words", () => {
-  it("names the parents below the type's top account", () => {
-    expect(parentLine(account("Cash", "Assets:Cash"))).toBeNull();
-    expect(
-      parentLine(
-        account("NOPII Fund", "Assets:Investments:Mutual Funds:NOPII Fund"),
-      ),
-    ).toBe("Investments > Mutual Funds");
-  });
-
   it("reads a balance the user's way up", () => {
     const own = (amount: number) =>
       openingFigure(

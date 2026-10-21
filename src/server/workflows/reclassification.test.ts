@@ -99,7 +99,14 @@ describe("classifyDraftTransactions", () => {
         by_llm: 0,
         same_account: 0,
         uncategorized: 0,
-        accounts: [{ account_id: 2, account_name: "Coffee", count: 1 }],
+        accounts: [
+          {
+            account_id: 2,
+            account_name: "Coffee",
+            parent_path: "Expenses",
+            count: 1,
+          },
+        ],
       },
     });
     expect(
@@ -253,7 +260,7 @@ describe("requestCategorizationRule", () => {
     const ruleRequest = {
       id: 1,
       base_account_id: 1,
-      account: { id: 2, name: "Coffee" },
+      account: { id: 2, name: "Coffee", parent_path: "Expenses" },
       transactions: [
         {
           date: "2026-04-24",
@@ -412,7 +419,8 @@ function setupDatabase() {
   db.insert(accountsTable)
     .values([
       scopedAccount(1, "Federal Bank", "Asset"),
-      scopedAccount(2, "Coffee", "Expense"),
+      scopedAccount(5, "Expenses", "Expense"),
+      scopedAccount(2, "Coffee", "Expense", 5),
       scopedAccount(4, "Sample Card", "Liability"),
     ])
     .run();
@@ -437,12 +445,14 @@ function scopedAccount(
   id: number,
   name: string,
   account_type: typeof accountsTable.$inferInsert.account_type,
+  parent_id: number | null = null,
 ): typeof accountsTable.$inferInsert {
   return {
     id,
     workspace_id: "workspace",
     scoped_to_user_id: "user",
     name,
+    parent_id,
     account_type,
   };
 }

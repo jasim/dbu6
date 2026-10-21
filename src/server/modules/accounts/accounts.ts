@@ -19,6 +19,8 @@ export type LedgerAccount = {
   id: number;
   name: string;
   account_type: string | null;
+  /** Where it sits, "Assets > Bank"; null for a top account. */
+  parent_path: string | null;
 };
 
 /** The accounts in scope by their name, which is unique in a user's books. */
@@ -66,7 +68,9 @@ export function loadLedgerAccounts(
   return allRows<LedgerAccount>(
     sqlite,
     auth,
-    `SELECT id, name, account_type FROM scoped_accounts`,
+    `SELECT a.id, a.name, a.account_type, ap.parent_path
+     FROM scoped_accounts a
+     LEFT JOIN scoped_account_paths ap ON ap.id = a.id`,
   );
 }
 

@@ -202,6 +202,7 @@ export function describeGroup(
         : describeCategorizationProblem(r.categorization),
     byAccount: r.categorization_tally.accounts.map((account) => ({
       label: account.account_name,
+      sublabel: account.parent_path ?? undefined,
       value: String(account.count),
     })),
   };

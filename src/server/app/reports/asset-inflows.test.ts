@@ -46,12 +46,13 @@ describe("Asset inflows query", () => {
 
       INSERT INTO accounts VALUES
         (1, 'workspace', 'user', 'Bank', NULL, 'Asset'),
-        (2, 'workspace', 'user', 'Fixed Deposit', NULL, 'Asset'),
+        (2, 'workspace', 'user', 'Fixed Deposit', 8, 'Asset'),
         (3, 'workspace', 'user', 'Salary', NULL, 'Revenue'),
         (4, 'workspace', 'user', 'Reimbursement', NULL, 'Expense'),
         (5, 'workspace', 'other-user', 'Hidden Account', NULL, 'Asset'),
         (6, 'other-workspace', 'user', 'Other Workspace Account', NULL, 'Asset'),
-        (7, 'workspace', 'user', 'Investment Gains', NULL, 'Revenue');
+        (7, 'workspace', 'user', 'Investment Gains', NULL, 'Revenue'),
+        (8, 'workspace', 'user', 'Investments', NULL, 'Asset');
 
       INSERT INTO journals VALUES
         (10, 'workspace', 'user', '2026-01-10', 'Salary deposit'),
@@ -93,6 +94,7 @@ describe("Asset inflows query", () => {
         account_id: 1,
         date: "2026-01-10",
         asset_account: "Bank",
+        asset_account_parent_path: null,
         source_accounts: "Salary",
         description: "Salary deposit",
         comment: "Bank line",
@@ -104,6 +106,7 @@ describe("Asset inflows query", () => {
         account_id: 2,
         date: "2026-01-12",
         asset_account: "Fixed Deposit",
+        asset_account_parent_path: "Investments",
         source_accounts: "Reimbursement, Salary",
         description: "Expense offset",
         comment: "Deposit line",
@@ -115,6 +118,7 @@ describe("Asset inflows query", () => {
         account_id: 1,
         date: "2026-01-15",
         asset_account: "Bank",
+        asset_account_parent_path: null,
         source_accounts: "Investment Gains",
         description: "Separate investment gain",
         comment: "Gain receipt",
@@ -133,6 +137,7 @@ describe("Asset inflows result", () => {
         account_id: 1,
         date: "2026-01-10",
         asset_account: "Bank",
+        asset_account_parent_path: "Investments",
         source_accounts: "Salary",
         description: "Salary deposit",
         comment: "Bank line",
@@ -153,6 +158,13 @@ describe("Asset inflows result", () => {
       expect.objectContaining({ id: "journal_id", visuallyHidden: true }),
       expect.objectContaining({ id: "account_id", visuallyHidden: true }),
     ]);
+    // The asset account's parent path rides beside it, hidden, for the
+    // screen to show under its name.
+    expect(
+      result.levels.inflow?.columns.find(
+        (column) => column.id === "asset_account_parent_path",
+      ),
+    ).toMatchObject({ kind: "text", visuallyHidden: true });
     expect(result.nodes).toEqual([
       {
         rowKey: "entry:101",

@@ -130,6 +130,24 @@ const gold = account(
 
 const ALL = [cash, investments, epf, ppf, loan, savings, platinum, gold];
 
+// The books' accounts, which each row's parent path comes from.
+const ACCOUNT_ROWS = [
+  { id: 100, name: "Assets", parent_id: null },
+  { id: 101, name: "Liabilities", parent_id: null },
+  { id: 3, name: "Cash", parent_id: 100 },
+  { id: 4, name: "Investments", parent_id: 100 },
+  { id: 5, name: "EPF", parent_id: 4 },
+  { id: 6, name: "PPF", parent_id: 4 },
+  { id: 102, name: "Loans", parent_id: 101 },
+  { id: 7, name: "Sample Car Loan", parent_id: 102 },
+  { id: 11, name: "Sample Home Loan", parent_id: 102 },
+  { id: 103, name: "Bank", parent_id: 100 },
+  { id: 8, name: "Sample Bank Savings", parent_id: 103 },
+  { id: 104, name: "Cards", parent_id: 101 },
+  { id: 9, name: "Sample Card Platinum", parent_id: 104 },
+  { id: 10, name: "Sample Card Gold", parent_id: 104 },
+];
+
 beforeEach(() => {
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -167,6 +185,12 @@ beforeEach(() => {
                 ? { journal_id: 21 }
                 : { removed_journal_id: 21 },
             );
+      }
+      if (method === "GET" && path === "/tables/accounts") {
+        return Response.json({
+          data: ACCOUNT_ROWS,
+          meta: { total: ACCOUNT_ROWS.length, page: 1, limit: 1000, pages: 1 },
+        });
       }
       return Response.json({ error: "Not here" }, { status: 404 });
     }),
@@ -326,7 +350,8 @@ async function type(input: HTMLInputElement, value: string) {
 
 function rowOf(name: string): HTMLTableRowElement {
   const found = [...document.querySelectorAll("tbody tr")].find(
-    (row) => row.querySelector("td div")?.textContent === name,
+    // The name, over its parent path.
+    (row) => row.querySelector("td > span > span")?.textContent === name,
   );
   if (!(found instanceof HTMLTableRowElement)) {
     throw new Error(`No row ${name} in:\n${text()}`);
@@ -357,14 +382,14 @@ describe("OpeningBalances", () => {
     ]);
 
     expect(text()).toContain("Opening balances");
-    // Each row: its name and parent line, then As of and the figure.
+    // Each row: its name and parent path, then As of and the figure.
     const sections = [...host.querySelectorAll("section")].map((section) => [
       section.querySelector("h3")?.textContent,
       [...section.querySelectorAll("thead th")][2].textContent,
       [...section.querySelectorAll("tbody tr")].map((row) => {
-        const [name, parents] = [...row.querySelectorAll("td:first-child div")]
-          .filter((div) => !div.className.includes("sm:hidden"))
-          .map((div) => div.textContent);
+        const [name, parents] = [
+          ...(row.querySelector("td > span")?.children ?? []),
+        ].map((span) => span.textContent);
         const [, asOf, figure] = [...row.querySelectorAll("td")].map(
           (td) => td.textContent,
         );
@@ -377,21 +402,33 @@ describe("OpeningBalances", () => {
         "Assets · what you own",
         "Balance",
         [
-          ["EPF", "Investments", "31 Mar 2026", "6,40,000.00"],
-          ["PPF", "Investments", "31 Mar 2026", "2,10,000.00"],
+          ["EPF", "Assets > Investments", "31 Mar 2026", "6,40,000.00"],
+          ["PPF", "Assets > Investments", "31 Mar 2026", "2,10,000.00"],
         ],
       ],
       [
         "Liabilities · what you owe",
         "Owed",
-        [["Sample Home Loan", "Loans", "31 Mar 2026", "5,00,000.00"]],
+        [
+          [
+            "Sample Home Loan",
+            "Liabilities > Loans",
+            "31 Mar 2026",
+            "5,00,000.00",
+          ],
+        ],
       ],
       [
         "Banks & cards · set by each first statement",
         "Balance",
         [
-          ["Sample Bank Savings", null, "31 Mar 2026", "12,000.00"],
-          ["Sample Card Platinum", null, "31 Mar 2026", "3,000.00 owed"],
+          ["Sample Bank Savings", "Assets > Bank", "31 Mar 2026", "12,000.00"],
+          [
+            "Sample Card Platinum",
+            "Liabilities > Cards",
+            "31 Mar 2026",
+            "3,000.00 owed",
+          ],
         ],
       ],
     ]);

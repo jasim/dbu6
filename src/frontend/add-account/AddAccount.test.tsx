@@ -60,6 +60,7 @@ beforeEach(() => {
   answers = {
     "GET /agent-handoff": () => ok({ mode: "none" }),
     "GET /setup/statement-accounts": () => ok(books),
+    "GET /tables/accounts": () => ok(ACCOUNTS_TABLE),
     "GET /setup/chart-of-accounts": () =>
       ok({
         state: "existing",
@@ -115,6 +116,18 @@ afterEach(() => {
 });
 
 const ok = (body: unknown): Answer => ({ status: 200, body });
+
+// The books' accounts, which the parent choices' paths come from.
+const ACCOUNT_ROWS = [
+  { id: 10, name: "Assets", parent_id: null },
+  { id: 11, name: "Liabilities", parent_id: null },
+  { id: 1, name: "Bank Accounts", parent_id: 10 },
+  { id: 2, name: "Credit Cards", parent_id: 11 },
+];
+const ACCOUNTS_TABLE = {
+  data: ACCOUNT_ROWS,
+  meta: { total: ACCOUNT_ROWS.length, page: 1, limit: 1000, pages: 1 },
+};
 
 const DATA: StatementAccounts = {
   institutions: [{ name: "Sample Bank", parsers: ["sample-bank-xls"] }],

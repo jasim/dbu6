@@ -17,6 +17,7 @@ import {
   formatHledger,
   planJournals,
 } from "../../modules/journal-plan/index.js";
+import { loadAccountParentPaths } from "../../modules/accounts/index.js";
 import { toDraftRows, persistDrafts } from "../../modules/drafts/index.js";
 import type { OnImportProgress } from "./statement-import.js";
 import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
@@ -131,6 +132,7 @@ export async function runDraftImport(
     categorization: persisted.inserted > 0 ? categorization.report : null,
     categorization_tally: tallyCategorization(
       persisted.insertedIndices.map((index) => categorization.rows[index]),
+      loadAccountParentPaths(db, auth),
     ),
     base_account_id: baseAccountId,
   };

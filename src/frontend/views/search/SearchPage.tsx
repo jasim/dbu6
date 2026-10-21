@@ -8,6 +8,7 @@ import {
   type SearchDraft,
   type SearchJournal,
 } from "../../../shared/index";
+import { AccountName } from "../../components/account-name";
 import { formatDate, formatMoney } from "../../format";
 import { searchQuery } from "../../queries";
 import { accountLedgerHref, journalHref } from "../../reports/links";
@@ -268,9 +269,11 @@ function AccountResults({
           href={accountLedgerHref(account.id)}
           className="flex items-baseline gap-3 px-2 py-3"
         >
-          <span className="text-[16px] font-medium">
-            <Marked text={account.name} words={words} />
-          </span>
+          <AccountName
+            name={<Marked text={account.name} words={words} />}
+            parentPath={account.parent_path}
+            className="text-[16px] font-medium"
+          />
           <span className="text-[15px] text-ink-soft">
             {account.account_type}
           </span>

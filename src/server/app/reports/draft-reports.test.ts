@@ -12,7 +12,8 @@ const auth = testLedgerAuth();
  * drafts: a categorised pair that repeats one source key (a possible duplicate,
  * and the reason the 2 Mar balance misses by 20), and a 5 Mar draft whose
  * balance matches again. No Preset (4) has one uncategorised draft and no
- * balances.
+ * balances. Sample Savings sits under Sample Banks, and Groceries under
+ * Household.
  */
 function ledger(): Database.Database {
   const sqlite = new Database(":memory:");
@@ -37,10 +38,12 @@ function ledger(): Database.Database {
 
     INSERT INTO accounts VALUES
       (1, 'workspace', 'user', 'Salary', NULL, 'Revenue'),
-      (2, 'workspace', 'user', 'Sample Savings', NULL, 'Asset'),
-      (3, 'workspace', 'user', 'Groceries', NULL, 'Expense'),
+      (2, 'workspace', 'user', 'Sample Savings', 7, 'Asset'),
+      (3, 'workspace', 'user', 'Groceries', 6, 'Expense'),
       (4, 'workspace', 'user', 'No Preset Bank', NULL, 'Asset'),
-      (5, 'workspace', 'other-user', 'Sample Savings', NULL, 'Asset');
+      (5, 'workspace', 'other-user', 'Sample Savings', NULL, 'Asset'),
+      (6, 'workspace', 'user', 'Household', NULL, 'Expense'),
+      (7, 'workspace', 'user', 'Sample Banks', NULL, 'Asset');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-10', 'Opening'),
@@ -84,12 +87,25 @@ describe("draft reports narrowed to one account", () => {
     expect(one.nodes.map((node) => node.columns.draft_id)).toEqual([203]);
     const columns = one.levels[one.rootLevel]!.columns;
     expect(columns.map((column) => column.id)).not.toContain("account_name");
+    expect(columns.map((column) => column.id)).not.toContain(
+      "account_name_parent_path",
+    );
     expect(
       columns.find((column) => column.id === "date")?.links?.[0],
     ).toMatchObject({ kind: "report", report: "account-ledger" });
     expect(
       every.levels[every.rootLevel]!.columns.map((column) => column.id),
     ).toContain("account_name");
+    // Each account's parent path beside its name, null for a top account.
+    expect(
+      every.nodes.map((node) => [
+        node.columns.account_name,
+        node.columns.account_name_parent_path,
+      ]),
+    ).toEqual([
+      ["No Preset Bank", null],
+      ["Sample Savings", "Sample Banks"],
+    ]);
   });
 
   it("lists only that account's possible duplicates, without the account column", () => {
@@ -112,5 +128,20 @@ describe("draft reports narrowed to one account", () => {
     expect(
       every.levels[every.rootLevel]!.columns.map((column) => column.id),
     ).toContain("base_account");
+    expect(
+      one.levels[one.rootLevel]!.columns.map((column) => column.id),
+    ).not.toContain("base_account_parent_path");
+    // Each account's parent path beside its name, null for a top account
+    // and for a draft without an account.
+    expect(
+      every.nodes.map((node) => [
+        node.columns.base_account_parent_path,
+        node.columns.draft_account_parent_path,
+        node.columns.matched_account_parent_path,
+      ]),
+    ).toEqual([
+      [null, null, null],
+      ["Sample Banks", "Household", "Household"],
+    ]);
   });
 });

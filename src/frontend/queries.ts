@@ -216,12 +216,14 @@ export const openingBalancesQuery = queryOptions({
 
 /**
  * Refreshes what setting up an account changes: the setup reads (its
- * account, its opening), Home and Review (its drafts), and the import
- * presets (its bank, parser and number).
+ * account, its opening), the accounts table's reads (the chart every screen
+ * takes parent paths from, `useAccountParentPaths`), Home and Review (its
+ * drafts), and the import presets (its bank, parser and number).
  */
 export function refreshSetup(client: QueryClient): Promise<void> {
   return Promise.all([
     client.invalidateQueries({ queryKey: SETUP_KEY }),
+    client.invalidateQueries({ queryKey: tableQueryKeys.table("accounts") }),
     client.invalidateQueries({ queryKey: importPresetsQuery.queryKey }),
     refreshDraftStatus(client),
   ]).then(() => undefined);
@@ -300,14 +302,11 @@ export function accountHasEntriesQuery(accountId: number) {
 
 /**
  * Refreshes everything an account's name, type, parent or existence changes:
- * the Accounts grid (its page queries and the form's chart), the setup reads,
- * Home and Review. Then the mounted grid fetches its rows again.
+ * all `refreshSetup` refreshes, which takes in the Accounts grid's page
+ * queries and the form's chart. Then the mounted grid fetches its rows again.
  */
 export async function refreshAccounts(client: QueryClient): Promise<void> {
-  await Promise.all([
-    client.invalidateQueries({ queryKey: tableQueryKeys.table("accounts") }),
-    refreshSetup(client),
-  ]);
+  await refreshSetup(client);
   reloadTGridRows("accounts");
 }
 

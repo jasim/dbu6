@@ -38,7 +38,7 @@ const RULE_REQUESTS: CategorizationRuleRequest[] = [
   {
     id: 11,
     base_account_id: 5,
-    account: { id: 7, name: "Groceries" },
+    account: { id: 7, name: "Groceries", parent_path: null },
     transactions: [
       {
         date: "2026-09-01",
@@ -58,7 +58,7 @@ const RULE_REQUESTS: CategorizationRuleRequest[] = [
   {
     id: 12,
     base_account_id: 5,
-    account: { id: 8, name: "Dining" },
+    account: { id: 8, name: "Dining", parent_path: null },
     transactions: [
       {
         date: "2026-09-02",
@@ -143,6 +143,7 @@ function detail(uncategorised: number): ReviewAccountDetail {
     account: {
       account_id: 5,
       path: "Sample Savings",
+      parent_path: null,
       name: "Sample Savings",
       kind: "bank",
       drafts: 4,

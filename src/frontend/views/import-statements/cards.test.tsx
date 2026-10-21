@@ -82,8 +82,13 @@ function group(result: {
 }
 
 const ACCOUNTS = [
-  { account_id: 7, account_name: "Groceries", count: 20 },
-  { account_id: 8, account_name: "Dining", count: 15 },
+  {
+    account_id: 7,
+    account_name: "Groceries",
+    parent_path: null,
+    count: 20,
+  },
+  { account_id: 8, account_name: "Dining", parent_path: null, count: 15 },
 ];
 
 function render(...groups: AutoImportGroupResult[]) {

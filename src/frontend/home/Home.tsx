@@ -8,6 +8,7 @@ import { isProblem, postingBlocks, type HomeAccount } from "../../shared/index";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { apiErrorMessage } from "../api";
+import { AccountParentPath } from "../components/account-name";
 import { Button, buttonVariants } from "../components/ui/button";
 import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
@@ -244,6 +245,9 @@ function AccountRow({
           <span className="block truncate font-semibold text-foreground">
             {account.name}
           </span>
+        )}
+        {account.in_ledger && account.parent_path && (
+          <AccountParentPath path={account.parent_path} className="mt-0.5" />
         )}
         {!account.in_ledger && (
           <div className="mt-0.5 text-meta text-ink-meta">

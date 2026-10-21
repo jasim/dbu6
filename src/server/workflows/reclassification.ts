@@ -18,7 +18,10 @@ import {
   type OnCategorizationProgress,
 } from "../modules/categorization/index.js";
 import { categorizationLlm } from "../modules/coding-agent/index.js";
-import { loadAccountsByName } from "../modules/accounts/index.js";
+import {
+  loadAccountParentPaths,
+  loadAccountsByName,
+} from "../modules/accounts/index.js";
 import {
   clearCategorizationRuleRequests,
   deleteCategorizationRuleRequest,
@@ -117,7 +120,10 @@ export async function classifyDraftTransactions(input: {
     transactions,
     gpayEnrichedCount: enrichment.matchCount,
     categorization: report,
-    categorizationTally: tallyCategorization(rows),
+    categorizationTally: tallyCategorization(
+      rows,
+      loadAccountParentPaths(db, auth),
+    ),
   };
 }
 

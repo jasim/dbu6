@@ -1,7 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getApiBase } from "@sapporta/frontend/platform";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { Screen, ScreenTitle } from "../components/screen";
 import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group";
@@ -14,7 +13,8 @@ import {
 } from "../components/ui/select";
 import { LEDGER_ACCOUNT_TYPE, type AccountKind } from "../../shared/index";
 import { apiErrorMessage } from "../api";
-import { FRESH_QUERY } from "../queries";
+import { accountChartQuery } from "../queries";
+import { AccountName, useAccountParentPaths } from "../components/account-name";
 import { freeformTransactionsPrompt } from "./freeform-transactions/freeformTransactionsPrompt";
 import { AgentButton } from "../components/agent-prompt";
 
@@ -36,12 +36,10 @@ const KINDS: { kind: AccountKind; label: string }[] = [
 export function ImportFreeformTransactions() {
   usePageTitle("Import freeform transactions");
   const kindLabelId = useId();
-  const accountsQuery = useQuery({
-    queryKey: ["tables", "accounts"],
-    queryFn: fetchLedgerAccounts,
-    ...FRESH_QUERY,
-  });
-  const ledgerAccounts = accountsQuery.data ?? [];
+  // Every account in the books, the read the parent paths come from too.
+  const accountsQuery = useQuery(accountChartQuery);
+  const ledgerAccounts = (accountsQuery.data ?? []).flatMap(ledgerAccount);
+  const paths = useAccountParentPaths();
   const accountsError = accountsQuery.isError
     ? apiErrorMessage(accountsQuery.error)
     : null;
@@ -120,8 +118,15 @@ export function ImportFreeformTransactions() {
               </div>
               <SelectContent>
                 {accounts.map((account) => (
-                  <SelectItem key={account.id} value={account.name}>
-                    {account.name}
+                  <SelectItem
+                    key={account.id}
+                    value={account.name}
+                    label={account.name}
+                  >
+                    <AccountName
+                      name={account.name}
+                      parentPath={paths.byId(account.id)}
+                    />
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -162,13 +167,14 @@ export function ImportFreeformTransactions() {
   );
 }
 
-async function fetchLedgerAccounts(): Promise<LedgerAccount[]> {
-  const response = await fetch(
-    `${getApiBase()}/tables/accounts?limit=1000&sort=name`,
-  );
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const body = (await response.json()) as { data: LedgerAccount[] };
-  return body.data;
+/** A row of the accounts table as this screen needs it; none if not one. */
+function ledgerAccount(row: Record<string, unknown>): LedgerAccount[] {
+  const { id, name, account_type } = row;
+  return typeof id === "number" &&
+    typeof name === "string" &&
+    typeof account_type === "string"
+    ? [{ id, name, account_type }]
+    : [];
 }
 
 function Step({

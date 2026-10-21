@@ -16,6 +16,7 @@ const detail: ReviewAccountDetail = {
     path: "Assets:Sample Card",
     name: "Sample Card",
     kind: "card",
+    parent_path: null,
     drafts: 21,
     uncategorised: 4,
     duplicates: 0,
@@ -51,7 +52,7 @@ function ruleRequest(
     id,
     base_account_id: 7,
     transactions,
-    account: { id: 12, name },
+    account: { id: 12, name, parent_path: null },
     note,
   };
 }

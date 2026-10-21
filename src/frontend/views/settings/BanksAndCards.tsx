@@ -15,6 +15,10 @@ import { usePageTitle } from "@sapporta/frontend/shell";
 import type { StatementAccountRow } from "../../../shared/index";
 import { ADD_ROUTE } from "../../add-account/state";
 import { apiErrorMessage } from "../../api";
+import {
+  AccountName,
+  useAccountParentPaths,
+} from "../../components/account-name";
 import { EmptyState } from "../../components/empty-state";
 import { LoadError } from "../../components/load-error";
 import { Screen, ScreenTitle } from "../../components/screen";
@@ -140,6 +144,7 @@ function AccountsTable({
   onEdit: (row: StatementAccountRow) => void;
   onRemove: (row: StatementAccountRow) => void;
 }) {
+  const paths = useAccountParentPaths();
   return (
     <div className="overflow-x-auto rounded-card border border-sap-border bg-card shadow-card">
       <table className="w-full text-row">
@@ -173,6 +178,7 @@ function AccountsTable({
             <AccountRow
               key={row.account_id}
               row={row}
+              parentPath={paths.byId(row.account_id)}
               onEdit={() => onEdit(row)}
               onRemove={() => onRemove(row)}
             />
@@ -185,10 +191,12 @@ function AccountsTable({
 
 function AccountRow({
   row,
+  parentPath,
   onEdit,
   onRemove,
 }: {
   row: StatementAccountRow;
+  parentPath: string | null;
   onEdit: () => void;
   onRemove: () => void;
 }) {
@@ -198,7 +206,12 @@ function AccountRow({
   return (
     <tr className="border-t border-line-inner">
       <td className="py-2.5 pl-5 pr-3 align-middle">
-        <div className="font-semibold text-foreground">{row.name}</div>
+        <AccountName
+          name={
+            <span className="font-semibold text-foreground">{row.name}</span>
+          }
+          parentPath={parentPath}
+        />
         {/* On a phone, the columns it drops. */}
         <div className="text-meta text-ink-meta sm:hidden">
           {kind} · {row.institution}

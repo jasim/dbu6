@@ -18,7 +18,15 @@ import { openTestLedger } from "./testing.js";
 function sampleBooks() {
   const books = openTestLedger();
   const bank = books.addAccount({ name: "Sample Bank", account_type: "Asset" });
-  const food = books.addAccount({ name: "Food", account_type: "Expense" });
+  const household = books.addAccount({
+    name: "Household",
+    account_type: "Expense",
+  });
+  const food = books.addAccount({
+    name: "Food",
+    account_type: "Expense",
+    parent_id: household,
+  });
   const travel = books.addAccount({ name: "Travel", account_type: "Expense" });
   const salary = books.addAccount({ name: "Salary", account_type: "Revenue" });
 
@@ -219,6 +227,40 @@ describe("Day Book", () => {
 
     expect(result.footerRows?.map((row) => row.columns)).toEqual([
       { particulars: "Total", debit: 3800, credit: 3800 },
+    ]);
+  });
+
+  it("puts each line's account's parent path beside its name, and nothing on a day or journal", () => {
+    const { books, grouped } = sampleBooks();
+
+    const result = dayBookReport(books.ledger, {
+      fromDate: "2026-01-10",
+      toDate: "2026-01-10",
+    });
+
+    expect(
+      result.levels.day_book?.columns.find(
+        (column) => column.id === "particulars_parent_path",
+      ),
+    ).toMatchObject({ kind: "text", visuallyHidden: true });
+    expect(
+      result.nodes
+        .filter(
+          (node) =>
+            node.rowKey === "day:2026-01-10" ||
+            node.rowKey === `journal:${grouped}` ||
+            node.columns.parent_key === `journal:${grouped}`,
+        )
+        .map((node) => [
+          node.columns.particulars,
+          node.columns.particulars_parent_path,
+        ]),
+    ).toEqual([
+      ["Saturday, 10 January 2026", undefined],
+      ["Expenses", undefined],
+      ["Food", "Household"],
+      ["Travel", null],
+      ["Sample Bank", null],
     ]);
   });
 

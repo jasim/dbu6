@@ -5,6 +5,7 @@ import {
   hiddenIdColumn,
   moneyColumn,
   openRecordLink,
+  parentPathColumn,
   type ReportLedger,
   reportLedger,
   type SapportaEnv,
@@ -31,6 +32,8 @@ export type AssetInflowRow = {
   account_id: number;
   date: string;
   asset_account: string;
+  /** Null for a top account. */
+  asset_account_parent_path: string | null;
   source_accounts: string | null;
   description: string;
   comment: string | null;
@@ -54,6 +57,7 @@ export function loadAssetInflows(
       asset.id AS account_id,
       j.date,
       asset.name AS asset_account,
+      ap.parent_path AS asset_account_parent_path,
       (
         SELECT GROUP_CONCAT(name, ', ')
         FROM (
@@ -72,6 +76,7 @@ export function loadAssetInflows(
     FROM scoped_journal_entries je
     JOIN scoped_journals j ON j.id = je.journal_id
     JOIN scoped_accounts asset ON asset.id = je.account_id
+    LEFT JOIN scoped_account_paths ap ON ap.id = asset.id
     WHERE asset.account_type = 'Asset'
       AND je.debit > 0
       AND (@fromDate IS NULL OR j.date >= @fromDate)
@@ -101,6 +106,7 @@ export function toAssetInflowsResult(rows: AssetInflowRow[]): GridDataset {
         hiddenIdColumn("account_id", "Account ID"),
         dateColumn("date", "Date", { width: 12 }),
         textColumn("asset_account", "Asset Account", { width: 42 }),
+        parentPathColumn("asset_account"),
         textColumn("source_accounts", "Source Accounts", { width: 42 }),
         textColumn("description", "Description", {
           width: 50,

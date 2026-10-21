@@ -3,6 +3,11 @@ import { Check, ChevronDown } from "lucide-react";
 import { Combobox, comboboxClassNames } from "@sapporta/ui/combobox";
 import { cn } from "@sapporta/ui/cn";
 import { knownInstitution, type ChartChoice } from "../../shared/index";
+import {
+  AccountName,
+  AccountParentPath,
+  useAccountParentPaths,
+} from "./account-name";
 
 /*
  * The banks-and-cards form's two searchable pickers, on Base UI's Combobox
@@ -72,9 +77,9 @@ function Field({
 }
 
 /**
- * One account from `choices`, by id, shown with its path in the tree. With
- * `topLevel`, a row above them clears the parent: account ids are positive,
- * so 0 stands for "none".
+ * One account from `choices`, by id, each shown with its parent path, and
+ * the chosen one's under the input. With `topLevel`, a row above them clears
+ * the parent: account ids are positive, so 0 stands for "none".
  */
 const TOP_LEVEL_ID = 0;
 
@@ -106,6 +111,8 @@ export function AccountCombobox({
     value === null
       ? noParent
       : (items.find((choice) => choice.id === value) ?? null);
+  const paths = useAccountParentPaths();
+  const selectedPath = selected === null ? null : paths.byId(selected.id);
   return (
     <Combobox.Root<ChartChoice>
       items={items}
@@ -121,6 +128,9 @@ export function AccountCombobox({
       isItemEqualToValue={(a, b) => a.id === b.id}
     >
       <Field id={id} placeholder={placeholder} invalid={invalid} />
+      {selectedPath !== null && (
+        <AccountParentPath path={selectedPath} className="mt-1" />
+      )}
       <Popup empty="No account matches.">
         {(choice: ChartChoice) => (
           <Combobox.Item
@@ -128,14 +138,10 @@ export function AccountCombobox({
             value={choice}
             className={comboboxClassNames.item}
           >
-            <span className="min-w-0">
-              <span className="block">{choice.name}</span>
-              {choice.path !== choice.name && (
-                <span className="block text-meta text-ink-meta">
-                  {choice.path}
-                </span>
-              )}
-            </span>
+            <AccountName
+              name={choice.name}
+              parentPath={paths.byId(choice.id)}
+            />
             <Combobox.ItemIndicator
               className={comboboxClassNames.itemIndicator}
             >

@@ -78,6 +78,7 @@ export function loadHomeSummary(
         in_ledger: true,
         account_id: standing.account_id,
         path: standing.path,
+        parent_path: standing.parent_path,
         name: standing.name,
         kind: standing.kind,
         has_parser,

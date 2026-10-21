@@ -152,6 +152,7 @@ function reviewAccount(standing: AccountStanding): ReviewAccount {
   return {
     account_id: standing.account_id,
     path: standing.path,
+    parent_path: standing.parent_path,
     name: standing.name,
     kind: standing.kind,
     ...draftCounts(standing.drafts),

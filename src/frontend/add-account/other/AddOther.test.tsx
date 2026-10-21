@@ -50,6 +50,7 @@ beforeEach(() => {
   answers = {
     "GET /opening-balances": () => ok(balances),
     "GET /setup/statement-accounts": () => ok(STATEMENT_ACCOUNTS),
+    "GET /tables/accounts": () => ok(ACCOUNTS_TABLE),
     "POST /opening-balances": (body) => {
       const { account_id, date, amount } = body as {
         account_id: number;
@@ -146,6 +147,21 @@ const BALANCES: OpeningBalances = {
       },
     }),
   ],
+};
+
+// The books' accounts, which the choices' parent paths come from.
+const ACCOUNT_ROWS = [
+  { id: 10, name: "Assets", parent_id: null },
+  { id: 11, name: "Liabilities", parent_id: null },
+  { id: 12, name: "Loans", parent_id: 11 },
+  { id: 1, name: "Bank Accounts", parent_id: 10 },
+  { id: 2, name: "Cash", parent_id: 10 },
+  { id: 3, name: "Sample Car Loan", parent_id: 12 },
+  { id: 4, name: "Sample Savings", parent_id: 1 },
+];
+const ACCOUNTS_TABLE = {
+  data: ACCOUNT_ROWS,
+  meta: { total: ACCOUNT_ROWS.length, page: 1, limit: 1000, pages: 1 },
 };
 
 const STATEMENT_ACCOUNTS: StatementAccounts = {
@@ -320,8 +336,8 @@ describe("C1", () => {
       ...document.querySelectorAll<HTMLElement>('[role="option"]'),
     ].map((el) => el.textContent);
     expect(offered).toEqual([
-      "CashAssets:Cash",
-      "Sample Car LoanLiabilities:Loans:Sample Car Loan",
+      "CashAssets",
+      "Sample Car LoanLiabilities > Loans",
     ]);
   });
 
@@ -351,6 +367,8 @@ describe("C1", () => {
     expect(() => button("Back")).toThrow();
     await pick("Sample Car Loan");
     expect(title()).toBe("What did you owe on Sample Car Loan?");
+    // The chosen account's parents, under the picker.
+    expect(text()).toContain("Liabilities > Loans");
     expect(field("As of")?.value).toBe("2026-04-09");
     expect(text()).toContain("Before its first transaction on");
 

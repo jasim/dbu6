@@ -28,12 +28,13 @@ function ledger(): Database.Database {
 
     INSERT INTO accounts VALUES
       (1, 'workspace', 'user', 'Sample Card', NULL, 'Liability'),
-      (2, 'workspace', 'user', 'Sample Savings', NULL, 'Asset'),
+      (2, 'workspace', 'user', 'Sample Savings', 8, 'Asset'),
       (3, 'workspace', 'user', 'Groceries', NULL, 'Expense'),
       (4, 'workspace', 'user', 'No Preset Bank', NULL, 'Asset'),
       (5, 'workspace', 'other-user', 'Sample Savings', NULL, 'Asset'),
       (6, 'workspace', 'user', 'Sample Loan', NULL, 'Liability'),
-      (7, 'workspace', 'user', 'Opening Balances', NULL, 'Equity');
+      (7, 'workspace', 'user', 'Opening Balances', NULL, 'Equity'),
+      (8, 'workspace', 'user', 'Assets', NULL, 'Asset');
 
     INSERT INTO journals VALUES
       (10, 'workspace', 'user', '2026-01-10', 'Opening'),
@@ -107,6 +108,7 @@ describe("Home summary", () => {
         in_ledger: true,
         account_id: 2,
         path: "Sample Savings",
+        parent_path: "Assets",
         name: "Sample Savings Statement",
         kind: "bank",
         has_parser: true,
@@ -122,6 +124,7 @@ describe("Home summary", () => {
         in_ledger: true,
         account_id: 1,
         path: "Sample Card",
+        parent_path: null,
         name: "Sample Card Statement",
         kind: "card",
         has_parser: true,
@@ -163,6 +166,7 @@ describe("Home summary", () => {
         in_ledger: true,
         account_id: 6,
         path: "Sample Loan",
+        parent_path: null,
         name: "Sample Loan Statement",
         kind: "bank",
         // Sample Lender lists no parser.

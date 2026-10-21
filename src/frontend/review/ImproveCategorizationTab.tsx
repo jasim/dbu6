@@ -22,6 +22,10 @@ import {
   type FilterCondition,
 } from "@sapporta/shared/filter";
 import { apiErrorMessage, categorizationRuleRequestsApi } from "../api";
+import {
+  AccountParentPath,
+  accountLookupItemDisplay,
+} from "../components/account-name";
 import { AgentButton } from "../components/agent-prompt";
 import { Field } from "../components/focus-card";
 import { Button } from "../components/ui/button";
@@ -496,7 +500,7 @@ function RuleRequestFacts({
   account,
   drafts,
 }: {
-  account: string;
+  account: CategorizationRuleRequest["account"];
   drafts: number;
 }) {
   return (
@@ -504,7 +508,10 @@ function RuleRequestFacts({
       <div className="flex items-baseline gap-2">
         <dt className="w-16 shrink-0 text-ink-soft">Account</dt>
         <dd className="min-w-0 font-semibold text-foreground [overflow-wrap:anywhere]">
-          {account}
+          {account.name}
+          {account.parent_path && (
+            <AccountParentPath path={account.parent_path} />
+          )}
         </dd>
       </div>
       <div className="mt-0.5 flex items-baseline gap-2">
@@ -629,6 +636,7 @@ function DraftRule({
           id="rule-account"
           lookup={accountLookup}
           value={accountId}
+          itemDisplay={accountLookupItemDisplay}
           onChange={(id) => {
             setAccountId(id);
             setMissingAccount(false);
@@ -730,7 +738,7 @@ function NewRules({
             >
               <div className="flex items-start gap-2">
                 <RuleRequestFacts
-                  account={ruleRequest.account.name}
+                  account={ruleRequest.account}
                   drafts={ruleRequest.transactions.length}
                 />
                 <button

@@ -6,6 +6,7 @@ import {
   hiddenIdColumn,
   moneyColumn,
   openRecordLink,
+  parentPathColumn,
   type ReportLedger,
   reportLedger,
   type SapportaEnv,
@@ -36,6 +37,8 @@ export type DayBookLineRow = {
   entry_id: number;
   account_id: number;
   account_name: string;
+  /** Null for a top account. */
+  account_parent_path: string | null;
   debit: number;
   credit: number;
   comment: string | null;
@@ -59,6 +62,7 @@ export function loadDayBookLines(
       je.id AS entry_id,
       je.account_id,
       a.name AS account_name,
+      ap.parent_path AS account_parent_path,
       je.debit,
       je.credit,
       -- The person's comment, else the statement's text.
@@ -66,6 +70,7 @@ export function loadDayBookLines(
     FROM scoped_journal_entries je
     JOIN scoped_journals j ON j.id = je.journal_id
     JOIN scoped_accounts a ON a.id = je.account_id
+    LEFT JOIN scoped_account_paths ap ON ap.id = a.id
     WHERE (@fromDate IS NULL OR j.date >= @fromDate)
       AND (@toDate IS NULL OR j.date <= @toDate)
     ORDER BY j.date, j.id, je.id`,
@@ -89,7 +94,9 @@ const PARENT_KEY = "parent_key";
  *
  *   day      its date in Particulars, and the day's debits and credits
  *   journal  its description; no amounts, since its lines carry them
- *   line     its account, its debit or credit, and its comment
+ *   line     its account, with the account's parent path under it (the
+ *            tree is of days, not accounts), its debit or credit, and its
+ *            comment
  *
  * Every row starts open, so a day's journals and their lines show without a
  * click. An amount shows once, on its line, and the day row adds them up.
@@ -121,6 +128,7 @@ export function toDayBookResult(lines: DayBookLineRow[]): GridDataset {
         accountLedgerLink({ account_id: "account_id", to_date: "date" }),
       ],
     }),
+    parentPathColumn("particulars"),
     moneyColumn("debit", "Debit", { width: 16, zeroDisplay: "blank" }),
     moneyColumn("credit", "Credit", { width: 16, zeroDisplay: "blank" }),
     textColumn("comment", "Comment", {
@@ -166,6 +174,7 @@ export function toDayBookResult(lines: DayBookLineRow[]): GridDataset {
             account_id: line.account_id,
             date: day.key,
             particulars: line.account_name,
+            particulars_parent_path: line.account_parent_path,
             debit: line.debit,
             credit: line.credit,
             comment: line.comment,

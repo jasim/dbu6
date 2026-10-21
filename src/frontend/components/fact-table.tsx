@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
 import { cn } from "@sapporta/ui/cn";
+import { AccountParentPath } from "./account-name";
 
 // A labelled fact. Values are figures (money, dates, counts, codes) set in
 // mono unless marked as words; a tone marks one that passes, or one a
-// person must act on.
+// person must act on. A label that names an account may carry its parent
+// path, shown under it.
 export interface Fact {
   label: string;
+  sublabel?: string;
   value: string;
   face?: "figure" | "words";
   tone?: "ok" | "attention";
@@ -30,6 +33,7 @@ export function FactTable({
           <FactRow
             key={row.label}
             label={row.label}
+            sublabel={row.sublabel}
             face={row.face}
             tone={row.tone}
           >
@@ -54,18 +58,23 @@ function FactList({ children }: { children: ReactNode }) {
 /** One of FactTable's rows. */
 function FactRow({
   label,
+  sublabel,
   face,
   tone,
   children,
 }: {
   label: string;
+  sublabel?: string;
   face?: Fact["face"];
   tone?: Fact["tone"];
   children: ReactNode;
 }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 px-4 py-2.5 text-row">
-      <dt className="min-w-0 text-ink-soft">{label}</dt>
+      <dt className="min-w-0 text-ink-soft">
+        {label}
+        {sublabel && <AccountParentPath path={sublabel} />}
+      </dt>
       <dd
         className={cn(
           "ml-auto min-w-0 text-right [overflow-wrap:anywhere]",

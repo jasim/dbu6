@@ -14,6 +14,7 @@ function account(
     in_ledger: true,
     account_id: 2,
     path: "Sample Savings",
+    parent_path: null,
     name: "Sample Savings",
     kind: "bank",
     has_parser: true,

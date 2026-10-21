@@ -62,6 +62,7 @@ describe("runDraftImport", () => {
         {
           account_id: GROCERIES_ACCOUNT_ID,
           account_name: "Groceries",
+          parent_path: null,
           count: 1,
         },
       ],

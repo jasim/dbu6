@@ -173,10 +173,11 @@ function accountRows(
   return allRows<SearchAccount>(
     sqlite,
     auth,
-    `SELECT id, name, account_type
-     FROM scoped_accounts
-     WHERE id IN (SELECT value FROM json_each(@ids))
-     ORDER BY name`,
+    `SELECT a.id, a.name, a.account_type, ap.parent_path
+     FROM scoped_accounts a
+     LEFT JOIN scoped_account_paths ap ON ap.id = a.id
+     WHERE a.id IN (SELECT value FROM json_each(@ids))
+     ORDER BY a.name`,
     { ids: JSON.stringify(ids) },
   );
 }

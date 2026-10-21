@@ -24,6 +24,10 @@ import type {
 } from "../../../shared/index";
 import { ADD_OTHER_ROUTE } from "../../add-account/state";
 import { apiErrorMessage } from "../../api";
+import {
+  AccountName,
+  useAccountParentPaths,
+} from "../../components/account-name";
 import { EmptyState } from "../../components/empty-state";
 import { LoadError } from "../../components/load-error";
 import { Screen, ScreenTitle } from "../../components/screen";
@@ -34,7 +38,6 @@ import {
   journalHref,
   lockText,
   openingFigure,
-  parentLine,
   recordedSections,
   sectionOf,
   type BalanceSection,
@@ -194,6 +197,7 @@ function SectionTable({
   onOpen: (account: OpeningBalanceAccount) => void;
   onRemove: (account: OpeningBalanceAccount) => void;
 }) {
+  const paths = useAccountParentPaths();
   return (
     <section>
       <h3 className="mb-2 text-label uppercase text-ink-meta">
@@ -233,6 +237,7 @@ function SectionTable({
               <BalanceRow
                 key={account.account_id}
                 account={account}
+                parentPath={paths.byId(account.account_id)}
                 section={section.section}
                 focused={focuses(account, focus)}
                 onOpen={() => onOpen(account)}
@@ -248,12 +253,14 @@ function SectionTable({
 
 function BalanceRow({
   account,
+  parentPath,
   section,
   focused,
   onOpen,
   onRemove,
 }: {
   account: OpeningBalanceAccount;
+  parentPath: string | null;
   section: OpeningSection;
   focused: boolean;
   onOpen: () => void;
@@ -265,7 +272,6 @@ function BalanceRow({
   }, [focused]);
 
   const { opening } = account;
-  const parents = section === "statement" ? null : parentLine(account);
   const figure = openingFigure(section, account);
   const dash = <span className="text-ink-meta">—</span>;
   return (
@@ -275,8 +281,14 @@ function BalanceRow({
       className={cn("border-t border-line-inner", focused && "bg-attention-bg")}
     >
       <td className="py-2.5 pl-5 pr-3 align-middle">
-        <div className="font-semibold text-foreground">{account.name}</div>
-        {parents && <div className="text-meta text-ink-meta">{parents}</div>}
+        <AccountName
+          name={
+            <span className="font-semibold text-foreground">
+              {account.name}
+            </span>
+          }
+          parentPath={parentPath}
+        />
         {/* On a phone, the column it drops. */}
         {opening && (
           <div className="text-meta text-ink-meta sm:hidden">

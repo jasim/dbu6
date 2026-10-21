@@ -55,6 +55,7 @@ function account(id: number, name: string): ReviewAccount {
   return {
     account_id: id,
     path: name,
+    parent_path: null,
     name,
     kind: "bank",
     drafts: 20,

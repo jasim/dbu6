@@ -21,6 +21,7 @@ import { usePageTitle } from "@sapporta/frontend/shell";
 import { cn } from "@sapporta/ui/cn";
 import { apiErrorMessage } from "../api";
 import { parseRowId } from "../row-id";
+import { AccountParentPath } from "../components/account-name";
 import { EmptyState } from "../components/empty-state";
 import { LoadError } from "../components/load-error";
 import { Button } from "../components/ui/button";
@@ -248,12 +249,19 @@ function FrameHeader({
             </span>
           </>
         )}
-        <h1
-          title={account.path}
-          className="truncate text-row font-semibold text-foreground"
-        >
-          {account.name}
-        </h1>
+        {/* The path in micro text keeps the two lines inside the bar's
+            min-h-12, so the bar stays one row high. */}
+        <div className="min-w-0">
+          <h1
+            title={account.path}
+            className="truncate text-row font-semibold text-foreground"
+          >
+            {account.name}
+          </h1>
+          {account.parent_path && (
+            <AccountParentPath path={account.parent_path} dense />
+          )}
+        </div>
       </div>
       {tabs && <Tabs detail={detail} setup={setup} />}
     </header>

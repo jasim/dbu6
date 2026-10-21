@@ -472,20 +472,35 @@ describe("tallyCategorization", () => {
       ACCOUNTS,
     );
 
-    expect(tallyCategorization(result.rows)).toEqual({
+    // Food sits under Expenses; Other Expenses is a top account.
+    const parentPaths = new Map([
+      [11, "Expenses"],
+      [12, null],
+    ]);
+    expect(tallyCategorization(result.rows, parentPaths)).toEqual({
       by_rule: 1,
       by_llm: 2,
       same_account: 1,
       uncategorized: 1,
       accounts: [
-        { account_id: 12, account_name: "Other Expenses", count: 2 },
-        { account_id: 11, account_name: "Food", count: 1 },
+        {
+          account_id: 12,
+          account_name: "Other Expenses",
+          parent_path: null,
+          count: 2,
+        },
+        {
+          account_id: 11,
+          account_name: "Food",
+          parent_path: "Expenses",
+          count: 1,
+        },
       ],
     });
   });
 
   it("is all zero for no rows", () => {
-    expect(tallyCategorization([])).toEqual({
+    expect(tallyCategorization([], new Map())).toEqual({
       by_rule: 0,
       by_llm: 0,
       same_account: 0,

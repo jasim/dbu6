@@ -7,7 +7,9 @@ import {
   hiddenIdColumn,
   moneyColumn,
   openRecordLink,
+  parentPathColumn,
   percentColumn,
+  readOnlyLedger,
   type SapportaEnv,
   textColumn,
   TsRestApi,
@@ -16,6 +18,7 @@ import type { LedgerAuth } from "../../modules/ledger-sql/index.js";
 import { reportsContract } from "../../../shared/index.js";
 import type { DuplicateDiagnostic } from "../../modules/reconciliation/index.js";
 import { findDraftDuplicates } from "../../modules/drafts/index.js";
+import { loadPathedAccounts } from "./account-paths.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
@@ -44,12 +47,33 @@ export function duplicateDraftsReport(
   auth: LedgerAuth,
   accountId?: number,
 ): GridDataset {
-  const rows = findDraftDuplicates(sqlite, auth, { accountId });
+  // The diagnostics name their accounts; a name is unique in a user's books,
+  // so it finds the account's parent path.
+  const paths = new Map(
+    loadPathedAccounts(readOnlyLedger(sqlite, auth)).map((account) => [
+      account.name,
+      account.parent_path,
+    ]),
+  );
+  const pathOf = (name: string | null) =>
+    name === null ? null : (paths.get(name) ?? null);
+  const rows = findDraftDuplicates(sqlite, auth, { accountId }).map((row) => ({
+    ...row,
+    base_account_parent_path: pathOf(row.base_account),
+    draft_account_parent_path: pathOf(row.draft_account),
+    matched_account_parent_path: pathOf(row.matched_account),
+  }));
   return toDuplicateDraftsResult(rows, accountId === undefined);
 }
 
+type DuplicateDraftRow = DuplicateDiagnostic & {
+  base_account_parent_path: string | null;
+  draft_account_parent_path: string | null;
+  matched_account_parent_path: string | null;
+};
+
 function toDuplicateDraftsResult(
-  rows: DuplicateDiagnostic[],
+  rows: DuplicateDraftRow[],
   accountColumn: boolean,
 ): GridDataset {
   return flatResult(
@@ -76,7 +100,10 @@ function toDuplicateDraftsResult(
         }),
         percentColumn("confidence", "Confidence", { width: 14 }),
         ...(accountColumn
-          ? [textColumn("base_account", "Base Account", { width: 34 })]
+          ? [
+              textColumn("base_account", "Base Account", { width: 34 }),
+              parentPathColumn("base_account"),
+            ]
           : []),
         textColumn("direction", "Direction", { width: 14 }),
         moneyColumn("amount", "Amount", { width: 16 }),
@@ -106,7 +133,9 @@ function toDuplicateDraftsResult(
           ],
         }),
         textColumn("draft_account", "Draft Account", { width: 34 }),
+        parentPathColumn("draft_account"),
         textColumn("matched_account", "Matched Account", { width: 34 }),
+        parentPathColumn("matched_account"),
         textColumn("source_reference", "Source Reference", { width: 30 }),
         textColumn("source_transaction_key", "Source Key", { width: 44 }),
         textColumn("other_source_reference", "Matched Reference", {

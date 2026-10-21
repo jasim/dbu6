@@ -9,7 +9,8 @@ const auth = testLedgerAuth();
  * Sample Savings (2) has a balance assertion of 1,500 on 10 Feb and three
  * drafts: a pair repeating one source key, whose second balance misses by 40,
  * and an uncategorised one. Sample Card (1) has one categorised draft. Sample
- * Loan (4) is a Liability with no preset. Cash (6) has no drafts.
+ * Loan (4) is a Liability with no preset. Cash (6) has no drafts. Sample
+ * Savings sits under Assets (7).
  */
 function ledger(): Database.Database {
   const sqlite = new Database(":memory:");
@@ -34,11 +35,12 @@ function ledger(): Database.Database {
 
     INSERT INTO accounts VALUES
       (1, 'workspace', 'user', 'Sample Card', NULL, 'Liability'),
-      (2, 'workspace', 'user', 'Sample Savings', NULL, 'Asset'),
+      (2, 'workspace', 'user', 'Sample Savings', 7, 'Asset'),
       (3, 'workspace', 'user', 'Groceries', NULL, 'Expense'),
       (4, 'workspace', 'user', 'Sample Loan', NULL, 'Liability'),
       (5, 'workspace', 'other-user', 'Other Bank 050505', NULL, 'Asset'),
-      (6, 'workspace', 'user', 'Cash', NULL, 'Asset');
+      (6, 'workspace', 'user', 'Cash', NULL, 'Asset'),
+      (7, 'workspace', 'user', 'Assets', NULL, 'Asset');
 
     INSERT INTO journals VALUES (10, 'workspace', 'user', '2026-02-10', 'Opening');
     INSERT INTO journal_entries VALUES
@@ -85,6 +87,7 @@ describe("listReviewAccounts", () => {
       {
         account_id: 1,
         path: "Sample Card",
+        parent_path: null,
         name: "Sample Card Statement",
         kind: "card",
         drafts: 1,
@@ -97,6 +100,7 @@ describe("listReviewAccounts", () => {
       {
         account_id: 4,
         path: "Sample Loan",
+        parent_path: null,
         name: "Sample Loan",
         kind: "card",
         drafts: 1,
@@ -109,6 +113,7 @@ describe("listReviewAccounts", () => {
       {
         account_id: 2,
         path: "Sample Savings",
+        parent_path: "Assets",
         name: "Sample Savings Statement",
         kind: "bank",
         drafts: 3,
@@ -129,6 +134,7 @@ describe("loadReviewAccount", () => {
     expect(detail).toMatchObject({
       account: {
         account_id: 2,
+        parent_path: "Assets",
         name: "Sample Savings Statement",
         drafts: 3,
         balance_checks: 2,
@@ -178,6 +184,7 @@ describe("loadReviewAccount", () => {
       account: {
         account_id: 6,
         path: "Cash",
+        parent_path: null,
         name: "Cash",
         kind: "bank",
         drafts: 0,

@@ -135,8 +135,8 @@ const CLASSIFIED: DraftClassification = {
     same_account: 0,
     uncategorized: 1,
     accounts: [
-      { account_id: 7, account_name: "Groceries", count: 2 },
-      { account_id: 8, account_name: "Dining", count: 1 },
+      { account_id: 7, account_name: "Groceries", parent_path: null, count: 2 },
+      { account_id: 8, account_name: "Dining", parent_path: null, count: 1 },
     ],
   },
 };
@@ -211,6 +211,7 @@ const DETAIL = {
   account: {
     account_id: 5,
     path: "Sample Savings",
+    parent_path: null,
     name: "Sample Savings",
     kind: "bank",
     drafts: 4,
@@ -344,7 +345,7 @@ describe("Run categorizer", () => {
       {
         id: 11,
         base_account_id: 5,
-        account: { id: 7, name: "Groceries" },
+        account: { id: 7, name: "Groceries", parent_path: null },
         transactions: [
           {
             date: "2026-09-01",

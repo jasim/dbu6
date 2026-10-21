@@ -68,6 +68,16 @@ const card: StatementAccountRow = {
   drafts: 2,
 };
 
+// The books' accounts, which each row's parent path comes from.
+const ACCOUNT_ROWS = [
+  { id: 1, name: "Assets", parent_id: null },
+  { id: 3, name: "Liabilities", parent_id: null },
+  { id: 2, name: "Bank Accounts", parent_id: 1 },
+  { id: 4, name: "Credit Cards", parent_id: 3 },
+  { id: 8, name: "Sample Bank Savings", parent_id: 2 },
+  { id: 9, name: "Sample Card", parent_id: 4 },
+];
+
 function books(rows: StatementAccountRow[]): StatementAccounts {
   return {
     institutions: [
@@ -111,6 +121,12 @@ beforeEach(() => {
           if (refusal) return Response.json(refusal, { status: 422 });
         }
         return Response.json(accounts);
+      }
+      if (method === "GET" && url.pathname.endsWith("/tables/accounts")) {
+        return Response.json({
+          data: ACCOUNT_ROWS,
+          meta: { total: ACCOUNT_ROWS.length, page: 1, limit: 1000, pages: 1 },
+        });
       }
       return Response.json({ error: "Not here" }, { status: 404 });
     }),
@@ -282,6 +298,16 @@ describe("BanksAndCards", () => {
       ["Bank account", "Sample Bank", "ending 0056"],
     ]);
     expect(rows[2].textContent).toContain("Deleted from your books");
+    // Each account's parents under its name; none for one the books lack.
+    const paths = rows.map(
+      (row) => row.querySelector("td > span > span + span")?.textContent,
+    );
+    expect(paths).toEqual([
+      "Assets > Bank Accounts",
+      "Liabilities > Credit Cards",
+      undefined,
+      undefined,
+    ]);
     expect(
       rows[1].querySelector(
         '[aria-label="Has transactions, so it can\'t change here."]',

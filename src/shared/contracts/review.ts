@@ -15,6 +15,8 @@ const c = initContract();
 export const reviewAccountSchema = z.object({
   account_id: z.number(),
   path: z.string(),
+  // Where the ledger account sits, "Assets > Bank"; null for a top account.
+  parent_path: z.string().nullable(),
   // The preset account's name when a preset lists it, else the account's name.
   name: z.string(),
   kind: accountKindSchema,

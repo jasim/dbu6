@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { LookupPickerItemProps } from "@sapporta/frontend/lookup";
 import type { ReportCellRenderers } from "@sapporta/frontend/report";
@@ -90,17 +90,33 @@ export interface AccountParentPaths {
  */
 export function useAccountParentPaths(): AccountParentPaths {
   const { data } = useQuery(accountChartQuery);
-  return useMemo(() => {
-    const chart = (data ?? []).flatMap(pathAccount);
-    const byId = accountParentPaths(chart);
-    const byName = new Map(
-      chart.map((account) => [account.name, byId.get(account.id) ?? null]),
-    );
-    return {
-      byId: (id) => (id == null ? null : (byId.get(id) ?? null)),
-      byName: (name) => (name == null ? null : (byName.get(name) ?? null)),
-    };
-  }, [data]);
+  return data === undefined ? NO_PATHS : pathsOf(data);
+}
+
+const NO_PATHS = parentPathsOf([]);
+
+// Each read of the chart's paths, worked out once however many cells and
+// choices on the screen ask for them.
+const pathsByChart = new WeakMap<object, AccountParentPaths>();
+
+function pathsOf(data: readonly Record<string, unknown>[]): AccountParentPaths {
+  let paths = pathsByChart.get(data);
+  if (paths === undefined) {
+    paths = parentPathsOf(data.flatMap(pathAccount));
+    pathsByChart.set(data, paths);
+  }
+  return paths;
+}
+
+function parentPathsOf(chart: readonly PathAccount[]): AccountParentPaths {
+  const byId = accountParentPaths(chart);
+  const byName = new Map(
+    chart.map((account) => [account.name, byId.get(account.id) ?? null]),
+  );
+  return {
+    byId: (id) => (id == null ? null : (byId.get(id) ?? null)),
+    byName: (name) => (name == null ? null : (byName.get(name) ?? null)),
+  };
 }
 
 /** A row of the accounts table as its parent path needs it; none if not one. */

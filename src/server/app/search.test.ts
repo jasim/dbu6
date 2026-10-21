@@ -27,8 +27,12 @@ function books() {
     INSERT INTO accounts
       (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
     VALUES
+      (4, ${ME}, 'Expenses', NULL, 'Expense', '', '');
+    INSERT INTO accounts
+      (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+    VALUES
       (1, ${ME}, 'Sample Savings', NULL, 'Asset', '', ''),
-      (2, ${ME}, 'Groceries', NULL, 'Expense', '', ''),
+      (2, ${ME}, 'Groceries', 4, 'Expense', '', ''),
       (3, ${ME}, 'Sample Card', NULL, 'Liability', '', ''),
       (9, ${OTHER}, 'Groceries', NULL, 'Expense', '', '');
     INSERT INTO journals
@@ -146,7 +150,15 @@ describe("GET /api/search", () => {
     expect(ids(byAmount.journals)).toEqual([10]);
     expect(ids(byAmount.drafts)).toEqual([202]);
     const byAccount = await search("groceries");
-    expect(ids(byAccount.accounts)).toEqual([2]);
+    // With where it sits, for the screen to show under its name.
+    expect(byAccount.accounts).toEqual([
+      {
+        id: 2,
+        name: "Groceries",
+        account_type: "Expense",
+        parent_path: "Expenses",
+      },
+    ]);
     expect(ids(byAccount.journals)).toEqual([11, 10]);
     expect(ids(byAccount.drafts)).toEqual([202]);
   });

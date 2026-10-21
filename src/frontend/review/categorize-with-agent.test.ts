@@ -14,6 +14,7 @@ const detail: ReviewAccountDetail = {
     drafts: 21,
     uncategorised: 4,
     duplicates: 0,
+    parent_path: null,
     balance_checks: 0,
     failing_checks: 0,
     draft_span: { first_date: "2026-09-01", last_date: "2026-09-13" },
@@ -29,7 +30,7 @@ const detail: ReviewAccountDetail = {
 const RULE_REQUEST: CategorizationRuleRequest = {
   id: 31,
   base_account_id: 7,
-  account: { id: 9, name: "Groceries" },
+  account: { id: 9, name: "Groceries", parent_path: null },
   transactions: [
     {
       date: "2026-09-01",

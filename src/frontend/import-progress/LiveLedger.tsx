@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { cn } from "@sapporta/ui/cn";
-import type { ImportProgressRow } from "../../shared/index";
+import {
+  ACCOUNT_PATH_SEPARATOR,
+  type ImportProgressRow,
+} from "../../shared/index";
 import { accountHueColor, type AccountHueKey } from "../components/account-hue";
+import { useAccountParentPaths } from "../components/account-name";
 import { formatAmount } from "../components/amount";
 import { formatShortDate, plural } from "../format";
 import {
@@ -105,6 +109,15 @@ export function LiveLedger({
   const touched = useRef(0);
   const counts = tally(rows, revealed, hueOf);
   const shown = counts.total - counts.waiting;
+  // The chips have no room for a parent path's line, so it is in their
+  // tooltips: "Expenses > Kitchen > Groceries".
+  const paths = useAccountParentPaths();
+  const placed = (name: string) => {
+    const parents = paths.byName(name);
+    return parents === null
+      ? name
+      : `${parents}${ACCOUNT_PATH_SEPARATOR}${name}`;
+  };
 
   // Follow the answers down the list, unless the user is reading it.
   useEffect(() => {
@@ -132,7 +145,7 @@ export function LiveLedger({
         {counts.segments.map((segment) => (
           <span
             key={segment.account}
-            title={`${segment.account}: ${segment.count}`}
+            title={`${placed(segment.account)}: ${segment.count}`}
             className="ledger-seg"
             style={
               {
@@ -170,6 +183,7 @@ export function LiveLedger({
               row={row}
               shown={revealed.has(index)}
               hueOf={hueOf}
+              placed={placed}
             />
           ))}
         </ol>
@@ -186,11 +200,14 @@ function LedgerRow({
   row,
   shown,
   hueOf,
+  placed,
 }: {
   index: number;
   row: ImportProgressRow;
   shown: boolean;
   hueOf: (name: string) => AccountHueKey;
+  /** The account's name with its parents before it, for its tooltip. */
+  placed: (name: string) => string;
 }) {
   const account = shown ? row.account : null;
   const hue = account === null ? null : hueOf(account);
@@ -221,7 +238,7 @@ function LedgerRow({
         {account !== null && hue !== null ? (
           <span
             data-by={row.by}
-            title={account}
+            title={placed(account)}
             className="ledger-chip-in inline-flex max-w-[112px] items-center gap-1.5 text-[12.5px] text-foreground sm:max-w-[150px]"
           >
             <span

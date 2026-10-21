@@ -71,6 +71,8 @@ export const categorizationTallySchema = z.object({
     z.object({
       account_id: z.number(),
       account_name: z.string(),
+      // Where it sits, "Expenses > Kitchen"; null for a top account.
+      parent_path: z.string().nullable(),
       count: z.number(),
     }),
   ),

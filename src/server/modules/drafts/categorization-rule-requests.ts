@@ -6,6 +6,7 @@ import {
   type CategorizationRuleRequestTransaction,
 } from "../../../shared/index.js";
 import { accountsTable } from "../../schema/accounts.js";
+import { loadAccountParentPaths } from "../accounts/index.js";
 import {
   categorizationRuleRequests,
   categorizationRuleRequestsTable,
@@ -21,7 +22,10 @@ const transactionsColumnSchema = z
   .array(categorizationRuleRequestTransactionSchema)
   .min(1);
 
-/** A statement account's rule requests, oldest first, with each account's name. */
+/**
+ * A statement account's rule requests, oldest first, with each account's name
+ * and parent path.
+ */
 export function loadCategorizationRuleRequests(
   db: any,
   auth: LedgerAuth,
@@ -71,10 +75,16 @@ function selectRuleRequests(
     .where(access.ownedRows(where))
     .orderBy(asc(categorizationRuleRequestsTable.id))
     .all();
+  if (rows.length === 0) return [];
+  const parentPaths = loadAccountParentPaths(db, auth);
   return rows.map(({ ruleRequest, accountName }) => ({
     id: ruleRequest.id,
     base_account_id: ruleRequest.base_account_id,
-    account: { id: ruleRequest.account_id, name: accountName },
+    account: {
+      id: ruleRequest.account_id,
+      name: accountName,
+      parent_path: parentPaths.get(ruleRequest.account_id) ?? null,
+    },
     transactions: transactionsColumnSchema.parse(
       JSON.parse(ruleRequest.transactions),
     ),

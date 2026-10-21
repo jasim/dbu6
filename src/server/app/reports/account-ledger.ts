@@ -4,6 +4,7 @@ import {
   hiddenIdColumn,
   moneyColumn,
   openRecordLink,
+  parentPathColumn,
   type ReportLedger,
   reportLedger,
   type SapportaEnv,
@@ -79,6 +80,8 @@ export type AccountLedgerJournalEntryRow = {
   journal_id: number;
   account_id: number;
   account_name: string;
+  /** Null for a top account. */
+  account_parent_path: string | null;
   debit: number;
   credit: number;
   comment: string | null;
@@ -157,6 +160,7 @@ export function loadAccountLedgerJournalEntries(
       je.journal_id,
       je.account_id,
       a.name AS account_name,
+      ap.parent_path AS account_parent_path,
       je.debit,
       je.credit,
       je.comment,
@@ -164,6 +168,7 @@ export function loadAccountLedgerJournalEntries(
     FROM scoped_journal_entries je
     JOIN matching_journals mj ON mj.id = je.journal_id
     JOIN scoped_accounts a ON a.id = je.account_id
+    LEFT JOIN scoped_account_paths ap ON ap.id = a.id
     ORDER BY je.journal_id, je.id`,
     treeParams(query),
   );
@@ -180,6 +185,8 @@ export type LedgerPosting = {
   against: string | null;
   /** Set when the row is against one account, for its ledger link. */
   against_account_id: number | null;
+  /** That one account's parent path, shown under its name. */
+  against_parent_path: string | null;
   debit: number;
   credit: number;
 };
@@ -228,6 +235,8 @@ export function ledgerPostings(
           [...new Set(against.map((other) => other.account_name))].join(", ") ||
           null,
         against_account_id: against.length === 1 ? against[0].account_id : null,
+        against_parent_path:
+          against.length === 1 ? against[0].account_parent_path : null,
         debit: direction > 0 ? value : 0,
         credit: direction < 0 ? value : 0,
       });
@@ -306,6 +315,7 @@ export function toAccountLedgerResult(
         // under them, stay on screen at laptop widths. The screen links
         // Against to that account's ledger for the same period.
         textColumn("against", "Against", { minWidth: 16, maxWidth: 40 }),
+        parentPathColumn("against"),
         textColumn("narration", "Narration", {
           minWidth: 20,
           maxWidth: 56,
@@ -367,6 +377,7 @@ export function toAccountLedgerResult(
               journal_id: null,
               entry_id: null,
               against_account_id: null,
+              against_parent_path: null,
               date: fromDate,
               against: "Opening balance",
               narration: null,

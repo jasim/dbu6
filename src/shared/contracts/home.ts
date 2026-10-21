@@ -33,6 +33,8 @@ export const homeAccountSchema = z.discriminatedUnion("in_ledger", [
     ...importableAccountFields,
     // The ledger account's name.
     path: z.string(),
+    // Where the ledger account sits, "Assets > Bank"; null for a top account.
+    parent_path: z.string().nullable(),
     // The last posted balance assertion; null before the first.
     checkpoint: datedBalanceSchema.nullable(),
     // Posted balance assertions its books miss: an entry changed after the

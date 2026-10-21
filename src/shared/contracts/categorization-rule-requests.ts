@@ -28,8 +28,13 @@ export const categorizationRuleRequestSchema = z.object({
   id: z.number().int(),
   // The statement account the drafts were imported for.
   base_account_id: z.number().int(),
-  // Where the user said the drafts go.
-  account: z.object({ id: z.number().int(), name: z.string() }),
+  // Where the user said the drafts go, with where that account sits,
+  // "Expenses > Kitchen"; null for a top account.
+  account: z.object({
+    id: z.number().int(),
+    name: z.string(),
+    parent_path: z.string().nullable(),
+  }),
   // Oldest first.
   transactions: z.array(categorizationRuleRequestTransactionSchema).min(1),
   // What the user added for next time, or "".

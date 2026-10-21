@@ -119,7 +119,21 @@ const RULES: TransactionMappingsView = {
   ],
 };
 
+// The books' accounts, which the rules' parent paths come from.
+const ACCOUNTS = [
+  { id: 1, name: "Expenses", parent_id: null, account_type: "expense" },
+  { id: 2, name: "Kitchen", parent_id: 1, account_type: "expense" },
+  { id: 3, name: "Groceries", parent_id: 2, account_type: "expense" },
+  { id: 4, name: "Dining", parent_id: 1, account_type: "expense" },
+];
+
 function respond(url: URL): unknown {
+  if (url.pathname.endsWith("/tables/accounts")) {
+    return {
+      data: ACCOUNTS,
+      meta: { total: ACCOUNTS.length, page: 1, limit: 1000, pages: 1 },
+    };
+  }
   if (url.pathname.endsWith("/import-presets")) return PRESETS;
   if (url.pathname.endsWith("/import-presets/transaction-mappings")) {
     return mappings;
@@ -130,6 +144,7 @@ function respond(url: URL): unknown {
         {
           account_id: 5,
           path: "assets:bank:sample",
+          parent_path: null,
           name: "Sample Bank",
           kind: "bank",
           drafts: 3,
@@ -338,8 +353,8 @@ describe("Automatic transaction categorization rules", () => {
 
       expect(rows()).toEqual([
         "Sample Gonenot in your books: NOPII OLD PAYEE",
-        "Groceries: NOPII SHOP 1 · NOPII SHOP 2 · NOPII SHOP 3 · NOPII SHOP 4 · NOPII SHOP 5 · NOPII SHOP 6 · +2",
-        "Dining: NOPII CAFE ONE · NOPII CAFE TWO",
+        "GroceriesExpenses > Kitchen: NOPII SHOP 1 · NOPII SHOP 2 · NOPII SHOP 3 · NOPII SHOP 4 · NOPII SHOP 5 · NOPII SHOP 6 · +2",
+        "DiningExpenses: NOPII CAFE ONE · NOPII CAFE TWO",
       ]);
 
       await click(host.querySelector('button[aria-label^="Show 2 more"]'));
@@ -351,7 +366,7 @@ describe("Automatic transaction categorization rules", () => {
       await renderAt("/categorization-rules?show=exact");
 
       await find("shop 5");
-      expect(rows()).toEqual(["Groceries: NOPII SHOP 5"]);
+      expect(rows()).toEqual(["GroceriesExpenses > Kitchen: NOPII SHOP 5"]);
 
       await find("groceries");
       expect(rows()[0]).toContain("NOPII SHOP 7 · NOPII SHOP 8");
@@ -370,7 +385,7 @@ describe("Automatic transaction categorization rules", () => {
       );
       expect(host.querySelector("mark")?.textContent).toBe("NOPII CAFE");
       expect(rows()).toEqual([
-        "1Diningmoney out · up to 500: NOPII CAFE · NOPII BISTRO",
+        "1Diningmoney out · up to 500Expenses: NOPII CAFE · NOPII BISTRO",
         "2Salarymoney in: NOPII PAYROLL",
         "3Transfers: sample-payee@okaxis",
       ]);

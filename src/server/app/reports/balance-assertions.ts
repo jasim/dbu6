@@ -24,6 +24,7 @@ api.register(
         f.account_id,
         f.entry_id,
         a.name AS account_name,
+        ap.parent_path AS account_name_parent_path,
         f.date,
         f.journal_id,
         f.running_balance,
@@ -31,6 +32,7 @@ api.register(
         f.diff
       FROM posted_assertion_failures f
       JOIN scoped_accounts a ON a.id = f.account_id
+      LEFT JOIN scoped_account_paths ap ON ap.id = a.id
       ORDER BY a.name, f.date, f.journal_id, f.entry_id`);
 
     return { status: 200, body: toBalanceAssertionsResult(rows) };
@@ -41,6 +43,7 @@ type BalanceAssertionRow = {
   account_id: number;
   entry_id: number;
   account_name: string;
+  account_name_parent_path: string | null;
   date: string;
   journal_id: number;
   running_balance: number;

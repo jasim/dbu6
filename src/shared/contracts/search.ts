@@ -46,6 +46,8 @@ export const searchAccountSchema = z.object({
   id: z.number(),
   name: z.string(),
   account_type: ledgerAccountTypeSchema,
+  // Where it sits, "Expenses > Kitchen"; null for a top account.
+  parent_path: z.string().nullable(),
 });
 export type SearchAccount = z.infer<typeof searchAccountSchema>;
 

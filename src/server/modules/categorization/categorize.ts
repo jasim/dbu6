@@ -152,9 +152,13 @@ async function categorizeRows(
   return { rows: categorized, sameAccountSkips, report };
 }
 
-/** The rows by who categorized them, and how many each account was given. */
+/**
+ * The rows by who categorized them, and how many each account was given,
+ * each with its parent path from `parentPaths` (`loadAccountParentPaths`).
+ */
 export function tallyCategorization(
   rows: readonly CategorizedRow[],
+  parentPaths: ReadonlyMap<number, string | null>,
 ): CategorizationTally {
   const tally: CategorizationTally = {
     by_rule: 0,
@@ -187,6 +191,7 @@ export function tallyCategorization(
       byAccount.set(accountId, {
         account_id: accountId,
         account_name: account,
+        parent_path: parentPaths.get(accountId) ?? null,
         count: 1,
       });
   }

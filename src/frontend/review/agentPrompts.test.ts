@@ -45,6 +45,7 @@ function detail(overrides: Partial<ReviewAccountDetail>): ReviewAccountDetail {
   return {
     account: {
       account_id: 7,
+      parent_path: null,
       path: "Sample Savings",
       name: "Sample Savings",
       kind: "bank",

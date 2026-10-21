@@ -4,6 +4,10 @@ import { cn } from "@sapporta/ui/cn";
 import { apiErrorMessage } from "../../api";
 import { formatAmountRange } from "../../format";
 import { LoadError } from "../../components/load-error";
+import {
+  AccountParentPath,
+  useAccountParentPaths,
+} from "../../components/account-name";
 import { transactionMappingsQuery } from "../../queries";
 import {
   containsExample,
@@ -76,6 +80,7 @@ function ExactRules({ mappings }: { mappings: ReadMappings }) {
   const finding = deferred.trim() !== "";
   const rows = exactByAccount(mappings, deferred);
   const example = exactExample(mappings);
+  const paths = useAccountParentPaths();
 
   return (
     <>
@@ -115,7 +120,11 @@ function ExactRules({ mappings }: { mappings: ReadMappings }) {
             const more = row.found.length - shown.length;
             return (
               <li key={row.account} className={ROW}>
-                <Account name={row.account} inLedger={row.in_ledger} />
+                <Account
+                  name={row.account}
+                  parentPath={paths.byName(row.account)}
+                  inLedger={row.in_ledger}
+                />
                 <ul className={CHIPS}>
                   {shown.map((text, index) => (
                     <Chip key={index}>{text}</Chip>
@@ -149,6 +158,7 @@ function ContainsRules({ mappings }: { mappings: ReadMappings }) {
   const [query, setQuery] = useState("");
   const rules = findIncludes(mappings, useDeferredValue(query));
   const example = containsExample(mappings);
+  const paths = useAccountParentPaths();
 
   return (
     <>
@@ -194,7 +204,11 @@ function ContainsRules({ mappings }: { mappings: ReadMappings }) {
                 {rule.position}
               </span>
               <div>
-                <Account name={rule.account} inLedger={rule.in_ledger}>
+                <Account
+                  name={rule.account}
+                  parentPath={paths.byName(rule.account)}
+                  inLedger={rule.in_ledger}
+                >
                   {(rule.direction !== null || rule.amount !== null) && (
                     <span className="text-meta font-normal text-ink-soft">
                       {ruleLimits(rule)}
@@ -251,21 +265,29 @@ function ruleLimits(rule: {
     .join(" · ");
 }
 
-/** A rule's account in bold, with facts beside it. */
+/**
+ * A rule's account in bold, with facts beside it and its parent path under
+ * it. A rule may name an account the books don't have, which has no path.
+ */
 function Account({
   name,
+  parentPath,
   inLedger,
   children,
 }: {
   name: string;
+  parentPath: string | null;
   inLedger: boolean;
   children?: ReactNode;
 }) {
   return (
-    <p className="flex flex-wrap items-baseline gap-x-2.5 text-row font-semibold text-foreground">
-      {name}
-      {children}
-      {!inLedger && <NotInBooks />}
-    </p>
+    <div className="min-w-0">
+      <p className="flex flex-wrap items-baseline gap-x-2.5 text-row font-semibold text-foreground">
+        {name}
+        {children}
+        {!inLedger && <NotInBooks />}
+      </p>
+      {parentPath !== null && <AccountParentPath path={parentPath} />}
+    </div>
   );
 }
