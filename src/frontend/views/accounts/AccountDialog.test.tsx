@@ -263,10 +263,47 @@ describe("AccountDialog", () => {
     expect(closed).toBe(1);
   });
 
+  it("takes a new account's category from the parent chosen", async () => {
+    await render("new");
+
+    await act(async () => type(field("Name"), "Sample Holiday"));
+    await choose("Show the choices", "Groceries");
+
+    await save();
+
+    expect(sent).toEqual([
+      {
+        method: "POST",
+        path: "/api/tables/accounts",
+        body: {
+          name: "Sample Holiday",
+          account_type: "Expense",
+          parent_id: 6,
+        },
+      },
+    ]);
+  });
+
+  it("clears the parent to make a top-level account", async () => {
+    await render(accountOf("Groceries"));
+
+    await act(async () => button("Make it a top-level account").click());
+    await settle();
+    await save();
+
+    expect(sent).toEqual([
+      {
+        method: "PUT",
+        path: "/api/accounts/6",
+        body: { name: "Groceries", account_type: "Expense", parent_id: null },
+      },
+    ]);
+  });
+
   it("retypes with sub-accounts, says what moves, and puts the change", async () => {
     await render(accountOf("Expenses"));
 
-    await choose("Show the account types", "Income");
+    await choose("Show the categories", "Income");
 
     expect(text()).toContain(
       "Its 1 sub-account moves to Income with it. They'll show under Income in reports.",

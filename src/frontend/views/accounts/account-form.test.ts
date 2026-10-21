@@ -9,6 +9,7 @@ import {
   readDraft,
   refusalField,
   typeLock,
+  withParent,
   withType,
   type AccountFormContext,
   type AccountRow,
@@ -60,6 +61,18 @@ describe("parentChoices", () => {
     ]);
   });
 
+  it("offers every type when the type is not fixed", () => {
+    expect(parentChoices(CHART, null, 2).map((one) => one.name)).toEqual([
+      "Assets",
+      "Equity",
+      "Opening Balances",
+      "Expenses",
+      "Groceries",
+      "Income",
+      "Salary",
+    ]);
+  });
+
   it("leaves out the account itself and its branch", () => {
     expect(parentChoices(CHART, "Asset", 2).map((one) => one.name)).toEqual([
       "Assets",
@@ -77,6 +90,30 @@ describe("parentChoices", () => {
     expect(parentChoices(CHART, "Expense", null)[1].path).toBe(
       "Expenses:Groceries",
     );
+  });
+});
+
+describe("withParent", () => {
+  it("takes the parent's type", () => {
+    const draft = {
+      name: "Sample Holiday",
+      account_type: "Asset" as const,
+      parent_id: null,
+    };
+    expect(withParent(draft, 6, CHART)).toEqual({
+      name: "Sample Holiday",
+      account_type: "Expense",
+      parent_id: 6,
+    });
+  });
+
+  it("keeps the type at the top level", () => {
+    const draft = draftOf(CHART[5]);
+    expect(withParent(draft, null, CHART)).toEqual({
+      name: "Groceries",
+      account_type: "Expense",
+      parent_id: null,
+    });
   });
 });
 

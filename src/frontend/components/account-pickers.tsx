@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import { Combobox, comboboxClassNames } from "@sapporta/ui/combobox";
 import { cn } from "@sapporta/ui/cn";
 import { knownInstitution, type ChartChoice } from "../../shared/index";
@@ -51,10 +51,13 @@ function Field({
   id,
   placeholder,
   invalid,
+  clearLabel,
 }: {
   id: string;
   placeholder: string;
   invalid?: boolean;
+  /** Show a clear button named this, for a choice that may be left empty. */
+  clearLabel?: string;
 }) {
   return (
     <Combobox.InputGroup
@@ -66,6 +69,14 @@ function Field({
         aria-invalid={invalid || undefined}
         className={comboboxClassNames.input}
       />
+      {clearLabel !== undefined && (
+        <Combobox.Clear
+          aria-label={clearLabel}
+          className={comboboxClassNames.action}
+        >
+          <X />
+        </Combobox.Clear>
+      )}
       <Combobox.Trigger
         aria-label="Show the choices"
         className={cn(comboboxClassNames.action, comboboxClassNames.trigger)}
@@ -78,10 +89,9 @@ function Field({
 
 /**
  * One account from `choices`, by id, each shown with its parent path, and
- * the chosen one's under the input. With `topLevel`, a row above them clears
- * the parent: account ids are positive, so 0 stands for "none".
+ * the chosen one's under the input. With `clearLabel`, it may be left empty:
+ * the placeholder says what empty means, and a button clears a choice.
  */
-const TOP_LEVEL_ID = 0;
 
 export function AccountCombobox({
   id,
@@ -90,7 +100,7 @@ export function AccountCombobox({
   onChange,
   placeholder,
   invalid,
-  topLevel,
+  clearLabel,
 }: {
   id: string;
   choices: readonly ChartChoice[];
@@ -98,18 +108,13 @@ export function AccountCombobox({
   onChange: (id: number | null) => void;
   placeholder: string;
   invalid?: boolean;
-  /** Add a row named this that means "no parent"; omitted, one is required. */
-  topLevel?: string;
+  /** Name a button that empties the choice; omitted, one is required. */
+  clearLabel?: string;
 }) {
-  const noParent: ChartChoice | null =
-    topLevel === undefined
-      ? null
-      : { id: TOP_LEVEL_ID, name: topLevel, path: topLevel };
-  const items: ChartChoice[] =
-    noParent === null ? [...choices] : [noParent, ...choices];
+  const items: ChartChoice[] = [...choices];
   const selected =
     value === null
-      ? noParent
+      ? null
       : (items.find((choice) => choice.id === value) ?? null);
   const paths = useAccountParentPaths();
   const selectedPath = selected === null ? null : paths.byId(selected.id);
@@ -117,19 +122,19 @@ export function AccountCombobox({
     <Combobox.Root<ChartChoice>
       items={items}
       value={selected}
-      onValueChange={(next) =>
-        onChange(
-          next === undefined || next === null || next.id === TOP_LEVEL_ID
-            ? null
-            : next.id,
-        )
-      }
+      onValueChange={(next) => onChange(next?.id ?? null)}
       itemToStringLabel={(choice) => choice.name}
       isItemEqualToValue={(a, b) => a.id === b.id}
     >
-      <Field id={id} placeholder={placeholder} invalid={invalid} />
+      <Field
+        id={id}
+        placeholder={placeholder}
+        invalid={invalid}
+        clearLabel={selected === null ? undefined : clearLabel}
+      />
       {selectedPath !== null && (
-        <AccountParentPath path={selectedPath} className="mt-1" />
+        // Inset to line up with the input's text, not its border.
+        <AccountParentPath path={selectedPath} className="mt-1 px-3" />
       )}
       <Popup empty="No account matches.">
         {(choice: ChartChoice) => (

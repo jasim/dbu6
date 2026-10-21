@@ -96,20 +96,21 @@ export function accountBranch(
 }
 
 /**
- * The accounts a parent may be for an account of `account_type` sitting in
- * `self`'s place: that type, less the account itself and anything under it.
- * Ordered by name, as the chart is.
+ * The accounts a parent may be for an account sitting in `self`'s place: any
+ * account, or only those of `accountType` when the type is fixed, less the
+ * account itself and anything under it. Ordered by name, as the chart is.
  */
 export function parentChoices(
   chart: readonly AccountRow[],
-  accountType: LedgerAccountType,
+  accountType: LedgerAccountType | null,
   self: number | null,
 ): ChartChoice[] {
   const branch = self === null ? new Set<number>() : accountBranch(chart, self);
   return chart
     .filter(
       (account) =>
-        account.account_type === accountType && !branch.has(account.id),
+        (accountType === null || account.account_type === accountType) &&
+        !branch.has(account.id),
     )
     .map((account) => ({
       id: account.id,
@@ -181,6 +182,23 @@ export function typeLock(
 /** Whether the name field is fixed: Opening Balances is found by its name. */
 export function nameLocked(account: AccountRow): boolean {
   return account.name === OPENING_BALANCES_NAME;
+}
+
+/**
+ * The draft after choosing the parent: an account takes its parent's type,
+ * and keeps its own at the top level.
+ */
+export function withParent(
+  draft: AccountDraft,
+  parentId: number | null,
+  chart: readonly AccountRow[],
+): AccountDraft {
+  const parent = chart.find((one) => one.id === parentId);
+  return {
+    ...draft,
+    parent_id: parentId,
+    account_type: parent?.account_type ?? draft.account_type,
+  };
 }
 
 /**

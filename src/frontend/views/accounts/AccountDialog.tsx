@@ -40,6 +40,7 @@ import {
   readDraft,
   refusalField,
   typeLock,
+  withParent,
   withType,
   type AccountDraft,
   type AccountFormContext,
@@ -142,11 +143,15 @@ function DialogBody({
   };
   const lock =
     account === null ? { locked: false as const } : typeLock(account, context);
+  // A fixed type keeps the parent to accounts of that type; otherwise any
+  // account will do, and the type follows the one chosen.
   const choices = parentChoices(
     context.chart,
-    draft.account_type,
+    lock.locked ? draft.account_type : null,
     account?.id ?? null,
   );
+  const parent =
+    context.chart.find((one) => one.id === draft.parent_id) ?? null;
   const notice =
     account === null
       ? null
@@ -239,31 +244,29 @@ function DialogBody({
           )}
         </Field>
 
-        <Field label="Type" htmlFor={ids.type}>
-          {lock.locked ? (
-            <p className="text-row text-ink-meta">
-              <Lock aria-hidden="true" className="mr-1 inline size-3.5" />
+        <Field label="Belongs under" htmlFor={ids.parent}>
+          <AccountCombobox
+            id={ids.parent}
+            choices={choices}
+            value={draft.parent_id}
+            onChange={(parent_id) =>
+              set(withParent(draft, parent_id, context.chart))
+            }
+            placeholder="None — this is a top-level account"
+            clearLabel="Make it a top-level account"
+            invalid={problem?.field === "parent_id"}
+          />
+        </Field>
+
+        <Field label="Category" htmlFor={ids.type}>
+          {lock.locked || parent !== null ? (
+            <div
+              id={ids.type}
+              className="flex h-sap-ctl w-full items-center justify-between rounded-md border border-input bg-muted px-3 text-sap-emph text-ink-meta"
+            >
               {ACCOUNT_TYPE_TERMS[draft.account_type].term}
-              {lock.reason === "opening_balances"
-                ? " — Opening Balances stays Equity."
-                : lock.reason === "bank_or_card"
-                  ? " — its type comes from the statements imported into it."
-                  : " — it holds a bank or card, whose statements set the type."}
-              {lock.reason !== "opening_balances" && (
-                <>
-                  {" "}
-                  <Link
-                    to={BANKS_SETTINGS_ROUTE}
-                    className="text-primary underline-offset-4 hover:underline"
-                  >
-                    {lock.reason === "holds_bank_or_card"
-                      ? "Change them in Settings › Banks &amp; cards"
-                      : "Change it in Settings › Banks &amp; cards"}
-                  </Link>
-                  .
-                </>
-              )}
-            </p>
+              {lock.locked && <Lock aria-hidden="true" className="size-3.5" />}
+            </div>
           ) : (
             <TypeCombobox
               id={ids.type}
@@ -281,19 +284,27 @@ function DialogBody({
               invalid={problem?.field === "account_type"}
             />
           )}
+          {lock.locked && (
+            <p className="mt-1 text-meta text-ink-meta">
+              {lock.reason === "opening_balances"
+                ? "Fixed"
+                : lock.reason === "bank_or_card"
+                  ? "Set by its statements"
+                  : "Set by the bank or card under it"}
+              {lock.reason !== "opening_balances" && (
+                <>
+                  {" · "}
+                  <Link
+                    to={BANKS_SETTINGS_ROUTE}
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    Banks &amp; cards
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
           {notice && <p className="mt-1 text-meta text-ink-meta">{notice}</p>}
-        </Field>
-
-        <Field label="Under" htmlFor={ids.parent}>
-          <AccountCombobox
-            id={ids.parent}
-            choices={choices}
-            value={draft.parent_id}
-            onChange={(parent_id) => set({ parent_id })}
-            placeholder="Choose an account…"
-            topLevel="Top level"
-            invalid={problem?.field === "parent_id"}
-          />
         </Field>
       </div>
 
@@ -370,7 +381,7 @@ function DialogBody({
   );
 }
 
-/** The five account types, as a static list: there is nothing to search. */
+/** The five categories, as a static list: there is nothing to search. */
 function TypeCombobox({
   id,
   value,
@@ -407,7 +418,7 @@ function TypeCombobox({
           className={comboboxClassNames.input}
         />
         <Combobox.Trigger
-          aria-label="Show the account types"
+          aria-label="Show the categories"
           className={cn(comboboxClassNames.action, comboboxClassNames.trigger)}
         >
           <ChevronDown />
@@ -429,12 +440,7 @@ function TypeCombobox({
                   value={item}
                   className={comboboxClassNames.item}
                 >
-                  <span className="min-w-0">
-                    <span className="block">{item.terms.term}</span>
-                    <span className="block text-meta text-ink-meta">
-                      {item.terms.caption}
-                    </span>
-                  </span>
+                  <span className="min-w-0">{item.terms.term}</span>
                   <Combobox.ItemIndicator
                     className={comboboxClassNames.itemIndicator}
                   >
