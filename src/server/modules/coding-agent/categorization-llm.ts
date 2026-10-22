@@ -11,6 +11,7 @@ import {
   currentCodingAgent,
   type CheckedAgentModels,
 } from "./models.js";
+import { CODING_AGENT_RUN } from "./agents.js";
 import { agentListClient, type InstalledAgent } from "./nuabase.js";
 
 /*
@@ -38,7 +39,10 @@ export async function confirmAgentUnavailable(
     : null;
 }
 
-/** Categorization on a coding agent, on one of its models. */
+/**
+ * Categorization on a coding agent, on one of its models, at the effort dbu6
+ * runs it at (agents.ts).
+ */
 export function localAgentLlm(
   agent: InstalledAgent,
   model: string | undefined,
@@ -48,16 +52,15 @@ export function localAgentLlm(
     name: CODING_AGENTS[agent.agent].label,
     caller: {
       ready: true,
-      client: agentListClient(agent, model),
+      client: agentListClient(agent, {
+        model,
+        effort: CODING_AGENT_RUN[agent.agent].categorizationEffort,
+      }),
       maxRowsPerCall: LOCAL_AGENT_ROWS_PER_CALL,
       confirmUnavailable: () => confirmAgentUnavailable(agent),
     },
   };
 }
-
-// One client per agent executable and model, so the limit on processes running
-// at once (nuabase.ts) holds across requests.
-const localAgents = new Map<string, CategorizationLlm>();
 
 /**
  * What an LLM call can run on right now, for categorization and for the
@@ -109,16 +112,7 @@ export async function categorizationLlm(): Promise<CategorizationLlm> {
         name: unavailableEngineName(engine.agent),
         caller: { ready: false, reason: engine.reason },
       };
-    case "agent": {
-      const { agent } = engine;
-      const { model } = engine.models.categorization;
-      const key = `${agent.agent}:${agent.binaryPath}:${model ?? "default"}`;
-      let llm = localAgents.get(key);
-      if (llm === undefined) {
-        llm = localAgentLlm(agent, model);
-        localAgents.set(key, llm);
-      }
-      return llm;
-    }
+    case "agent":
+      return localAgentLlm(engine.agent, engine.models.categorization.model);
   }
 }

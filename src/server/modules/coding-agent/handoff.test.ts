@@ -11,7 +11,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { detectLocalAgents, localAgent, direct, startAgentSession } = vi.hoisted(
   () => ({
     detectLocalAgents: vi.fn(),
-    localAgent: vi.fn((config: { model: string }) => config),
+    localAgent: vi.fn((config: object) => ({
+      // A call's client is the agent with that call's options.
+      with: (options: object) => ({ ...config, ...options }),
+    })),
     direct: vi.fn(),
     startAgentSession: vi.fn(),
   }),
@@ -109,7 +112,6 @@ beforeEach(async () => {
   config.useDbuConfig(config.memoryDbuConfig());
   handoff = await import("./handoff.js");
   detectLocalAgents.mockReset();
-  localAgent.mockClear();
   direct.mockReset();
   answering("opus", "sonnet", "gpt-5.6-sol", "gpt-5.6-terra", undefined);
   startAgentSession.mockReset();
@@ -290,9 +292,9 @@ describe("handOffPrompt", () => {
   it("gives the command when the terminal window doesn't open", async () => {
     detectLocalAgents.mockResolvedValue(CLAUDE_ONLY);
     startAgentSession.mockResolvedValue({
-      kind: "command",
+      kind: "open_failed",
       files: SESSION_FILES,
-      terminalError: "sample failure",
+      error: "sample failure",
     });
 
     await expect(

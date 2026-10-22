@@ -13,10 +13,6 @@ import { agentGetClient } from "./nuabase.js";
  * a single call, where categorization's many small ones take the cheapest.
  */
 
-// One client per agent executable and model, so the limit on processes
-// running at once (nuabase.ts) holds across requests.
-const clients = new Map<string, ChartLlm>();
-
 /** Who draws a chart of accounts right now, or why nobody can. */
 export async function chartLlm(): Promise<ChartLlm> {
   const engine = await currentLlmEngine();
@@ -28,17 +24,12 @@ export async function chartLlm(): Promise<ChartLlm> {
       };
     case "agent": {
       const { agent } = engine;
-      const { model } = engine.models.session;
-      const key = `${agent.agent}:${agent.binaryPath}:${model ?? "default"}`;
-      let llm = clients.get(key);
-      if (llm === undefined) {
-        llm = {
-          name: CODING_AGENTS[agent.agent].label,
-          caller: { ready: true, client: agentGetClient(agent, model) },
-        };
-        clients.set(key, llm);
-      }
-      return llm;
+      // At the agent's own effort: one careful answer.
+      const call = { model: engine.models.session.model, effort: undefined };
+      return {
+        name: CODING_AGENTS[agent.agent].label,
+        caller: { ready: true, client: agentGetClient(agent, call) },
+      };
     }
   }
 }

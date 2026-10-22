@@ -20,20 +20,27 @@ import type { OnCategorizationProgress } from "./categorize.js";
 
 export type ListRow = { id: string; text: string };
 
-export interface ListRequest {
+export interface ListRequest<Name extends string> {
   prompt: string;
   rows: readonly ListRow[];
   /** The field to answer each row in. */
-  output: { name: string; schema: z.ZodType<string> };
+  output: { name: Name; schema: z.ZodType<string> };
 }
+
+/** One row's answer: the row's id, as the LLM wrote it, and the output field. */
+export type ListAnswerRow<Name extends string> = {
+  id: string | number;
+} & Record<Name, string>;
 
 // A failed call's error is fit to show on a screen as it is: the client keeps
 // the full message for its log.
-export type ListAnswer =
-  { ok: true; rows: unknown[] } | { ok: false; error: string };
+export type ListAnswer<Name extends string> =
+  { ok: true; rows: ListAnswerRow<Name>[] } | { ok: false; error: string };
 
 export interface ListClient {
-  list(request: ListRequest): Promise<ListAnswer>;
+  list<Name extends string>(
+    request: ListRequest<Name>,
+  ): Promise<ListAnswer<Name>>;
 }
 
 export interface CategorizationLlm {
@@ -85,10 +92,7 @@ export interface LLMRequest {
   reverseMap: ReverseMap;
 }
 
-export interface LLMResponseRow {
-  id: string;
-  account: string;
-}
+export type LLMResponseRow = ListAnswerRow<"account">;
 
 /**
  * Build the LLM prompt by filling placeholders in the template.
@@ -213,7 +217,7 @@ export function splitIntoCalls<T>(
   return calls;
 }
 
-const ACCOUNT_OUTPUT = { name: "account", schema: z.string() };
+const ACCOUNT_OUTPUT = { name: "account" as const, schema: z.string() };
 
 type ReadyCaller = Extract<CategorizationLlm["caller"], { ready: true }>;
 
@@ -246,7 +250,7 @@ async function callList(
 
   console.log(`\n── [${llm.name}] LLM Categorization Response${label} ──`);
   console.log(JSON.stringify(answer.rows, null, 2));
-  return { ok: true, rows: answer.rows as LLMResponseRow[] };
+  return { ok: true, rows: answer.rows };
 }
 
 /**

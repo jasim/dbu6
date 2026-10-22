@@ -14,10 +14,10 @@ import {
 } from "./errors.js";
 import { agentModels, currentCodingAgent } from "./models.js";
 import {
-  sessionMode,
+  agentSessionMode,
   startSession,
+  type AgentSessionRefusal,
   type InstalledAgent,
-  type SessionRefusal,
 } from "./nuabase.js";
 
 /*
@@ -44,15 +44,14 @@ import {
 const PROMPTS_DIR = ["tmp", "agent-prompts"] as const;
 
 /**
- * Pure: how a prompt can be handed to this agent on this platform: nuabase's
- * launcher is a POSIX shell script, and only on macOS can it open a terminal
- * window without asking for Automation permission.
+ * Pure: how a prompt can be handed to this agent on this platform, as
+ * nuabase's agentSessionMode says.
  */
 export function handoffAvailability(
   agent: InstalledAgent | null,
   platform: NodeJS.Platform,
 ): AgentHandoffAvailability {
-  const mode = sessionMode(platform);
+  const mode = agentSessionMode(platform);
   if (agent === null || mode === "none") return { mode: "none" };
   return { mode, agent: agent.agent };
 }
@@ -91,23 +90,26 @@ export async function handOffPrompt(
     dir: join(root, ...PROMPTS_DIR),
     platform,
   });
-  if (started.kind === "refused") {
-    throw refusalError(started.reason, agent.agent);
+  switch (started.kind) {
+    case "refused":
+      throw refusalError(started.reason, agent.agent);
+    case "open_failed":
+      throw new TerminalOpenFailedError(started.error, started.files.command);
+    case "opened":
+    case "command": {
+      const { files } = started;
+      return {
+        agent: agent.agent,
+        mode: started.kind === "opened" ? "terminal" : "command",
+        prompt_path: files.promptPath,
+        launcher_path: files.launcherPath,
+        command: files.command,
+      };
+    }
   }
-  const { files } = started;
-  if (started.kind === "command" && started.terminalError !== undefined) {
-    throw new TerminalOpenFailedError(started.terminalError, files.command);
-  }
-  return {
-    agent: agent.agent,
-    mode: started.kind === "opened" ? "terminal" : "command",
-    prompt_path: files.promptPath,
-    launcher_path: files.launcherPath,
-    command: files.command,
-  };
 }
 
-function refusalError(reason: SessionRefusal, agent: CodingAgent) {
+function refusalError(reason: AgentSessionRefusal, agent: CodingAgent) {
   switch (reason) {
     case "unsupported_platform":
       return new HandoffUnsupportedError(agent);

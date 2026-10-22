@@ -1,12 +1,11 @@
 import { Nua } from "nuabase";
 import {
-  agentSessionMode,
   detectLocalAgents,
   localAgent,
   startAgentSession,
-  type AgentSessionMode,
-  type AgentSessionRefusal,
+  type AgentEffort,
   type AgentSessionStart,
+  type LocalAgent,
   type LocalAgentStatus,
 } from "nuabase/local-agent";
 import { z } from "zod";
@@ -42,7 +41,8 @@ import type {
 // and a chart of accounts is one answer of a hundred or so accounts.
 const CALL_TIMEOUT_MS = 180_000;
 const CHECK_TIMEOUT_MS = 60_000;
-// Agent processes one client runs at once.
+// Processes of one agent executable running at once, across every call and
+// model check.
 const CONCURRENT_CALLS = 2;
 
 // Nuabase logs every call's start and end, usage included, as info. dbu6
@@ -124,13 +124,11 @@ export async function detectAgents(): Promise<DetectedAgent[]> {
   );
 }
 
-/** Why nuabase didn't start a session; nothing was written. */
-export type SessionRefusal = AgentSessionRefusal;
-
-/** Pure: how a session can start on `platform`; see nuabase's agentSessionMode. */
-export function sessionMode(platform: NodeJS.Platform): AgentSessionMode {
-  return agentSessionMode(platform);
-}
+export {
+  agentSessionMode,
+  type AgentEffort,
+  type AgentSessionRefusal,
+} from "nuabase/local-agent";
 
 /**
  * Starts the agent on `prompt` in `cwd`, in its auto mode: its reviewer, not
@@ -158,6 +156,35 @@ export function startSession(session: {
   });
 }
 
+// One per agent executable, so CONCURRENT_CALLS holds for every client and
+// check made from it (`with`).
+const agentProcesses = new Map<string, LocalAgent>();
+
+function processesOf(agent: InstalledAgent): LocalAgent {
+  const key = `${agent.agent}:${agent.binaryPath}`;
+  let processes = agentProcesses.get(key);
+  if (processes === undefined) {
+    processes = localAgent({
+      agent: agent.agent,
+      binaryPath: agent.binaryPath,
+      logger,
+      timeoutMs: CALL_TIMEOUT_MS,
+      concurrency: CONCURRENT_CALLS,
+    });
+    agentProcesses.set(key, processes);
+  }
+  return processes;
+}
+
+/**
+ * How a client runs an agent. An undefined model or effort is the agent's own
+ * configured default, as Pi's are.
+ */
+export type AgentCall = {
+  model: string | undefined;
+  effort: AgentEffort | undefined;
+};
+
 const CHECK_PROMPT = "Reply with the single word OK.";
 
 /** How one of an agent's models fared when asked for a one-word reply. */
@@ -174,11 +201,8 @@ export async function askModel(
 ): Promise<ModelReply> {
   try {
     const nua = Nua.direct({
-      localAgent: localAgent({
-        agent: agent.agent,
+      localAgent: processesOf(agent).with({
         model,
-        binaryPath: agent.binaryPath,
-        logger,
         timeoutMs: CHECK_TIMEOUT_MS,
       }),
     });
@@ -194,22 +218,13 @@ export async function askModel(
 /** Categorization on one of an installed agent's own models. */
 export function agentListClient(
   agent: InstalledAgent,
-  model: string | undefined,
+  call: AgentCall,
 ): ListClient {
-  const nua = Nua.direct({
-    localAgent: localAgent({
-      agent: agent.agent,
-      model,
-      binaryPath: agent.binaryPath,
-      logger,
-      timeoutMs: CALL_TIMEOUT_MS,
-      concurrency: CONCURRENT_CALLS,
-    }),
-  });
-  // A local agent takes its own model names only, and this client is already
-  // set up with one, so no call names a model.
+  const nua = Nua.direct({ localAgent: processesOf(agent).with(call) });
   return {
-    async list(request: ListRequest): Promise<ListAnswer> {
+    async list<Name extends string>(
+      request: ListRequest<Name>,
+    ): Promise<ListAnswer<Name>> {
       try {
         const answered = await nua.list(request.prompt, {
           input: [...request.rows],
@@ -229,18 +244,9 @@ export function agentListClient(
 /** One structured answer on one of an installed agent's own models. */
 export function agentGetClient(
   agent: InstalledAgent,
-  model: string | undefined,
+  call: AgentCall,
 ): GetClient {
-  const nua = Nua.direct({
-    localAgent: localAgent({
-      agent: agent.agent,
-      model,
-      binaryPath: agent.binaryPath,
-      logger,
-      timeoutMs: CALL_TIMEOUT_MS,
-      concurrency: CONCURRENT_CALLS,
-    }),
-  });
+  const nua = Nua.direct({ localAgent: processesOf(agent).with(call) });
   return {
     async get<T>(request: GetRequest<T>): Promise<GetAnswer<T>> {
       let answered;
@@ -281,13 +287,11 @@ function thrownMessage(error: unknown): string {
 const MAX_REPORTED_ERROR_LENGTH = 300;
 
 /**
- * Pure: a failure message short enough to show on a screen. An HTML error
- * page is reduced to its title, whitespace is collapsed,
- * and anything past 300 characters is cut.
+ * Pure: a failure message short enough to show on a screen: whitespace is
+ * collapsed, and anything past 300 characters is cut.
  */
 export function reportedError(message: string): string {
-  const title = /<title>([^<]*)<\/title>/i.exec(message)?.[1];
-  const text = (title ?? message).replace(/\s+/g, " ").trim();
+  const text = message.replace(/\s+/g, " ").trim();
   return text.length > MAX_REPORTED_ERROR_LENGTH
     ? `${text.slice(0, MAX_REPORTED_ERROR_LENGTH - 1)}…`
     : text;

@@ -11,6 +11,7 @@ import { userConfigPath } from "../../paths.js";
 import {
   detectAgents,
   detectedAgentSchema,
+  type AgentEffort,
   type DetectedAgent,
   type InstalledAgent,
 } from "./nuabase.js";
@@ -36,10 +37,17 @@ import {
  * Which of them answer depends on the user's login and plan, which models.ts
  * checks.
  *
+ * `categorizationEffort` is how hard the model thinks on categorization's many
+ * small calls; left out, it is the agent's own default. Codex's run at low
+ * effort; Pi's run at the thinking level its user chose.
+ *
  * A session's other options, such as its auto mode, are nuabase's
  * (nuabase.ts).
  */
-export const CODING_AGENT_RUN = {
+export const CODING_AGENT_RUN: Record<
+  CodingAgent,
+  { models: readonly AgentModel[]; categorizationEffort?: AgentEffort }
+> = {
   "claude-code": {
     models: [
       { model: "opus", label: "Claude Opus" },
@@ -51,16 +59,14 @@ export const CODING_AGENT_RUN = {
       { model: "gpt-5.6-sol", label: "GPT-5.6 Sol" },
       { model: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
     ],
+    categorizationEffort: "low",
   },
   pi: {
     // Pi chooses its own model: dbu6 names none, so Pi runs the default the
     // user configured in it (settings.json), thinking level and all.
     models: [{ label: "Pi's default" }],
   },
-} as const satisfies Record<
-  CodingAgent,
-  { models: readonly AgentModel[] }
->;
+};
 
 const detectedAgentsSchema = z.array(detectedAgentSchema);
 

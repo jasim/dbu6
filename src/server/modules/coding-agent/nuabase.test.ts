@@ -6,7 +6,7 @@ const { detectLocalAgents } = vi.hoisted(() => ({
 }));
 vi.mock("nuabase/local-agent", () => ({
   detectLocalAgents,
-  localAgent: vi.fn(),
+  localAgent: vi.fn(() => ({ with: vi.fn() })),
 }));
 vi.mock("nuabase", () => ({ Nua: { direct: vi.fn() } }));
 
@@ -91,14 +91,6 @@ describe("reportedError", () => {
     );
   });
 
-  it("reduces an HTML error page to its title", () => {
-    expect(
-      reportedError(
-        "<!DOCTYPE html>\n<html>\n<head>\n  <title>We're sorry, but something went wrong (500)</title>\n  <style>body {}</style></head><body>...</body></html>",
-      ),
-    ).toBe("We're sorry, but something went wrong (500)");
-  });
-
   it("cuts a long message to 300 characters", () => {
     const reported = reportedError("x".repeat(1000));
     expect(reported).toHaveLength(300);
@@ -120,7 +112,7 @@ describe("agentGetClient", () => {
   const client = () =>
     agentGetClient(
       { ...CLAUDE, agent: "claude-code", installed: true },
-      "sample-model",
+      { model: "sample-model", effort: undefined },
     );
 
   it("sends the input and output, and answers with the value", async () => {

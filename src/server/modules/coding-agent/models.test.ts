@@ -7,7 +7,10 @@ import type { DetectedAgent, InstalledAgent } from "./nuabase.js";
 // Nuabase is stubbed: each test says which models answer.
 const { detectLocalAgents, localAgent, direct } = vi.hoisted(() => ({
   detectLocalAgents: vi.fn(),
-  localAgent: vi.fn((config: { model: string }) => config),
+  localAgent: vi.fn((config: object) => ({
+    // A call's client is the agent with that call's options.
+    with: (options: object) => ({ ...config, ...options }),
+  })),
   direct: vi.fn(),
 }));
 vi.mock("nuabase/local-agent", () => ({ detectLocalAgents, localAgent }));
@@ -64,7 +67,7 @@ function answering(...answered: (string | undefined)[]) {
 }
 
 function askedModels(): (string | undefined)[] {
-  return localAgent.mock.calls.map(([config]) => config.model);
+  return direct.mock.calls.map(([{ localAgent: config }]) => config.model);
 }
 
 beforeEach(async () => {
@@ -75,7 +78,6 @@ beforeEach(async () => {
   models = await import("./models.js");
   agents = await import("./agents.js");
   detectLocalAgents.mockReset();
-  localAgent.mockClear();
   direct.mockReset();
   // startCodingAgent logs the chosen agent, which reads user-config.
   projectDir = await mkdtemp(join(tmpdir(), "dbu6-agent-models-"));
@@ -178,22 +180,24 @@ describe("agentModels", () => {
       ],
     });
     expect(second).toBe(first);
-    expect(localAgent.mock.calls.map(([config]) => config)).toEqual([
-      {
-        agent: "codex",
-        model: "gpt-5.6-sol",
-        binaryPath: "/sample/bin/codex",
-        timeoutMs: 60_000,
-        logger: expect.anything(),
-      },
-      {
-        agent: "codex",
-        model: "gpt-5.6-terra",
-        binaryPath: "/sample/bin/codex",
-        timeoutMs: 60_000,
-        logger: expect.anything(),
-      },
+    // One agent for the executable, so both checks share its process limit.
+    expect(localAgent.mock.calls).toEqual([
+      [
+        {
+          agent: "codex",
+          binaryPath: "/sample/bin/codex",
+          timeoutMs: 180_000,
+          concurrency: 2,
+          logger: expect.anything(),
+        },
+      ],
     ]);
+    expect(direct.mock.calls.map(([{ localAgent: config }]) => config)).toEqual(
+      [
+        expect.objectContaining({ model: "gpt-5.6-sol", timeoutMs: 60_000 }),
+        expect.objectContaining({ model: "gpt-5.6-terra", timeoutMs: 60_000 }),
+      ],
+    );
   });
 
   it("asks Pi only its configured default, naming no model", async () => {
@@ -310,7 +314,7 @@ describe("startCodingAgent", () => {
     answering("opus", "sonnet");
     await models.startCodingAgent();
     detectLocalAgents.mockClear();
-    localAgent.mockClear();
+    direct.mockClear();
 
     await models.startCodingAgent();
 
@@ -431,7 +435,7 @@ describe("categorization after a failed call", () => {
     const { categorizationLlm, caller } = await readyLlm();
     // The user's plan has expired since the check.
     answering();
-    localAgent.mockClear();
+    direct.mockClear();
 
     const reason = await caller.confirmUnavailable();
 
@@ -439,7 +443,7 @@ describe("categorization after a failed call", () => {
       /^Claude Code didn't answer on Claude Opus or Claude Sonnet/,
     );
     expect(askedModels()).toEqual(["opus", "sonnet"]);
-    localAgent.mockClear();
+    direct.mockClear();
     expect((await categorizationLlm()).caller).toEqual({
       ready: false,
       reason,

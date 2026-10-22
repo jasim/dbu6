@@ -9,7 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // in a temporary project root.
 const { detectLocalAgents, localAgent, direct } = vi.hoisted(() => ({
   detectLocalAgents: vi.fn(),
-  localAgent: vi.fn((config: { model: string }) => config),
+  localAgent: vi.fn((config: object) => ({
+    // A call's client is the agent with that call's options.
+    with: (options: object) => ({ ...config, ...options }),
+  })),
   direct: vi.fn(),
 }));
 vi.mock("nuabase/local-agent", () => ({ detectLocalAgents, localAgent }));
@@ -22,7 +25,11 @@ function answering(...answered: string[]) {
       get: async () =>
         answered.includes(config.model)
           ? { success: true, data: "OK" }
-          : { success: false, error: "codex: sample refusal" },
+          : {
+              success: false,
+              error: "LLM call failed: sample refusal",
+              reason: "sample refusal",
+            },
     }),
   );
 }
@@ -54,7 +61,6 @@ beforeEach(async () => {
   const config = await import("../dbu-config.js");
   config.useDbuConfig(config.memoryDbuConfig());
   detectLocalAgents.mockReset();
-  localAgent.mockClear();
   direct.mockReset();
   answering("opus", "sonnet");
   projectDir = await mkdtemp(join(tmpdir(), "dbu6-coding-agent-api-"));

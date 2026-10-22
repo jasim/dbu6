@@ -22,6 +22,7 @@ export type {
 export type {
   CategorizationLlm,
   ListAnswer,
+  ListAnswerRow,
   ListClient,
   ListRequest,
 } from "./llm-categorization.js";

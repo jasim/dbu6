@@ -4,6 +4,7 @@ import { applyMigrations } from "@sapporta/server";
 import { describe, expect, it } from "vitest";
 import type {
   CategorizationLlm,
+  ListAnswerRow,
   ListRequest,
 } from "../modules/categorization/index.js";
 import { dbu6MigrationsDir } from "../paths.js";
@@ -69,7 +70,7 @@ function fakeLlm(
       maxRowsPerCall: 50,
       confirmUnavailable: async () => options.unavailable ?? null,
       client: {
-        async list(request: ListRequest) {
+        async list<Name extends string>(request: ListRequest<Name>) {
           calls.push(request.rows.map((row) => row.text));
           options.beforeAnswer?.();
           if (options.failCalls) return { ok: false, error: "sample failure" };
@@ -77,7 +78,9 @@ function fakeLlm(
             ok: true,
             rows: request.rows.flatMap((row) => {
               const comment = answer(row.text);
-              return comment === undefined ? [] : [{ id: row.id, comment }];
+              return comment === undefined
+                ? []
+                : [{ id: row.id, comment } as ListAnswerRow<Name>];
             }),
           };
         },
