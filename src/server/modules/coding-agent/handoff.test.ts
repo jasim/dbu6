@@ -10,21 +10,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Detection, the models' replies and `open` are stubbed; the files are written
-// for real under a temporary project root, and the chosen agent is read from its
-// user-config/.
-const { detectLocalAgents, localAgent, direct, execFile } = vi.hoisted(() => ({
-  detectLocalAgents: vi.fn(),
-  localAgent: vi.fn((config: { model: string }) => config),
-  direct: vi.fn(),
-  execFile: vi.fn(),
+// Detection, the models' replies and opening a terminal are stubbed; nuabase
+// writes the files for real under a temporary project root, and the chosen
+// agent is read from its user-config/.
+const { detectLocalAgents, localAgent, direct, openInTerminal } = vi.hoisted(
+  () => ({
+    detectLocalAgents: vi.fn(),
+    localAgent: vi.fn((config: { model: string }) => config),
+    direct: vi.fn(),
+    openInTerminal: vi.fn(),
+  }),
+);
+vi.mock("nuabase/local-agent", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  detectLocalAgents,
+  localAgent,
+  openInTerminal,
 }));
-vi.mock("nuabase/local-agent", () => ({ detectLocalAgents, localAgent }));
 vi.mock("nuabase", () => ({ Nua: { direct } }));
-vi.mock("node:child_process", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:child_process")>()),
-  execFile,
-}));
 
 // Detection and the model checks are kept, so each test loads it afresh.
 let handoff: typeof import("./handoff.js");
@@ -97,10 +100,8 @@ beforeEach(async () => {
   localAgent.mockClear();
   direct.mockReset();
   answering("opus", "sonnet", "gpt-5.6-sol", "gpt-5.6-terra", undefined);
-  execFile.mockReset();
-  execFile.mockImplementation((_file, _args, callback) =>
-    callback(null, "", ""),
-  );
+  openInTerminal.mockReset();
+  openInTerminal.mockResolvedValue(undefined);
   root = await mkdtemp(join(tmpdir(), "dbu6-handoff-"));
   vi.stubEnv("DBU6_ROOT", root);
   vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -188,7 +189,7 @@ describe("handOffPrompt", () => {
       ].join("\n"),
     );
     expect((await stat(launcher_path)).mode & 0o777).toBe(0o700);
-    expect(execFile).not.toHaveBeenCalled();
+    expect(openInTerminal).not.toHaveBeenCalled();
   });
 
   it("opens the launcher in a terminal on macOS, on the agent's most capable model", async () => {
@@ -200,11 +201,11 @@ describe("handOffPrompt", () => {
     expect(await readFile(written.launcher_path, "utf8")).toContain(
       `'--model' 'opus' '--permission-mode' 'auto'`,
     );
-    expect(execFile).toHaveBeenCalledTimes(1);
-    expect(execFile.mock.calls[0].slice(0, 2)).toEqual([
-      "open",
-      [written.launcher_path],
-    ]);
+    expect(openInTerminal).toHaveBeenCalledTimes(1);
+    expect(openInTerminal).toHaveBeenCalledWith(
+      written.launcher_path,
+      "darwin",
+    );
   });
 
   it("runs Pi without naming a model, trusting the project's files", async () => {
@@ -292,9 +293,7 @@ describe("handOffPrompt", () => {
 
   it("gives the command when the terminal doesn't open, with the files written", async () => {
     detectLocalAgents.mockResolvedValue(CLAUDE_ONLY);
-    execFile.mockImplementation((_file, _args, callback) =>
-      callback(new Error("sample failure"), "", ""),
-    );
+    openInTerminal.mockRejectedValue(new Error("sample failure"));
 
     await expect(
       handoff.handOffPrompt(PROMPT, "darwin", root),
@@ -303,7 +302,7 @@ describe("handOffPrompt", () => {
       status: 500,
       message: expect.stringContaining("Run this in a terminal instead: sh '"),
     });
-    const [launcherPath] = execFile.mock.calls[0][1] as string[];
+    const [launcherPath] = openInTerminal.mock.calls[0] as string[];
     expect((await stat(launcherPath)).isFile()).toBe(true);
   });
 });

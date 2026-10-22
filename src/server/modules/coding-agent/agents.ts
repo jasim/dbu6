@@ -36,13 +36,8 @@ import {
  * Which of them answer depends on the user's login and plan, which models.ts
  * checks.
  *
- * `autoModeArgs` put an interactive session in the agent's auto mode: its own
- * reviewer approves edits and commands and stops risky ones, so the user
- * answers questions but isn't asked for every step. Codex's auto review keeps
- * it in the workspace-write sandbox. Pi asks for no per-tool approval by
- * default, so `--approve` only trusts the project's local files, which is
- * what lets the session load AGENTS.md without stopping at a trust prompt.
- * Headless categorization has nothing to approve and takes none of these.
+ * A session's other options, such as its auto mode, are nuabase's
+ * (nuabase.ts).
  */
 export const CODING_AGENT_RUN = {
   "claude-code": {
@@ -50,24 +45,21 @@ export const CODING_AGENT_RUN = {
       { model: "opus", label: "Claude Opus" },
       { model: "sonnet", label: "Claude Sonnet" },
     ],
-    autoModeArgs: ["--permission-mode", "auto"],
   },
   codex: {
     models: [
       { model: "gpt-5.6-sol", label: "GPT-5.6 Sol" },
       { model: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
     ],
-    autoModeArgs: ["--approve-for-me"],
   },
   pi: {
     // Pi chooses its own model: dbu6 names none, so Pi runs the default the
     // user configured in it (settings.json), thinking level and all.
     models: [{ label: "Pi's default" }],
-    autoModeArgs: ["--approve"],
   },
 } as const satisfies Record<
   CodingAgent,
-  { models: readonly AgentModel[]; autoModeArgs: readonly string[] }
+  { models: readonly AgentModel[] }
 >;
 
 const detectedAgentsSchema = z.array(detectedAgentSchema);

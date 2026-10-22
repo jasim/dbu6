@@ -830,12 +830,12 @@ through its `index.ts`:
 
 | Module | What it holds |
 | --- | --- |
-| `agents.ts` | `CODING_AGENT_RUN`: each agent's models, most capable first, and its auto-mode options. Detection, the saved choice, and which agent is active. |
+| `agents.ts` | `CODING_AGENT_RUN`: each agent's models, most capable first. Detection, the saved choice, and which agent is active. |
 | `models.ts` | Which of an agent's models answer on this machine, and when to ask again. |
 | `nuabase.ts` | The only import of `nuabase`; every call into it and every value out of it. |
 | `categorization-llm.ts` | The engine categorization runs on: the agent with its checked models, or why it can't answer. |
 | `chart-llm.ts` | The same engine for setup's chart of accounts, on the agent's most capable model. |
-| `handoff.ts`, `launcher.ts` | Starting an agent on a prompt in a terminal. |
+| `handoff.ts` | Starting an agent on a prompt in a terminal, through nuabase's agent sessions. |
 | `errors.ts` | Why the server refused, as the routes state it. |
 | `settings.ts` | What the Settings screen reads and changes. |
 

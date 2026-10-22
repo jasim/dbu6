@@ -1,5 +1,12 @@
 import { Nua } from "nuabase";
-import { detectLocalAgents, localAgent } from "nuabase/local-agent";
+import {
+  agentSessionMode,
+  detectLocalAgents,
+  fitsAgentSession,
+  localAgent,
+  openInTerminal,
+  writeAgentSession,
+} from "nuabase/local-agent";
 import { z } from "zod";
 import { codingAgentSchema, type CodingAgent } from "../../../shared/index.js";
 import type {
@@ -25,6 +32,10 @@ import type {
  * with a local agent, so what dbu6 sends reaches only the agent's own LLM
  * provider, never the Nuabase API. The limits below are dbu6's, not nuabase's
  * defaults.
+ *
+ * An interactive session is the agent's CLI in a terminal in front of the
+ * user (handoff.ts). Nuabase knows each CLI's session options and writes the
+ * launcher; dbu6 decides the agent, model, files and when to open it.
  */
 
 // One call is one CLI process. A model check asks for one word; a
@@ -97,6 +108,70 @@ export async function detectAgents(): Promise<DetectedAgent[]> {
         loggedIn: false,
       },
   );
+}
+
+/** How a session can start on a platform; see nuabase's agentSessionMode. */
+export type SessionMode = "terminal" | "command" | "none";
+
+const sessionModeSchema = z.enum(["terminal", "command", "none"]);
+
+/** Pure: how nuabase can start an agent session on `platform`. */
+export function sessionMode(platform: NodeJS.Platform): SessionMode {
+  return sessionModeSchema.parse(agentSessionMode(platform));
+}
+
+/** Pure: whether nuabase's launcher can pass `prompt` on `platform`. */
+export function fitsSession(prompt: string, platform: NodeJS.Platform): boolean {
+  return z.boolean().parse(fitsAgentSession(prompt, platform));
+}
+
+export type SessionFiles = {
+  promptPath: string;
+  launcherPath: string;
+  command: string;
+};
+
+const sessionFilesSchema = z.object({
+  promptPath: z.string(),
+  launcherPath: z.string(),
+  command: z.string(),
+});
+
+/**
+ * Writes the prompt to `<dir>/<name>.md` and a launcher, `<dir>/<name>.command`,
+ * that starts the agent on it in `cwd`, in its auto mode: its reviewer, not the
+ * user, approves edits and commands, and stops risky ones.
+ */
+export function writeSession(session: {
+  agent: InstalledAgent;
+  model: string | undefined;
+  cwd: string;
+  prompt: string;
+  dir: string;
+  name: string;
+  platform: NodeJS.Platform;
+}): SessionFiles {
+  return sessionFilesSchema.parse(
+    writeAgentSession({
+      agent: session.agent.agent,
+      binaryPath: session.agent.binaryPath,
+      cwd: session.cwd,
+      model: session.model,
+      approval: "auto",
+      prompt: session.prompt,
+      dir: session.dir,
+      name: session.name,
+      platform: session.platform,
+    }),
+  );
+}
+
+/** Runs a launcher in a new window of the user's terminal app (macOS only). */
+export async function openSessionInTerminal(
+  launcherPath: string,
+  platform: NodeJS.Platform,
+): Promise<void> {
+  await openInTerminal(launcherPath, platform);
 }
 
 /**
