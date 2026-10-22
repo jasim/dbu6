@@ -129,6 +129,8 @@ describe("planAutoImport", () => {
     expect(plan.files).toEqual([
       {
         status: "resolved",
+        period: null,
+        transactions: 0,
         file: "card-jan.xls",
         accountId: 21,
         accountName: "Card A",
@@ -166,6 +168,8 @@ describe("planAutoImport", () => {
     expect(plan.files).toEqual([
       {
         status: "resolved",
+        period: null,
+        transactions: 0,
         file: "bank-jan.xls",
         accountId: 11,
         accountName: "Bank",
@@ -214,6 +218,8 @@ describe("planAutoImport", () => {
     expect(plan.ok).toBe(false);
     expect(plan.files[0]).toMatchObject({
       status: "unresolved",
+      period: null,
+      transactions: 0,
       file: "card-jan.xls",
       reason: "no_institution_for_parser",
       parserName: CARD_PARSER,
@@ -240,6 +246,8 @@ describe("planAutoImport", () => {
     expect(plan.ok).toBe(false);
     expect(plan.files[0]).toMatchObject({
       status: "unresolved",
+      period: null,
+      transactions: 0,
       reason: "statement_account_identifier_mismatch",
       institutionName: "Sample Cards",
       candidateAccountNames: ["Card A", "Card B"],

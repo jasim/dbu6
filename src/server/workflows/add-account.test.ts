@@ -22,18 +22,28 @@ import { packageDir } from "../paths.js";
 
 // The parsers are stubbed, here and in the import that runs after: these
 // tests are about what the recognitions become. Every parser exists.
-const { recognizeStatementFile } = vi.hoisted(() => ({
+const { recognizeStatementFile, PARSERS } = vi.hoisted(() => ({
   recognizeStatementFile: vi.fn(),
-}));
-vi.mock("../modules/statement-sources/index.js", async (importActual) => ({
-  ...(await importActual<object>()),
-  recognizeStatementFile,
-  savedCustomStatementParserNames: async () => [
+  PARSERS: [
     "other-bank-pdf",
     "other-card-csv",
     "sample-bank-xls",
     "sample-cc-csv",
   ],
+}));
+vi.mock("../modules/statement-sources/index.js", async (importActual) => ({
+  ...(await importActual<object>()),
+  recognizeStatementFile,
+  recognizeStatementFiles: async (
+    uploads: readonly { name: string; path: string }[],
+  ) =>
+    Promise.all(
+      uploads.map(async (upload) => ({
+        ...(await recognizeStatementFile(PARSERS, upload.path)),
+        file: upload.name,
+      })),
+    ),
+  savedCustomStatementParserNames: async () => PARSERS,
   parserDirectory: async (name: string) => `/sample/parsers/${name}`,
 }));
 

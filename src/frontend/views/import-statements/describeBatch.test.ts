@@ -4,7 +4,11 @@ import type {
   AutoImportPlanFile,
   CategorizationTally,
 } from "../../../shared/index";
-import { describeBatch } from "./describeBatch";
+import {
+  countChecks,
+  describeBatch,
+  describeFileStatus,
+} from "./describeBatch";
 
 /*
  * The headline over a batch that imported: how many new transactions came
@@ -63,6 +67,8 @@ function group(
 function file(fileName: string): AutoImportPlanFile {
   return {
     status: "resolved",
+    period: null,
+    transactions: 0,
     file_name: fileName,
     saved_path: null,
     parser_path: "sample-bank-xls",
@@ -119,5 +125,43 @@ describe("describeBatch after an import", () => {
       text: "Nothing new",
       next: "Everything in the 2 statements was already in your books.",
     });
+  });
+});
+
+/*
+ * The dropped files before an import: each one's status, and the counts at
+ * the table's foot. A file still to set up is a step, not a problem.
+ */
+describe("dropped files", () => {
+  const ready = { ...file("bank-aug.xls"), transactions: 30 };
+  const newFormat: AutoImportPlanFile = {
+    status: "unrecognized",
+    file_name: "card-aug.csv",
+    saved_path: "tmp/statement-uploads/050505/1-card-aug.csv",
+    candidate_parser_paths: [],
+  };
+
+  it("counts what is ready, what is still to set up, and the rows ready", () => {
+    expect(
+      countChecks([
+        { kind: "read", row: ready },
+        { kind: "read", row: { ...ready, file_name: "bank-sep.xls" } },
+        { kind: "read", row: newFormat },
+        { kind: "reading", previous: null },
+        { kind: "unread", message: "offline" },
+      ]),
+    ).toEqual({ ready: 2, setUp: 1, reading: 1, unread: 1, transactions: 60 });
+  });
+
+  it("gives a file still to set up the tone of a next step", () => {
+    expect(describeFileStatus({ kind: "read", row: ready }, null).tone).toBe(
+      "ok",
+    );
+    expect(
+      describeFileStatus({ kind: "read", row: newFormat }, null).tone,
+    ).toBe("attention");
+    expect(
+      describeFileStatus({ kind: "reading", previous: null }, null).tone,
+    ).toBe("waiting");
   });
 });

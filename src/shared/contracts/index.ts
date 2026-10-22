@@ -25,6 +25,7 @@ export {
   autoImportPlanFileSchema,
   autoImportGroupResultSchema,
   autoImportResultSchema,
+  statementCheckResultSchema,
   abacusImportResultSchema,
   autoImportErrorSchema,
   type AutoImportPlanFile,

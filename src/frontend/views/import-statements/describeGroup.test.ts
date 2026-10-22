@@ -72,6 +72,8 @@ function group(
 
 const source: AutoImportPlanFile = {
   status: "resolved",
+  period: null,
+  transactions: 0,
   file_name: "Acct_Statement_050505_09092026.xls",
   // The batch imported, so the app kept no copy of the statement.
   saved_path: null,

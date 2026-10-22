@@ -11,6 +11,7 @@ export {
   type StatementImportResult,
 } from "./statement-import.js";
 export {
+  checkStatementBatch,
   importPlannedGroups,
   importStatementBatch,
   type BatchImportOutcome,

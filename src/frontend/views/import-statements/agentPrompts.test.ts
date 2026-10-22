@@ -35,6 +35,8 @@ const AMBIGUOUS = {
 
 const UNRESOLVED = {
   status: "unresolved" as const,
+  period: null,
+  transactions: 0,
   file_name: "NOPII-statement.pdf",
   saved_path: STAGED,
   parser_path: "sample-bank-pdf",
@@ -50,6 +52,8 @@ const GROUP = {
   files: [
     {
       status: "resolved" as const,
+      period: null,
+      transactions: 0,
       file_name: "bank-aug.xls",
       saved_path: "tmp/statement-uploads/050505/bank-aug.xls",
       parser_path: "sample-bank-xls",
@@ -120,7 +124,9 @@ describe("a file no parser reads", () => {
     );
     expect(prompt).toContain("add_account");
     expect(prompt).toContain("date range, row count, opening and closing");
-    expect(prompt).toContain("**Next**: drop the file at /import again.");
+    expect(prompt).toContain(
+      "**Next**: press Try again beside the file at /import.",
+    );
   });
 });
 
@@ -132,7 +138,9 @@ describe("a file several parsers claim", () => {
     );
     expect(prompt).toContain(`File: ${STAGED}`);
     expect(prompt).toContain("loosen no validation");
-    expect(prompt).toContain("**Next**: drop the file at /import again.");
+    expect(prompt).toContain(
+      "**Next**: press Try again beside the file at /import.",
+    );
   });
 });
 

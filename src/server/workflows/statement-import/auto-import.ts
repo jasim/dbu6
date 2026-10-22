@@ -1,13 +1,10 @@
-import path from "node:path";
 import type { ImportInstitution } from "../../../shared/index.js";
 import { loadLedgerAccounts } from "../../modules/accounts/index.js";
 import {
   planAutoImport,
   type AutoImportGroup,
-  type FileRecognition,
   type PlannedFile,
-  recognizeStatementFile,
-  savedCustomStatementParserNames,
+  recognizeStatementFiles,
 } from "../../modules/statement-sources/index.js";
 import type { LoadCategorizer } from "../../modules/categorization/index.js";
 import { categorizationLlm } from "../../modules/coding-agent/index.js";
@@ -25,8 +22,7 @@ import {
 // Automatic statement import: statement files, and optionally a Google Pay
 // Takeout, and nothing else.
 //
-//   per file: savedCustomStatementParserNames(ext)
-//             recognizeStatementFile(candidates, path)
+//   recognizeStatementFiles(statements)                 every file at once
 //     -> planAutoImport(recognitions, institutions)   pure: groups, or a rejection
 //     -> parseGPayHtml(takeout), once
 //     -> per group: runStatementImport(statements, importOptionsFromAccount)
@@ -80,7 +76,7 @@ export async function importStatementBatch(
   // Told how far the import has got, account after account.
   onProgress?: OnImportProgress,
 ): Promise<BatchImportOutcome> {
-  const recognitions = await recognizeStatements(batch.statements);
+  const recognitions = await recognizeStatementFiles(batch.statements);
   const plan = planAutoImport(recognitions, batch.institutions);
   if (!plan.ok) return { kind: "unplanned", files: plan.files };
 
@@ -104,23 +100,18 @@ export async function importStatementBatch(
   );
 }
 
-// Detection is per file so that one unreadable upload annotates its own row
-// instead of ending the batch. A recognition is keyed by the name the file was
-// uploaded under.
-async function recognizeStatements(
+/**
+ * What importing the files would do, without importing: each file's place in
+ * the plan. /import asks this as files are dropped, so a format still to be
+ * set up shows before anything is sent to import; the reading is kept, so the
+ * import itself doesn't run the parsers again.
+ */
+export async function checkStatementBatch(
   statements: readonly StagedStatement[],
-): Promise<FileRecognition[]> {
-  const recognitions: FileRecognition[] = [];
-  for (const statement of statements) {
-    const candidates = await savedCustomStatementParserNames(
-      path.extname(statement.path),
-    );
-    recognitions.push({
-      ...(await recognizeStatementFile(candidates, statement.path)),
-      file: statement.name,
-    });
-  }
-  return recognitions;
+  institutions: readonly ImportInstitution[],
+): Promise<PlannedFile[]> {
+  const recognitions = await recognizeStatementFiles(statements);
+  return planAutoImport(recognitions, institutions).files;
 }
 
 // Each group is one account's ordinary statement import, into the ledger

@@ -5,7 +5,7 @@ import type {
 } from "../../../shared/index";
 import type { StatusTone } from "../../components/status-chip";
 import { problemTone, type ProblemTone } from "./describeProblems";
-import type { ImportOutcome } from "./outcome";
+import type { FileCheck, ImportOutcome } from "./outcome";
 import {
   agree,
   describeStatementAccount,
@@ -74,12 +74,14 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
       ).length;
       // One file's problem says it all; with more, say how many hold the
       // rest up.
+      // The files changed between their check and the import: the new
+      // presets or parsers moved one. The rows say which.
       return {
         tone,
         text:
           total === 1
-            ? "Sorry, unable to import transactions."
-            : `Sorry, unable to import transactions. ${stuck} of ${plural(total, "file")} need${stuck === 1 ? "s" : ""} a fix.`,
+            ? "This statement needs setting up first"
+            : `${stuck} of ${plural(total, "statement")} need${stuck === 1 ? "s" : ""} setting up first`,
         next: null,
       };
     }
@@ -88,11 +90,7 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
       const imported = refusal.imported_groups ?? [];
       const failed = refusal.failed_group.account_name;
       if (imported.length === 0) {
-        return {
-          tone,
-          text: "Sorry, unable to import transactions.",
-          next: null,
-        };
+        return { tone, text: `${failed} wasn't imported`, next: null };
       }
       const done = joinNames(imported.map((one) => one.account_name));
       const removed = imported.flatMap((one) => one.file_names);
@@ -105,11 +103,7 @@ export function describeBatch(outcome: ImportOutcome): BatchSummary {
     case "network":
     case "forbidden":
     case "unexpected":
-      return {
-        tone,
-        text: "Sorry, unable to import transactions.",
-        next: null,
-      };
+      return { tone, text: "The import didn't go through", next: null };
   }
 }
 
@@ -119,70 +113,78 @@ export interface FileStatus {
 }
 
 /**
- * What the server read a file as: the bank, the account, and the account
- * it goes to when one is set up. Null when it couldn't read the file.
+ * A dropped file's status, in a word or two for its row: being read, ready,
+ * or the step it needs next. A file the import refused says so.
  */
-export function describeStatement(row: AutoImportPlanFile): string | null {
+export function describeFileStatus(
+  check: FileCheck,
+  // The files of the account whose import failed, and that problem's tone.
+  failed: { files: ReadonlySet<string>; tone: ProblemTone } | null,
+): FileStatus {
+  switch (check.kind) {
+    case "reading":
+      return { tone: "waiting", text: "Reading…" };
+    case "unread":
+      return { tone: "problem", text: "Couldn't read" };
+    case "read":
+      break;
+  }
+  const { row } = check;
   switch (row.status) {
     case "resolved":
-      return `${statementOf(row.institution ?? row.account_name, row.account)} → ${row.account_name}`;
+      return failed?.files.has(row.file_name)
+        ? { tone: failed.tone, text: "Not imported" }
+        : { tone: "ok", text: "Ready" };
+    case "unrecognized":
+      return { tone: "attention", text: "New format" };
+    case "ambiguous":
+      return { tone: "attention", text: "Two formats" };
     case "unresolved":
-      return row.institution === null && row.account === null
-        ? null
-        : statementOf(row.institution, row.account);
+      return {
+        tone: "attention",
+        text:
+          row.reason === "statement_account_identifier_required"
+            ? "Account number"
+            : "New account",
+      };
+  }
+}
+
+/** The account a read file goes to, or the account it prints when none takes it. */
+export function describeFileAccount(row: AutoImportPlanFile): string | null {
+  switch (row.status) {
+    case "resolved":
+      return row.account_name;
+    case "unresolved":
+      return row.account === null
+        ? row.institution
+        : [row.institution, describeStatementAccount(row.account)]
+            .filter(Boolean)
+            .join(" ");
     case "unrecognized":
     case "ambiguous":
       return null;
   }
 }
 
-function statementOf(
-  bank: string | null,
-  account: StatementAccount | null,
-): string {
-  const whose = account ? describeStatementAccount(account) : null;
-  if (bank === null) return whose ? `Statement for ${whose}` : "Statement";
-  return whose ? `${bank} statement, ${whose}` : `${bank} statement`;
+/** How many dropped files are ready, still to set up, or being read, and their rows. */
+export interface BatchCounts {
+  ready: number;
+  setUp: number;
+  reading: number;
+  unread: number;
+  transactions: number;
 }
 
-// The one line under a file name once the server has looked at it, for a
-// file no problem sits under. A problem's own file shows the problem.
-export function describeFileStatus(
-  row: AutoImportPlanFile,
-  outcome: {
-    importedFiles: ReadonlySet<string>;
-    // The files of the account whose import failed, that problem's tone,
-    // and the file it sits under.
-    failed: {
-      files: ReadonlySet<string>;
-      tone: ProblemTone;
-      host: string | null;
-    } | null;
-  },
-): FileStatus {
-  switch (row.status) {
-    case "resolved": {
-      const what = describeStatement(row);
-      if (outcome.importedFiles.has(row.file_name)) {
-        return { tone: "ok", text: `${what} · Imported` };
-      }
-      const { failed } = outcome;
-      if (failed?.files.has(row.file_name)) {
-        return {
-          tone: failed.tone,
-          text:
-            failed.host === null
-              ? `${what} · Not imported`
-              : `${what} · Not imported, see ${failed.host}`,
-        };
-      }
-      return { tone: "waiting", text: `${what} · Ready` };
-    }
-    case "unrecognized":
-      return { tone: "attention", text: "Format not recognized" };
-    case "ambiguous":
-      return { tone: "attention", text: "More than one parser matches" };
-    case "unresolved":
-      return { tone: "attention", text: "No account set up" };
+export function countChecks(checks: readonly FileCheck[]): BatchCounts {
+  const counts = { ready: 0, setUp: 0, reading: 0, unread: 0, transactions: 0 };
+  for (const check of checks) {
+    if (check.kind === "reading") counts.reading += 1;
+    else if (check.kind === "unread") counts.unread += 1;
+    else if (check.row.status === "resolved") {
+      counts.ready += 1;
+      counts.transactions += check.row.transactions;
+    } else counts.setUp += 1;
   }
+  return counts;
 }

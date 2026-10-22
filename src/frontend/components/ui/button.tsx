@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@sapporta/ui/cn";
 
 /*
- * dbu6's button (PLAN.md §4.6). Five styles, three sizes, and a waiting
+ * dbu6's button (PLAN.md §4.6). Six styles, three sizes, and a waiting
  * state. One primary button per screen. A disabled button is dimmed, for the
  * moment it can't be pressed (while its action runs, or once it's refused);
  * Base UI marks it `data-disabled` whether it renders a button or a link.
@@ -27,6 +27,12 @@ export const buttonVariants = cva(
          * each would shout. A quiet green fill, dark green ink.
          */
         soft: "border border-money-in-border bg-money-in-bg text-money-in-ink hover:brightness-95",
+        /**
+         * Attention: the step a row needs before it can go on ("Set up this
+         * format"), in the blue of that row's status, so the two read as one.
+         */
+        attention:
+          "border border-attention-border bg-attention-bg text-attention-ink hover:bg-attention-hover",
         /** Rare: deleting a draft, removing an account. */
         destructive:
           "bg-destructive text-destructive-foreground hover:brightness-95",

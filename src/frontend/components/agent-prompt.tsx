@@ -45,6 +45,7 @@ export function AgentButton({
   afterwards,
   onActed,
   primary = true,
+  tone,
   wide = false,
 }: {
   /** What the agent gets done, in a few words: "Fix the parser". */
@@ -63,6 +64,11 @@ export function AgentButton({
    * (Check again), the button is an outline beside it.
    */
   primary?: boolean;
+  /**
+   * A row's own step, in the blue of the row's status: overrides `primary`
+   * for a list where each row has one.
+   */
+  tone?: "attention";
   /** The region's last step: the button takes its whole width. */
   wide?: boolean;
 }) {
@@ -113,7 +119,7 @@ export function AgentButton({
       },
     });
 
-  const variant = primary ? "default" : "outline";
+  const variant = tone ?? (primary ? "default" : "outline");
   return (
     <div>
       {handedOff ? (
@@ -154,7 +160,9 @@ export function AgentButton({
                   aria-label="More ways to give this to your agent"
                   className={cn(
                     "h-auto rounded-l-none border-l px-2",
-                    primary ? "border-l-primary-foreground/30" : "-ml-px",
+                    variant === "default"
+                      ? "border-l-primary-foreground/30"
+                      : "-ml-px",
                   )}
                 />
               }

@@ -17,16 +17,23 @@ import { parseAccount } from "../modules/values/index.js";
 // The parsers are stubbed: these tests are about the requests, the replies
 // and where the dropped files go. Every parser exists; a file's name says
 // what it is (`uploadName` keeps it, after the batch's index).
-const { recognizeStatementFile } = vi.hoisted(() => ({
+const { recognizeStatementFile, PARSERS } = vi.hoisted(() => ({
   recognizeStatementFile: vi.fn(),
+  PARSERS: ["other-bank-pdf", "sample-bank-xls"],
 }));
 vi.mock("../modules/statement-sources/index.js", async (importActual) => ({
   ...(await importActual<object>()),
   recognizeStatementFile,
-  savedCustomStatementParserNames: async () => [
-    "other-bank-pdf",
-    "sample-bank-xls",
-  ],
+  recognizeStatementFiles: async (
+    uploads: readonly { name: string; path: string }[],
+  ) =>
+    Promise.all(
+      uploads.map(async (upload) => ({
+        ...(await recognizeStatementFile(PARSERS, upload.path)),
+        file: upload.name,
+      })),
+    ),
+  savedCustomStatementParserNames: async () => PARSERS,
   parserDirectory: async (name: string) => `/sample/parsers/${name}`,
 }));
 vi.mock("../modules/coding-agent/categorization-llm.js", () => ({

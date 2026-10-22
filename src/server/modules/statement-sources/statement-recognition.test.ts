@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { packageParsersDir, parserRoots } from "../../paths.js";
 import {
   recognizeStatementFile,
+  recognizeStatementFiles,
   savedCustomStatementParserNames,
 } from "./statement-recognition.js";
 
@@ -137,5 +138,50 @@ describe("saved parsers from two roots", () => {
       outcome: "recognized",
       statement: { institution: "NOPII Shadow Bank" },
     });
+  }, 60_000);
+});
+
+describe("reading uploads", () => {
+  it("runs every candidate parser on a copy of its own, and names each that reads the file", async () => {
+    await writeProjectParser("sample-ledger-a", ".sample", "NOPII Bank A");
+    await writeProjectParser("sample-ledger-b", ".sample", "NOPII Bank B");
+
+    const [recognition] = await recognizeStatementFiles([
+      { name: "NOPII-statement.sample", path: await sampleLedger() },
+    ]);
+
+    expect(recognition).toEqual({
+      outcome: "ambiguous",
+      matchingParserNames: ["sample-ledger-a", "sample-ledger-b"],
+      file: "NOPII-statement.sample",
+    });
+  }, 60_000);
+
+  it("reads a recognized file once until its parser changes", async () => {
+    await writeProjectParser("sample-ledger", ".sample", "NOPII Sample Bank");
+    const input = await sampleLedger();
+    const script = path.join(
+      root,
+      "custom-built-parsers",
+      "sample-ledger",
+      "parser.py",
+    );
+    expect(
+      (await recognizeStatementFile(["sample-ledger"], input)).outcome,
+    ).toBe("recognized");
+
+    // With no parser able to start, the reading is the one kept.
+    const searched = process.env.PATH;
+    vi.stubEnv("PATH", path.join(root, "no-such-bin"));
+    expect(
+      (await recognizeStatementFile(["sample-ledger"], input)).outcome,
+    ).toBe("recognized");
+    vi.stubEnv("PATH", searched);
+
+    // A parser rewritten reads the file afresh.
+    await writeFile(script, "raise SystemExit(1)\n");
+    expect(
+      (await recognizeStatementFile(["sample-ledger"], input)).outcome,
+    ).toBe("unrecognized");
   }, 60_000);
 });

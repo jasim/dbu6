@@ -77,6 +77,8 @@ export interface Problem {
     // Why, at more length, behind the info button beside the title: for a
     // problem whose title and buttons say enough on their own.
     about?: string;
+    // `about` in a few words, over a file's setup button.
+    gist?: string;
     // The numbers and names behind it, behind the info button.
     facts: Stat[];
     actions: ProblemAction[];
@@ -122,8 +124,8 @@ export function problemTone(failure: ImportFailure): ProblemTone {
 export const FREEFORM_IMPORT_ROUTE = "/views/import-freeform-transactions";
 
 const RETRY_FROM_SCREEN = "When the agent is done, import again.";
-const REDROP_FILE =
-    "When the agent says the parser is done, drop this file again and import it.";
+// A file still to set up stays in the list, and is read again from there.
+const CHECK_AGAIN = "When your agent is done, press Try again beside the file.";
 
 /**
  * Where each problem shows: under the last of its files still in the batch,
@@ -161,7 +163,7 @@ function technical(error: StatementImportError): string {
         .join("\n");
 }
 
-// One problem per file the plan could not place. Nothing was imported.
+// One step per file the plan could not place yet. Nothing was imported.
 function planProblems(
     failure: Extract<ImportFailure, { kind: "files-unresolved" }>,
 ): ProblemBody[] {
@@ -170,93 +172,108 @@ function planProblems(
         failure.message,
         failure.hint,
     ].join("\n");
-    const problems: ProblemBody[] = [];
-    for (const row of failure.files) {
-        switch (row.status) {
-            case "resolved":
-                break;
-            case "unrecognized": {
-                const tried = row.candidate_parser_paths;
-                problems.push({
-                    key: `unrecognized:${row.file_name}`,
-                    fileNames: [row.file_name],
-                    subject: row.file_name,
-                    title: "New statement format",
-                    fix: null,
-                    context: null,
-                    about:
-                        "dbu6 hasn't seen this bank's format before. Your coding agent can write a parser for it in a minute. Then drop the file again. Or import the rows freeform instead.",
-                    facts: [
-                        tried.length === 0
-                            ? {
-                                label: "Parsers tried",
-                                value: "none fit this file type",
-                                face: "words",
-                            }
-                            : {
-                                label: "Parsers tried",
-                                value: tried.map(parserLabel).join(", "),
-                            },
-                    ],
-                    actions: [
-                        {
-                            kind: "link",
-                            label: "Import freeform instead",
-                            to: FREEFORM_IMPORT_ROUTE,
-                        },
-                    ],
-                    agent: {
-                        prompt: unrecognizedPrompt(row),
-                        afterwards: REDROP_FILE,
-                        goal: "Set up this format",
-                    },
-                    technical: planTechnical,
-                });
-                break;
-            }
-            case "ambiguous":
-                problems.push({
-                    key: `ambiguous:${row.file_name}`,
-                    fileNames: [row.file_name],
-                    subject: row.file_name,
-                    title: "More than one parser matches this format",
-                    fix: "Make only one parser match it.",
-                    context:
-                        "The app can't tell which parser to trust. The parsers need fixing, not your file. The following AI prompt can tell them apart.",
-                    facts: [
-                        {
-                            label: "Parsers",
-                            value: row.matching_parser_paths.map(parserLabel).join(", "),
-                        },
-                    ],
-                    actions: [],
-                    agent: {
-                        prompt: ambiguousPrompt(row),
-                        afterwards: RETRY_FROM_SCREEN,
-                        goal: "Tell the parsers apart",
-                    },
-                    technical: planTechnical,
-                });
-                break;
-            case "unresolved":
-                problems.push(unresolvedProblem(row, planTechnical));
-                break;
-        }
-    }
-    return problems;
+    return failure.files.flatMap((row) => {
+        const step = setupStep(row);
+        if (step === null) return [];
+        const technical = [step.technical, planTechnical].filter(Boolean);
+        return [{...step, technical: technical.join("\n")}];
+    });
 }
 
-function unresolvedProblem(
+/**
+  * What a dropped file needs before it imports, as the file's row offers it:
+  * a format or an account to set up. Null for a file that is ready. These are
+  * the ordinary first steps with a new bank, so they read as the next thing
+  * to do, never as something gone wrong.
+  */
+export function describeFileSetup(row: AutoImportPlanFile): Problem | null {
+    const step = setupStep(row);
+    return step === null ? null : {...step, tone: "attention"};
+}
+
+function setupStep(row: AutoImportPlanFile): ProblemBody | null {
+    switch (row.status) {
+        case "resolved":
+            return null;
+        case "unrecognized": {
+            const tried = row.candidate_parser_paths;
+            return {
+                key: `unrecognized:${row.file_name}`,
+                gist: "This is a new statement format.",
+                fileNames: [row.file_name],
+                subject: row.file_name,
+                title: "New statement format",
+                fix: null,
+                context: null,
+                about:
+                    "dbu6 reads each bank's statements with a format set up for that bank, and this one doesn't have one yet. Your coding agent can set it up in a minute. From then on, statements like this import by themselves. If you'd rather not, import the rows freeform instead.",
+                facts: [
+                    tried.length === 0
+                        ? {
+                                label: "Formats tried",
+                                value: "none for this file type yet",
+                                face: "words",
+                            }
+                        : {
+                                label: "Formats tried",
+                                value: tried.map(parserLabel).join(", "),
+                            },
+                ],
+                actions: [
+                    {
+                        kind: "link",
+                        label: "Import freeform instead",
+                        to: FREEFORM_IMPORT_ROUTE,
+                    },
+                ],
+                agent: {
+                    prompt: unrecognizedPrompt(row),
+                    afterwards: CHECK_AGAIN,
+                    goal: "Set up this format",
+                },
+                technical: null,
+            };
+        }
+        case "ambiguous":
+            return {
+                key: `ambiguous:${row.file_name}`,
+                gist: "Two saved formats both read this file.",
+                fileNames: [row.file_name],
+                subject: row.file_name,
+                title: "Two saved formats read this file",
+                fix: null,
+                context: null,
+                about:
+                    "More than one saved format reads this file, so dbu6 asks before choosing. Your coding agent can tell them apart, so exactly one reads it.",
+                facts: [
+                    {
+                        label: "Formats",
+                        value: row.matching_parser_paths.map(parserLabel).join(", "),
+                    },
+                ],
+                actions: [],
+                agent: {
+                    prompt: ambiguousPrompt(row),
+                    afterwards: CHECK_AGAIN,
+                    goal: "Settle on one format",
+                },
+                technical: null,
+            };
+        case "unresolved":
+            return unresolvedStep(row);
+    }
+}
+
+function unresolvedStep(
     row: Extract<AutoImportPlanFile, { status: "unresolved" }>,
-    planTechnical: string,
 ): ProblemBody {
     const parserFact: Stat = {
-        label: "Parser",
+        label: "Format",
         value: parserLabel(row.parser_path),
     };
     const candidates = joinNames(row.candidate_account_names);
     const setUpFact: Stat = {
-        label: "Set up for these statements",
+        label: "Accounts set up",
         value: candidates,
         face: "words",
     };
@@ -264,8 +281,10 @@ function unresolvedProblem(
     const base = {
         fileNames: [row.file_name],
         subject: row.institution_name ?? row.institution ?? row.file_name,
-        technical: `${row.message}\n${planTechnical}`,
+        technical: row.message,
         actions: [],
+        fix: null,
+        context: null,
     };
     switch (row.reason) {
         case "no_institution_for_parser":
@@ -273,43 +292,43 @@ function unresolvedProblem(
             return {
                 ...base,
                 key: `no-account:${row.file_name}`,
-                title: "No account set up for this statement",
-                fix: "Set up the account for these transactions.",
-                context:
-                    "All the transactions in your statement were parsed. However, you haven't specified which account these transactions should be entered into. You only need to set this up once per account. It can be set up automatically using the following AI prompt.",
+                gist: "It's not clear which account in your books these go to.",
+                title: "New account",
+                about:
+                    "dbu6 recognized the bank and the format of this statement, but doesn't yet know which account in your books it belongs to. Your coding agent can link it to the right account. This is a one-time setup for each account.",
                 facts: [parserFact],
                 agent: {
                     prompt: noAccountPrompt(row),
-                    afterwards: RETRY_FROM_SCREEN,
-                    goal: "Set up the account",
+                    afterwards: CHECK_AGAIN,
+                    goal: "Add this account",
                 },
             };
         case "statement_account_identifier_required":
             return {
                 ...base,
                 key: `identifier-required:${row.file_name}`,
-                title: "Parser didn't read the account number",
-                fix: "Make the parser read the account number.",
-                context: `${candidates} ${one ? "is" : "are"} set up to match the account number printed on the statement, so the app needs it to tell which account this is. The following AI prompt can fix the parser.`,
+                gist: "Needs its account number to find the account.",
+                title: "Account number to read",
+                about: `${candidates} ${one ? "is" : "are"} matched by the account number printed on the statement, and this format doesn't read it yet. Your coding agent can add that.`,
                 facts: [setUpFact, parserFact],
                 agent: {
                     prompt: identifierRequiredPrompt(row),
-                    afterwards: RETRY_FROM_SCREEN,
-                    goal: "Fix the parser",
+                    afterwards: CHECK_AGAIN,
+                    goal: "Match the account number",
                 },
             };
         case "statement_account_identifier_mismatch":
             return {
                 ...base,
                 key: `identifier-mismatch:${row.file_name}`,
-                title: "Statement is for a different account",
-                fix: "Set up this account, or remove the file.",
-                context: `${candidates} ${one ? "has" : "have"} a different account number, so this is either an account you haven't set up yet or a file dropped here by mistake. A new account can be set up automatically using the following AI prompt.`,
+                gist: "An account you haven't added yet.",
+                title: "New account",
+                about: `${candidates} ${one ? "has" : "have"} a different account number, so this is an account you haven't added yet. If the file isn't yours to import, remove it.`,
                 facts: [setUpFact],
                 agent: {
                     prompt: identifierMismatchPrompt(row),
-                    afterwards: RETRY_FROM_SCREEN,
-                    goal: "Set up this account",
+                    afterwards: CHECK_AGAIN,
+                    goal: "Add this account",
                 },
             };
     }
@@ -340,7 +359,7 @@ function refusalProblem(
                 agent: {
                     prompt: missingAccountPrompt(refusal),
                     afterwards: RETRY_FROM_SCREEN,
-                    goal: "Set up the account",
+                    goal: "Add this account",
                 },
             };
         case "balance_mismatch": {

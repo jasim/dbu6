@@ -17,6 +17,7 @@ import type {
 import type { LoadCategorizer } from "../modules/categorization/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import {
+  checkStatementBatch,
   importStatementBatch,
   type BatchImportOutcome,
   type ImportedGroup,
@@ -44,6 +45,10 @@ import { writeCommentsSoon } from "../workflows/comment-writer.js";
 //
 // Everything the account resolution decided is reported back, whether or not
 // anything was imported, so the user can fix the presets and retry.
+//
+// /import first sends each dropped file to `checkStatementUploads`, which
+// reads and places it the same way and imports nothing, so a format still to
+// be set up shows before the user presses Import.
 //
 // An upload sent with a `progress_id` says how far it has got to
 // `statementsAutoProgress` while it runs (import-progress.ts).
@@ -74,6 +79,8 @@ function planFileRow(
         parser_path: file.parserName,
         account: file.account,
         institution: file.institution,
+        period: file.period,
+        transactions: file.transactions,
         account_id: file.accountId,
         account_name: file.accountName,
       };
@@ -99,6 +106,8 @@ function planFileRow(
         parser_path: file.parserName,
         account: file.account,
         institution: file.institution,
+        period: file.period,
+        transactions: file.transactions,
         reason: file.reason,
         message: file.message,
         institution_name: file.institutionName,
@@ -290,6 +299,33 @@ function keepUploadsFor(
   };
 }
 
+// Where each file would go, as the import would read it. Only the copies of
+// files that wouldn't import are kept, for the prompt that sets them up.
+export async function checkStatementUploads(
+  statements: File[],
+  institutions: readonly ImportInstitution[],
+): Promise<AutoImportPlanFile[]> {
+  return withStagedUploads(statements, async (staged) => {
+    const planned = await checkStatementBatch(
+      statements.map((file, index) => ({
+        name: file.name,
+        path: staged.paths[index],
+      })),
+      institutions,
+    );
+    const pending = planned.flatMap((file, index) =>
+      file.status === "resolved" ? [] : [index],
+    );
+    staged.keep(pending);
+    return planned.map((file, index) =>
+      planFileRow(
+        file,
+        file.status === "resolved" ? null : staged.projectPaths[index],
+      ),
+    );
+  });
+}
+
 export default function importDraftStatementsAutoApi(
   loadCategorizer: LoadCategorizer,
 ): TsRestApi<SapportaEnv> {
@@ -325,6 +361,29 @@ export default function importDraftStatementsAutoApi(
       } finally {
         tracked?.finish();
       }
+    },
+  );
+
+  api.register(
+    "checkStatementUploads",
+    importDraftsContract.checkStatementUploads,
+    async ({ c, files: uploadedFiles }) => {
+      const ledger = requireWorkflowLedger(c);
+      const statements = filesFromField(uploadedFiles, "files");
+      if (statements.length === 0) {
+        return {
+          status: 400 as const,
+          body: {
+            error: "missing_multipart_field" as const,
+            message: "Missing 'files' field in multipart upload",
+          },
+        };
+      }
+      const files = await checkStatementUploads(
+        statements,
+        loadImportPresets(ledger.db, ledger.auth),
+      );
+      return { status: 200 as const, body: { files } };
     },
   );
 

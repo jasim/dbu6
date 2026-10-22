@@ -155,6 +155,9 @@ const reportedStatementFields = {
   account: statementAccountSchema.nullable(),
   // The institution name as printed. Reported only; never used to match.
   institution: z.string().nullable(),
+  // The first and last transaction dates; null when it has no rows.
+  period: dateSpanSchema.nullable(),
+  transactions: z.number(),
 };
 
 export const autoImportPlanFileSchema = z.discriminatedUnion("status", [
@@ -192,6 +195,11 @@ export const autoImportPlanFileSchema = z.discriminatedUnion("status", [
     candidate_account_names: z.array(z.string()),
   }),
 ]);
+
+// Where each checked file would go; nothing is imported.
+export const statementCheckResultSchema = z.object({
+  files: z.array(autoImportPlanFileSchema),
+});
 
 // One preset account's share of the batch: one run of the normal statement
 // import over the files that resolved to it. `base_account` is the ledger
@@ -279,6 +287,19 @@ export const importDraftsContract = c.router({
       400: autoImportErrorSchema,
       403: errorBodySchema,
       422: autoImportErrorSchema,
+    },
+  }),
+  checkStatementUploads: c.mutation({
+    method: "POST",
+    path: "/import-draft/statements/check",
+    summary:
+      "Read statement files sent as `files` as uploadStatementsAuto would, and say where each would go, without importing anything. A file no saved parser reads, or that no preset account claims, keeps its staged copy at `saved_path`",
+    contentType: "multipart/form-data",
+    body: z.any(),
+    responses: {
+      200: statementCheckResultSchema,
+      400: autoImportErrorSchema,
+      403: errorBodySchema,
     },
   }),
   statementsAutoProgress: c.query({

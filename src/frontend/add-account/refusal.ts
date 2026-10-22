@@ -37,6 +37,8 @@ export function refusalProblems(
           parser_path: file.parser,
           account: null,
           institution: account.institution === "" ? null : account.institution,
+          period: file.period,
+          transactions: file.transactions,
           account_id: account.account?.id ?? 0,
           account_name: name,
         },

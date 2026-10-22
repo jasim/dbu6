@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { CreditCard, Info, Landmark } from "lucide-react";
 import type {
@@ -267,23 +267,119 @@ export function ProblemDetail({
 // server's words.
 function ProblemInfo({ problem }: { problem: Problem }) {
   return (
+    <InfoButton label="More about this">
+      {problem.about && <p>{problem.about}</p>}
+      <DetailList rows={problem.facts} technical={problem.technical} />
+    </InfoButton>
+  );
+}
+
+/** An ⓘ that opens a short explanation beside what it explains. */
+export function InfoButton({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
     <Popover>
       <PopoverTrigger
-        aria-label="More about this problem"
+        aria-label={label}
         className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-ink-meta outline-none hover:bg-tile-bg hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
       >
         <Info aria-hidden="true" className="size-4" />
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="max-h-[60vh] w-[min(28rem,calc(100vw-2rem))] space-y-3 overflow-y-auto"
+        className="max-h-[60vh] w-[min(28rem,calc(100vw-2rem))] space-y-3 overflow-y-auto text-body text-foreground"
       >
-        {problem.about && (
-          <p className="text-body text-foreground">{problem.about}</p>
-        )}
-        <DetailList rows={problem.facts} technical={problem.technical} />
+        {children}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * What a dropped file needs before it imports, under its line in the table:
+ * the gist of its status in a few words, the button that hands the setup to
+ * the coding agent, with the ⓘ for the rest, and, once the agent has it,
+ * Try again, which reads the file again when the agent is done.
+ */
+export function SetupStep({
+  step,
+  checking,
+  onTryAgain,
+  onAction,
+}: {
+  // Null for a file that couldn't be sent: sending it again is the step.
+  step: Problem | null;
+  checking: boolean;
+  onTryAgain: () => void;
+  onAction: (action: ProblemAction) => void;
+}) {
+  const [handedOver, setHandedOver] = useState(false);
+  // A try that found the file still to set up says so, until the next.
+  const [tried, setTried] = useState(false);
+  const [stillToSetUp, setStillToSetUp] = useState(false);
+  useEffect(() => {
+    if (tried && !checking) {
+      setStillToSetUp(true);
+      setTried(false);
+    }
+  }, [tried, checking]);
+
+  function handleTryAgain() {
+    setStillToSetUp(false);
+    setTried(true);
+    onTryAgain();
+  }
+
+  const tryAgain = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={checking}
+      onClick={step === null ? onTryAgain : handleTryAgain}
+    >
+      {checking ? "Trying…" : "Try again"}
+    </Button>
+  );
+  if (step === null) return tryAgain;
+  return (
+    <div className="space-y-2">
+      {step.gist && <p className="text-meta text-ink-soft">{step.gist}</p>}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {step.agent && (
+          <AgentButton
+            label={step.agent.goal}
+            prompt={step.agent.prompt}
+            tone="attention"
+            onActed={() => setHandedOver(true)}
+          />
+        )}
+        <ProblemInfo problem={step} />
+        {step.actions.map((action) => (
+          <ActionButton
+            key={action.label}
+            action={action}
+            variant="ghost"
+            onAction={onAction}
+          />
+        ))}
+      </div>
+      {handedOver && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {tryAgain}
+          <span className="text-meta text-ink-meta">
+            {stillToSetUp
+              ? "Still setting up. Try again once your agent says it's done."
+              : "once your agent is done"}
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 

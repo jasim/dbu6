@@ -1,4 +1,3 @@
-import { extname } from "node:path";
 import { Temporal } from "@sapporta/shared/temporal";
 import {
   accountKindOf,
@@ -41,8 +40,9 @@ import {
 import {
   changesListingParsers,
   planAutoImport,
-  recognizeStatementFile,
-  savedCustomStatementParserNames,
+  recognizeStatementFiles,
+  reportedAccount,
+  statementPeriod,
   type AutoImportGroup,
   type FileRecognition,
 } from "../modules/statement-sources/index.js";
@@ -73,7 +73,7 @@ import {
  * /import's own import at the end.
  *
  *   readDrop                          /import's recognition, no writes
- *     per file: savedCustomStatementParserNames, recognizeStatementFile
+ *     recognizeStatementFiles            every file at once
  *     -> groupDrop                       pure: one group per account
  *     -> placed                          new, empty or in_books
  *
@@ -257,14 +257,7 @@ async function readDrop(
   ledger: Ledger,
   files: readonly DroppedStatement[],
 ): Promise<{ files: AddAccountFile[]; groups: PlacedGroup[] }> {
-  const recognitions: FileRecognition[] = [];
-  for (const file of files) {
-    const parsers = await savedCustomStatementParserNames(extname(file.path));
-    recognitions.push({
-      ...(await recognizeStatementFile(parsers, file.path)),
-      file: file.name,
-    });
-  }
+  const recognitions = await recognizeStatementFiles(files);
   // Read after the parsers ran: they take a while.
   const presets = loadImportPresets(ledger.db, ledger.auth);
   const groups = groupDrop(recognitions, presets);
@@ -296,7 +289,7 @@ async function readDrop(
           file_name: file.name,
           account_key: group.key,
           parser: recognition.parserName,
-          period: periodOf([statement]),
+          period: statementPeriod([statement]),
           transactions: statement.transactions.length,
           saved_path: null,
         };
@@ -355,7 +348,8 @@ async function readDrop(
 
   // Earliest first; those with no rows last.
   const first = (group: PlacedGroup) =>
-    periodOf(group.statements.map((one) => one.statement))?.first_date ?? "~";
+    statementPeriod(group.statements.map((one) => one.statement))?.first_date ??
+    "~";
   placed.sort(
     (a, b) => first(a).localeCompare(first(b)) || a.key.localeCompare(b.key),
   );
@@ -370,7 +364,7 @@ function describeGroup(ledger: Ledger, group: PlacedGroup): CandidateReading {
     parsers,
     file_names: statements.map((one) => one.file),
     identifier: printed?.identifier ?? null,
-    period: periodOf(statements.map((one) => one.statement)),
+    period: statementPeriod(statements.map((one) => one.statement)),
   };
   if (place.status === "new") {
     const checked = checkStatements(
@@ -440,19 +434,6 @@ function reported(
       refused === null || refused.code === "opening_balance_needed"
         ? null
         : { code: refused.code, error: refused.error },
-  };
-}
-
-function periodOf(
-  statements: readonly AbacusStatement[],
-): AddAccountCandidate["period"] {
-  const dates = statements.flatMap((one) =>
-    one.transactions.map((row) => row.date),
-  );
-  if (dates.length === 0) return null;
-  return {
-    first_date: dates.reduce((a, b) => (a < b ? a : b)),
-    last_date: dates.reduce((a, b) => (a > b ? a : b)),
   };
 }
 
@@ -911,9 +892,7 @@ async function importAdded(
       file: one.file,
       accountId: account.id,
       accountName: home.account.name,
-      parserName: one.parserName,
-      account: one.statement.account,
-      institution: one.statement.institution,
+      ...reportedAccount(one),
     })),
     [{ ...home, statements: [...statements] }],
     null,

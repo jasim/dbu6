@@ -2,6 +2,7 @@ import { getApiBase } from "@sapporta/frontend/platform";
 import {
   autoImportErrorSchema,
   autoImportResultSchema,
+  statementCheckResultSchema,
   type AutoImportErrorBody,
   type AutoImportGroupResult,
   type AutoImportPlanFile,
@@ -82,6 +83,40 @@ export async function sendStatements(
   }
   const body: unknown = await response.json().catch(() => null);
   return readImportResponse(response.status, body);
+}
+
+/**
+ * What reading a dropped file found, before anything is imported: still
+ * reading, where it would go, or that the request itself didn't get through.
+ */
+export type FileCheck =
+  // A file read again keeps what the last reading found until this one answers.
+  | { kind: "reading"; previous: AutoImportPlanFile | null }
+  | { kind: "read"; row: AutoImportPlanFile }
+  | { kind: "unread"; message: string };
+
+/** Reads one dropped file as the import would, importing nothing. */
+export async function checkStatement(file: File): Promise<FileCheck> {
+  const form = new FormData();
+  form.append("files", file);
+  try {
+    const response = await fetch(
+      `${getApiBase()}/import-draft/statements/check`,
+      { method: "POST", body: form },
+    );
+    const reply = statementCheckResultSchema.safeParse(
+      await response.json().catch(() => null),
+    );
+    const row = reply.success ? reply.data.files[0] : undefined;
+    return row
+      ? { kind: "read", row }
+      : { kind: "unread", message: `The server answered ${response.status}.` };
+  } catch (err) {
+    return {
+      kind: "unread",
+      message: err instanceof Error ? err.message : "Upload failed",
+    };
+  }
 }
 
 /** The outcome a reply describes. */

@@ -44,7 +44,7 @@ const PRESETS_REPORT: ReportSection = {
 };
 const REDROP_REPORT: ReportSection = {
   heading: "Next",
-  says: "drop the file at /import again.",
+  says: "press Try again beside the file at /import.",
 };
 const REIMPORT_REPORT: ReportSection = {
   heading: "Next",

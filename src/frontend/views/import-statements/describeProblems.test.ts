@@ -10,8 +10,8 @@ import {
 } from "../../../shared/index";
 import {
   describeBatch,
+  describeFileAccount,
   describeFileStatus,
-  describeStatement,
 } from "./describeBatch";
 import {
   describeProblems,
@@ -126,6 +126,8 @@ function importedGroup(
 
 const resolvedRow = {
   status: "resolved" as const,
+  period: null,
+  transactions: 0,
   file_name: "bank-aug.xls",
   saved_path: staged("bank-aug.xls"),
   parser_path: BANK_PARSER,
@@ -184,20 +186,14 @@ describe("plan rejections", () => {
     // It counts the files holding the rest up: 1 of 2.
     expect(summary.text).toMatch(/\b1\b.*\b2\b/);
 
-    // The file that was fine waits, saying what it was read as.
-    const ready = describeFileStatus(resolvedRow, {
-      importedFiles: new Set(),
-      failed: null,
-    });
-    expect(ready.tone).toBe("waiting");
-    expect(ready.text).toContain(describeStatement(resolvedRow));
+    // The file that was fine is ready, and names the account it goes to.
+    const ready = describeFileStatus({ kind: "read", row: resolvedRow }, null);
+    expect(ready.tone).toBe("ok");
+    expect(describeFileAccount(resolvedRow)).toBe(resolvedRow.account_name);
     expect(
-      describeFileStatus(unrecognized, {
-        importedFiles: new Set(),
-        failed: null,
-      }).tone,
+      describeFileStatus({ kind: "read", row: unrecognized }, null).tone,
     ).toBe("attention");
-    expect(describeStatement(unrecognized)).toBeNull();
+    expect(describeFileAccount(unrecognized)).toBeNull();
   });
 
   it("names the parsers that were tried", () => {
@@ -228,6 +224,8 @@ describe("plan rejections", () => {
       planRejection([
         {
           status: "unresolved",
+          period: null,
+          transactions: 0,
           file_name: "card-aug.xls",
           saved_path: staged("card-aug.xls"),
           parser_path: parser,
@@ -249,8 +247,8 @@ describe("plan rejections", () => {
     expect(factValues(problem)).toContain(parserLabel(parser));
     // The file's row, which the problem sits under, says what it was read as.
     const [row] = plannedFiles({ kind: "failed", failure: error });
-    expect(describeStatement(row)).toContain("HDFC Bank Cards Division");
-    expect(describeStatement(row)).toContain("0505");
+    expect(describeFileAccount(row)).toContain("HDFC Bank Cards Division");
+    expect(describeFileAccount(row)).toContain("0505");
     const prompt = problem.agent?.prompt;
     expect(prompt).toContain("050505XXXXXX0505");
     expect(prompt).toContain(staged("card-aug.xls"));
@@ -269,6 +267,8 @@ describe("plan rejections", () => {
         planRejection([
           {
             status: "unresolved",
+            period: null,
+            transactions: 0,
             file_name: "bank-aug.xls",
             saved_path: staged("bank-aug.xls"),
             parser_path: BANK_PARSER,
@@ -300,6 +300,8 @@ describe("plan rejections", () => {
       planRejection([
         {
           status: "unresolved",
+          period: null,
+          transactions: 0,
           file_name: "bank-aug.xls",
           saved_path: staged("bank-aug.xls"),
           parser_path: BANK_PARSER,
@@ -325,6 +327,8 @@ describe("plan rejections", () => {
       planRejection([
         {
           status: "unresolved",
+          period: null,
+          transactions: 0,
           file_name: "other.xls",
           saved_path: staged("other.xls"),
           parser_path: BANK_PARSER,
@@ -362,6 +366,8 @@ describe("plan rejections", () => {
           {
             ...resolvedRow,
             status: "unresolved",
+            period: null,
+            transactions: 0,
             account: null,
             reason: "statement_account_identifier_required",
             message: `${BANK_PARSER} reported no account identifier for bank-aug.xls, and "Sample Bank" needs one to pick one of "Sample Savings", "Sample Current".`,
@@ -438,16 +444,11 @@ describe("account import failures", () => {
       tone: "problem",
       next: null,
     });
-    const status = describeFileStatus(resolvedRow, {
-      importedFiles: new Set(),
-      failed: {
-        files: new Set(["bank-aug.xls"]),
-        tone: problem.tone,
-        host: null,
-      },
-    });
+    const status = describeFileStatus(
+      { kind: "read", row: resolvedRow },
+      { files: new Set(["bank-aug.xls"]), tone: problem.tone },
+    );
     expect(status.tone).toBe("problem");
-    expect(status.text).toContain(describeStatement(resolvedRow));
   });
 
   it("points at a missing statement instead of a misread row when the server suspects a gap", () => {
@@ -496,7 +497,7 @@ describe("account import failures", () => {
     ]);
   });
 
-  it("puts a problem under the last of its files in the list, and points its other files there", () => {
+  it("puts a problem under the last of its files in the list, and marks its other files", () => {
     const problem = balanceMismatch(false, [
       "bank-aug.xls",
       "bank-aug-copy.xls",
@@ -508,18 +509,10 @@ describe("account import failures", () => {
     expect([...placed.under.keys()]).toEqual(["bank-aug.xls"]);
     expect(placed.apart).toEqual([]);
     const other = describeFileStatus(
-      { ...resolvedRow, file_name: "bank-aug-copy.xls" },
-      {
-        importedFiles: new Set(),
-        failed: {
-          files: new Set(problem.fileNames),
-          tone: problem.tone,
-          host: "bank-aug.xls",
-        },
-      },
+      { kind: "read", row: { ...resolvedRow, file_name: "bank-aug-copy.xls" } },
+      { files: new Set(problem.fileNames), tone: problem.tone },
     );
     expect(other.tone).toBe("problem");
-    expect(other.text).toContain("bank-aug.xls");
 
     // A problem none of whose files is in the list stands apart.
     const [lost] = describeProblems({ kind: "network", message: "offline" });
@@ -787,6 +780,8 @@ describe("problem tones", () => {
         ).map((reason) => ({
           ...resolvedRow,
           status: "unresolved" as const,
+          period: null,
+          transactions: 0,
           file_name: `${reason}.xls`,
           saved_path: staged(`${reason}.xls`),
           reason,
@@ -855,6 +850,8 @@ describe("problem tones", () => {
         ).map((reason) => ({
           ...resolvedRow,
           status: "unresolved" as const,
+          period: null,
+          transactions: 0,
           file_name: `${reason}.xls`,
           saved_path: staged(`${reason}.xls`),
           reason,

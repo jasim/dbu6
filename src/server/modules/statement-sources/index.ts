@@ -6,7 +6,9 @@ export {
   parserDirectory,
   parserProcessEnv,
   recognizeStatementFile,
+  recognizeStatementFiles,
   savedCustomStatementParserNames,
+  type StatementUpload,
 } from "./statement-recognition.js";
 export {
   resolveImportAccount,
@@ -32,6 +34,8 @@ export {
 } from "./import-preset-changes.js";
 export {
   planAutoImport,
+  reportedAccount,
+  statementPeriod,
   type AutoImportGroup,
   type FileRecognition,
   type PlannedFile,

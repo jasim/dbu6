@@ -1,4 +1,5 @@
 import type {
+  DateSpan,
   ImportAccount,
   ImportInstitution,
   StatementAccount,
@@ -31,6 +32,9 @@ interface ReportedAccount {
   parserName: string;
   account: StatementAccount | null;
   institution: string | null;
+  // The first and last transaction dates; null with no rows.
+  period: DateSpan | null;
+  transactions: number;
 }
 
 // One upload's place in the plan: the preset account it will import into, or
@@ -69,11 +73,30 @@ export type AutoImportPlan =
   | { ok: true; files: PlannedFile[]; groups: AutoImportGroup[] }
   | { ok: false; files: PlannedFile[] };
 
-function reportedAccount(recognized: RecognizedStatement): ReportedAccount {
+/** What a read statement says about itself, as a planned file reports it. */
+export function reportedAccount(
+  recognized: RecognizedStatement,
+): ReportedAccount {
   return {
     parserName: recognized.parserName,
     account: recognized.statement.account,
     institution: recognized.statement.institution,
+    period: statementPeriod([recognized.statement]),
+    transactions: recognized.statement.transactions.length,
+  };
+}
+
+/** The first and last transaction dates across statements; null with no rows. */
+export function statementPeriod(
+  statements: readonly AbacusStatement[],
+): DateSpan | null {
+  const dates = statements.flatMap((one) =>
+    one.transactions.map((row) => row.date),
+  );
+  if (dates.length === 0) return null;
+  return {
+    first_date: dates.reduce((a, b) => (a < b ? a : b)),
+    last_date: dates.reduce((a, b) => (a > b ? a : b)),
   };
 }
 

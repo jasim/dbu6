@@ -1,6 +1,6 @@
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -45,6 +45,7 @@ vi.mock(
 
 import type { LoadCategorizer } from "../modules/categorization/index.js";
 import importDraftStatementsAutoApi, {
+  checkStatementUploads,
   importStatementsAutomatically,
 } from "./import-draft-statements-auto.js";
 import { loadDbu6App } from "../mount.js";
@@ -278,6 +279,8 @@ describe("automatic statement import", () => {
         status: "resolved",
         file_name: "bank-jan.xls",
         saved_path: null,
+        period: { first_date: "2026-07-01", last_date: "2026-08-01" },
+        transactions: 8,
         parser_path: BANK_PARSER,
         account: { kind: "bank", identifier: "05050505050505" },
         institution: "HDFC BANK Ltd.",
@@ -288,6 +291,8 @@ describe("automatic statement import", () => {
         status: "resolved",
         file_name: "card-jan.xls",
         saved_path: null,
+        period: { first_date: "2026-05-15", last_date: "2026-06-18" },
+        transactions: 5,
         parser_path: CARD_PARSER,
         account: { kind: "card", identifier: "050505XXXXXX0505" },
         institution: "HDFC Bank Cards Division",
@@ -298,6 +303,8 @@ describe("automatic statement import", () => {
         status: "resolved",
         file_name: "second-jan.xls",
         saved_path: null,
+        period: { first_date: "2026-07-01", last_date: "2026-07-31" },
+        transactions: 9,
         parser_path: SECOND_BANK_PARSER,
         account: { kind: "bank", identifier: "050505000012" },
         institution: null,
@@ -308,6 +315,8 @@ describe("automatic statement import", () => {
         status: "resolved",
         file_name: "bank-feb.xls",
         saved_path: null,
+        period: { first_date: "2026-07-01", last_date: "2026-08-01" },
+        transactions: 8,
         parser_path: BANK_PARSER,
         account: { kind: "bank", identifier: "05050505050505" },
         institution: "HDFC BANK Ltd.",
@@ -454,6 +463,42 @@ describe("automatic statement import", () => {
     expect(
       file?.status === "unrecognized" ? file.candidate_parser_paths : [],
     ).toContain("hdfc-cc-csv");
+  }, 120_000);
+
+  it("checks dropped files without importing, and keeps only the copies still to set up", async () => {
+    const contents =
+      "date,narration,amount\n2026-01-01,NOPII sample payee,1000\n";
+    const files = await checkStatementUploads(
+      [
+        await fixtureFile(BANK_PARSER, "bank-jan.xls"),
+        new File([contents], "sample-notes.csv"),
+      ],
+      [bankPreset],
+    );
+
+    expect(runStatementImport).not.toHaveBeenCalled();
+    expect(files[0]).toMatchObject({
+      status: "resolved",
+      file_name: "bank-jan.xls",
+      saved_path: null,
+      account_name: "Sample Bank",
+      period: { first_date: "2026-07-01", last_date: "2026-08-01" },
+      transactions: 8,
+    });
+    expect(files[1]).toMatchObject({
+      status: "unrecognized",
+      file_name: "sample-notes.csv",
+    });
+    expect(files[1]?.saved_path).toMatch(
+      /^tmp\/statement-uploads\/[^/]+\/1-sample-notes\.csv$/,
+    );
+    await expect(
+      readFile(join(projectRoot(), files[1]?.saved_path ?? ""), "utf8"),
+    ).resolves.toBe(contents);
+    const staged = await readdir(
+      join(projectRoot(), dirname(files[1]?.saved_path ?? "")),
+    );
+    expect(staged).toEqual(["1-sample-notes.csv"]);
   }, 120_000);
 
   it("keeps a rejected batch's uploads in the project, where the reply says", async () => {

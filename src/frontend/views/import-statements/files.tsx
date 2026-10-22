@@ -1,10 +1,22 @@
-import { useRef, useState, type DragEvent, type ReactNode } from "react";
-import { Plus, X } from "lucide-react";
+import {
+  Fragment,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react";
+import { X } from "lucide-react";
+import type { AutoImportPlanFile } from "../../../shared/index";
 import { cn } from "@sapporta/ui/cn";
+import { statusTextClass } from "../../components/status-chip";
 import { Button } from "../../components/ui/button";
-import type { FileStatus } from "./describeBatch";
-import { OutcomeLine } from "./cards";
-import { fileTypeLabel, formatFileSize } from "../../format";
+import {
+  describeFileAccount,
+  type BatchCounts,
+  type FileStatus,
+} from "./describeBatch";
+import { InfoButton } from "./cards";
+import { formatDaySpan, plural } from "../../format";
 
 /**
  * Opening /import with files already in its batch, from a screen that holds
@@ -120,32 +132,6 @@ export function Dropzone({
   );
 }
 
-// The file type in a small tile. A dashed tile stands for a file not chosen;
-// on a flagged row's grey, the tile turns white.
-function TypeTile({
-  label,
-  chosen = true,
-  onGrey = false,
-}: {
-  label: string;
-  chosen?: boolean;
-  onGrey?: boolean;
-}) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "flex size-[38px] shrink-0 items-center justify-center rounded-[10px] font-mono text-[11px] font-semibold",
-        chosen
-          ? cn(onGrey ? "bg-card" : "bg-tile-bg", "text-ink-soft")
-          : "border border-dashed border-waiting-marker bg-waiting-bg text-ink-meta",
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
 function RemoveButton({
   fileName,
   disabled,
@@ -170,78 +156,242 @@ function RemoveButton({
   );
 }
 
-const ROW = "flex items-center gap-3.5 px-4 py-2 sm:gap-[18px]";
+/** One dropped file as the table lists it. */
+export interface StatementLine {
+  key: string;
+  file: File;
+  /** What reading it found: the account, period and rows it holds. */
+  row: AutoImportPlanFile | null;
+  status: FileStatus;
+  /** The step it needs next, or why the import refused it, under its line. */
+  detail: ReactNode;
+}
+
+const CELL = "px-3 py-2 align-baseline";
 
 /**
- * A chosen file: its type, name and size, and what became of it. A file with
- * a problem is `flagged`: its row turns into a muted header, and the problem
- * (`children`) sits under it.
+ * The dropped files, a line each: where each goes, the dates and rows it
+ * holds, and its status, with any step a file needs right under it. The
+ * foot counts what is ready and what is still to set up.
  */
-export function FileRow({
-  file,
-  status,
-  note,
-  flagged = false,
+export function StatementTable({
+  lines,
+  counts,
   disabled,
   onRemove,
-  children,
+  onClear,
 }: {
-  file: File;
-  /** The outcome line, once the server has looked at the file. */
-  status?: FileStatus | null;
-  /** A quiet line saying what the file is for, when the list doesn't. */
-  note?: ReactNode;
-  flagged?: boolean;
+  lines: readonly StatementLine[];
+  counts: BatchCounts;
   disabled: boolean;
-  /** Absent once the import is done: the list is then a record. */
-  onRemove?: () => void;
-  children?: ReactNode;
+  onRemove: (file: File) => void;
+  onClear: () => void;
 }) {
   return (
-    <li>
-      <div className={cn(ROW, flagged && "bg-tile-bg")}>
-        <TypeTile label={fileTypeLabel(file.name)} onGrey={flagged} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-3">
-            <span
-              title={file.name}
-              className="min-w-0 flex-1 truncate text-[14.5px] font-semibold text-foreground"
+    <div className="overflow-hidden rounded-card border border-sap-border bg-card shadow-card">
+      <table className="w-full text-row">
+        <thead className="text-left text-meta text-ink-meta">
+          <tr>
+            <th scope="col" className={cn(CELL, "w-full pl-5 font-medium")}>
+              Statement
+            </th>
+            <th
+              scope="col"
+              className={cn(CELL, "hidden font-medium sm:table-cell")}
             >
-              {file.name}
-            </span>
-            <span className="tnum shrink-0 font-mono text-meta text-ink-meta">
-              {formatFileSize(file.size)}
-            </span>
-          </div>
-          {note && <p className="mt-0.5 text-meta text-ink-meta">{note}</p>}
-          {status && (
-            <OutcomeLine tone={status.tone} className="mt-0.5 text-meta">
-              {status.text}
-            </OutcomeLine>
-          )}
-        </div>
-        {onRemove && (
-          <RemoveButton
-            fileName={file.name}
-            disabled={disabled}
-            onRemove={onRemove}
-          />
-        )}
-      </div>
-      {/* Aligned with the file name, except on a narrow screen. */}
-      {children && (
-        <div className="px-4 pb-1 pt-4 sm:pl-[76px] sm:pr-5">{children}</div>
-      )}
-    </li>
+              Account
+            </th>
+            <th
+              scope="col"
+              className={cn(CELL, "hidden font-medium sm:table-cell")}
+            >
+              Period
+            </th>
+            <th
+              scope="col"
+              className={cn(
+                CELL,
+                "hidden text-right font-medium sm:table-cell",
+              )}
+            >
+              Rows
+            </th>
+            <th scope="col" className={cn(CELL, "font-medium")}>
+              Status
+            </th>
+            <th scope="col" className="py-2 pl-1 pr-3">
+              <span className="sr-only">Remove</span>
+            </th>
+          </tr>
+        </thead>
+        {lines.map((line) => {
+          const read = describeLine(line.row);
+          return (
+            <tbody key={line.key} className="border-t border-line-inner">
+              <tr>
+                {/* Takes the slack, and truncates a long name rather than
+                    pushing the status off a phone's screen. */}
+                <td className={cn(CELL, "max-w-0 pl-5")}>
+                  <span
+                    title={line.file.name}
+                    className="block truncate font-semibold text-foreground"
+                  >
+                    {line.file.name}
+                  </span>
+                  {/* On a phone, the columns it drops. */}
+                  {read.account && (
+                    <span className="block truncate text-meta text-ink-meta sm:hidden">
+                      {[read.account, read.period, read.rows]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
+                </td>
+                <td
+                  className={cn(
+                    CELL,
+                    "hidden max-w-40 truncate whitespace-nowrap text-ink-soft sm:table-cell",
+                  )}
+                >
+                  {read.account ?? <span className="text-ink-meta">—</span>}
+                </td>
+                <td
+                  className={cn(
+                    CELL,
+                    "hidden whitespace-nowrap text-ink-soft sm:table-cell",
+                  )}
+                >
+                  {read.period ?? <span className="text-ink-meta">—</span>}
+                </td>
+                <td
+                  className={cn(
+                    CELL,
+                    "tnum hidden text-right font-mono text-ink-soft sm:table-cell",
+                  )}
+                >
+                  {read.transactions ?? (
+                    <span className="text-ink-meta">—</span>
+                  )}
+                </td>
+                <td
+                  className={cn(
+                    CELL,
+                    "whitespace-nowrap font-medium",
+                    statusTextClass(line.status.tone),
+                  )}
+                >
+                  {line.status.text}
+                </td>
+                <td className="py-1 pl-1 pr-3 text-right align-middle">
+                  <RemoveButton
+                    fileName={line.file.name}
+                    disabled={disabled}
+                    onRemove={() => onRemove(line.file)}
+                  />
+                </td>
+              </tr>
+              {line.detail && (
+                <tr>
+                  <td colSpan={6} className="pb-4 pl-5 pr-4 pt-1">
+                    {line.detail}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          );
+        })}
+        <tfoot className="border-t border-line-inner bg-sap-nested text-meta">
+          <tr>
+            <td colSpan={6} className="py-1.5 pl-5 pr-3">
+              <div className="flex items-center justify-between gap-3">
+                <BatchCountLine counts={counts} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={onClear}
+                >
+                  Clear all
+                </Button>
+              </div>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+// What reading a file found, for its line's columns.
+function describeLine(row: AutoImportPlanFile | null): {
+  account: string | null;
+  period: string | null;
+  transactions: number | null;
+  rows: string | null;
+} {
+  if (row === null) {
+    return { account: null, period: null, transactions: null, rows: null };
+  }
+  const transactions = "transactions" in row ? row.transactions : null;
+  return {
+    account: describeFileAccount(row),
+    period:
+      "period" in row && row.period
+        ? formatDaySpan(row.period, { withYear: true })
+        : null,
+    transactions,
+    rows: transactions === null ? null : plural(transactions, "row"),
+  };
+}
+
+// "3 ready · 2 to set up · 127 rows", the parts there are.
+function BatchCountLine({ counts }: { counts: BatchCounts }) {
+  const parts = [
+    counts.reading > 0 && (
+      <span key="reading" className="text-ink-meta">
+        {counts.reading} reading
+      </span>
+    ),
+    counts.ready > 0 && (
+      <span key="ready" className="text-primary">
+        {counts.ready} ready
+      </span>
+    ),
+    counts.setUp > 0 && (
+      <span key="setup" className="text-attention-ink">
+        {counts.setUp} to set up
+      </span>
+    ),
+    counts.unread > 0 && (
+      <span key="unread" className="text-destructive">
+        {counts.unread} not read
+      </span>
+    ),
+    counts.ready > 0 && (
+      <span key="rows" className="text-ink-soft">
+        {plural(counts.transactions, "row")}
+      </span>
+    ),
+  ].filter(Boolean);
+  return (
+    <p className="tnum font-mono">
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && <span className="text-ink-meta"> · </span>}
+          {part}
+        </Fragment>
+      ))}
+    </p>
   );
 }
 
 /**
- * The optional Google Pay Takeout, in its own row under the statements. It
- * starts folded behind a plus, since most imports don't need it, and opens
- * to say why and how. It is added only here, never through the dropzone.
+ * The optional Google Pay Takeout, an option of the whole batch rather than
+ * one of its statements: it names the other party of every UPI payment in
+ * the accounts imported. Added only here, never through the dropzone.
  */
-export function GooglePayRow({
+export function GooglePayOption({
   file,
   disabled,
   onChoose,
@@ -253,61 +403,42 @@ export function GooglePayRow({
   onRemove: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
-  if (file) {
-    return (
-      <FileRow
-        file={file}
-        note="Names from Google Pay"
-        disabled={disabled}
-        onRemove={onRemove}
-      />
-    );
-  }
   return (
-    <li>
-      <details className="group/gpay">
-        <summary
-          className={cn(
-            ROW,
-            "cursor-pointer list-none outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden",
-          )}
-        >
-          <span
-            aria-hidden="true"
-            className="flex size-[38px] shrink-0 items-center justify-center rounded-[10px] border border-dashed border-waiting-marker bg-waiting-bg text-ink-meta"
-          >
-            <Plus className="size-4 group-open/gpay:rotate-45" />
-          </span>
-          <span className="text-row font-semibold text-foreground">
-            Names from Google Pay{" "}
-            <span className="font-normal text-ink-meta">(optional)</span>
-          </span>
-        </summary>
-        <div className="space-y-3 pb-4 pl-[68px] pr-4 text-meta text-ink-meta sm:pl-[76px] sm:pr-5">
-          <p>
-            If you use UPI often, your bank statements usually carry only UPI
-            reference numbers, not the names of the other party. Those names are
-            essential for automatic categorization. Upload your Google Pay
-            activity here, and dbu6 will match each bank transaction against its
-            UPI details from GPay and add the relevant information.
-          </p>
-          <p>
-            To get the file, go to takeout.google.com and deselect everything
-            except Google Pay. The export is usually ready within a few minutes.
-            From the downloaded zip, upload the My Activity.html page, which
-            holds the transaction details.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            onClick={() => input.current?.click()}
-          >
-            Choose file
-          </Button>
-        </div>
-      </details>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-row">
+      <span className="text-ink-meta">Google Pay names</span>
+      <span
+        title={file?.name}
+        className={cn(
+          "min-w-0 truncate",
+          file ? "text-foreground" : "text-ink-meta",
+        )}
+      >
+        {file ? file.name : "None"}
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={disabled}
+        onClick={file ? onRemove : () => input.current?.click()}
+      >
+        {file ? "Remove" : "Add"}
+      </Button>
+      <InfoButton label="About Google Pay names">
+        <p>
+          If you use UPI often, your bank statements usually carry only UPI
+          reference numbers, not the names of the other party. Those names are
+          essential for automatic categorization. Add your Google Pay activity
+          here, and dbu6 will match each bank transaction against its UPI
+          details from GPay and add the relevant information.
+        </p>
+        <p>
+          To get the file, go to takeout.google.com and deselect everything
+          except Google Pay. The export is usually ready within a few minutes.
+          From the downloaded zip, add the My Activity.html page, which holds
+          the transaction details.
+        </p>
+      </InfoButton>
       <input
         ref={input}
         type="file"
@@ -320,6 +451,6 @@ export function GooglePayRow({
           event.target.value = "";
         }}
       />
-    </li>
+    </div>
   );
 }
