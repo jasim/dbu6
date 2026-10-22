@@ -404,53 +404,74 @@ export function GooglePayOption({
 }) {
   const input = useRef<HTMLInputElement>(null);
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-row">
-      <span className="text-ink-meta">Google Pay names</span>
-      <span
-        title={file?.name}
-        className={cn(
-          "min-w-0 truncate",
-          file ? "text-foreground" : "text-ink-meta",
+    <section aria-labelledby="gpay-title" className="space-y-3">
+      <div className="space-y-1">
+        <h2 id="gpay-title" className="text-subheading text-foreground">
+          Payee names from Google Pay
+        </h2>
+        <p className="text-meta text-ink-meta">
+          Banks often show only reference numbers for UPI payments. If you add
+          your Google Pay activity, we can find the actual names.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-row">
+        {file ? (
+          <>
+            <span
+              title={file.name}
+              className="min-w-0 truncate text-foreground"
+            >
+              {file.name}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={disabled}
+              onClick={onRemove}
+            >
+              Remove
+            </Button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => input.current?.click()}
+          >
+            Add Google Pay details
+          </Button>
         )}
-      >
-        {file ? file.name : "None"}
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={disabled}
-        onClick={file ? onRemove : () => input.current?.click()}
-      >
-        {file ? "Remove" : "Add"}
-      </Button>
-      <InfoButton label="About Google Pay names">
-        <p>
-          If you use UPI often, your bank statements usually carry only UPI
-          reference numbers, not the names of the other party. Those names are
-          essential for automatic categorization. Add your Google Pay activity
-          here, and dbu6 will match each bank transaction against its UPI
-          details from GPay and add the relevant information.
-        </p>
-        <p>
-          To get the file, go to takeout.google.com and deselect everything
-          except Google Pay. The export is usually ready within a few minutes.
-          From the downloaded zip, add the My Activity.html page, which holds
-          the transaction details.
-        </p>
-      </InfoButton>
-      <input
-        ref={input}
-        type="file"
-        accept=".html,.htm"
-        hidden
-        disabled={disabled}
-        onChange={(event) => {
-          const chosen = event.target.files?.[0];
-          if (chosen) onChoose(chosen);
-          event.target.value = "";
-        }}
-      />
-    </div>
+        <InfoButton label="How to get your Google Pay activity">
+          <p>
+            If you use UPI often, your bank statements usually carry only UPI
+            reference numbers, not the names of the other party. Those names are
+            essential for automatic categorization. Add your Google Pay activity
+            here, and dbu6 will match each bank transaction against its UPI
+            details from GPay and add the relevant information.
+          </p>
+          <p>
+            To get the file, go to takeout.google.com and deselect everything
+            except Google Pay. The export is usually ready within a few minutes.
+            From the downloaded zip, add the My Activity.html page, which holds
+            the transaction details.
+          </p>
+        </InfoButton>
+        <input
+          ref={input}
+          type="file"
+          accept=".html,.htm"
+          hidden
+          disabled={disabled}
+          onChange={(event) => {
+            const chosen = event.target.files?.[0];
+            if (chosen) onChoose(chosen);
+            event.target.value = "";
+          }}
+        />
+      </div>
+    </section>
   );
 }

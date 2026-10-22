@@ -331,17 +331,18 @@ export function AutoImportStatements() {
             }
             onClear={() => removeFiles(() => true)}
           />
-          {!imported && (
-            <div className="mt-3 px-1">
-              <GooglePayOption
-                file={gpayFile}
-                disabled={loading}
-                onChoose={chooseGpayFile}
-                onRemove={() => chooseGpayFile(null)}
-              />
-            </div>
-          )}
         </section>
+      )}
+
+      {files.length > 0 && !imported && (
+        <div className="mt-8">
+          <GooglePayOption
+            file={gpayFile}
+            disabled={loading}
+            onChoose={chooseGpayFile}
+            onRemove={() => chooseGpayFile(null)}
+          />
+        </div>
       )}
 
       {placed.apart.length > 0 && (
@@ -371,7 +372,14 @@ export function AutoImportStatements() {
         </section>
       ) : (
         (files.length > 0 || !imported) && (
-          <div className="mt-5 space-y-3">
+          <div
+            className={cn(
+              "space-y-3",
+              files.length > 0 && !imported
+                ? "mt-8 border-t border-sap-border pt-6"
+                : "mt-5",
+            )}
+          >
             {outcome && failure && <Summary batch={describeBatch(outcome)} />}
             <ImportButton
               statements={files.length}
@@ -412,8 +420,8 @@ function readUploadProgress(progressId: string) {
   });
 }
 
-// Imports what is ready. With files still to set up, it says it imports
-// only the ready ones; those others stay in the list.
+// Imports what is ready. With files still to set up, it says how many of
+// the list it imports, "Import 1 of 2 statements"; the others stay there.
 function ImportButton({
   statements,
   counts,
@@ -438,7 +446,7 @@ function ImportButton({
         ? counts.ready === 1
           ? "Import statement"
           : `Import ${counts.ready} statements`
-        : `Import ${counts.ready} ready`;
+        : `Import ${counts.ready} of ${statements} statements`;
   return (
     <Button onClick={onImport} waiting={waiting}>
       {label}
