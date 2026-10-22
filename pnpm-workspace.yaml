@@ -15,7 +15,7 @@ overrides:
   "hono": "4.12.29"
   "drizzle-orm": "0.45.2"
   "better-sqlite3": "12.11.1"
-  "zod": "4.4.3"
+  "zod": "4.6.7"
   "@sapporta/rest-core": "3.52.2"
   "@js-temporal/polyfill": "0.5.1"
   "react": "19.2.7"
