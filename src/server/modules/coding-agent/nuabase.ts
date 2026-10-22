@@ -2,10 +2,12 @@ import { Nua } from "nuabase";
 import {
   agentSessionMode,
   detectLocalAgents,
-  fitsAgentSession,
   localAgent,
-  openInTerminal,
-  writeAgentSession,
+  startAgentSession,
+  type AgentSessionMode,
+  type AgentSessionRefusal,
+  type AgentSessionStart,
+  type LocalAgentStatus,
 } from "nuabase/local-agent";
 import { z } from "zod";
 import { codingAgentSchema, type CodingAgent } from "../../../shared/index.js";
@@ -21,11 +23,8 @@ import type {
 } from "../chart-of-accounts/index.js";
 
 /*
- * The only module that imports nuabase. Its published declarations don't
- * resolve under NodeNext, so everything it exports typechecks as `any`: the
- * shapes dbu6 relies on are written down once here, and every value that
- * crosses this boundary is parsed or narrowed before the rest of the server
- * sees it.
+ * The only module that imports nuabase: every call into it, and what dbu6
+ * makes of what it answers.
  *
  * A headless call runs the coding agent's own CLI as a child process, billed
  * to the user's Claude or ChatGPT plan. Every call goes through `Nua.direct`
@@ -34,8 +33,8 @@ import type {
  * defaults.
  *
  * An interactive session is the agent's CLI in a terminal in front of the
- * user (handoff.ts). Nuabase knows each CLI's session options and writes the
- * launcher; dbu6 decides the agent, model, files and when to open it.
+ * user (handoff.ts). Nuabase knows each CLI's session options, writes the
+ * launcher and opens the terminal; dbu6 decides the agent, model and files.
  */
 
 // One call is one CLI process. A model check asks for one word; a
@@ -47,8 +46,8 @@ const CHECK_TIMEOUT_MS = 60_000;
 const CONCURRENT_CALLS = 2;
 
 // Nuabase logs every call's start and end, usage included, as info. dbu6
-// keeps its warnings and errors and logs its own failures (failedGet,
-// failedList), so the server's log isn't a transcript of LLM calls.
+// keeps its warnings and errors and logs its own failures (`failed`), so the
+// server's log isn't a transcript of LLM calls.
 const logger = {
   debug() {},
   info() {},
@@ -58,7 +57,7 @@ const logger = {
     console.error(`[nuabase] ${message}`, context ?? ""),
 };
 
-/** What dbu6 reads of nuabase's LocalAgentStatus. */
+/** What dbu6 reads of nuabase's LocalAgentStatus, for an agent it knows. */
 export type DetectedAgent =
   | { agent: CodingAgent; installed: false; loggedIn: false }
   | {
@@ -69,6 +68,7 @@ export type DetectedAgent =
     };
 export type InstalledAgent = Extract<DetectedAgent, { installed: true }>;
 
+/** A DetectedAgent as dbu_config keeps it (agents.ts). */
 export const detectedAgentSchema = z.discriminatedUnion("installed", [
   z.object({
     agent: codingAgentSchema,
@@ -83,23 +83,37 @@ export const detectedAgentSchema = z.discriminatedUnion("installed", [
   }),
 ]);
 
-const reportedAgentsSchema = z.array(
-  z.object({ agent: z.unknown() }).passthrough(),
-);
+function isCodingAgent(agent: string): agent is CodingAgent {
+  return codingAgentSchema.safeParse(agent).success;
+}
+
+function detected(status: LocalAgentStatus & { agent: CodingAgent }) {
+  return status.installed
+    ? {
+        agent: status.agent,
+        installed: true as const,
+        loggedIn: status.loggedIn,
+        binaryPath: status.binaryPath,
+      }
+    : {
+        agent: status.agent,
+        installed: false as const,
+        loggedIn: false as const,
+      };
+}
 
 /**
  * Every agent dbu6 knows, in its preference order (Claude Code first), as
  * nuabase found it on this machine. One nuabase didn't report, as a nuabase
- * older than the agent doesn't, is not installed. An agent dbu6 doesn't know
- * is left out rather than carried around as an id nothing else can read; a
- * status dbu6 can't parse throws.
+ * older than the agent doesn't, is not installed; one dbu6 doesn't know, as a
+ * newer nuabase may report, is left out.
  */
 export async function detectAgents(): Promise<DetectedAgent[]> {
-  const reported: unknown = await detectLocalAgents();
-  const found = reportedAgentsSchema
-    .parse(reported)
-    .filter((status) => codingAgentSchema.safeParse(status.agent).success)
-    .map((status) => detectedAgentSchema.parse(status));
+  const found = (await detectLocalAgents()).flatMap((status) =>
+    isCodingAgent(status.agent)
+      ? [detected({ ...status, agent: status.agent })]
+      : [],
+  );
   return codingAgentSchema.options.map(
     (agent): DetectedAgent =>
       found.find((status) => status.agent === agent) ?? {
@@ -110,113 +124,39 @@ export async function detectAgents(): Promise<DetectedAgent[]> {
   );
 }
 
-/** How a session can start on a platform; see nuabase's agentSessionMode. */
-export type SessionMode = "terminal" | "command" | "none";
+/** Why nuabase didn't start a session; nothing was written. */
+export type SessionRefusal = AgentSessionRefusal;
 
-const sessionModeSchema = z.enum(["terminal", "command", "none"]);
-
-/** Pure: how nuabase can start an agent session on `platform`. */
-export function sessionMode(platform: NodeJS.Platform): SessionMode {
-  return sessionModeSchema.parse(agentSessionMode(platform));
+/** Pure: how a session can start on `platform`; see nuabase's agentSessionMode. */
+export function sessionMode(platform: NodeJS.Platform): AgentSessionMode {
+  return agentSessionMode(platform);
 }
-
-/** Pure: whether nuabase's launcher can pass `prompt` on `platform`. */
-export function fitsSession(prompt: string, platform: NodeJS.Platform): boolean {
-  return z.boolean().parse(fitsAgentSession(prompt, platform));
-}
-
-export type SessionFiles = {
-  promptPath: string;
-  launcherPath: string;
-  command: string;
-};
-
-const sessionFilesSchema = z.object({
-  promptPath: z.string(),
-  launcherPath: z.string(),
-  command: z.string(),
-});
 
 /**
- * Writes the prompt to `<dir>/<name>.md` and a launcher, `<dir>/<name>.command`,
- * that starts the agent on it in `cwd`, in its auto mode: its reviewer, not the
- * user, approves edits and commands, and stops risky ones.
+ * Starts the agent on `prompt` in `cwd`, in its auto mode: its reviewer, not
+ * the user, approves edits and commands, and stops risky ones. The prompt and
+ * its launcher are written to `dir`; on macOS a terminal window opens on it.
  */
-export function writeSession(session: {
+export function startSession(session: {
   agent: InstalledAgent;
+  /** Undefined runs the agent's own configured default, as Pi's does. */
   model: string | undefined;
   cwd: string;
   prompt: string;
   dir: string;
-  name: string;
   platform: NodeJS.Platform;
-}): SessionFiles {
-  return sessionFilesSchema.parse(
-    writeAgentSession({
-      agent: session.agent.agent,
-      binaryPath: session.agent.binaryPath,
-      cwd: session.cwd,
-      model: session.model,
-      approval: "auto",
-      prompt: session.prompt,
-      dir: session.dir,
-      name: session.name,
-      platform: session.platform,
-    }),
-  );
+}): Promise<AgentSessionStart> {
+  return startAgentSession({
+    agent: session.agent.agent,
+    binaryPath: session.agent.binaryPath,
+    cwd: session.cwd,
+    model: session.model,
+    approval: "auto",
+    prompt: session.prompt,
+    dir: session.dir,
+    platform: session.platform,
+  });
 }
-
-/** Runs a launcher in a new window of the user's terminal app (macOS only). */
-export async function openSessionInTerminal(
-  launcherPath: string,
-  platform: NodeJS.Platform,
-): Promise<void> {
-  await openInTerminal(launcherPath, platform);
-}
-
-/**
- * Pure: the agent's own words from a failed call. Nuabase prefixes them with
- * its retries and the CLI's name, and Codex passes on the API's JSON error.
- */
-export function llmFailureMessage(error: string): string {
-  const message = error
-    .replace(/^LLM call failed after \d+ attempts\. Last error: /, "")
-    .replace(/^(claude|codex|pi): /, "");
-  try {
-    const inner = (JSON.parse(message) as { error?: { message?: unknown } })
-      .error?.message;
-    if (typeof inner === "string") return inner;
-  } catch {
-    // Not JSON: the CLI's own message.
-  }
-  return message;
-}
-
-// The two calls dbu6 makes on a nuabase client, as the untyped package
-// offers them.
-type UntypedNua = {
-  get(prompt: string, options?: Record<string, unknown>): Promise<unknown>;
-  list(prompt: string, options: Record<string, unknown>): Promise<unknown>;
-};
-
-// A nuabase answer, of which dbu6 reads whether it succeeded and either the
-// rows or the error. `get` answers with one value, `list` with a row each.
-const failedAnswerSchema = z.object({
-  success: z.literal(false),
-  error: z.unknown(),
-});
-const replySchema = z.union([
-  z.object({ success: z.literal(true) }),
-  failedAnswerSchema,
-]);
-const getAnswerSchema = z.union([
-  z.object({ success: z.literal(true), data: z.unknown() }),
-  failedAnswerSchema,
-]);
-const listAnswerSchema = z.union([
-  z.object({ success: z.literal(true), data: z.array(z.unknown()) }),
-  failedAnswerSchema,
-]);
 
 const CHECK_PROMPT = "Reply with the single word OK.";
 
@@ -233,7 +173,7 @@ export async function askModel(
   model: string | undefined,
 ): Promise<ModelReply> {
   try {
-    const nua: UntypedNua = Nua.direct({
+    const nua = Nua.direct({
       localAgent: localAgent({
         agent: agent.agent,
         model,
@@ -242,23 +182,12 @@ export async function askModel(
         timeoutMs: CHECK_TIMEOUT_MS,
       }),
     });
-    const parsed = replySchema.safeParse(await nua.get(CHECK_PROMPT));
-    if (!parsed.success) {
-      return { answered: false, reason: unexpectedShape(parsed.error) };
-    }
-    return parsed.data.success
+    const reply = await nua.get(CHECK_PROMPT);
+    return reply.success
       ? { answered: true }
-      : {
-          answered: false,
-          reason: llmFailureMessage(String(parsed.data.error)),
-        };
+      : { answered: false, reason: reply.reason };
   } catch (error) {
-    return {
-      answered: false,
-      reason: llmFailureMessage(
-        error instanceof Error ? error.message : String(error),
-      ),
-    };
+    return { answered: false, reason: thrownMessage(error) };
   }
 }
 
@@ -267,7 +196,7 @@ export function agentListClient(
   agent: InstalledAgent,
   model: string | undefined,
 ): ListClient {
-  const nua: UntypedNua = Nua.direct({
+  const nua = Nua.direct({
     localAgent: localAgent({
       agent: agent.agent,
       model,
@@ -281,27 +210,18 @@ export function agentListClient(
   // set up with one, so no call names a model.
   return {
     async list(request: ListRequest): Promise<ListAnswer> {
-      let answered: unknown;
       try {
-        answered = await nua.list(request.prompt, {
+        const answered = await nua.list(request.prompt, {
           input: [...request.rows],
           primaryKey: "id",
           output: request.output,
         });
+        return answered.success
+          ? { ok: true, rows: answered.data }
+          : failed("list", answered.error, answered.reason);
       } catch (error) {
-        return failedList(
-          llmFailureMessage(
-            error instanceof Error ? error.message : String(error),
-          ),
-        );
+        return failed("list", thrownMessage(error));
       }
-      const parsed = listAnswerSchema.safeParse(answered);
-      if (!parsed.success) {
-        return failedList(unexpectedShape(parsed.error));
-      }
-      return parsed.data.success
-        ? { ok: true, rows: parsed.data.data }
-        : failedList(llmFailureMessage(String(parsed.data.error)));
     },
   };
 }
@@ -311,7 +231,7 @@ export function agentGetClient(
   agent: InstalledAgent,
   model: string | undefined,
 ): GetClient {
-  const nua: UntypedNua = Nua.direct({
+  const nua = Nua.direct({
     localAgent: localAgent({
       agent: agent.agent,
       model,
@@ -323,44 +243,46 @@ export function agentGetClient(
   });
   return {
     async get<T>(request: GetRequest<T>): Promise<GetAnswer<T>> {
-      let answered: unknown;
+      let answered;
       try {
         answered = await nua.get(request.prompt, {
           input: request.input,
           output: request.output,
         });
       } catch (error) {
-        return failedGet(
-          llmFailureMessage(
-            error instanceof Error ? error.message : String(error),
-          ),
-        );
+        return failed("get", thrownMessage(error));
       }
-      const parsed = getAnswerSchema.safeParse(answered);
-      if (!parsed.success) return failedGet(unexpectedShape(parsed.error));
-      if (!parsed.data.success) {
-        return failedGet(llmFailureMessage(String(parsed.data.error)));
+      if (!answered.success) {
+        return failed("get", answered.error, answered.reason);
       }
-      // nuabase checks the answer against the schema too; this is dbu6's
-      // own parse, which also gives it its type.
-      const value = request.output.schema.safeParse(parsed.data.data);
-      return value.success
-        ? { ok: true, value: value.data }
-        : failedGet(unexpectedShape(value.error));
+      // nuabase checks the answer against the schema's JSON Schema, which
+      // runs none of its transforms or refinements; this parse does, and
+      // gives the value its type.
+      const value = request.output.schema.safeParse(answered.data);
+      if (value.success) return { ok: true, value: value.data };
+      const issues = value.error.issues
+        .map((issue) => `${issue.path.join(".") || "answer"} ${issue.message}`)
+        .join("; ");
+      return failed("get", `The answer isn't what dbu6 asked for: ${issues}`);
     },
   };
 }
 
-function failedGet(message: string): { ok: false; error: string } {
-  console.error("[nuabase] get call failed:", message);
-  return { ok: false, error: reportedError(message) };
+// A failed call: nuabase's account of it goes to the log, and the answer
+// carries why, fit to show.
+function failed(
+  call: "get" | "list",
+  logged: string,
+  reason = logged,
+): { ok: false; error: string } {
+  console.error(`[nuabase] ${call} call failed:`, logged);
+  return { ok: false, error: reportedError(reason) };
 }
 
-// A failed call: the full message goes to the log, and the answer carries the
-// part fit to show.
-function failedList(message: string): ListAnswer {
-  console.error("[nuabase] list call failed:", message);
-  return { ok: false, error: reportedError(message) };
+// nuabase throws only for what dbu6 got wrong, such as an executable it can't
+// run; the message says what.
+function thrownMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 const MAX_REPORTED_ERROR_LENGTH = 300;
@@ -376,10 +298,4 @@ export function reportedError(message: string): string {
   return text.length > MAX_REPORTED_ERROR_LENGTH
     ? `${text.slice(0, MAX_REPORTED_ERROR_LENGTH - 1)}…`
     : text;
-}
-
-function unexpectedShape(error: z.ZodError): string {
-  return `nuabase answered in a shape dbu6 doesn't know: ${error.issues
-    .map((issue) => `${issue.path.join(".") || "answer"} ${issue.message}`)
-    .join("; ")}`;
 }

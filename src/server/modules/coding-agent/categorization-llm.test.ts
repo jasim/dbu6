@@ -59,8 +59,9 @@ describe("localAgentLlm", () => {
   it("reports a call that fails in the agent's own words", async () => {
     list.mockResolvedValueOnce({
       success: false,
-      error:
-        "LLM call failed after 3 attempts. Last error: claude: Not logged in.",
+      error: "LLM call failed after 3 attempts. Last error: Not logged in.",
+      reason: "Not logged in.",
+      attempts: 3,
     } as never);
     const llm = localAgentLlm(CLAUDE, "sonnet");
     if (!llm.caller.ready) throw new Error("the agent should be ready");

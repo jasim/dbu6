@@ -1,10 +1,11 @@
-import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import type {
   AgentHandoff,
   AgentHandoffAvailability,
+  CodingAgent,
 } from "../../../shared/index.js";
 import {
+  CodingAgentNotInstalledError,
   HandoffUnsupportedError,
   NoAgentModelError,
   NoCodingAgentError,
@@ -13,11 +14,10 @@ import {
 } from "./errors.js";
 import { agentModels, currentCodingAgent } from "./models.js";
 import {
-  fitsSession,
-  openSessionInTerminal,
   sessionMode,
-  writeSession,
+  startSession,
   type InstalledAgent,
+  type SessionRefusal,
 } from "./nuabase.js";
 
 /*
@@ -25,12 +25,12 @@ import {
  * (agents.ts), as an interactive session the user carries on in a terminal.
  *
  *   handOffPrompt(prompt)
- *     -> tmp/agent-prompts/<stamp>-<agent>-<hex>.md       the prompt, 0600
- *     -> tmp/agent-prompts/<stamp>-<agent>-<hex>.command  the launcher, 0700
+ *     -> tmp/agent-prompts/<stamp>-<agent>-<hex>.md       the prompt
+ *     -> tmp/agent-prompts/<stamp>-<agent>-<hex>.command  its launcher
  *     -> on macOS: a new window of the user's terminal app runs it
  *
- * Nuabase writes the launcher and opens the terminal (nuabase.ts): it knows
- * each CLI's options and how to pass a prompt to it safely. The server decides
+ * Nuabase writes both and opens the terminal (nuabase.ts): it knows each CLI's
+ * options and how to pass a prompt to it safely. The server decides
  * which agent, which model and whether it can open a terminal, and says so in
  * what it returns; the browser sends a prompt and nothing else. The session
  * runs on the most capable model the agent answered on (models.ts), in its
@@ -76,42 +76,44 @@ export async function handOffPrompt(
   const inUse = await currentCodingAgent();
   if (inUse.agent === null) throw new NoCodingAgentError(inUse.why);
   const { agent } = inUse;
-  const availability = handoffAvailability(agent, platform);
-  if (availability.mode === "none")
-    throw new HandoffUnsupportedError(agent.agent);
-  if (!fitsSession(prompt, platform)) {
-    throw new PromptTooLongError(agent.agent);
-  }
   // At startup the check may still be running; it takes a few seconds.
   const models = await agentModels(agent);
   if (models.state === "no_model") {
     throw new NoAgentModelError(agent.agent, models.unavailable);
   }
 
-  const stamp = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
-  const written = writeSession({
+  const started = await startSession({
     agent,
     // Pi names no model, so it runs its own configured default.
     model: models.session.model,
     cwd: root,
     prompt,
     dir: join(root, ...PROMPTS_DIR),
-    name: `${stamp}-${agent.agent}-${randomBytes(2).toString("hex")}`,
     platform,
   });
-  if (availability.mode === "terminal") {
-    try {
-      await openSessionInTerminal(written.launcherPath, platform);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      throw new TerminalOpenFailedError(reason, written.command);
-    }
+  if (started.kind === "refused") {
+    throw refusalError(started.reason, agent.agent);
+  }
+  const { files } = started;
+  if (started.kind === "command" && started.terminalError !== undefined) {
+    throw new TerminalOpenFailedError(started.terminalError, files.command);
   }
   return {
     agent: agent.agent,
-    mode: availability.mode,
-    prompt_path: written.promptPath,
-    launcher_path: written.launcherPath,
-    command: written.command,
+    mode: started.kind === "opened" ? "terminal" : "command",
+    prompt_path: files.promptPath,
+    launcher_path: files.launcherPath,
+    command: files.command,
   };
+}
+
+function refusalError(reason: SessionRefusal, agent: CodingAgent) {
+  switch (reason) {
+    case "unsupported_platform":
+      return new HandoffUnsupportedError(agent);
+    case "prompt_too_long":
+      return new PromptTooLongError(agent);
+    case "agent_not_found":
+      return new CodingAgentNotInstalledError(agent);
+  }
 }

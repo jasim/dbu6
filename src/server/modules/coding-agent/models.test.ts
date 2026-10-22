@@ -45,8 +45,10 @@ const PI: InstalledAgent = {
 const SOL = { model: "gpt-5.6-sol", label: "GPT-5.6 Sol" };
 const TERRA = { model: "gpt-5.6-terra", label: "GPT-5.6 Terra" };
 
-function refusal(model: string | undefined): string {
-  return `codex: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The '${model}' model is not supported on this sample account."}}`;
+/** A failed call, as nuabase answers it. */
+function refusal(model: string | undefined) {
+  const reason = `The '${model}' model is not supported on this sample account.`;
+  return { success: false, error: `LLM call failed: ${reason}`, reason };
 }
 
 /** Only these models answer; the rest are refused. `undefined` is the default. */
@@ -56,7 +58,7 @@ function answering(...answered: (string | undefined)[]) {
       get: async () =>
         answered.includes(config.model)
           ? { success: true, data: "OK" }
-          : { success: false, error: refusal(config.model) },
+          : refusal(config.model),
     }),
   );
 }

@@ -12,12 +12,7 @@ vi.mock("nuabase", () => ({ Nua: { direct: vi.fn() } }));
 
 import { Nua } from "nuabase";
 import { z } from "zod";
-import {
-  agentGetClient,
-  detectAgents,
-  llmFailureMessage,
-  reportedError,
-} from "./nuabase.js";
+import { agentGetClient, detectAgents, reportedError } from "./nuabase.js";
 
 // As nuabase reports it, with the fields dbu6 doesn't read.
 const CLAUDE = {
@@ -87,32 +82,6 @@ describe("detectAgents", () => {
       "pi",
     ]);
   });
-
-  it("refuses a status for an agent it knows but can't read", async () => {
-    detectLocalAgents.mockResolvedValue([
-      { agent: "codex", installed: true, loggedIn: true },
-    ]);
-
-    await expect(detectAgents()).rejects.toThrow();
-  });
-});
-
-describe("llmFailureMessage", () => {
-  it("reads the message out of the API error Codex passes on", () => {
-    expect(
-      llmFailureMessage(
-        `codex: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-5.6-sol' model is not supported on this sample account."}}`,
-      ),
-    ).toBe("The 'gpt-5.6-sol' model is not supported on this sample account.");
-  });
-
-  it("drops Nuabase's retry prefix and the CLI's name", () => {
-    expect(
-      llmFailureMessage(
-        "LLM call failed after 3 attempts. Last error: claude: There's an issue with the selected model (sample-050505).",
-      ),
-    ).toBe("There's an issue with the selected model (sample-050505).");
-  });
 });
 
 describe("reportedError", () => {
@@ -166,22 +135,28 @@ describe("agentGetClient", () => {
     });
   });
 
-  it("reports a failed call in the agent's own words", async () => {
+  it("reports a failed call in the agent's own words, logging nuabase's account", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     answering({
       success: false,
-      error:
-        "LLM call failed after 3 attempts. Last error: claude: sample failure",
+      error: "LLM call failed after 3 attempts. Last error: sample failure",
+      reason: "sample failure",
+      attempts: 3,
     });
     expect(await client().get(request)).toEqual({
       ok: false,
       error: "sample failure",
     });
+    expect(log).toHaveBeenCalledWith(
+      "[nuabase] get call failed:",
+      "LLM call failed after 3 attempts. Last error: sample failure",
+    );
   });
 
   it("refuses a value that isn't what the schema says", async () => {
     answering({ success: true, data: { accounts: "three" } });
     const answer = await client().get(request);
     expect(answer.ok).toBe(false);
-    expect(!answer.ok && answer.error).toMatch(/shape dbu6 doesn't know/);
+    expect(!answer.ok && answer.error).toMatch(/isn't what dbu6 asked for/);
   });
 });
