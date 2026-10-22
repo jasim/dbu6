@@ -123,7 +123,7 @@ describe("agentGetClient", () => {
       "sample-model",
     );
 
-  it("sends the input and output, and parses the value it answers", async () => {
+  it("sends the input and output, and answers with the value", async () => {
     const get = answering({ success: true, data: { accounts: 3 } });
     expect(await client().get(request)).toEqual({
       ok: true,
@@ -151,12 +151,5 @@ describe("agentGetClient", () => {
       "[nuabase] get call failed:",
       "LLM call failed after 3 attempts. Last error: sample failure",
     );
-  });
-
-  it("refuses a value that isn't what the schema says", async () => {
-    answering({ success: true, data: { accounts: "three" } });
-    const answer = await client().get(request);
-    expect(answer.ok).toBe(false);
-    expect(!answer.ok && answer.error).toMatch(/isn't what dbu6 asked for/);
   });
 });

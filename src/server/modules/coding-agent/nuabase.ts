@@ -252,18 +252,11 @@ export function agentGetClient(
       } catch (error) {
         return failed("get", thrownMessage(error));
       }
-      if (!answered.success) {
-        return failed("get", answered.error, answered.reason);
-      }
-      // nuabase checks the answer against the schema's JSON Schema, which
-      // runs none of its transforms or refinements; this parse does, and
-      // gives the value its type.
-      const value = request.output.schema.safeParse(answered.data);
-      if (value.success) return { ok: true, value: value.data };
-      const issues = value.error.issues
-        .map((issue) => `${issue.path.join(".") || "answer"} ${issue.message}`)
-        .join("; ");
-      return failed("get", `The answer isn't what dbu6 asked for: ${issues}`);
+      // nuabase parses the answer with the schema, retrying one it
+      // refuses, so a value is the schema's output.
+      return answered.success
+        ? { ok: true, value: answered.data }
+        : failed("get", answered.error, answered.reason);
     },
   };
 }
