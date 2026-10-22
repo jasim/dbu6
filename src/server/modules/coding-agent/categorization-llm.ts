@@ -24,6 +24,18 @@ import { agentListClient, type InstalledAgent } from "./nuabase.js";
 // Each call is one CLI process, so calls stay small.
 const LOCAL_AGENT_ROWS_PER_CALL = 50;
 
+// A run's calls start this far apart, at random, so their processes don't
+// all start at once.
+const MIN_PAUSE_BETWEEN_CALLS_MS = 3_000;
+const MAX_PAUSE_BETWEEN_CALLS_MS = 8_000;
+
+function pauseBetweenCalls(): Promise<void> {
+  const ms =
+    MIN_PAUSE_BETWEEN_CALLS_MS +
+    Math.random() * (MAX_PAUSE_BETWEEN_CALLS_MS - MIN_PAUSE_BETWEEN_CALLS_MS);
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * After a failed call: asks the agent's models again, which keeps the result,
  * and says why the agent can't be used when none answered. The kept no_model
@@ -58,6 +70,7 @@ export function localAgentLlm(
       }),
       maxRowsPerCall: LOCAL_AGENT_ROWS_PER_CALL,
       confirmUnavailable: () => confirmAgentUnavailable(agent),
+      pauseBetweenCalls,
     },
   };
 }

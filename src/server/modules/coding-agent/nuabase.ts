@@ -43,7 +43,7 @@ const CALL_TIMEOUT_MS = 180_000;
 const CHECK_TIMEOUT_MS = 60_000;
 // Processes of one agent executable running at once, across every call and
 // model check.
-const CONCURRENT_CALLS = 2;
+const CONCURRENT_CALLS = 5;
 
 // Nuabase logs every call's start and end, usage included, as info. dbu6
 // keeps its warnings and errors and logs its own failures (`failed`), so the

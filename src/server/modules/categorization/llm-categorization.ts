@@ -64,6 +64,11 @@ export interface CategorizationLlm {
          * check, whose result is kept, so later runs don't call it.
          */
         confirmUnavailable(): Promise<string | null>;
+        /**
+         * Waits before a call that follows another in the same run, so a
+         * run's calls don't all start at once.
+         */
+        pauseBetweenCalls(): Promise<void>;
       }
     | { ready: false; reason: string };
 }
@@ -262,8 +267,9 @@ async function callList(
  *
  * The first call goes alone. When it fails, the engine is asked whether it can
  * be used at all; if not, no other call is sent and the run is
- * `agent_unavailable`. Otherwise the rest run together, and any failure is
- * `partial`.
+ * `agent_unavailable`. Otherwise the rest are sent one after another, each
+ * after the engine's pause, without waiting for the ones before to answer, and
+ * any failure is `partial`.
  */
 export async function categorizeViaLLM(
   transactions: readonly StatementTransaction[],
@@ -328,9 +334,12 @@ export async function categorizeViaLLM(
       };
     }
   }
-  const rest = await Promise.all(
-    restRows.map((callRows, index) => send(callRows, index + 1)),
-  );
+  const sent: ReturnType<typeof send>[] = [];
+  for (const [index, callRows] of restRows.entries()) {
+    await caller.pauseBetweenCalls();
+    sent.push(send(callRows, index + 1));
+  }
+  const rest = await Promise.all(sent);
 
   const answered: LLMResponseRow[] = [];
   for (const outcome of [first, ...rest]) {

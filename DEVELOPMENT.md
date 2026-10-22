@@ -854,13 +854,15 @@ entry in each of those two tables.
   and the check only confirms that default answers.
 - **Categorization** runs headless (`Nua.direct` with `localAgent`), on the
   least capable model that answered, billed to your own Claude or ChatGPT plan
-  rather than an API key. Nothing is cached, so reclassifying sends every
-  description again.
+  rather than an API key, in calls of 50 descriptions. The first call goes
+  alone; the rest start 3 to 8 seconds apart, at random, with at most five of
+  the agent's processes running at once across every call dbu6 makes. Nothing
+  is cached, so reclassifying sends every description again.
 - **Comments.** Each imported row's comment is written on the same engine
   and model as categorization, in the background (`workflows/comment-writer.ts`,
   prompt in `modules/comment-writer/`): 50 distinct statement texts a call,
-  two calls at once, never while an import or Run categorizer is
-  categorizing. It runs at startup, so the first start after migration 0012
+  two calls at once, each after a pause of 3 to 8 seconds, never while an
+  import or Run categorizer is categorizing. It runs at startup, so the first start after migration 0012
   sends every past narration to the agent.
 - **The chart of accounts** a new user describes at `/setup` is one
   more headless call (`Nua.direct`'s `get`, a structured answer checked

@@ -69,6 +69,7 @@ function fakeLlm(
       ready: true,
       maxRowsPerCall: 50,
       confirmUnavailable: async () => options.unavailable ?? null,
+      pauseBetweenCalls: async () => {},
       client: {
         async list<Name extends string>(request: ListRequest<Name>) {
           calls.push(request.rows.map((row) => row.text));

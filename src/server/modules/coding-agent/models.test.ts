@@ -187,7 +187,7 @@ describe("agentModels", () => {
           agent: "codex",
           binaryPath: "/sample/bin/codex",
           timeoutMs: 180_000,
-          concurrency: 2,
+          concurrency: 5,
           logger: expect.anything(),
         },
       ],

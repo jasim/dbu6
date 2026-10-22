@@ -165,6 +165,7 @@ export function createCommentWriter(deps: CommentWriterDeps): CommentWriter {
     const worker = async () => {
       while (next < rest.length) {
         const batch = rest[next++]!;
+        await caller.pauseBetweenCalls();
         if (!(await send(caller, batch))) {
           for (const text of batch) fail(text, "the call failed");
         }

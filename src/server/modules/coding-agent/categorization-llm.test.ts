@@ -53,7 +53,7 @@ describe("localAgentLlm", () => {
         binaryPath: "/sample/bin/claude",
         timeoutMs: 180_000,
         logger: expect.anything(),
-        concurrency: 2,
+        concurrency: 5,
         model: "sonnet",
         effort: undefined,
       },

@@ -27,6 +27,7 @@ function engine(overrides: Partial<CategorizationLlm> = {}): CategorizationLlm {
       client: { list: listMock },
       maxRowsPerCall: 50,
       confirmUnavailable: confirmUnavailableMock,
+      pauseBetweenCalls: async () => {},
     },
     ...overrides,
   };
@@ -500,6 +501,45 @@ describe("categorizeViaLLM", () => {
         [2, "Food"],
       ]),
     );
+  });
+
+  it("pauses before each call after the first, without waiting for the calls before to answer", async () => {
+    const events: string[] = [];
+    let sendThird!: () => void;
+    const thirdSent = new Promise<void>((resolve) => {
+      sendThird = resolve;
+    });
+    listMock.mockImplementation(
+      async (request: { rows: { id: string; text: string }[] }) => {
+        const call = events.filter((event) => event === "call").length + 1;
+        events.push("call");
+        // The second call answers only once the third has been sent.
+        if (call === 2) await thirdSent;
+        if (call === 3) sendThird();
+        return {
+          ok: true,
+          rows: request.rows.map((row) => ({ id: row.id, account: "Food" })),
+        };
+      },
+    );
+    const llm = engine();
+    if (!llm.caller.ready) throw new Error("the engine should be ready");
+    const caller = {
+      ...llm.caller,
+      pauseBetweenCalls: async () => {
+        events.push("pause");
+      },
+    };
+    const txns = Array.from({ length: 120 }, (_, i) => withdrawal(`SHOP${i}`));
+
+    const result = await categorizeViaLLM(
+      txns,
+      txns.map((_, i) => i),
+      { ...config, llm: { ...llm, caller } },
+    );
+
+    expect(events).toEqual(["call", "pause", "call", "pause", "call"]);
+    expect(result.mappings.size).toBe(120);
   });
 
   it("counts only a failed call's own descriptions and keeps the other calls' answers", async () => {
