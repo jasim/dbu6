@@ -1,5 +1,11 @@
 # @dbu6/app
 
+## 0.3.1
+
+### Patch Changes
+
+- Give the Excel export to Income and Expenses through the report kit
+
 ## 0.3.0
 
 ### Minor Changes
