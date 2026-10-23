@@ -1,10 +1,9 @@
-import { formatMonth } from "../../report-kit";
+import { formatMonth, type XlsxSheet } from "../../report-kit";
 import type {
   DateSpan,
   IncomeExpenses,
   IncomeExpensesAccount,
 } from "../../../shared/index";
-import type { XlsxSheet } from "../../xlsx";
 import type { Section } from "./figures";
 import { ownMonths } from "./selection";
 

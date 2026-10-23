@@ -3,7 +3,9 @@ import {
   Button,
   ChevronDown,
   cn,
+  downloadXlsx,
   EmptyState,
+  FileSpreadsheet,
   formatDaySpan,
   formatMonth,
   FRESH_QUERY,
@@ -29,7 +31,6 @@ import {
   useSearchParams,
   useState,
 } from "../../report-kit";
-import { FileSpreadsheet } from "lucide-react";
 import { reportsApi } from "../client";
 import type { DateSpan, IncomeExpenses } from "../../../shared/index";
 import { AccountTable } from "./AccountTable";
@@ -38,7 +39,6 @@ import { EntriesPanel } from "./EntriesPanel";
 import { incomeExpensesFileName, incomeExpensesSheets } from "./export";
 import { figures, isEmptyPeriod, type Figures } from "./figures";
 import { MonthChart, MonthChartSkeleton } from "./MonthChart";
-import { downloadXlsx } from "../../xlsx";
 import {
   activePreset,
   emptyPeriodSentence,
