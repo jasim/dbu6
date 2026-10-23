@@ -1,5 +1,11 @@
 # @dbu6/app
 
+## 0.3.2
+
+### Patch Changes
+
+- Pin @better-auth/core to 1.6.22 so npm resolves the adapter's peers
+
 ## 0.3.1
 
 ### Patch Changes
