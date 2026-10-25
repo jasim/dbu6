@@ -5,7 +5,7 @@ import type {
   HomeLedgerAccount,
   HomeSummary,
 } from "../../shared/index";
-import { ADD_MENU, homeState, statementsHref } from "./state";
+import { ADD_MENU, updateState, statementsHref } from "./state";
 
 function account(
   overrides: Partial<HomeLedgerAccount> = {},
@@ -62,9 +62,9 @@ function sum(accounts: HomeLedgerAccount[], key: keyof DraftCounts): number {
   return accounts.reduce((total, a) => total + a[key], 0);
 }
 
-describe("homeState", () => {
+describe("updateState", () => {
   it("starts setup with the chart when the books have none", () => {
-    const view = homeState(summary([], { has_chart: false }));
+    const view = updateState(summary([], { has_chart: false }));
     expect(view.state).toBe("no-chart");
     expect(view.greeting).toBe("Let's set up your books");
     expect(view.card).toEqual({
@@ -76,7 +76,7 @@ describe("homeState", () => {
   });
 
   it("asks for the first bank or card, on the first run, once there is a chart", () => {
-    const view = homeState(summary([]));
+    const view = updateState(summary([]));
     expect(view.state).toBe("nothing-imported");
     expect(view.greeting).toBe("Let's set up your books");
     expect(view.card).toEqual({
@@ -88,7 +88,7 @@ describe("homeState", () => {
 
   it("names the banks and cards set up with no transactions yet", () => {
     // Set up by an agent, or an add left unfinished: /add finishes them.
-    const view = homeState(
+    const view = updateState(
       summary([
         account({ checkpoint: null }),
         account({
@@ -111,11 +111,11 @@ describe("homeState", () => {
   });
 
   it("says drafts are waiting, whatever they still need", () => {
-    const view = homeState(
+    const view = updateState(
       summary([account({ drafts: 12, uncategorised: 5, failing_checks: 2 })]),
     );
     expect(view.state).toBe("drafts");
-    expect(view.greeting).toBeUndefined();
+    expect(view.greeting).toBe("Update your books");
     expect(view.card).toEqual({
       title: "There are draft entries waiting to be posted to your books",
       action: { label: "Review transactions", to: "/review/2" },
@@ -123,7 +123,7 @@ describe("homeState", () => {
   });
 
   it("sends drafts on several accounts to the account picker", () => {
-    const view = homeState(
+    const view = updateState(
       summary([
         account({ drafts: 21 }),
         account({
@@ -139,7 +139,7 @@ describe("homeState", () => {
   });
 
   it("sends drafts on unlisted accounts to the account picker", () => {
-    const view = homeState(
+    const view = updateState(
       summary([account()], {
         totals: {
           drafts: 3,
@@ -156,14 +156,14 @@ describe("homeState", () => {
 
   it("gives the only account with drafts its own Review", () => {
     // An account deleted from the ledger holds no drafts.
-    const view = homeState(summary([account({ drafts: 21 }), deleted]));
+    const view = updateState(summary([account({ drafts: 21 }), deleted]));
     expect(view.card.action.to).toBe("/review/2");
   });
 
   it("asks for new statements, without claiming up to date, when nothing is pending", () => {
-    const view = homeState(summary([account()]));
+    const view = updateState(summary([account()]));
     expect(view.state).toBe("import-new");
-    expect(view.greeting).toBeUndefined();
+    expect(view.greeting).toBe("Update your books");
     expect(view.card.count).toBeUndefined();
     expect(view.card.title).toBe("Import new statements");
     expect(view.card.body).toBeUndefined();

@@ -17,7 +17,8 @@ import {
   Settings2,
 } from "lucide-react";
 import { Advanced } from "./Advanced";
-import { Home as HomePage } from "./home/Home";
+import { UPDATE_ROUTE } from "./update/routes";
+import { Update } from "./update/Update";
 import { ImportInstructions } from "./views/import-instructions/ImportInstructions";
 import { CATEGORIZATION_RULES_ROUTE } from "./views/import-instructions/routes";
 import { retiredRoutes } from "./redirects";
@@ -106,8 +107,9 @@ const REVIEW_TAB_SCREENS: Record<ReviewTab, ComponentType> = {
   "balance-checks": BalanceChecksTab,
 };
 
-// `/` is Home. It needs a session, so it renders inside the auth gate.
-export const appHomeRoute = <Route index element={<HomePage />} />;
+// `/` is Update until Overview takes its place. It needs a session, so it
+// renders inside the auth gate.
+export const appHomeRoute = <Route index element={<Update />} />;
 
 // Routes here render without requiring a signed-in session.
 export const appPublicRoutes = <></>;
@@ -139,6 +141,7 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
         <Route path={NEW_ACCOUNT_PATH} element={<NewAccountDialog />} />
         <Route path={EDIT_ACCOUNT_PATH} element={<EditAccountDialog />} />
       </Route>
+      <Route path={UPDATE_ROUTE.slice(1)} element={<Update />} />
       <Route path="import" element={<AutoImportStatements />} />
       <Route path="review" element={<ReviewAccounts />} />
       <Route path="review/:accountId" element={<ReviewAccount />}>

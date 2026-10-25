@@ -22,14 +22,15 @@ import {
 import { reviewHref } from "../review/routes";
 import { BANKS_SETTINGS_ROUTE } from "../views/settings/routes";
 import { formatDate, plural } from "../format";
-import { ADD_MENU, homeState, statementsHref, type HomeCard } from "./state";
+import { ADD_MENU, updateState, statementsHref, type UpdateCard } from "./state";
 
 /**
- * Home (PLAN.md §11 P1): where the books stand and one thing to do. One
- * request; the greeting and the card follow from the summary's state.
+ * Update: where the books stand and one thing to do to bring them up to
+ * date, once Home (PLAN.md §11 P1). One request; the greeting and the card
+ * follow from the summary's state.
  */
-export function Home() {
-  usePageTitle("Home");
+export function Update() {
+  usePageTitle("Update");
   const workspaceName = useAuthStore((s) =>
     s.session.kind === "authenticated"
       ? s.session.context.workspace.name
@@ -38,7 +39,7 @@ export function Home() {
   const query = useQuery(homeSummaryQuery);
   const summary = query.data ?? null;
   const error = query.isError ? apiErrorMessage(query.error) : null;
-  const view = summary ? homeState(summary) : null;
+  const view = summary ? updateState(summary) : null;
 
   return (
     <Screen
@@ -47,11 +48,9 @@ export function Home() {
         <>
           <p className="text-label uppercase text-ink-meta">{todayLabel()}</p>
           {view ? (
-            view.greeting && (
-              <h1 className="mt-2 text-title text-foreground sm:text-display">
-                {view.greeting}
-              </h1>
-            )
+            <h1 className="mt-2 text-title text-foreground sm:text-display">
+              {view.greeting}
+            </h1>
           ) : (
             <div
               aria-hidden="true"
@@ -108,7 +107,8 @@ export function Home() {
   );
 }
 
-function StepCard({ card }: { card: HomeCard }) {
+/** The one thing to do; Overview shows it too until anything is posted. */
+export function StepCard({ card }: { card: UpdateCard }) {
   return (
     <NextStepCard
       count={card.count}

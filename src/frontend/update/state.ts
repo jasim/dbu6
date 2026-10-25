@@ -9,13 +9,14 @@ import { SETUP_ROUTE } from "../setup/routes";
 import { joinNames } from "../format";
 
 /*
- * What Home says, as a pure function of the summary (PLAN.md "Home"). In
+ * What Update says, as a pure function of the summary (PLAN.md "Home"). In
  * precedence order: no chart, then drafts waiting, then nothing imported
  * (no bank or card yet, or only ones set up with no transactions), then new
  * statements to import. The first two open the first run: /setup's chart,
- * then /add's cards. Home only says that drafts are waiting; what they still
- * need is Review's to say. An empty Review doesn't mean the books are up to
- * date: a statement may not have been imported yet, so Home never says so.
+ * then /add's cards. Update only says that drafts are waiting; what they
+ * still need is Review's to say. An empty Review doesn't mean the books are
+ * up to date: a statement may not have been imported yet, so Update never
+ * says so.
  */
 
 /**
@@ -28,32 +29,32 @@ export function statementsHref(summary: Pick<HomeSummary, "any_imported">) {
 }
 
 /** "+ Add", beside "Your accounts": /add's cards, or C1. */
-export const ADD_MENU: readonly HomeLink[] = [
+export const ADD_MENU: readonly UpdateLink[] = [
   { label: "Bank or card", to: ADD_ROUTE },
   { label: "Cash, deposit, investment or loan", to: ADD_OTHER_ROUTE },
 ];
 
-export type HomeStateId =
+export type UpdateStateId =
   "no-chart" | "nothing-imported" | "drafts" | "import-new";
 
-export interface HomeLink {
+export interface UpdateLink {
   label: string;
   to: string;
 }
 
-export interface HomeCard {
+export interface UpdateCard {
   /** The medallion figure; absent when there is nothing to count. */
   count?: number;
   title: string;
   body?: string;
-  action: HomeLink;
+  action: UpdateLink;
 }
 
-export interface HomeView {
-  state: HomeStateId;
-  /** The page heading; absent when the card says it all. */
-  greeting?: string;
-  card: HomeCard;
+export interface UpdateView {
+  state: UpdateStateId;
+  /** The page heading: the first run's, else the page's own. */
+  greeting: string;
+  card: UpdateCard;
   /**
    * Whether the page lists the accounts under the card: not before there
    * are any, when the card's is the one thing to do.
@@ -61,7 +62,10 @@ export interface HomeView {
   listsAccounts: boolean;
 }
 
-export function homeState(summary: HomeSummary): HomeView {
+/** The heading once the first run is over. */
+const UPDATE_HEADING = "Update your books";
+
+export function updateState(summary: HomeSummary): UpdateView {
   const { accounts, totals } = summary;
 
   if (!summary.has_chart) {
@@ -79,6 +83,7 @@ export function homeState(summary: HomeSummary): HomeView {
   if (totals.drafts > 0) {
     return {
       state: "drafts",
+      greeting: UPDATE_HEADING,
       card: {
         title: "There are draft entries waiting to be posted to your books",
         action: { label: "Review transactions", to: reviewTarget(summary) },
@@ -106,6 +111,7 @@ export function homeState(summary: HomeSummary): HomeView {
 
   return {
     state: "import-new",
+    greeting: UPDATE_HEADING,
     card: {
       title: "Import new statements",
       action: { label: "Import statements", to: "/import" },
