@@ -1,12 +1,16 @@
-import type {
-  HomeAccount,
-  HomeLedgerAccount,
-  HomeSummary,
+import {
+  isProblem,
+  postingBlocks,
+  type HomeAccount,
+  type HomeLedgerAccount,
+  type HomeSummary,
 } from "../../shared/index";
+import type { StatusTone } from "../components/status-chip";
+import { RECONCILIATION_DIFFERENCES_HREF } from "../reports/links";
 import { ADD_OTHER_ROUTE, ADD_ROUTE, addHref } from "../add-account/state";
 import { reviewHref, REVIEW_ROUTE } from "../review/routes";
 import { SETUP_ROUTE } from "../setup/routes";
-import { joinNames } from "../format";
+import { joinNames, plural } from "../format";
 
 /*
  * What Update says, as a pure function of the summary (PLAN.md "Home"). In
@@ -62,6 +66,9 @@ export interface UpdateView {
   listsAccounts: boolean;
 }
 
+/** The heading during the first run, on Update and on Overview. */
+export const FIRST_RUN_GREETING = "Let's set up your books";
+
 /** The heading once the first run is over. */
 const UPDATE_HEADING = "Update your books";
 
@@ -71,7 +78,7 @@ export function updateState(summary: HomeSummary): UpdateView {
   if (!summary.has_chart) {
     return {
       state: "no-chart",
-      greeting: "Let's set up your books",
+      greeting: FIRST_RUN_GREETING,
       card: {
         title: "Start with a chart of accounts",
         action: { label: "Start setup", to: SETUP_ROUTE },
@@ -99,7 +106,7 @@ export function updateState(summary: HomeSummary): UpdateView {
     const waiting = named(inLedger(accounts));
     return {
       state: "nothing-imported",
-      greeting: "Let's set up your books",
+      greeting: FIRST_RUN_GREETING,
       card: {
         title: "Add your first bank or card",
         body: waiting ? `Set up, no transactions yet: ${waiting}.` : undefined,
@@ -118,6 +125,53 @@ export function updateState(summary: HomeSummary): UpdateView {
     },
     listsAccounts: true,
   };
+}
+
+/**
+ * What waits on the account, and where to see it; nothing when nothing does.
+ * Problems in its drafts come first, since Review shows them; then books that
+ * miss a statement balance, as an entry changed after its statement was
+ * added; then drafts waiting; then an institution with no parser, whose
+ * statements can't be imported until dropping them at /add teaches dbu6
+ * their format.
+ */
+export function accountStatus(
+  account: HomeAccount,
+  statementsTo: string,
+): {
+  tone: StatusTone;
+  label: string;
+  to?: string;
+} | null {
+  if (!account.in_ledger) {
+    return { tone: "problem", label: "Account deleted" };
+  }
+  const review = reviewHref(account.account_id);
+  if (postingBlocks(account).some(isProblem)) {
+    return { tone: "problem", label: "Problems in drafts", to: review };
+  }
+  if (account.statement_differences > 0) {
+    return {
+      tone: "problem",
+      label: "Doesn't match statement",
+      to: RECONCILIATION_DIFFERENCES_HREF,
+    };
+  }
+  if (account.drafts > 0) {
+    return {
+      tone: "attention",
+      label: `${plural(account.drafts, "draft")} waiting`,
+      to: review,
+    };
+  }
+  if (!account.has_parser) {
+    return {
+      tone: "attention",
+      label: "Needs a first statement",
+      to: statementsTo,
+    };
+  }
+  return null;
 }
 
 /**

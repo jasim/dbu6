@@ -17,6 +17,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { Advanced } from "./Advanced";
+import { Overview as OverviewPage } from "./overview/Overview";
 import { UPDATE_ROUTE } from "./update/routes";
 import { Update } from "./update/Update";
 import { ImportInstructions } from "./views/import-instructions/ImportInstructions";
@@ -107,9 +108,8 @@ const REVIEW_TAB_SCREENS: Record<ReviewTab, ComponentType> = {
   "balance-checks": BalanceChecksTab,
 };
 
-// `/` is Update until Overview takes its place. It needs a session, so it
-// renders inside the auth gate.
-export const appHomeRoute = <Route index element={<Update />} />;
+// `/` is Overview. It needs a session, so it renders inside the auth gate.
+export const appHomeRoute = <Route index element={<OverviewPage />} />;
 
 // Routes here render without requiring a signed-in session.
 export const appPublicRoutes = <></>;

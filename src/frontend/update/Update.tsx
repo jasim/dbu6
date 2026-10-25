@@ -4,7 +4,7 @@ import { ChevronRight, CreditCard, Landmark, Plus } from "lucide-react";
 import { comboboxClassNames } from "@sapporta/ui/combobox";
 import { cn } from "@sapporta/ui/cn";
 import { useQuery } from "@tanstack/react-query";
-import { isProblem, postingBlocks, type HomeAccount } from "../../shared/index";
+import type { HomeAccount } from "../../shared/index";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { apiErrorMessage } from "../api";
@@ -13,16 +13,18 @@ import { Button, buttonVariants } from "../components/ui/button";
 import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
 import { NextStepCard } from "../components/next-step-card";
-import { StatusChip, type StatusTone } from "../components/status-chip";
+import { StatusChip } from "../components/status-chip";
 import { homeSummaryQuery } from "../queries";
-import {
-  accountLedgerHref,
-  RECONCILIATION_DIFFERENCES_HREF,
-} from "../reports/links";
-import { reviewHref } from "../review/routes";
+import { accountLedgerHref } from "../reports/links";
 import { BANKS_SETTINGS_ROUTE } from "../views/settings/routes";
-import { formatDate, plural } from "../format";
-import { ADD_MENU, updateState, statementsHref, type UpdateCard } from "./state";
+import { formatDate } from "../format";
+import {
+  accountStatus,
+  ADD_MENU,
+  statementsHref,
+  updateState,
+  type UpdateCard,
+} from "./state";
 
 /**
  * Update: where the books stand and one thing to do to bring them up to
@@ -292,53 +294,6 @@ function ImportedUntil({ account }: { account: HomeAccount }) {
     return <span className="text-ink-meta">—</span>;
   }
   return <span className="tnum">{formatDate(account.checkpoint.date)}</span>;
-}
-
-/**
- * What waits on the account, and where to see it; nothing when nothing does.
- * Problems in its drafts come first, since Review shows them; then books that
- * miss a statement balance, as an entry changed after its statement was
- * added; then drafts waiting; then an institution with no parser, whose
- * statements can't be imported until dropping them at /add teaches dbu6
- * their format.
- */
-function accountStatus(
-  account: HomeAccount,
-  statementsTo: string,
-): {
-  tone: StatusTone;
-  label: string;
-  to?: string;
-} | null {
-  if (!account.in_ledger) {
-    return { tone: "problem", label: "Account deleted" };
-  }
-  const review = reviewHref(account.account_id);
-  if (postingBlocks(account).some(isProblem)) {
-    return { tone: "problem", label: "Problems in drafts", to: review };
-  }
-  if (account.statement_differences > 0) {
-    return {
-      tone: "problem",
-      label: "Doesn't match statement",
-      to: RECONCILIATION_DIFFERENCES_HREF,
-    };
-  }
-  if (account.drafts > 0) {
-    return {
-      tone: "attention",
-      label: `${plural(account.drafts, "draft")} waiting`,
-      to: review,
-    };
-  }
-  if (!account.has_parser) {
-    return {
-      tone: "attention",
-      label: "Needs a first statement",
-      to: statementsTo,
-    };
-  }
-  return null;
 }
 
 /** "Tuesday, 15 September 2026". */

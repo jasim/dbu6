@@ -48,6 +48,21 @@ export function incomeStatementHref(fromDate: string, toDate: string): string {
   });
 }
 
+/** Income and Expenses over the days from `fromDate` to `toDate`. */
+export function incomeExpensesHref(fromDate: string, toDate: string): string {
+  return createSnapshotUrl("/reports/income-expenses", {
+    from_date: fromDate,
+    to_date: toDate,
+  });
+}
+
+/** The balance sheet as of a day. */
+export function balanceSheetHref(asOfDate: string): string {
+  return createSnapshotUrl("/reports/balance-sheet", {
+    as_of_date: asOfDate,
+  });
+}
+
 export function accountLedgerRow<
   TInput extends LedgerLinkInput = LedgerLinkInput,
 >(idColumn = "account_id") {

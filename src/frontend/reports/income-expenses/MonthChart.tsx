@@ -31,12 +31,18 @@ export function MonthChart({
   onSelect,
   series,
   onClearSeries,
+  alwaysSelected = false,
 }: {
   bars: readonly ChartBar[];
   selected: string | null;
   onSelect: (key: string | null) => void;
   series: AccountSeries | null;
   onClearSeries: () => void;
+  /**
+   * A bar is always selected, as Overview's month is: no chip to let go of
+   * it, and clicking it again keeps it.
+   */
+  alwaysSelected?: boolean;
 }) {
   const scale = series ? Math.max(0, ...series.values) : chartScale(bars);
   const average =
@@ -92,7 +98,8 @@ export function MonthChart({
         )
       }
       selected={
-        selectedBar && (
+        selectedBar &&
+        !alwaysSelected && (
           <button
             type="button"
             onClick={() => onSelect(null)}
@@ -121,7 +128,9 @@ export function MonthChart({
                     closeDelay={0}
                     aria-label={description}
                     aria-pressed={isSelected}
-                    onClick={() => onSelect(isSelected ? null : bar.key)}
+                    onClick={() =>
+                      onSelect(isSelected && !alwaysSelected ? null : bar.key)
+                    }
                     className="group flex w-full flex-col items-center rounded-control px-1 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
                   >
                     <span
