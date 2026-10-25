@@ -32,6 +32,7 @@ import importDraftAbacusApi from "./app/import-draft-abacus.js";
 import importDraftStatementsAutoApi from "./app/import-draft-statements-auto.js";
 import importPresetsApi from "./app/import-presets.js";
 import openingBalancesApi from "./app/opening-balances.js";
+import overviewApi from "./app/overview.js";
 import postDraftsToJournalApi from "./app/post-drafts-to-journal.js";
 import setDraftsAccountApi from "./app/set-drafts-account.js";
 import renderDraftHledgerApi from "./app/render-draft-hledger.js";
@@ -112,6 +113,7 @@ export function loadDbu6App(
   mountApi(api, setDraftsAccountApi);
   mountApi(api, categorizationRuleRequestsApi);
   mountApi(api, homeApi);
+  mountApi(api, overviewApi);
   mountApi(api, reviewApi);
   mountApi(api, searchApi);
   mountApi(api, openingBalancesApi);
