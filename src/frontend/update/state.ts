@@ -175,6 +175,18 @@ export function accountStatus(
 }
 
 /**
+ * How many accounts Update shows something waiting on, by the rule its rows
+ * follow: the count on its sidebar item and Overview's status line. Zero
+ * when none.
+ */
+export function waitingInUpdate(summary: HomeSummary): number {
+  const to = statementsHref(summary);
+  return summary.accounts.filter(
+    (account) => accountStatus(account, to) !== null,
+  ).length;
+}
+
+/**
  * Where the drafts are reviewed: the account's own Review when every draft
  * is on one listed account, else the account picker.
  */

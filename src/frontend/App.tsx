@@ -6,13 +6,14 @@ import {
   routeKey,
   type Dbu6FrontendExtension,
 } from "./extension";
-import type { Navigation } from "./shell/navigation";
+import { navigationItems, type Navigation } from "./shell/navigation";
 import {
   BarChart3,
-  FileUp,
+  FileText,
   Home,
+  Inbox,
   Landmark,
-  ListChecks,
+  Scale,
   Settings,
   Settings2,
 } from "lucide-react";
@@ -71,27 +72,51 @@ import { ChartCard } from "./setup/ChartCard";
 import { SETUP_ROUTE } from "./setup/routes";
 
 /*
- * The sidebar: five everyday destinations, then the door to everything else
- * (PLAN.md §11 P0). Nothing was removed from the product; every screen that
- * left the sidebar is linked from All tools.
+ * The sidebar: what the books say, then keeping them, then the door to
+ * everything else. Import and Review are Update's steps, reached from its
+ * rows and its card, so Update stays lit on them. Nothing was removed from
+ * the product; every screen not in the sidebar is linked from somewhere
+ * that is, or from All tools.
  */
 const ownNavigation: Navigation = {
-  everyday: [
-    { label: "Home", icon: Home, to: "/" },
-    { label: "Accounts", icon: Landmark, to: "/accounts" },
+  groups: [
     {
-      label: "Import statements",
-      shortLabel: "Import",
-      icon: FileUp,
-      to: "/import",
+      label: "Your money",
+      items: [
+        { label: "Overview", icon: Home, to: "/" },
+        {
+          label: "Income & expenses",
+          shortLabel: "Income",
+          icon: BarChart3,
+          to: "/reports/income-expenses",
+        },
+        {
+          label: "Balance sheet",
+          shortLabel: "Balances",
+          icon: Scale,
+          to: "/reports/balance-sheet",
+        },
+        {
+          label: "All reports",
+          icon: FileText,
+          to: "/reports",
+          sidebarOnly: true,
+        },
+      ],
     },
     {
-      label: "Review",
-      icon: ListChecks,
-      to: "/review",
-      badge: "needsAccount",
+      label: "Your books",
+      items: [
+        {
+          label: "Update",
+          icon: Inbox,
+          to: UPDATE_ROUTE,
+          matches: ["/import", "/review"],
+          badge: "waiting",
+        },
+        { label: "Accounts", icon: Landmark, to: "/accounts" },
+      ],
     },
-    { label: "Reports", icon: BarChart3, to: "/reports" },
   ],
   more: [
     { label: "Settings", icon: Settings, to: "/settings" },
@@ -238,7 +263,7 @@ export function buildApp(extension: Dbu6FrontendExtension = {}): App {
   const added = extension.navigation ?? [];
   assertNoneTaken(
     "A navigation entry to",
-    [...ownNavigation.everyday, ...ownNavigation.more].map((item) => item.to),
+    navigationItems(ownNavigation).map((item) => item.to),
     added.map((item) => item.to),
   );
   return {

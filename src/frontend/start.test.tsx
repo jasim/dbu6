@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { buildApp } from "./App";
 import type { Dbu6FrontendExtension } from "./extension";
+import { navigationItems } from "./shell/navigation";
 import { startDbu6Frontend } from "./start";
 
 beforeAll(() => {
@@ -68,7 +69,9 @@ describe("a frontend extension", () => {
     expect(await screenAt("/goals")).toBe("sample goals page");
     const { navigation } = buildApp(extension);
     expect(navigation.more.at(-1)).toEqual({ label: "Goals", to: "/goals" });
-    expect(navigation.everyday.map((item) => item.to)).toContain("/reports");
+    expect(navigationItems(navigation).map((item) => item.to)).toContain(
+      "/reports",
+    );
   });
 
   it("refuses a report id dbu6 already has, naming it", () => {

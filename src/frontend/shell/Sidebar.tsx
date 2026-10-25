@@ -2,16 +2,15 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { cn } from "@sapporta/ui/cn";
-import {
-  AuthAccountMenu,
-  isNavigationItemActive,
-  useSidebar,
-} from "@sapporta/frontend/shell";
+import { AuthAccountMenu, useSidebar } from "@sapporta/frontend/shell";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { Brand } from "../components/brand";
 import { SEARCH_ROUTE, searchHref } from "../views/search/routes";
 import {
+  activeItem,
   badgeCount,
+  bottomBarItems,
+  navigationItems,
   type Navigation,
   type NavigationCounts,
   type NavigationItem,
@@ -21,8 +20,9 @@ import {
  * dbu6's own sidebar and bottom bar. They follow the redesign's sidebar spec
  * (PLAN.md §4.6) and reuse Sapporta only for behaviour: the sidebar
  * controller, the active-item rule and the account menu. The navigation is
- * six items, so nothing here overflows: the sidebar (and the drawer on
- * compact screens) lists every item, and the bottom bar the everyday ones.
+ * eight items, so nothing here overflows: the sidebar (and the drawer on
+ * compact screens) lists every item under its group's label, and the bottom
+ * bar the groups' five that fit.
  */
 
 interface NavigationProps {
@@ -222,8 +222,8 @@ function AccountCard({
 }
 
 /**
- * The full sidebar: the shell's control, identity, the everyday items, a
- * rule, the rest, and the account card. Choosing an item also closes the
+ * The full sidebar: the shell's control, identity, the groups under their
+ * labels, a rule, the rest, and the account card. Choosing an item also closes the
  * compact drawer.
  *
  * On desktop the shell passes its control in both while the sidebar is
@@ -249,6 +249,7 @@ export function Sidebar({
   const workspaceName =
     session.kind === "authenticated" ? session.context.workspace.name : null;
   const rail = sidebar.rail;
+  const active = activeItem(navigationItems(navigation), location);
 
   return (
     <aside
@@ -289,24 +290,41 @@ export function Sidebar({
         className="flex-1 overflow-y-auto px-2 py-1"
         onClick={sidebar.closeTemporary}
       >
-        <div className="flex flex-col">
-          {navigation.everyday.map((item) => (
-            <NavItem
-              key={item.to}
-              item={item}
-              active={isNavigationItemActive(item, location)}
-              count={badgeCount(item, counts)}
-              rail={rail}
-            />
-          ))}
-        </div>
+        {navigation.groups.map((group, index) => (
+          <div
+            key={group.label}
+            role="group"
+            aria-label={group.label}
+            className={cn("flex flex-col", index > 0 && "mt-3")}
+          >
+            {/* The rail has no room for words; its icons keep their rows. */}
+            <div
+              aria-hidden="true"
+              className={cn(
+                "px-1 pb-1 text-label uppercase text-ink-meta",
+                rail && "invisible",
+              )}
+            >
+              {group.label}
+            </div>
+            {group.items.map((item) => (
+              <NavItem
+                key={item.to}
+                item={item}
+                active={item === active}
+                count={badgeCount(item, counts)}
+                rail={rail}
+              />
+            ))}
+          </div>
+        ))}
         <hr className="mx-2 my-2 border-0 border-t border-sap-border" />
         <div className="flex flex-col">
           {navigation.more.map((item) => (
             <NavItem
               key={item.to}
               item={item}
-              active={isNavigationItemActive(item, location)}
+              active={item === active}
               count={badgeCount(item, counts)}
               secondary
               rail={rail}
@@ -320,22 +338,24 @@ export function Sidebar({
 }
 
 /**
- * Keeps the everyday destinations within thumb reach on a phone. The rest are
- * in the drawer, which the shell control opens.
+ * Keeps the groups' destinations within thumb reach on a phone. The rest are
+ * in the drawer, which the shell control opens. The lit item is chosen over
+ * every item, so one only in the drawer lights nothing here.
  */
 export function MobileBottomNav({ navigation, counts }: NavigationProps) {
   const location = useLocation();
+  const active = activeItem(navigationItems(navigation), location);
 
   return (
     <nav
       aria-label="Primary"
       className="fixed inset-x-0 bottom-0 z-[var(--sap-z-shell-sticky)] flex h-[56px] items-center justify-around border-t border-sap-border bg-sap-nav/95 px-2 md:hidden"
     >
-      {navigation.everyday.map((item) => (
+      {bottomBarItems(navigation).map((item) => (
         <BottomBarItem
           key={item.to}
           item={item}
-          active={isNavigationItemActive(item, location)}
+          active={item === active}
           count={badgeCount(item, counts)}
         />
       ))}

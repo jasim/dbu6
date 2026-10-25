@@ -60,18 +60,68 @@ const AUTH_CONTEXT = {
 } satisfies AuthContextResponse;
 
 const NAVIGATION: Navigation = {
-  everyday: [
-    { label: "Home", to: "/" },
-    { label: "Import statements", shortLabel: "Import", to: "/import" },
-    { label: "Review", to: "/review", badge: "needsAccount" },
-    { label: "Reports", to: "/reports" },
+  groups: [
+    {
+      label: "Your money",
+      items: [
+        { label: "Overview", to: "/" },
+        {
+          label: "Income & expenses",
+          shortLabel: "Income",
+          to: "/reports/income-expenses",
+        },
+        { label: "All reports", to: "/reports", sidebarOnly: true },
+      ],
+    },
+    {
+      label: "Your books",
+      items: [
+        {
+          label: "Update",
+          to: "/update",
+          matches: ["/import", "/review"],
+          badge: "waiting",
+        },
+      ],
+    },
   ],
   more: [{ label: "All tools", to: "/tools" }],
 };
 
+/** Home's summary with `waiting` accounts that each have drafts. */
+function homeSummary(waiting: number) {
+  return {
+    has_chart: true,
+    accounts: Array.from({ length: waiting }, (_, index) => ({
+      in_ledger: true,
+      account_id: index + 1,
+      name: `Sample Bank ${index + 1}`,
+      kind: "bank",
+      has_parser: true,
+      path: `Sample Bank ${index + 1}`,
+      parent_path: null,
+      checkpoint: null,
+      statement_differences: 0,
+      drafts: 1,
+      uncategorised: 0,
+      duplicates: 0,
+      balance_checks: 0,
+      failing_checks: 0,
+    })),
+    totals: {
+      drafts: waiting,
+      uncategorised: 0,
+      duplicates: 0,
+      balance_checks: 0,
+      failing_checks: 0,
+    },
+    any_imported: true,
+  };
+}
+
 let host: HTMLDivElement;
 let root: Root;
-let needsAccount = 0;
+let waiting = 0;
 
 beforeAll(() => {
   (
@@ -84,12 +134,10 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   window.localStorage.clear();
-  needsAccount = 0;
+  waiting = 0;
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () =>
-      Response.json({ data: [], meta: { total: needsAccount } }),
-    ),
+    vi.fn(async () => Response.json(homeSummary(waiting))),
   );
 });
 
@@ -148,20 +196,20 @@ describe("dbu6 app shell", () => {
 
   it("shows icons, the control, and the account initials in the rail", async () => {
     installMedia({ desktop: true });
-    needsAccount = 12;
+    waiting = 12;
     window.localStorage.setItem(SIDEBAR_EXPANDED_PREF_KEY, "false");
     await renderShell(page("Application content"));
 
     const sidebar = host.querySelector("aside");
     expect(sidebar?.textContent).not.toContain("Sample household");
     // Labels stay in the links for assistive technology.
-    const label = Array.from(navLink("/import").querySelectorAll("span")).find(
-      (span) => span.textContent === "Import statements",
-    );
+    const label = Array.from(
+      navLink("/reports/income-expenses").querySelectorAll("span"),
+    ).find((span) => span.textContent === "Income & expenses");
     expect(label?.className).toContain("sr-only");
     // The count becomes a dot, and the link still names it.
-    expect(navLink("/review").textContent).not.toContain("12");
-    expect(navLink("/review").getAttribute("aria-label")).toBe("Review, 12");
+    expect(navLink("/update").textContent).not.toContain("12");
+    expect(navLink("/update").getAttribute("aria-label")).toBe("Update, 12");
     const account = host.querySelector(
       'button[aria-label="Open account menu for Sample Owner"]',
     );
@@ -182,7 +230,7 @@ describe("dbu6 app shell", () => {
     await advance(250);
     expect(region.dataset.sidebarPeek).toBe("open");
 
-    const link = navLink("/review");
+    const link = navLink("/update");
     await pointerDown(link);
     await act(async () => link.click());
 
@@ -254,25 +302,25 @@ describe("dbu6 app shell", () => {
     ).toBeInstanceOf(HTMLButtonElement);
   });
 
-  it("shows the needs-an-account count on Review and hides it at zero", async () => {
+  it("shows on Update how many accounts have something waiting, and hides it at zero", async () => {
     installMedia({ desktop: true });
-    needsAccount = 12;
+    waiting = 12;
     await renderShell(page("Application content"));
 
-    const review = navLink("/review");
-    expect(review.textContent).toContain("12");
-    expect(review.getAttribute("aria-label")).toBe("Review, 12");
+    const update = navLink("/update");
+    expect(update.textContent).toContain("12");
+    expect(update.getAttribute("aria-label")).toBe("Update, 12");
     expect(navLink("/").textContent).not.toContain("12");
 
-    needsAccount = 0;
+    waiting = 0;
     await act(() => root.unmount());
     root = createRoot(host);
     await renderShell(page("Application content"));
-    expect(navLink("/review").textContent).toBe("Review");
-    expect(navLink("/review").getAttribute("aria-label")).toBeNull();
+    expect(navLink("/update").textContent).toBe("Update");
+    expect(navLink("/update").getAttribute("aria-label")).toBeNull();
   });
 
-  it("lists every item in the sidebar, with a rule before the second group", async () => {
+  it("lists the groups under their labels, with a rule before the rest", async () => {
     installMedia({ desktop: true });
     await renderShell(page("Application content"));
 
@@ -280,12 +328,48 @@ describe("dbu6 app shell", () => {
     const hrefs = Array.from(nav?.querySelectorAll("a") ?? []).map((a) =>
       a.getAttribute("href"),
     );
-    expect(hrefs).toEqual(["/", "/import", "/review", "/reports", "/tools"]);
+    expect(hrefs).toEqual([
+      "/",
+      "/reports/income-expenses",
+      "/reports",
+      "/update",
+      "/tools",
+    ]);
+    const groups = Array.from(nav?.querySelectorAll('[role="group"]') ?? []);
+    expect(groups.map((group) => group.getAttribute("aria-label"))).toEqual([
+      "Your money",
+      "Your books",
+    ]);
+    expect(groups[0].textContent).toContain("Your money");
     expect(nav?.querySelector("hr")).toBeInstanceOf(HTMLElement);
-    expect(nav?.textContent).not.toContain("Everyday");
   });
 
-  it("keeps only the everyday items on the bottom bar of a compact screen", async () => {
+  it("lights only the most specific item, and Update on its own steps", async () => {
+    installMedia({ desktop: true });
+    const lit = () =>
+      Array.from(host.querySelectorAll('aside nav a[aria-current="page"]')).map(
+        (a) => a.getAttribute("href"),
+      );
+
+    await renderShell(page("Application content"), {
+      path: "/reports/income-expenses",
+    });
+    expect(lit()).toEqual(["/reports/income-expenses"]);
+
+    for (const [path, expected] of [
+      ["/reports/net-worth", "/reports"],
+      ["/review/5/drafts", "/update"],
+      ["/import", "/update"],
+      ["/", "/"],
+    ]) {
+      await act(() => root.unmount());
+      root = createRoot(host);
+      await renderShell(page("Application content"), { path });
+      expect(lit()).toEqual([expected]);
+    }
+  });
+
+  it("keeps the items kept to the sidebar off the bottom bar of a compact screen", async () => {
     installMedia({ desktop: false });
     await renderShell(page("Application content"));
 
@@ -296,7 +380,7 @@ describe("dbu6 app shell", () => {
     const hrefs = Array.from(bars[0].querySelectorAll("a")).map((a) =>
       a.getAttribute("href"),
     );
-    expect(hrefs).toEqual(["/", "/import", "/review", "/reports"]);
+    expect(hrefs).toEqual(["/", "/reports/income-expenses", "/update"]);
     expect(host.querySelector('a[href="/tools"]')).toBeNull();
   });
 
@@ -305,18 +389,22 @@ describe("dbu6 app shell", () => {
     await renderShell(page("Application content"));
 
     const item = host.querySelector<HTMLAnchorElement>(
-      'nav[aria-label="Primary"].fixed a[href="/import"]',
+      'nav[aria-label="Primary"].fixed a[href="/reports/income-expenses"]',
     );
-    expect(item?.textContent).toBe("Import");
-    expect(item?.getAttribute("aria-label")).toBe("Import statements");
+    expect(item?.textContent).toBe("Income");
+    expect(item?.getAttribute("aria-label")).toBe("Income & expenses");
   });
 
   it("keeps the full label in the sidebar", async () => {
     installMedia({ desktop: true });
     await renderShell(page("Application content"));
 
-    expect(navLink("/import").textContent).toBe("Import statements");
-    expect(navLink("/import").getAttribute("aria-label")).toBeNull();
+    expect(navLink("/reports/income-expenses").textContent).toBe(
+      "Income & expenses",
+    );
+    expect(
+      navLink("/reports/income-expenses").getAttribute("aria-label"),
+    ).toBeNull();
   });
 });
 
@@ -326,7 +414,7 @@ function page(text: string): ReactNode {
 
 async function renderShell(
   content: ReactNode,
-  props?: { signedIn?: boolean },
+  props?: { signedIn?: boolean; path?: string },
 ): Promise<void> {
   if (props?.signedIn ?? true) {
     useAuthStore.setState({
@@ -341,7 +429,7 @@ async function renderShell(
         { client: new QueryClient() },
         createElement(
           MemoryRouter,
-          null,
+          { initialEntries: [props?.path ?? "/"] },
           createElement(
             Routes,
             null,

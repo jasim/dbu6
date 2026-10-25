@@ -22,13 +22,16 @@ import {
 import { today } from "../reports/shared";
 import { UPDATE_ROUTE } from "../update/routes";
 import { StepCard } from "../update/Update";
-import { FIRST_RUN_GREETING, updateState } from "../update/state";
+import {
+  FIRST_RUN_GREETING,
+  updateState,
+  waitingInUpdate,
+} from "../update/state";
 import {
   averageLabel,
   monthDates,
   monthSteps,
   netWorthChange,
-  waitingInUpdate,
   waitingLabel,
 } from "./state";
 

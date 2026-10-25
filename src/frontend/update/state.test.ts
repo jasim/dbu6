@@ -5,7 +5,12 @@ import type {
   HomeLedgerAccount,
   HomeSummary,
 } from "../../shared/index";
-import { ADD_MENU, updateState, statementsHref } from "./state";
+import {
+  ADD_MENU,
+  updateState,
+  statementsHref,
+  waitingInUpdate,
+} from "./state";
 
 function account(
   overrides: Partial<HomeLedgerAccount> = {},
@@ -183,5 +188,16 @@ describe("updateState", () => {
       { label: "Bank or card", to: "/add" },
       { label: "Cash, deposit, investment or loan", to: "/add/other" },
     ]);
+  });
+});
+
+describe("waitingInUpdate", () => {
+  it("counts the accounts Update shows something waiting on", () => {
+    const view = summary([
+      account(),
+      account({ account_id: 3, drafts: 3 }),
+      account({ account_id: 4, statement_differences: 1 }),
+    ]);
+    expect(waitingInUpdate(view)).toBe(2);
   });
 });

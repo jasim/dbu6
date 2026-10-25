@@ -1,7 +1,6 @@
-import type { HomeSummary, PostedOverview } from "../../shared/index";
+import type { PostedOverview } from "../../shared/index";
 import { agree, formatMonth, plural } from "../format";
 import { Temporal } from "../report-kit";
-import { accountStatus, statementsHref } from "../update/state";
 
 /*
  * What Overview says, as pure functions of its two requests: the overview
@@ -61,17 +60,6 @@ export function netWorthChange(overview: PostedOverview): {
     )}`,
     value: overview.net_worth.net - overview.net_worth.previous_net,
   };
-}
-
-/**
- * What the status line points at in Update: how many accounts have
- * something waiting, the rule Update's rows follow. Zero when none.
- */
-export function waitingInUpdate(summary: HomeSummary): number {
-  const to = statementsHref(summary);
-  return summary.accounts.filter(
-    (account) => accountStatus(account, to) !== null,
-  ).length;
 }
 
 /** "2 accounts need attention", or nothing when none does. */
