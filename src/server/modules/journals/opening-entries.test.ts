@@ -6,6 +6,7 @@ import { testLedgerAuth } from "../ledger-sql/testing.js";
 import { packageDir } from "../../paths.js";
 import {
   deleteOpeningEntry,
+  hasJournalsBesideOpenings,
   loadEntriesBesideOpening,
   loadOpeningEntries,
   rewriteOpeningEntry,
@@ -108,6 +109,61 @@ describe("loadEntriesBesideOpening", () => {
         [7, { entries: 2, first_date: "2026-01-15" }],
       ]),
     );
+  });
+});
+
+describe("hasJournalsBesideOpenings", () => {
+  it("finds a posted journal that opens no account", () => {
+    const { sqlite, auth } = books();
+    expect(hasJournalsBesideOpenings(sqlite, auth)).toBe(true);
+  });
+
+  it("finds none when the only journals are openings, shared or not, and a draft", () => {
+    const { sqlite, auth } = books();
+    sqlite.exec(`DELETE FROM journal_entries WHERE journal_id = 21;
+      DELETE FROM journals WHERE id = 21;`);
+    expect(hasJournalsBesideOpenings(sqlite, auth)).toBe(false);
+  });
+
+  it("counts a later journal on Equity, which opens nothing", () => {
+    const { sqlite, auth } = books();
+    sqlite.exec(`
+      DELETE FROM journal_entries WHERE journal_id = 21;
+      DELETE FROM journals WHERE id = 21;
+      INSERT INTO journals (id, workspace_id, scoped_to_user_id, date, description, created_at, updated_at)
+      VALUES (22, 'workspace', 'user', '2026-03-01', 'NOPII top-up', '', '');
+      INSERT INTO journal_entries
+        (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit,
+         account_balance_assertion, comment, created_at, updated_at)
+      VALUES
+        (221, 'workspace', 'user', 22, 2, 100, 0, NULL, NULL, '', ''),
+        (222, 'workspace', 'user', 22, 7, 0, 100, NULL, NULL, '', '');
+    `);
+    expect(hasJournalsBesideOpenings(sqlite, auth)).toBe(true);
+  });
+
+  it("counts an account's first journal on an Equity account other than Opening Balances", () => {
+    // A statement row categorized to Owner Capital: statement activity counts
+    // it, so this does too.
+    const { sqlite, auth } = books();
+    sqlite.exec(`
+      DELETE FROM journal_entries WHERE journal_id = 21;
+      DELETE FROM journals WHERE id = 21;
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES
+        (5, 'workspace', 'user', 'Sample Current', 1, 'Asset', '', ''),
+        (8, 'workspace', 'user', 'Owner Capital', NULL, 'Equity', '', '');
+      INSERT INTO journals (id, workspace_id, scoped_to_user_id, date, description, created_at, updated_at)
+      VALUES (22, 'workspace', 'user', '2026-03-01', 'NOPII capital', '', '');
+      INSERT INTO journal_entries
+        (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit,
+         account_balance_assertion, comment, created_at, updated_at)
+      VALUES
+        (221, 'workspace', 'user', 22, 5, 100, 0, NULL, NULL, '', ''),
+        (222, 'workspace', 'user', 22, 8, 0, 100, NULL, NULL, '', '');
+    `);
+    expect(hasJournalsBesideOpenings(sqlite, auth)).toBe(true);
   });
 });
 

@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import { and, eq, ne } from "drizzle-orm";
 import { parsePlainDate, Temporal } from "@sapporta/shared/temporal";
 import { OPENING_BALANCES_ACCOUNT } from "../accounts/index.js";
-import { allRows, type LedgerAuth } from "../ledger-sql/index.js";
+import { allRows, oneRow, type LedgerAuth } from "../ledger-sql/index.js";
 import {
   journalEntries,
   journalEntriesTable,
@@ -165,6 +165,33 @@ export function loadEntriesBesideOpening(
     GROUP BY je.account_id`,
   );
   return new Map(rows.map(({ account_id, ...beside }) => [account_id, beside]));
+}
+
+/**
+ * Whether the books have a posted journal that is no account's opening on
+ * Opening Balances: anything recorded beyond what the accounts held at the
+ * start. An opening on another Equity account may be a statement row
+ * categorized there, so it counts, as statement activity counts it. Drafts
+ * are not posted, so they never count.
+ */
+export function hasJournalsBesideOpenings(
+  sqlite: Database.Database,
+  auth: LedgerAuth,
+): boolean {
+  const openings = Array.from(loadOpeningEntries(sqlite, auth).values())
+    .filter((opening) => opening.onOpeningBalances)
+    .map((opening) => opening.journal_id);
+  const row = oneRow<{ found: number }>(
+    sqlite,
+    auth,
+    `SELECT EXISTS (
+      SELECT 1
+      FROM scoped_journals j
+      WHERE j.id NOT IN (SELECT value FROM json_each(@openings))
+    ) AS found`,
+    { openings: JSON.stringify(openings) },
+  );
+  return row?.found === 1;
 }
 
 /**

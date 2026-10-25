@@ -20,6 +20,7 @@ export {
 } from "./last-reconciled.js";
 export {
   deleteOpeningEntry,
+  hasJournalsBesideOpenings,
   loadEntriesBesideOpening,
   loadOpeningEntries,
   rewriteOpeningEntry,
