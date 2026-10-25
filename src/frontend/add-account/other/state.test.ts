@@ -75,7 +75,7 @@ describe("otherCard", () => {
     expect(otherCard(url("?run=setup&record=1"))).toBe("record");
   });
 
-  it("goes straight to C1 later, from Home's + Add", () => {
+  it("goes straight to C1 later, from Update's + Add", () => {
     expect(otherCard(url(""))).toBe("record");
     expect(otherCard(url("?record=1"))).toBe("record");
   });
@@ -88,8 +88,8 @@ describe("afterRecording", () => {
     );
   });
 
-  it("goes Home later", () => {
-    expect(afterRecording(url(""))).toBe("/");
+  it("goes back to Update later", () => {
+    expect(afterRecording(url(""))).toBe("/update");
   });
 });
 

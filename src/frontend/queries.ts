@@ -218,7 +218,7 @@ export const openingBalancesQuery = queryOptions({
 /**
  * Refreshes what setting up an account changes: the setup reads (its
  * account, its opening), the accounts table's reads (the chart every screen
- * takes parent paths from, `useAccountParentPaths`), Home and Review (its
+ * takes parent paths from, `useAccountParentPaths`), Update and Review (its
  * drafts), and the import presets (its bank, parser and number). Sapporta's
  * own screens on show (grid cells, pickers, the record sheet) read their
  * accounts' names and paths again too (`invalidateRows`).
@@ -233,7 +233,10 @@ export function refreshSetup(client: QueryClient): Promise<void> {
   ]).then(() => undefined);
 }
 
-/** Refreshes Home, the Review picker and every account's summary. */
+/**
+ * Refreshes the home summary (Update, Overview, the sidebar's count), the
+ * Review picker and every account's summary.
+ */
 export function refreshDraftStatus(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: DRAFT_STATUS_KEY });
 }

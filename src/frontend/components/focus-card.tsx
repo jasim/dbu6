@@ -3,6 +3,7 @@ import { cn } from "@sapporta/ui/cn";
 import { ArrowLeft, Check } from "lucide-react";
 import { Link, Outlet } from "react-router-dom";
 import { apiErrorMessage } from "../api";
+import { UPDATE_ROUTE } from "../update/routes";
 import { Brand } from "./brand";
 import { Button } from "./ui/button";
 
@@ -10,7 +11,7 @@ import { Button } from "./ui/button";
  * Focus mode (PLAN.md "The rule every screen follows"): the page holds one
  * card, which asks one question and has one primary button. No sidebar, no
  * navigation: a header says which app and which flow this is, the first
- * run's steps say how far along it is, and Back to Home leaves. Onboarding
+ * run's steps say how far along it is, and Back to Update leaves. Onboarding
  * and every later "add a bank or card" run through it.
  */
 
@@ -57,7 +58,8 @@ export interface FocusCardProps extends FocusFrame {
 
 /**
  * A focus-mode page: the header, the flow's steps, and one centred card.
- * Back to Home leaves the flow; Home resumes it from the books.
+ * Back to Update leaves the flow: every focus flow is keeping the books, and
+ * Update resumes the first run from the books, as Overview does.
  */
 export function FocusCard({
   flow,
@@ -86,12 +88,12 @@ export function FocusCard({
         <Button
           variant="outline"
           size="sm"
-          render={<Link to="/" />}
+          render={<Link to={UPDATE_ROUTE} />}
           nativeButton={false}
         >
           <ArrowLeft aria-hidden="true" />
           <span>
-            <span className="max-sm:sr-only">Back to </span>Home
+            <span className="max-sm:sr-only">Back to </span>Update
           </span>
         </Button>
       </header>

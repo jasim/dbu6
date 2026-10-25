@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * The one obvious next step. Exactly one per screen, at the top of Home. The
+ * The one obvious next step. Exactly one per screen, at the top of Update. The
  * medallion carries the count so the number is read first; the body says
  * where the work came from and what is at stake. With nothing to count (a
  * first account, new statements to import) there is no medallion.

@@ -231,7 +231,7 @@ export function RunCategorizerTab() {
             : row;
         }),
       );
-      // The frame's counts and Home's follow the run.
+      // The frame's counts and Update's follow the run.
       refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Classification failed");

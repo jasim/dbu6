@@ -18,10 +18,10 @@ const importableAccountFields = {
 };
 
 /**
- * One importable account, as Home lists it: an account of an import preset.
+ * One importable account, as Update lists it: an account of an import preset.
  * When the ledger has it, where its books stand and what is waiting in its
  * drafts. When the ledger account was deleted, the preset still names its id,
- * and Home says so.
+ * and Update says so.
  */
 export const homeAccountSchema = z.discriminatedUnion("in_ledger", [
   z.object({
@@ -65,7 +65,8 @@ export const homeContract = c.router({
   summary: c.query({
     method: "GET",
     path: "/home",
-    summary: "Where the books stand, for the Home screen",
+    summary:
+      "Where the books stand, for Update, Overview's first-run card and status line, and the sidebar's count",
     query: z.object({}),
     responses: {
       200: homeSummarySchema,

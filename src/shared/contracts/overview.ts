@@ -68,7 +68,7 @@ const postedOverviewSchema = z.object({
     net: z.number(),
     previous_net: z.number(),
   }),
-  // The importable accounts the ledger has, as Home orders them.
+  // The importable accounts the ledger has, as Update orders them.
   accounts: z.array(overviewAccountSchema),
 });
 export type PostedOverview = z.infer<typeof postedOverviewSchema>;

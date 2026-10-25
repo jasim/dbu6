@@ -24,7 +24,7 @@ import { ChartCard } from "./ChartCard";
 /*
  * Card 1 of the first run (PLAN.md): new books pick the standard chart or
  * describe their money, tick through two-level cards and create the ticked
- * accounts, then go on to card 2. Books with a chart go Home.
+ * accounts, then go on to card 2. Books with a chart go to Overview.
  */
 
 let host: HTMLDivElement;
@@ -349,7 +349,7 @@ describe("card 1 on new books", () => {
 });
 
 describe("/setup on books with a chart", () => {
-  it("goes Home, which picks the next card", async () => {
+  it("goes to Overview, which picks the next card", async () => {
     answers = {
       "GET /setup/chart-of-accounts": {
         state: "existing",

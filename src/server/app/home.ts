@@ -22,10 +22,11 @@ import { hasChart } from "../workflows/chart-of-accounts.js";
 import { requireWorkflowAuth } from "./workflow-auth.js";
 
 /*
- * The Home screen's one request (PLAN.md §11 P1): the importable accounts
- * with where their books stand, and what waits in the drafts. Each account is
- * projected from its standing, which Review reads too, so the two screens
- * name, count and check it the same way.
+ * The home summary (PLAN.md §11 P1), Update's one request, which Overview
+ * and the sidebar's count read too: the importable accounts with where their
+ * books stand, and what waits in the drafts. Each account is projected from
+ * its standing, which Review reads too, so the screens name, count and check
+ * it the same way.
  */
 
 const api = new TsRestApi<SapportaEnv>();

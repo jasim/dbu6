@@ -150,7 +150,9 @@ describe("the account picker after /add", () => {
 
     expect(text()).toContain("Your books are set up.");
     expect(text()).not.toContain(NOTE);
-    expect(host.querySelector('a[href="/"]')?.textContent).toBe("Go to Home");
+    expect(host.querySelector('a[href="/"]')?.textContent).toBe(
+      "See your money",
+    );
   });
 
   it("has nothing to review outside the first run", async () => {

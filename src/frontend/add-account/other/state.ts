@@ -3,6 +3,7 @@ import type {
   OpeningBalances,
 } from "../../../shared/index";
 import { balanceSections } from "../../opening-balances";
+import { UPDATE_ROUTE } from "../../update/routes";
 import { ADD_OTHER_ROUTE } from "../state";
 
 /*
@@ -12,7 +13,7 @@ import { ADD_OTHER_ROUTE } from "../state";
  *
  *   ?run=setup                → Anything else? (card 6), first run only
  *   ?run=setup&record=1       → C1, which comes back to card 6
- *   no ?run=setup             → C1, from Home's + Add; then Home
+ *   no ?run=setup             → C1, from Update's + Add; then Update
  *
  * What card 6 says has been recorded comes from the books, not the URL.
  *
@@ -51,7 +52,7 @@ export function otherCard(url: OtherUrl): OtherCard {
 
 /** Where C1 goes once the balance is recorded. */
 export function afterRecording(url: OtherUrl): string {
-  return url.setup ? otherHref({ setup: true }) : "/";
+  return url.setup ? otherHref({ setup: true }) : UPDATE_ROUTE;
 }
 
 /**

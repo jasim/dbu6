@@ -147,7 +147,7 @@ export const chartSuggestionRefusalSchema = z.object({
 
 // The banks and cards statements come from, each an account in an
 // import preset. A row can be changed only while its account has no
-// transactions of its own, the rule /add and Home follow: `entries` and
+// transactions of its own, the rule /add and Update follow: `entries` and
 // `drafts` are both 0. Removing one deletes its opening entry when that
 // journal opens it alone.
 export const statementAccountRowSchema = z.object({

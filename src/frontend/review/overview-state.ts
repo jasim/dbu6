@@ -74,7 +74,7 @@ export interface PostedView {
   verdict: string;
   outcome: Phrase;
   /**
-   * The primary action: the next account to review, else Home.
+   * The primary action: the next account to review, else Overview.
    */
   next: OverviewLink;
   /** A quiet second way on, when there is another account. */
@@ -82,11 +82,15 @@ export interface PostedView {
 }
 
 /**
- * The first run's end (card 8), once nothing is left to post. No net worth:
- * the books are set up, and that is all it says. Home resumes from there.
+ * The first run's end (card 8), once nothing is left to post. No net worth
+ * here: the books are set up, and that is all it says. What the money did
+ * is Overview's to show, and with something posted it shows it.
  */
 export const BOOKS_SET_UP = "Your books are set up.";
-export const BOOKS_SET_UP_NEXT: OverviewLink = { label: "Go to Home", to: "/" };
+export const BOOKS_SET_UP_NEXT: OverviewLink = {
+  label: "See your money",
+  to: "/",
+};
 
 /**
  * The Overview, for an account's drafts. `imported` is what the add that

@@ -359,7 +359,7 @@ describe("C1", () => {
     expect(text()).toContain("✓ Cash recorded");
   });
 
-  it("records what the user owed as negative, and goes Home later", async () => {
+  it("records what the user owed as negative, and goes back to Update later", async () => {
     await render("/add/other");
     expect(text()).toContain("Add a balance");
     expect(() => button("Back")).toThrow();
@@ -377,7 +377,7 @@ describe("C1", () => {
       date: "2026-04-09",
       amount: -350000,
     });
-    expect(where()).toBe("/");
+    expect(where()).toBe("/update");
   });
 
   it("defaults to today when the books have no opening yet", async () => {
@@ -427,7 +427,7 @@ describe("C1", () => {
     );
   });
 
-  it("goes Home when none is left later", async () => {
+  it("goes back to Update when none is left later", async () => {
     for (const one of balances.accounts) {
       one.opening ??= {
         journal_id: 50509,
@@ -439,6 +439,6 @@ describe("C1", () => {
     }
     await render("/add/other");
     expect(title()).toBe("Every account in your chart has its balance");
-    expect(button("Done").getAttribute("href")).toBe("/");
+    expect(button("Done").getAttribute("href")).toBe("/update");
   });
 });

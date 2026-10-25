@@ -347,7 +347,7 @@ describe("adding a bank or card", () => {
 
     expect(title()).toBe("Drop this account's statements");
     expect(text()).toContain("Add a bank or card");
-    expect(button("Back to Home").getAttribute("href")).toBe("/");
+    expect(button("Back to Update").getAttribute("href")).toBe("/update");
     await drop("jan.xls", "feb.xls");
 
     expect(title()).toBe("Sample Bank · ending 0012");

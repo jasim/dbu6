@@ -28,7 +28,7 @@ import {
 
 /**
  * Update: where the books stand and one thing to do to bring them up to
- * date, once Home (PLAN.md §11 P1). One request; the greeting and the card
+ * date (PLAN.md §11 P1, where it is Home). One request; the greeting and the card
  * follow from the summary's state.
  */
 export function Update() {

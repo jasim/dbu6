@@ -15,6 +15,7 @@ import {
   type FocusFrame,
 } from "../../components/focus-card";
 import { SETUP_HAND_OFF_HREF } from "../../review/routes";
+import { UPDATE_ROUTE } from "../../update/routes";
 import { accountsInBooks, setupFrame } from "../words";
 import { RecordBalance } from "./RecordBalance";
 import {
@@ -161,7 +162,9 @@ function NothingLeft({
             Accounts page
           </Button>
           <Button
-            render={<Link to={url.setup ? SETUP_HAND_OFF_HREF : "/"} />}
+            render={
+              <Link to={url.setup ? SETUP_HAND_OFF_HREF : UPDATE_ROUTE} />
+            }
             nativeButton={false}
           >
             {url.setup ? "That's all" : "Done"}

@@ -88,7 +88,7 @@ const NAVIGATION: Navigation = {
   more: [{ label: "All tools", to: "/tools" }],
 };
 
-/** Home's summary with `waiting` accounts that each have drafts. */
+/** The home summary with `waiting` accounts that each have drafts. */
 function homeSummary(waiting: number) {
   return {
     has_chart: true,

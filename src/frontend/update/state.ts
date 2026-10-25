@@ -13,7 +13,8 @@ import { SETUP_ROUTE } from "../setup/routes";
 import { joinNames, plural } from "../format";
 
 /*
- * What Update says, as a pure function of the summary (PLAN.md "Home"). In
+ * What Update says, as a pure function of the summary (PLAN.md "Home");
+ * Overview shows its card too until anything is posted. In
  * precedence order: no chart, then drafts waiting, then nothing imported
  * (no bank or card yet, or only ones set up with no transactions), then new
  * statements to import. The first two open the first run: /setup's chart,

@@ -34,8 +34,8 @@ import { DescribeMoney } from "./DescribeMoney";
  * Card 1 of the first run (PLAN.md "The cards"), at `/setup`: books with no
  * accounts pick their chart, the standard one or one the coding agent
  * proposes from the user's description, ticked through before anything is
- * created. Books with a chart go Home, which resumes the first run from the
- * books; the Accounts page changes a chart.
+ * created. Books with a chart go to Overview, which resumes the first run
+ * from the books; the Accounts page changes a chart.
  */
 
 // The first run's first step, before any bank or card is in.

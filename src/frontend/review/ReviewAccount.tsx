@@ -53,7 +53,7 @@ export interface ReviewPosted {
 
 export interface ReviewAccountContext {
   detail: ReviewAccountDetail;
-  /** Fetch every draft count again (this summary, Home, the picker): after posting. */
+  /** Fetch every draft count again (this summary, Update, the picker): after posting. */
   refresh: () => void;
   posted: ReviewPosted | null;
   setPosted: (posted: ReviewPosted) => void;

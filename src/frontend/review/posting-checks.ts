@@ -4,8 +4,8 @@ import { agree, plural } from "../format";
 /*
  * What a posting check says, in the words every screen shares (PLAN.md §11
  * P1, P3): Overview's rows, the Duplicates and Balance checks tabs, the
- * button's waiting reason, Home's card and the agent prompts. A screen that
- * frames a check its own way keeps its sentence: Home's "possible duplicate
+ * button's waiting reason, Update's card and the agent prompts. A screen that
+ * frames a check its own way keeps its sentence: Update's "possible duplicate
  * entries", the picker's "12 need an account", the button's "12 still need an
  * account".
  */

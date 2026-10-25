@@ -4,7 +4,7 @@ import { z } from "zod";
  * What an account's drafts hold, and the checks they must pass before they are
  * added to the books (PLAN.md §11 P3). The API's draft status module counts
  * them; each check's state is decided here from the counts, and the posting
- * gate, Home and Review all read it, so no screen decides on its own whether
+ * gate, Update and Review all read it, so no screen decides on its own whether
  * drafts can be posted.
  *
  * Counts are the draft reports' rows: a draft that matches two others is two

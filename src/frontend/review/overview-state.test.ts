@@ -155,11 +155,11 @@ describe("postedView", () => {
     expect(view.also).toEqual({ label: "All accounts", to: "/review" });
   });
 
-  it("sends the user Home when no account has drafts left", () => {
+  it("sends the user to Overview when no account has drafts left", () => {
     const view = postedView(detail({}, { closing: null }), 1, []);
 
     expect(phraseText(view.outcome)).toBe("1 transaction added.");
-    expect(view.next).toEqual({ label: "Go to Home", to: "/" });
+    expect(view.next).toEqual({ label: "See your money", to: "/" });
     expect(view.also).toEqual({
       label: "Import another statement",
       to: "/import",
@@ -192,7 +192,7 @@ describe("postedView", () => {
     expect(phraseText(view.outcome)).toBe(
       "21 transactions added. The last balance assertion for Sample Savings is now 3,30,000.00 on 13 Sep.",
     );
-    expect(view.next).toEqual({ label: "Go to Home", to: "/" });
+    expect(view.next).toEqual({ label: "See your money", to: "/" });
     expect(view.also).toBeUndefined();
   });
 });

@@ -14,7 +14,7 @@ import { parseRowId } from "../row-id";
  * Which card /add shows (PLAN.md "The cards"), as a pure function of the URL,
  * the files the browser holds, the read of them, and the answers given
  * since. No flow state is kept anywhere else: leaving and coming back starts
- * from the URL, and Home resumes from the books.
+ * from the URL, and Update or Overview resumes from the books.
  *
  * In precedence order:
  *
@@ -57,7 +57,7 @@ export type From = { kind: "latest" } | { kind: "month"; month: string };
 export interface AddUrl {
   /** Null until card 2 is answered. */
   from: From | null;
-  /** `?run=setup`: the first run, from Home's "Add your first bank or card". */
+  /** `?run=setup`: the first run, from the card's "Add your first bank or card". */
   setup: boolean;
   /** `?added=<id>`: the account the first run just added, for card 5. */
   added: number | null;
