@@ -1,11 +1,16 @@
-import { TsRestApi, type SapportaEnv } from "@sapporta/server";
-import { Temporal } from "@sapporta/shared/temporal";
+import {
+  TsRestApi,
+  workspaceTimeZone,
+  type SapportaEnv,
+} from "@sapporta/server";
+import { Temporal, type TimeZone } from "@sapporta/shared/temporal";
 import {
   overviewContract,
   type OverviewAccount,
   type OverviewCategory,
   type OverviewWorthGroup,
   type PostedOverview,
+  todayIn,
 } from "../../shared/index.js";
 import { accountTree, branchingLevel } from "./account-tree.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
@@ -62,6 +67,7 @@ api.register("overview", overviewContract.overview, ({ c, request }) => {
     status: 200,
     body: overviewReport(readOnlyLedger(sqlite, auth), {
       month: request.query.month ?? null,
+      timeZone: workspaceTimeZone(c.get("auth")),
       accounts,
     }),
   };
@@ -77,11 +83,15 @@ const CATEGORY_LIMIT = 8;
 
 export function overviewReport(
   ledger: ReportLedger,
-  query: { month: string | null; accounts: readonly OverviewAccountInput[] },
+  query: {
+    month: string | null;
+    // The workspace's, for the month it is today.
+    timeZone: TimeZone;
+    accounts: readonly OverviewAccountInput[];
+  },
 ): PostedOverview {
   // This month, however far the books go.
-  const month =
-    query.month ?? Temporal.Now.plainDateISO().toPlainYearMonth().toString();
+  const month = query.month ?? todayIn(query.timeZone).slice(0, 7);
 
   const yearMonth = Temporal.PlainYearMonth.from(month);
   const report = incomeExpensesReport(ledger, {

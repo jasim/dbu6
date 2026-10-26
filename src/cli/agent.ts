@@ -38,6 +38,7 @@ import {
 } from "../server/project-auth/index.js";
 import { openDbu6Runtime } from "../server/runtime.js";
 import { migrateSafely } from "../server/migrate-safely.js";
+import { todayIn } from "../shared/index.js";
 import { DEMO_ACCOUNT } from "../server/seed/sample-data.js";
 import { databaseFile } from "../server/paths.js";
 import {
@@ -154,6 +155,7 @@ export async function agentCommand(
         `${account.email} is no longer a member of ${account.organizationName}.`,
       );
     }
+    const workspaceMembership = membershipFromRow(membership);
     const created = createAuthToken(
       runtime.conn,
       userPrincipal({
@@ -163,10 +165,10 @@ export async function agentCommand(
           name: account.name,
           emailVerified: true,
         },
-        membership: membershipFromRow(membership),
+        membership: workspaceMembership,
       }),
       {
-        name: `${AGENT_TOKEN_NAME} (${new Date().toISOString().slice(0, 10)})`,
+        name: `${AGENT_TOKEN_NAME} (${todayIn(workspaceMembership.workspace.timeZone)})`,
       },
     );
 

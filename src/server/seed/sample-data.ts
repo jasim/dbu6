@@ -32,12 +32,14 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { parseTimeZone } from "@sapporta/shared/temporal";
 import {
   chartWithAccounts,
   STARTER_CHART,
 } from "../modules/chart-of-accounts/index.js";
 import { resolveApiPort } from "../project-auth/index.js";
 import { openDbu6Runtime } from "../runtime.js";
+import { todayIn } from "../../shared/index.js";
 
 /**
  * The sample account `dbu6 seed` makes. Exported because it is also the one
@@ -49,7 +51,7 @@ export const DEMO_ACCOUNT = {
   email: "demo@example.com",
   password: "demo-password",
 };
-const TIME_ZONE = "Asia/Kolkata";
+const TIME_ZONE = parseTimeZone("Asia/Kolkata");
 
 // ── Accounts ──────────────────────────────────────────────────────────────
 
@@ -1860,11 +1862,7 @@ function commandLine(args) {
     throw new Error(
       `Expected at most one as-of date, got ${positionals.join(" ")}.`,
     );
-  const date =
-    positionals[0] ??
-    new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(
-      new Date(),
-    );
+  const date = positionals[0] ?? todayIn(TIME_ZONE);
   const valid =
     /^\d{4}-\d{2}-\d{2}$/.test(date) &&
     new Date(`${date}T00:00:00Z`).toISOString().startsWith(date);

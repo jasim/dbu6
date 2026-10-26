@@ -49,7 +49,8 @@ export type OverviewWorthGroup = z.infer<typeof overviewWorthGroupSchema>;
 // What the books show for the month, once anything is posted.
 const postedOverviewSchema = z.object({
   posted: z.literal(true),
-  // The month shown: the one asked for, or else the current month.
+  // The month shown: the one asked for, or else the current month in the
+  // workspace's time zone.
   month: yearMonth,
   // The first month with any income or spending entry.
   first_month: yearMonth.nullable(),

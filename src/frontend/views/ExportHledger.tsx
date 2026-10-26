@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
-import { appTimeZone } from "@sapporta/frontend";
 import { AppPage } from "@sapporta/frontend/shell";
-import { Temporal } from "@sapporta/shared/temporal";
 import type { HledgerExportFile } from "../../shared/index";
 import { hledgerExportApi } from "../api";
 import { Button } from "../components/ui/button";
 import { FactTable } from "../components/fact-table";
 import { formatDate } from "../format";
+import { today } from "../reports/shared";
 import { downloadBlob, zip } from "../zip";
 
 const FOLDER = "dbu6-hledger";
@@ -52,9 +51,8 @@ export function ExportHledger() {
           encoder.encode(file.content),
         ]),
       );
-      const today = Temporal.Now.plainDateISO(appTimeZone()).toString();
       downloadBlob(
-        `${FOLDER}-${today}.zip`,
+        `${FOLDER}-${today()}.zip`,
         new Blob([new Uint8Array(bytes)], { type: "application/zip" }),
       );
     } catch (e) {

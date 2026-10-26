@@ -15,7 +15,7 @@ import {
   TsRestApi,
   withReferenceCaptions,
 } from "../../report-kit.js";
-import { reportsContract } from "../../../shared/index.js";
+import { dayLabel, reportsContract } from "../../../shared/index.js";
 
 const api = new TsRestApi<SapportaEnv>();
 
@@ -227,20 +227,6 @@ function groupBy<T, K>(
     else groups.push({ key, rows: [row] });
   }
   return groups;
-}
-
-/** "Saturday, 10 January 2026", as Home names today. */
-export function dayLabel(date: string): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).formatToParts(new Date(`${date}T00:00:00Z`));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((p) => p.type === type)?.value ?? "";
-  return `${part("weekday")}, ${part("day")} ${part("month")} ${part("year")}`;
 }
 
 export default api;

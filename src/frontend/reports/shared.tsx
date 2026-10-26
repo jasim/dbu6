@@ -7,18 +7,17 @@ import {
   type ReportCellRenderers,
 } from "@sapporta/frontend/report";
 import type { GridDataset } from "@sapporta/shared/grid-dataset";
-import { Temporal } from "@sapporta/shared/temporal";
 import { Input } from "@sapporta/ui";
+import { todayIn } from "../../shared/index";
 import { apiErrorMessage } from "../api";
 import { FRESH_QUERY } from "../queries";
 
 /**
  * Today's date (`YYYY-MM-DD`) in the workspace's time zone, the zone the
- * reports count days in. Read when called, so it follows midnight and the
- * zone the boot sequence publishes.
+ * reports count days in, as the boot sequence publishes it.
  */
 export function today(): string {
-  return Temporal.Now.plainDateISO(appTimeZone()).toString();
+  return todayIn(appTimeZone());
 }
 
 /**

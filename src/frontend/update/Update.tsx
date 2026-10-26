@@ -4,7 +4,7 @@ import { ChevronRight, CreditCard, Landmark, Plus } from "lucide-react";
 import { comboboxClassNames } from "@sapporta/ui/combobox";
 import { cn } from "@sapporta/ui/cn";
 import { useQuery } from "@tanstack/react-query";
-import type { HomeAccount } from "../../shared/index";
+import { dayLabel, type HomeAccount } from "../../shared/index";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { apiErrorMessage } from "../api";
@@ -16,6 +16,7 @@ import { NextStepCard } from "../components/next-step-card";
 import { StatusChip } from "../components/status-chip";
 import { homeSummaryQuery } from "../queries";
 import { accountLedgerHref } from "../reports/links";
+import { today } from "../reports/shared";
 import { BANKS_SETTINGS_ROUTE } from "../views/settings/routes";
 import { formatDate } from "../format";
 import {
@@ -48,7 +49,9 @@ export function Update() {
       width="narrow"
       header={
         <>
-          <p className="text-label uppercase text-ink-meta">{todayLabel()}</p>
+          <p className="text-label uppercase text-ink-meta">
+            {dayLabel(today())}
+          </p>
           {view ? (
             <h1 className="mt-2 text-title text-foreground sm:text-display">
               {view.greeting}
@@ -294,17 +297,4 @@ function ImportedUntil({ account }: { account: HomeAccount }) {
     return <span className="text-ink-meta">—</span>;
   }
   return <span className="tnum">{formatDate(account.checkpoint.date)}</span>;
-}
-
-/** "Tuesday, 15 September 2026". */
-function todayLabel(date = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).formatToParts(date);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((p) => p.type === type)?.value ?? "";
-  return `${part("weekday")}, ${part("day")} ${part("month")} ${part("year")}`;
 }

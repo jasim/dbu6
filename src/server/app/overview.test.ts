@@ -1,10 +1,10 @@
+import { parseTimeZone } from "@sapporta/shared/temporal";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { overviewSchema } from "../../shared/index.js";
-import {
-  overviewReport,
-  type OverviewAccountInput,
-} from "./overview.js";
+import { overviewReport, type OverviewAccountInput } from "./overview.js";
 import { openTestLedger } from "./reports/testing.js";
+
+const ZONE = parseTimeZone("Asia/Kolkata");
 
 /*
  * Sample Savings opens on 31 January with 10000. From February the salary
@@ -118,6 +118,7 @@ describe("overviewReport", () => {
 
     const overview = overviewReport(ledger, {
       month: "2026-04",
+      timeZone: ZONE,
       accounts: accounts("2026-04-30", "2026-04-30"),
     });
 
@@ -170,6 +171,7 @@ describe("overviewReport", () => {
 
     const overview = overviewReport(ledger, {
       month: "2026-04",
+      timeZone: ZONE,
       accounts: accounts("2026-04-30", "2026-04-30"),
     });
 
@@ -200,6 +202,7 @@ describe("overviewReport", () => {
 
     const overview = overviewReport(ledger, {
       month: "2026-02",
+      timeZone: ZONE,
       accounts: accounts(null, null),
     });
 
@@ -213,6 +216,7 @@ describe("overviewReport", () => {
 
     const overview = overviewReport(ledger, {
       month: "2026-02",
+      timeZone: ZONE,
       accounts: accounts(null, null),
     });
 
@@ -227,16 +231,31 @@ describe("overviewReport", () => {
 
     it("shows the current month, however far the books go", () => {
       const { ledger, accounts } = books();
-      vi.useFakeTimers({ now: new Date(2026, 5, 10) });
+      vi.useFakeTimers({ now: new Date("2026-06-10T12:00:00Z") });
 
       // The card's statement ends mid-April; June has no entries at all.
       const overview = overviewReport(ledger, {
         month: null,
+        timeZone: ZONE,
         accounts: accounts("2026-04-30", "2026-04-15"),
       });
 
       expect(overview.month).toBe("2026-06");
       expect(overview.figures.spending).toBe(0);
+    });
+
+    it("is this month in the workspace's time zone, not the server's", () => {
+      const { ledger, accounts } = books();
+      // 20:00 in UTC on 30 June is 01:30 on 1 July in Kolkata.
+      vi.useFakeTimers({ now: new Date("2026-06-30T20:00:00Z") });
+
+      const overview = overviewReport(ledger, {
+        month: null,
+        timeZone: ZONE,
+        accounts: accounts("2026-04-30", "2026-04-15"),
+      });
+
+      expect(overview.month).toBe("2026-07");
     });
   });
 
@@ -268,13 +287,17 @@ describe("overviewReport", () => {
 
     const overview = overviewReport(ledger, {
       month: "2026-04",
+      timeZone: ZONE,
       accounts: accounts("2026-04-30", "2026-04-30"),
     });
 
     // Six accounts under Assets: the largest four, then Other for Sample Two
     // and Sample Banks, which is listed rather than the bank under it.
     expect(
-      overview.net_worth.asset_groups.map((group) => [group.name, group.amount]),
+      overview.net_worth.asset_groups.map((group) => [
+        group.name,
+        group.amount,
+      ]),
     ).toEqual([
       ["Sample Five", 5000],
       ["Sample Four", 4000],
@@ -291,6 +314,7 @@ describe("overviewReport", () => {
     const { ledger, accounts, sqlite, owner, ids } = books();
     const before = overviewReport(ledger, {
       month: "2026-04",
+      timeZone: ZONE,
       accounts: accounts("2026-04-30", "2026-04-30"),
     });
     sqlite
@@ -306,6 +330,7 @@ describe("overviewReport", () => {
     expect(
       overviewReport(ledger, {
         month: "2026-04",
+        timeZone: ZONE,
         accounts: accounts("2026-04-30", "2026-04-30"),
       }),
     ).toEqual(before);

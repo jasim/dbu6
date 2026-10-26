@@ -7,7 +7,7 @@ import {
 } from "@sapporta/shared/grid-dataset";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { describe, expect, it } from "vitest";
-import dayBookApi, { dayBookReport, dayLabel } from "./day-book.js";
+import dayBookApi, { dayBookReport } from "./day-book.js";
 import { testLedgerAuth } from "../../modules/ledger-sql/testing.js";
 import { openTestLedger } from "./testing.js";
 
@@ -329,11 +329,5 @@ describe("Day Book route", () => {
       [String(food)]: "Household",
       [String(bank)]: null,
     });
-  });
-});
-
-describe("dayLabel", () => {
-  it("names the weekday of a calendar date, whatever the machine's zone", () => {
-    expect(dayLabel("2026-03-01")).toBe("Sunday, 1 March 2026");
   });
 });
