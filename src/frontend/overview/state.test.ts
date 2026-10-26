@@ -4,6 +4,7 @@ import {
   averageLabel,
   categoryRows,
   difference,
+  holdingAccounts,
   monthDates,
   monthSteps,
   otherWorthChange,
@@ -188,5 +189,59 @@ describe("savedShareDifference", () => {
       savedShareDifference({ income: 1000, spending: 1200 }, average),
     ).toBe("—");
     expect(savedShareDifference(average, null)).toBeNull();
+  });
+});
+
+describe("holdingAccounts", () => {
+  const account = (id: number, until: string | null) => ({
+    account_id: id,
+    name: `Sample ${id}`,
+    kind: "bank" as const,
+    balance: 0,
+    books_until: until,
+  });
+  const overview = (
+    until: string | null,
+    accounts: ReturnType<typeof account>[],
+  ) => ({ complete_until: until, accounts }) as PostedOverview;
+  const names = (held: ReturnType<typeof holdingAccounts>) =>
+    held && { named: held.named.map((a) => a.account_id), more: held.more };
+
+  it("names the accounts behind the others", () => {
+    expect(
+      names(
+        holdingAccounts(
+          overview("2026-03-31", [
+            account(1, "2026-04-30"),
+            account(2, "2026-03-31"),
+            account(3, null),
+          ]),
+        ),
+      ),
+    ).toEqual({ named: [2], more: 0 });
+  });
+
+  it("names two and counts the rest", () => {
+    const behind = [2, 3, 4].map((id) => account(id, "2026-03-31"));
+    expect(
+      names(
+        holdingAccounts(
+          overview("2026-03-31", [account(1, "2026-04-30"), ...behind]),
+        ),
+      ),
+    ).toEqual({ named: [2, 3], more: 1 });
+  });
+
+  it("names none when every checked account stops there", () => {
+    expect(
+      holdingAccounts(
+        overview("2026-03-31", [
+          account(1, "2026-03-31"),
+          account(2, "2026-03-31"),
+          account(3, null),
+        ]),
+      ),
+    ).toBeNull();
+    expect(holdingAccounts(overview(null, [account(1, null)]))).toBeNull();
   });
 });

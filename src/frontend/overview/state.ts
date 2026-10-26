@@ -60,6 +60,23 @@ export function otherWorthChange(overview: PostedOverview): number {
   );
 }
 
+/**
+ * The accounts whose books stop at "Complete until", which hold the default
+ * month back: two named, and how many more. None when every account with a
+ * balance check stops there, since then nothing is behind the others.
+ */
+export function holdingAccounts(overview: PostedOverview): {
+  named: PostedOverview["accounts"];
+  more: number;
+} | null {
+  const { complete_until: until, accounts } = overview;
+  if (until === null) return null;
+  const checked = accounts.filter((account) => account.books_until !== null);
+  const holding = checked.filter((account) => account.books_until === until);
+  if (holding.length === checked.length) return null;
+  return { named: holding.slice(0, 2), more: Math.max(0, holding.length - 2) };
+}
+
 /** A row of Spending by category: a category, the rest, or the total. */
 export type CategoryRow = {
   kind: "category" | "other" | "total";

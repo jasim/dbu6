@@ -36,6 +36,7 @@ import {
   averageLabel,
   categoryRows,
   difference,
+  holdingAccounts,
   monthDates,
   type MonthTotals,
   monthSteps,
@@ -108,10 +109,16 @@ export function Overview() {
       ) : summary && overview?.posted ? (
         <div className="mt-5 space-y-4">
           <StatusLine summary={summary} overview={overview} />
-          <MonthFigures overview={overview} />
-          <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-            <Categories overview={overview} />
-            <NetWorth overview={overview} />
+          {/* The month's money on the left, where it stands on the right. */}
+          <div className="grid items-start gap-4 lg:grid-cols-[3fr_2fr]">
+            <div className="min-w-0 space-y-4">
+              <MonthFigures overview={overview} />
+              <Categories overview={overview} />
+            </div>
+            <div className="min-w-0 space-y-4">
+              <NetWorth overview={overview} />
+              <Accounts overview={overview} />
+            </div>
           </div>
           <MonthChart
             bars={chartBars(
@@ -128,7 +135,6 @@ export function Overview() {
             onClearSeries={() => {}}
             alwaysSelected
           />
-          <Accounts overview={overview} />
         </div>
       ) : (
         <div aria-hidden="true" className="mt-5 space-y-4">
@@ -217,8 +223,9 @@ function MonthPicker({
 }
 
 /**
- * How complete the books are, and what waits in Update. Hidden when there
- * is neither a balance check nor anything waiting.
+ * How complete the books are, and which accounts stop there when others go
+ * further; and what waits in Update. Hidden when there is neither a balance
+ * check nor anything waiting.
  */
 function StatusLine({
   summary,
@@ -228,17 +235,46 @@ function StatusLine({
   overview: PostedOverview;
 }) {
   const waiting = waitingLabel(waitingInUpdate(summary));
+  const holding = holdingAccounts(overview);
   if (overview.complete_until === null && waiting === null) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-card border border-sap-border bg-card px-4 py-3">
       {overview.complete_until !== null && (
-        <div className="flex items-baseline gap-3">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="text-label uppercase text-ink-meta">
             Complete until
           </span>
           <span className="tnum font-mono text-row text-foreground">
             {formatDate(overview.complete_until)}
           </span>
+          {holding && (
+            <>
+              <span className="ml-3 text-label uppercase text-ink-meta">
+                Held back by
+              </span>
+              <span className="text-row text-foreground">
+                {holding.named.map((account, index) => {
+                  const ledger = accountLedgerHref(account.account_id);
+                  return (
+                    <span key={account.account_id}>
+                      {index > 0 && ", "}
+                      {ledger ? (
+                        <Link
+                          to={ledger}
+                          className="text-foreground no-underline hover:underline hover:underline-offset-4"
+                        >
+                          {account.name}
+                        </Link>
+                      ) : (
+                        account.name
+                      )}
+                    </span>
+                  );
+                })}
+                {holding.more > 0 && ` and ${holding.more} more`}
+              </span>
+            </>
+          )}
         </div>
       )}
       {waiting !== null && (
