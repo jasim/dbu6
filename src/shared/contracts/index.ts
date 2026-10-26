@@ -14,6 +14,12 @@ export {
   type IncomeExpensesEntries,
 } from "./reports.js";
 export {
+  asOfDateQuery,
+  isoDate,
+  reportDateRange,
+  requiredReportDateRange,
+} from "./dates.js";
+export {
   importDraftsContract,
   importSummarySchema,
   categorizationReportSchema,

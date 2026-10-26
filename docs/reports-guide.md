@@ -46,11 +46,21 @@ Declares the route with `initContract`, `z` and, for a grid report,
 `gridDatasetSchema`, all from `"@dbu6/app/server"`. The path is under `/reports/`
 and does not repeat `/api`. Both `api.ts` and `Screen.tsx` import this file.
 
+Take a report's dates from `"@dbu6/app/server"` too, as dbu6's own reports
+do: `reportDateRange` is `from_date` and `to_date`, either one optional,
+`requiredReportDateRange` the two of them required, and `asOfDateQuery` an
+`as_of_date`. Each answers 400 to a date that is not a real `YYYY-MM-DD`
+day, and the ranges to a `from_date` after `to_date`, so the route can
+compare dates in SQL as text. Add other parameters with `.extend({…})`,
+which keeps the order check.
+`isoDate` is one such date, for a parameter of your own. The dates
+`useReportPeriod` and `useAsOfDate` give are always ones these take.
+
 `contract.ts` is the only file on the screen's side that may import
 `"@dbu6/app/server"`. In the browser that specifier holds only the contract
-helpers (`initContract`, `z`, `gridDatasetSchema`, `errorBodySchema` and the
-dataset types); the build fails, naming the import, if a file the screen
-reaches asks it for anything else.
+helpers (`initContract`, `z`, `gridDatasetSchema`, `errorBodySchema`, the
+date schemas and the dataset types); the build fails, naming the import, if
+a file the screen reaches asks it for anything else.
 
 ## api.ts
 

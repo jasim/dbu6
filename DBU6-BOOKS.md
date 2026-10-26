@@ -77,6 +77,10 @@ Look up an account's id with
 
 ### Questions about money
 
+A report's `from_date`, `to_date` and `as_of_date` are `YYYY-MM-DD` days on
+the calendar. A report answers 400, naming the parameter, to any other date
+or to a `from_date` after `to_date`; leave a date out rather than guess one.
+
 - **"Where do my books stand? What's waiting?"**
   `npx sapporta api get /api/home` lists each import account with its last
   statement balance in the books and what is waiting in Review.

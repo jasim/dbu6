@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
-import { isoDate } from "./reports.js";
+import { isoDate } from "./dates.js";
 
 const c = initContract();
 

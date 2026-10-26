@@ -1,4 +1,8 @@
-import type { DateSpan } from "../../shared/index";
+import {
+  type DateSpan,
+  isoDate,
+  requiredReportDateRange,
+} from "../../shared/index";
 import { Temporal } from "@sapporta/shared/temporal";
 
 /*
@@ -87,12 +91,20 @@ export function financialYearLabel(startYear: number): string {
 }
 
 /**
- * The dates a query string carries, when both are real calendar dates in
- * order; otherwise null.
+ * The dates a query string carries, when a report would take them: both
+ * real calendar dates, in order. Otherwise null.
  */
 export function parseSpan(from: string | null, to: string | null) {
-  if (!isDate(from) || !isDate(to) || from > to) return null;
-  return { first_date: from, last_date: to } satisfies DateSpan;
+  const dates = requiredReportDateRange.safeParse({
+    from_date: from,
+    to_date: to,
+  });
+  return dates.success
+    ? ({
+        first_date: dates.data.from_date,
+        last_date: dates.data.to_date,
+      } satisfies DateSpan)
+    : null;
 }
 
 export function monthEnd(date: Temporal.PlainDate): Temporal.PlainDate {
@@ -127,12 +139,7 @@ export function financialYearStart(
   });
 }
 
+/** Whether a report would take `value` as a date. */
 export function isDate(value: string | null): value is string {
-  if (value === null || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  try {
-    Temporal.PlainDate.from(value, { overflow: "reject" });
-    return true;
-  } catch {
-    return false;
-  }
+  return isoDate.safeParse(value).success;
 }

@@ -3,44 +3,21 @@ import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { gridDatasetSchema } from "@sapporta/shared/grid-dataset";
 import { dateSpanSchema } from "./date-span.js";
+import {
+  asOfDateQuery,
+  reportDateRange,
+  requiredReportDateRange,
+} from "./dates.js";
 
 const c = initContract();
 
-const dateQuery = z.object({
-  as_of_date: z.string(),
-});
-
 // The balance sheet leaves Equity out unless asked, as `hledger bs` does
 // next to `hledger bse`: net worth is then assets less liabilities.
-const balanceSheetQuery = dateQuery.extend({
+const balanceSheetQuery = asOfDateQuery.extend({
   show_equity: z.enum(["true", "false"]).optional(),
 });
 
-const optionalDateRangeQuery = z.object({
-  from_date: z.string().optional(),
-  to_date: z.string().optional(),
-});
-
 const noParamsQuery = z.object({});
-
-export const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD")
-  .refine((value) => {
-    // Date rolls 30 February over into March; a real date survives the trip.
-    const date = new Date(`${value}T00:00:00Z`);
-    return (
-      !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
-    );
-  }, "Not a date on the calendar");
-
-// Both dates are required and in order: the page always resolves its period.
-const incomeExpensesQuery = z
-  .object({ from_date: isoDate, to_date: isoDate })
-  .refine((query) => query.from_date <= query.to_date, {
-    message: "from_date must not be after to_date",
-    path: ["from_date"],
-  });
 
 // Exported because the frontend's declarations name it (dist/frontend/*.d.ts).
 export type IncomeExpensesAccountShape = {
@@ -99,16 +76,9 @@ export const incomeExpensesSchema = z.object({
 });
 export type IncomeExpenses = z.infer<typeof incomeExpensesSchema>;
 
-const incomeExpensesEntriesQuery = z
-  .object({
-    from_date: isoDate,
-    to_date: isoDate,
-    section: z.enum(["income", "spending"]),
-  })
-  .refine((query) => query.from_date <= query.to_date, {
-    message: "from_date must not be after to_date",
-    path: ["from_date"],
-  });
+const incomeExpensesEntriesQuery = requiredReportDateRange.extend({
+  section: z.enum(["income", "spending"]),
+});
 
 /**
  * What one income or spending account moved in one journal, as Income and
@@ -145,7 +115,7 @@ export const reportsContract = c.router({
     path: "/reports/trial-balance",
     summary: "Trial Balance",
     metadata: { tags: ["reports"] },
-    query: dateQuery,
+    query: asOfDateQuery,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
@@ -169,7 +139,7 @@ export const reportsContract = c.router({
     path: "/reports/income-statement",
     summary: "Income Statement",
     metadata: { tags: ["reports"] },
-    query: optionalDateRangeQuery,
+    query: reportDateRange,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
@@ -181,7 +151,7 @@ export const reportsContract = c.router({
     path: "/reports/asset-inflows",
     summary: "Asset Inflows",
     metadata: { tags: ["reports"] },
-    query: optionalDateRangeQuery,
+    query: reportDateRange,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
@@ -204,7 +174,8 @@ export const reportsContract = c.router({
     path: "/reports/income-expenses",
     summary: "Income and Expenses",
     metadata: { tags: ["reports"] },
-    query: incomeExpensesQuery,
+    // Both dates are required: the page always resolves its period.
+    query: requiredReportDateRange,
     responses: {
       200: incomeExpensesSchema,
       400: errorBodySchema,
@@ -228,7 +199,7 @@ export const reportsContract = c.router({
     path: "/reports/expense-breakdown",
     summary: "Expense Breakdown",
     metadata: { tags: ["reports"] },
-    query: optionalDateRangeQuery,
+    query: reportDateRange,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
@@ -240,10 +211,8 @@ export const reportsContract = c.router({
     path: "/reports/account-ledger",
     summary: "Account Ledger",
     metadata: { tags: ["reports"] },
-    query: z.object({
+    query: reportDateRange.extend({
       account_id: z.coerce.number().int().positive(),
-      from_date: z.string().optional(),
-      to_date: z.string().optional(),
     }),
     responses: {
       200: gridDatasetSchema,
@@ -256,10 +225,8 @@ export const reportsContract = c.router({
     path: "/reports/account-ledger/hledger",
     summary: "Account Ledger's journals as hledger journal text",
     metadata: { tags: ["reports"] },
-    query: z.object({
+    query: reportDateRange.extend({
       account_id: z.coerce.number().int().positive(),
-      from_date: z.string().optional(),
-      to_date: z.string().optional(),
     }),
     responses: {
       200: z.object({
@@ -275,7 +242,7 @@ export const reportsContract = c.router({
     path: "/reports/day-book",
     summary: "Day Book",
     metadata: { tags: ["reports"] },
-    query: optionalDateRangeQuery,
+    query: reportDateRange,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
@@ -287,7 +254,7 @@ export const reportsContract = c.router({
     path: "/reports/monthly-summary",
     summary: "Monthly Summary",
     metadata: { tags: ["reports"] },
-    query: optionalDateRangeQuery,
+    query: reportDateRange,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
@@ -299,7 +266,7 @@ export const reportsContract = c.router({
     path: "/reports/net-worth",
     summary: "Net Worth Over Time",
     metadata: { tags: ["reports"] },
-    query: optionalDateRangeQuery,
+    query: reportDateRange,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,

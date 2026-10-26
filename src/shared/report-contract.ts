@@ -18,3 +18,10 @@ export {
   type GridDatasetNode,
 } from "@sapporta/shared/grid-dataset";
 export type { NavLink } from "@sapporta/shared/contracts";
+// A report's dates, read as ours read them.
+export {
+  asOfDateQuery,
+  isoDate,
+  reportDateRange,
+  requiredReportDateRange,
+} from "./contracts/dates.js";
