@@ -22,6 +22,7 @@ api.register("balanceSheet", reportsContract.balanceSheet, ({ c, request }) => {
     status: 200,
     body: balanceSheetReport(ledger, {
       asOfDate: request.query.as_of_date,
+      hideEquity: request.query.show_equity !== "true",
     }),
   };
 });
@@ -39,11 +40,24 @@ api.register("balanceSheet", reportsContract.balanceSheet, ({ c, request }) => {
  * up to the date (retained earnings). With it, net worth is assets less
  * liabilities whenever the books balance; when they don't, a row after it
  * says by how much.
+ *
+ * With `hideEquity`, as `hledger bs` is to `hledger bse`, Equity is left out
+ * and net worth is assets less liabilities. Personal books never close the
+ * year into equity, so net worth just accumulates, and the screen shows it
+ * this way unless asked for Equity.
  */
 export function balanceSheetReport(
   ledger: ReportLedger,
-  query: { asOfDate: string },
+  query: { asOfDate: string; hideEquity?: boolean },
 ): GridDataset {
+  if (query.hideEquity) {
+    return toAssetsLessLiabilities(
+      loadAccountBalances(ledger, {
+        types: ["Asset", "Liability"],
+        asOf: query.asOfDate,
+      }),
+    );
+  }
   const accounts = loadAccountBalances(ledger, {
     types: ["Asset", "Liability", "Equity"],
     asOf: query.asOfDate,
@@ -113,6 +127,30 @@ function toBalanceSheetResult(
       }),
     );
   }
+  return result;
+}
+
+/** Assets and Liabilities, and net worth as the one less the other. */
+function toAssetsLessLiabilities(accounts: SectionAccount[]): GridDataset {
+  const result = sectionAccountResult({
+    name: "balance-sheet",
+    label: "Balance Sheet",
+    sections: ["Asset", "Liability"],
+    labels: { Asset: "Assets", Liability: "Liabilities" },
+    accounts,
+  });
+  result.footerRows = [
+    sectionFooterRow({
+      rowKey: NET_WORTH_ROW,
+      label: "Net worth",
+      columns: {
+        section_total:
+          sectionTotal(result.nodes, "Asset") -
+          sectionTotal(result.nodes, "Liability"),
+      },
+      result,
+    }),
+  ];
   return result;
 }
 

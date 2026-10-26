@@ -1,3 +1,4 @@
+import { Checkbox } from "@sapporta/ui";
 import {
   accountLedgerRow,
   formatDate,
@@ -81,8 +82,12 @@ function netWorthCells(asOfDate: string): ReportCellRenderers {
 export function BalanceSheetReport() {
   const [searchParams, setSearchParams] = useSearchParams();
   const asOfDate = searchParams.get("as_of_date") ?? today();
-  const report = useReportResult(["balance-sheet", asOfDate], () =>
-    callReport({ as_of_date: asOfDate }),
+  // Off unless the URL asks: personal books never close the year into
+  // equity, so net worth is what you own less what you owe.
+  const showEquity = searchParams.get("show_equity") === "true";
+  const report = useReportResult(
+    ["balance-sheet", asOfDate, showEquity],
+    () => callReport({ as_of_date: asOfDate, show_equity: showEquity }),
   );
   const cells = useMemo(() => netWorthCells(asOfDate), [asOfDate]);
 
@@ -107,6 +112,15 @@ export function BalanceSheetReport() {
           value={asOfDate}
           onChange={(value) => setParam("as_of_date", value)}
         />
+        <label className="flex cursor-pointer items-center gap-2 text-row">
+          <Checkbox
+            checked={showEquity}
+            onCheckedChange={(checked) =>
+              setParam("show_equity", checked ? "true" : "")
+            }
+          />
+          Show Equity
+        </label>
       </ReportToolbar>
       <ReportResultBody<LedgerLinkInput>
         error={report.error}
@@ -119,8 +133,14 @@ export function BalanceSheetReport() {
   );
 }
 
-function callReport(params: { as_of_date: string }): Promise<GridDataset> {
+function callReport(params: {
+  as_of_date: string;
+  show_equity: boolean;
+}): Promise<GridDataset> {
   return reportsApi.balanceSheet({
-    query: { as_of_date: params.as_of_date },
+    query: {
+      as_of_date: params.as_of_date,
+      show_equity: params.show_equity ? "true" : undefined,
+    },
   });
 }

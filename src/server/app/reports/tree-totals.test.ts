@@ -306,6 +306,37 @@ describe("reports over an account tree", () => {
     expect(footer(opening, "section_total")).toEqual([5000]);
   });
 
+  it("balance sheet without equity is assets less liabilities, as hledger bs", () => {
+    const sqlite = ledger();
+    // 500 into the bank with nothing on the other side: without Equity
+    // there is nothing for it to be out of balance with.
+    sqlite.exec(`
+      INSERT INTO accounts VALUES (41, 'workspace', 'user', 'Sample Card', NULL, 'Liability');
+      INSERT INTO journals VALUES
+        (40, 'workspace', 'user', '2026-01-20', 'One-sided'),
+        (41, 'workspace', 'user', '2026-01-10', 'Rent on the card');
+      INSERT INTO journal_entries
+        (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit)
+      VALUES
+        (401, 'workspace', 'user', 40, 9, 500, 0),
+        (411, 'workspace', 'user', 41, 5, 1000, 0),
+        (412, 'workspace', 'user', 41, 41, 0, 1000);
+    `);
+    const result = balanceSheetReport(readOnlyLedger(sqlite, auth), {
+      asOfDate: "2026-01-31",
+      hideEquity: true,
+    });
+
+    expect(result.nodes.map((node) => node.columns.section)).toEqual([
+      "Assets",
+      "Liabilities",
+    ]);
+    expect(sections(result).Asset?.total).toBe(74500);
+    expect(sections(result).Liability?.total).toBe(1000);
+    expect(footer(result, "section_total")).toEqual([73500]);
+    expect(result.footerRows?.[0]?.columns.section).toBe("Net worth");
+  });
+
   it("balance sheet says by how much the books are out when a journal doesn't balance", () => {
     const sqlite = ledger();
     // 500 into the bank with nothing on the other side.

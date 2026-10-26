@@ -9,6 +9,12 @@ const dateQuery = z.object({
   as_of_date: z.string(),
 });
 
+// The balance sheet leaves Equity out unless asked, as `hledger bs` does
+// next to `hledger bse`: net worth is then assets less liabilities.
+const balanceSheetQuery = dateQuery.extend({
+  show_equity: z.enum(["true", "false"]).optional(),
+});
+
 const optionalDateRangeQuery = z.object({
   from_date: z.string().optional(),
   to_date: z.string().optional(),
@@ -147,7 +153,7 @@ export const reportsContract = c.router({
     path: "/reports/balance-sheet",
     summary: "Balance Sheet",
     metadata: { tags: ["reports"] },
-    query: dateQuery,
+    query: balanceSheetQuery,
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
