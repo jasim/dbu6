@@ -144,6 +144,35 @@ export function categoryRows(overview: PostedOverview): CategoryRow[] {
   ];
 }
 
+/**
+ * Each row's bar under its name: how far this month's amount and the
+ * average reach, as fractions of the largest of either among the rows, so
+ * every bar and tick shares one scale. Total has none, and neither has a
+ * refund (a negative amount) or a missing average.
+ */
+export function categoryBars(
+  rows: readonly CategoryRow[],
+): ({ amount: number; average: number | null } | null)[] {
+  const parts = rows.filter((row) => row.kind !== "total");
+  const largest = Math.max(
+    0,
+    ...parts.flatMap((row) => [row.amount, row.average ?? 0]),
+  );
+  const reach = (value: number) =>
+    largest > 0 && value > 0 ? value / largest : 0;
+  return rows.map((row) =>
+    row.kind === "total" || largest === 0
+      ? null
+      : {
+          amount: reach(row.amount),
+          average:
+            row.average === null || row.average <= 0
+              ? null
+              : reach(row.average),
+        },
+  );
+}
+
 /** A month's income and spending, both positive, as the overview has them. */
 export type MonthTotals = { income: number; spending: number };
 

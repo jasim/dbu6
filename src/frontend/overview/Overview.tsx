@@ -34,6 +34,7 @@ import {
 } from "../update/state";
 import {
   averageLabel,
+  categoryBars,
   categoryRows,
   difference,
   holdingAccounts,
@@ -443,6 +444,8 @@ function Categories({ overview }: { overview: PostedOverview }) {
     last_date: dates.last_date,
   };
   const averaged = overview.figures.average !== null;
+  const rows = categoryRows(overview);
+  const bars = categoryBars(rows);
   return (
     <Card
       title="Spending by category"
@@ -470,8 +473,9 @@ function Categories({ overview }: { overview: PostedOverview }) {
             </tr>
           </thead>
           <tbody>
-            {categoryRows(overview).map((row) => {
+            {rows.map((row, index) => {
               const total = row.kind === "total";
+              const bar = bars[index];
               const ledger =
                 row.account_id === null
                   ? null
@@ -489,7 +493,7 @@ function Categories({ overview }: { overview: PostedOverview }) {
                 >
                   <td
                     className={cn(
-                      "max-w-0 truncate py-2 pr-3",
+                      "max-w-0 py-2 pr-3",
                       total
                         ? "font-semibold text-foreground"
                         : row.kind === "other"
@@ -497,19 +501,28 @@ function Categories({ overview }: { overview: PostedOverview }) {
                           : "text-foreground",
                     )}
                   >
-                    {row.account_id === null ? (
-                      row.name
-                    ) : (
-                      <Link
-                        to={incomeExpensesHref(
-                          trend.first_date,
-                          trend.last_date,
-                          { accountId: row.account_id, month: overview.month },
-                        )}
-                        className="text-foreground no-underline hover:underline hover:underline-offset-4"
-                      >
-                        {row.name}
-                      </Link>
+                    <span className="block truncate">
+                      {row.account_id === null ? (
+                        row.name
+                      ) : (
+                        <Link
+                          to={incomeExpensesHref(
+                            trend.first_date,
+                            trend.last_date,
+                            { accountId: row.account_id, month: overview.month },
+                          )}
+                          className="text-foreground no-underline hover:underline hover:underline-offset-4"
+                        >
+                          {row.name}
+                        </Link>
+                      )}
+                    </span>
+                    {bar && (
+                      <SpendBar
+                        amount={bar.amount}
+                        average={bar.average}
+                        soft={row.kind === "other"}
+                      />
                     )}
                   </td>
                   <Td
@@ -548,6 +561,43 @@ function Categories({ overview }: { overview: PostedOverview }) {
         </table>
       )}
     </Card>
+  );
+}
+
+/**
+ * A category's share of the month under its name: a bar for this month and
+ * a tick at the average, on one scale across the table, like the chart's
+ * dashed average line. The figures stay in their columns.
+ */
+function SpendBar({
+  amount,
+  average,
+  soft,
+}: {
+  amount: number;
+  average: number | null;
+  // Other's bar is lighter, as its name is.
+  soft: boolean;
+}) {
+  return (
+    <span aria-hidden="true" className="relative mt-1 block h-1.5">
+      {amount > 0 && (
+        <span
+          className="absolute inset-y-0 left-0 rounded-full"
+          style={{
+            // A sliver stays visible; nothing at all draws nothing.
+            width: `max(2px, ${amount * 100}%)`,
+            background: soft ? "var(--spend-least)" : "var(--spend-most)",
+          }}
+        />
+      )}
+      {average !== null && (
+        <span
+          className="absolute -inset-y-0.5 w-0.5 -translate-x-1/2 rounded-full bg-foreground"
+          style={{ left: `${average * 100}%` }}
+        />
+      )}
+    </span>
   );
 }
 

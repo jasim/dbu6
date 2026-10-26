@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PostedOverview } from "../../shared/index";
 import {
   averageLabel,
+  categoryBars,
   categoryRows,
   difference,
   holdingAccounts,
@@ -253,5 +254,38 @@ describe("holdingAccounts", () => {
       ),
     ).toBeNull();
     expect(holdingAccounts(overview(null, [account(1, null)]))).toBeNull();
+  });
+});
+
+describe("categoryBars", () => {
+  const row = (
+    kind: "category" | "other" | "total",
+    amount: number,
+    average: number | null,
+  ) => ({ kind, account_id: null, name: kind, amount, average });
+
+  it("puts bars and ticks on one scale, the largest of either, Total aside", () => {
+    expect(
+      categoryBars([
+        row("category", 1000, 2000),
+        row("category", 500, null),
+        row("other", 250, 0),
+        row("total", 1750, 2000),
+      ]),
+    ).toEqual([
+      { amount: 0.5, average: 1 },
+      { amount: 0.25, average: null },
+      { amount: 0.125, average: null },
+      null,
+    ]);
+  });
+
+  it("draws nothing for a refund, and no bars when nothing was spent", () => {
+    expect(categoryBars([row("category", -500, 1000)])).toEqual([
+      { amount: 0, average: 1 },
+    ]);
+    expect(
+      categoryBars([row("category", -500, null), row("total", -500, null)]),
+    ).toEqual([null, null]);
   });
 });
