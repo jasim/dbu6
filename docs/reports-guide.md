@@ -155,7 +155,8 @@ all from `"@dbu6/app/frontend"`:
   `writeReportPeriod(search, period, defaultPreset)`, and one that has to
   name the dates gets them from `periodSpan(period, books, today())`, where
   `books` is `useQuery(booksSpanQuery).data`: the days the books cover, which
-  All time runs over. `upToToday`, `financialYearLabel` ("FY 2024–25") and the
+  All time runs over. `spanLabel` names picked days as the field does ("5–20
+  Mar 2026"). `upToToday`, `financialYearLabel` ("FY 2024–25") and the
   other period helpers (`presetSpan`, `financialYearSpan`, `monthEnd`) work
   on `YYYY-MM-DD` dates. `useAsOfDate()` with
   `AsOfDateInput` keeps the day a balance stands on in the URL, today

@@ -77,6 +77,7 @@ export {
   periodSpan,
   readReportPeriod,
   reportDates,
+  spanLabel,
   writeReportPeriod,
   type ReportDates,
   type ReportPeriod,

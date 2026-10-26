@@ -56,8 +56,8 @@ const postedOverviewSchema = z.object({
   figures: z.object({
     income: z.number(),
     spending: z.number(),
-    // Over the up to twelve months before `month` that the books cover
-    // (from `first_month`), and how many those are; null when there are none.
+    // Over the up to twelve months before `month` with income or spending
+    // from `first_month` on, and how many those are; null when there are none.
     average: z
       .object({ months: z.number(), income: z.number(), spending: z.number() })
       .nullable(),

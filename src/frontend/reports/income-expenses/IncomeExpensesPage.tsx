@@ -6,7 +6,6 @@ import {
   downloadXlsx,
   EmptyState,
   FileSpreadsheet,
-  formatDaySpan,
   FRESH_QUERY,
   incomeStatementHref,
   keepPreviousData,
@@ -18,6 +17,7 @@ import {
   ReportPeriodField,
   type ReportPeriod,
   Screen,
+  spanLabel,
   today,
   usePageTitle,
   useEffect,
@@ -304,7 +304,7 @@ function PeriodReport({
         <EntriesPanel
           report={report}
           dates={dates}
-          periodLabel={formatDaySpan(dates, { withYear: true })}
+          periodLabel={spanLabel(dates)}
           selectedBar={selectedBar}
           focus={focus}
           onClose={focused ? () => setFocus(DEFAULT_FOCUS) : null}
