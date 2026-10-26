@@ -166,8 +166,8 @@ all from `"@dbu6/app/frontend"`:
 - Formatters (`formatMoney`, `formatDate`, `formatMonth`, …), `Amount`,
   `accountLedgerHref` and `accountLedgerRow` for links into the account
   ledger, `incomeStatementHref` for one into the income statement, and
-  `Screen`, `EmptyState`, `LoadError`, `Button`, `Select`, `ToggleGroup` for
-  a screen that is not a grid.
+  `Screen`, `EmptyState`, `LoadError`, `Button`, `Select`, `ToggleGroup`,
+  `Checkbox` for a screen that is not a grid.
 
 Style with Tailwind classes; dbu6's theme tokens work (`text-row`,
 `text-ink-meta`, `border-sap-border`, `bg-card`). Size a control with

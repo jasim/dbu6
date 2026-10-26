@@ -160,6 +160,7 @@ export {
   accountHueColor,
   type AccountHueKey,
 } from "./components/account-hue";
+export { Checkbox } from "@sapporta/ui/checkbox";
 export { cn } from "@sapporta/ui/cn";
 export { Popover, PopoverContent, PopoverTrigger } from "@sapporta/ui/popover";
 export { Tooltip, TooltipContent, TooltipTrigger } from "@sapporta/ui/tooltip";

@@ -1,7 +1,7 @@
-import { Checkbox } from "@sapporta/ui";
 import {
   accountLedgerRow,
   AsOfDateInput,
+  Checkbox,
   formatDate,
   type GridDataset,
   incomeStatementHref,
