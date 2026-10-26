@@ -8,9 +8,8 @@ import {
   ReportRunButton,
   ReportScreenFrame,
   ReportToolbar,
-  today,
+  useAsOfDate,
   useReportResult,
-  useSearchParams,
 } from "../report-kit";
 import { reportsApi } from "./client";
 
@@ -19,18 +18,10 @@ const links = {
 } satisfies ReportCellLinkResolvers<LedgerLinkInput>;
 
 export function TrialBalanceReport() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const asOfDate = searchParams.get("as_of_date") ?? today();
+  const { asOfDate, setAsOfDate } = useAsOfDate();
   const report = useReportResult(["trial-balance", asOfDate], () =>
     callReport({ as_of_date: asOfDate }),
   );
-
-  const setParam = (key: string, value: string) => {
-    const next = new URLSearchParams(searchParams);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setSearchParams(next, { replace: true });
-  };
 
   return (
     <ReportScreenFrame title="Trial Balance">
@@ -39,10 +30,7 @@ export function TrialBalanceReport() {
           <ReportRunButton loading={report.loading} onClick={report.run} />
         }
       >
-        <AsOfDateInput
-          value={asOfDate}
-          onChange={(value) => setParam("as_of_date", value)}
-        />
+        <AsOfDateInput value={asOfDate} onChange={setAsOfDate} />
       </ReportToolbar>
       <ReportResultBody<LedgerLinkInput>
         error={report.error}

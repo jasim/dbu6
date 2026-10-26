@@ -16,6 +16,7 @@ import {
   AsOfDateInput,
   asOfPresets,
   ReportPeriodField,
+  useAsOfDate,
   useReportPeriod,
 } from "./ReportPeriodField";
 
@@ -257,5 +258,56 @@ describe("the as-of day", () => {
     await click(calendarDay("2026-03-05"));
     expect(asked()).toBe("2026-03-05");
     expect(asOfTrigger()?.textContent).toBe("5 Mar 2026");
+  });
+});
+
+function AsOfReport() {
+  const { asOfDate, setAsOfDate } = useAsOfDate();
+  const { search } = useLocation();
+  return createElement(
+    "div",
+    null,
+    createElement("code", null, search),
+    createElement("output", null, asOfDate),
+    createElement(AsOfDateInput, { value: asOfDate, onChange: setAsOfDate }),
+  );
+}
+
+describe("the as-of day in the URL", () => {
+  async function renderAsOf(search: string) {
+    await act(async () => {
+      root.render(
+        createElement(
+          MemoryRouter,
+          // A new router each time, so it opens at `search`.
+          { key: search, initialEntries: [`/reports/balance-sheet${search}`] },
+          createElement(AsOfReport),
+        ),
+      );
+    });
+  }
+
+  it("reads a day, and today for one it can't read", async () => {
+    await renderAsOf("?as_of_date=2026-03-31");
+    expect(asked()).toBe("2026-03-31");
+
+    for (const search of ["", "?as_of_date=2026-02-30", "?as_of_date=x"]) {
+      await renderAsOf(search);
+      expect(asked()).toBe("2026-09-16");
+    }
+  });
+
+  it("writes the picked day, keeping the other parameters", async () => {
+    await renderAsOf("?show_equity=true");
+    await click(
+      host.querySelector<HTMLButtonElement>('[aria-label^="As of:"]'),
+    );
+    await click(
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>("[role=dialog] li button"),
+      ).find((button) => button.textContent?.startsWith("End of last month")) ??
+        null,
+    );
+    expect(location()).toBe("?show_equity=true&as_of_date=2026-08-31");
   });
 });

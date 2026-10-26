@@ -24,7 +24,7 @@ import { reportClient } from "../api";
 import { formatMonth, formatRelativeDate } from "../format";
 import { typingIn } from "../keys";
 import { FRESH_QUERY } from "../queries";
-import { presetSpan, type PeriodPreset } from "./periods";
+import { isDate, presetSpan, type PeriodPreset } from "./periods";
 import {
   activePreset,
   choosePeriod,
@@ -370,6 +370,26 @@ function RangeCalendar({
       classNames={CALENDAR_CLASS_NAMES}
     />
   );
+}
+
+/**
+ * The day in the query string's `as_of_date`, and a setter that keeps the
+ * other parameters. With no readable day there, it is today.
+ */
+export function useAsOfDate() {
+  const [search, setSearch] = useSearchParams();
+  const value = search.get("as_of_date");
+  const asOfDate = isDate(value) ? value : today();
+  const setAsOfDate = (next: string) =>
+    setSearch(
+      (current) => {
+        const updated = new URLSearchParams(current);
+        updated.set("as_of_date", next);
+        return updated;
+      },
+      { replace: true },
+    );
+  return { asOfDate, setAsOfDate };
 }
 
 /**

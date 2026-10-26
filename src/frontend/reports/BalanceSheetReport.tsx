@@ -17,6 +17,7 @@ import {
   today,
   useMemo,
   useReportResult,
+  useAsOfDate,
   useSearchParams,
 } from "../report-kit";
 import { reportsApi } from "./client";
@@ -81,7 +82,7 @@ function netWorthCells(asOfDate: string): ReportCellRenderers {
 
 export function BalanceSheetReport() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const asOfDate = searchParams.get("as_of_date") ?? today();
+  const { asOfDate, setAsOfDate } = useAsOfDate();
   // Off unless the URL asks: personal books never close the year into
   // equity, so net worth is what you own less what you owe.
   const showEquity = searchParams.get("show_equity") === "true";
@@ -107,10 +108,7 @@ export function BalanceSheetReport() {
           <ReportRunButton loading={report.loading} onClick={report.run} />
         }
       >
-        <AsOfDateInput
-          value={asOfDate}
-          onChange={(value) => setParam("as_of_date", value)}
-        />
+        <AsOfDateInput value={asOfDate} onChange={setAsOfDate} />
         <label className="flex cursor-pointer items-center gap-2 text-row">
           <Checkbox
             checked={showEquity}

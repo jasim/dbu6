@@ -157,8 +157,9 @@ all from `"@dbu6/app/frontend"`:
   `books` is `useQuery(booksSpanQuery).data`: the days the books cover, which
   All time runs over. `upToToday`, `financialYearLabel` ("FY 2024–25") and the
   other period helpers (`presetSpan`, `financialYearSpan`, `monthEnd`) work
-  on `YYYY-MM-DD` dates. `AsOfDateInput` with
-  `today()` is the day a balance stands on; `DateInput` is a plain date
+  on `YYYY-MM-DD` dates. `useAsOfDate()` with
+  `AsOfDateInput` keeps the day a balance stands on in the URL, today
+  unless it names a readable one; `DateInput` is a plain date
   field. Keep every input in the URL (`useSearchParams`), so a report
   can be linked to and reloaded.
 - Formatters (`formatMoney`, `formatDate`, `formatMonth`, …), `Amount`,

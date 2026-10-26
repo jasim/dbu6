@@ -70,6 +70,7 @@ export {
   AsOfDateInput,
   booksSpanQuery,
   ReportPeriodField,
+  useAsOfDate,
   useReportPeriod,
 } from "./reports/ReportPeriodField";
 export {
