@@ -209,6 +209,7 @@ function postingOf(
     amount: toPaise(entry.debit - entry.credit),
     // Placed by `placeAssertions`, which proves each one first.
     assertion: null,
+    uncheckedAssertion: null,
     comment: postingComment(entry, description),
   };
 }
@@ -287,6 +288,10 @@ export function sanitizeDescription(text: string): string {
  * - else, where the account's balance at the end of that day matches, it
  *   moves to balance-assertions.journal, included last, so it is checked
  *   after every line of the day;
+ * - else, where it holds in the ledger's order, hledger's order never
+ *   reaches that balance (two of the day's transfers, say, both read
+ *   before the line), so no `=` can say it: it becomes a `dbu6-balance:`
+ *   tag on its line, which verify.py checks by replaying the ledger's order;
  * - else the ledger itself disagrees with the statement (a difference dbu6
  *   reports too), and it stays on its line for hledger to report.
  */
@@ -324,26 +329,49 @@ function placeAssertions(
       a.postingIndex - b.postingIndex,
   );
 
-  const running = new Map<number, Paise>();
-  const atLine = new Map<Line, Paise>();
+  const runningBalances = (ordered: readonly Line[]) => {
+    const running = new Map<number, Paise>();
+    const atLine = new Map<Line, Paise>();
+    for (const line of ordered) {
+      const accountId = line.entry.account_id;
+      const balance =
+        (running.get(accountId) ?? 0) +
+        toPaise(line.entry.debit - line.entry.credit);
+      running.set(accountId, balance);
+      atLine.set(line, balance);
+    }
+    return atLine;
+  };
+  const atLine = runningBalances(lines);
   const endOfDay = new Map<string, Paise>();
   for (const line of lines) {
-    const accountId = line.entry.account_id;
-    const balance =
-      (running.get(accountId) ?? 0) +
-      toPaise(line.entry.debit - line.entry.credit);
-    running.set(accountId, balance);
-    atLine.set(line, balance);
-    endOfDay.set(dayKey(accountId, line.date), balance);
+    endOfDay.set(dayKey(line.entry.account_id, line.date), atLine.get(line)!);
   }
+  // The ledger's order: date, journal id, entry id.
+  const atLedgerLine = runningBalances(
+    [...lines].sort(
+      (a, b) =>
+        compareText(a.date, b.date) ||
+        a.journalId - b.journalId ||
+        a.entry.id - b.entry.id,
+    ),
+  );
 
   const inline = new Map<string, Paise>();
+  const unchecked = new Map<string, Paise>();
   const moved = new Map<string, HledgerTransaction>();
   for (const line of lines) {
     if (line.entry.assertion === null) continue;
     const asserted = toPaise(line.entry.assertion);
     const key = dayKey(line.entry.account_id, line.date);
-    if (atLine.get(line) !== asserted && endOfDay.get(key) === asserted) {
+    const at = postingKey(
+      line.fileIndex,
+      line.transactionIndex,
+      line.postingIndex,
+    );
+    if (atLine.get(line) === asserted) {
+      inline.set(at, asserted);
+    } else if (endOfDay.get(key) === asserted) {
       if (!moved.has(key)) {
         moved.set(key, {
           date: line.date,
@@ -354,29 +382,31 @@ function placeAssertions(
               account: paths.get(line.entry.account_id)!,
               amount: 0,
               assertion: asserted,
+              uncheckedAssertion: null,
               comment: `dbu6 journal ${line.journalId}`,
             },
           ],
         });
       }
-      continue;
+    } else if (atLedgerLine.get(line) === asserted) {
+      unchecked.set(at, asserted);
+    } else {
+      inline.set(at, asserted);
     }
-    inline.set(
-      postingKey(line.fileIndex, line.transactionIndex, line.postingIndex),
-      asserted,
-    );
   }
 
   const withInline = files.map((file, fileIndex) => ({
     ...file,
     transactions: file.transactions.map((transaction, transactionIndex) => ({
       ...transaction,
-      postings: transaction.postings.map((posting, postingIndex) => ({
-        ...posting,
-        assertion:
-          inline.get(postingKey(fileIndex, transactionIndex, postingIndex)) ??
-          null,
-      })),
+      postings: transaction.postings.map((posting, postingIndex) => {
+        const at = postingKey(fileIndex, transactionIndex, postingIndex);
+        return {
+          ...posting,
+          assertion: inline.get(at) ?? null,
+          uncheckedAssertion: unchecked.get(at) ?? null,
+        };
+      }),
     })),
   }));
   if (moved.size === 0) return withInline;

@@ -66,6 +66,12 @@ export interface HledgerPosting {
   account: string;
   amount: Paise;
   assertion: Paise | null;
+  /**
+   * An assertion true in dbu6's order that no point of hledger's order
+   * reaches, printed as a `dbu6-balance:` tag for verify.py to check by
+   * replaying dbu6's order; null otherwise.
+   */
+  uncheckedAssertion: Paise | null;
   /** Safe to print after `;`, or null. */
   comment: string | null;
 }

@@ -102,6 +102,20 @@ function sampleBooks(): HledgerExportInput {
   };
 }
 
+// A second payment to the card the same day (journal 12, also the savings
+// file): the card then ends the day at 700, and hledger, reading both
+// payments before the spend, passes 1000, 1200, 700 and never 500.
+function withSecondPayment(): HledgerExportInput {
+  const input = sampleBooks();
+  input.journals.push(
+    journal(12, "2026-01-05", "Second card payment", [
+      entry(CARD, 200),
+      entry(SAVINGS, -200),
+    ]),
+  );
+  return input;
+}
+
 describe("buildHledgerBooks", () => {
   it("declares every account depth-first, roots by type", () => {
     const books = buildHledgerBooks(sampleBooks());
@@ -154,6 +168,7 @@ describe("buildHledgerBooks", () => {
             account: "Liabilities:Sample Card",
             amount: 0,
             assertion: 50000,
+            uncheckedAssertion: null,
             comment: "dbu6 journal 10",
           },
         ],
@@ -169,6 +184,25 @@ describe("buildHledgerBooks", () => {
       "sample-card.journal",
       "general-journals.journal",
     ]);
+  });
+
+  it("tags an assertion hledger's order never reaches, for verify.py to check", () => {
+    const books = buildHledgerBooks(withSecondPayment());
+    expect(books.files.map((file) => file.path)).not.toContain(
+      "balance-assertions.journal",
+    );
+    const payment = books.files[0]!.transactions[1]!.postings[0]!;
+    expect(payment).toMatchObject({
+      account: "Liabilities:Sample Card",
+      assertion: null,
+      uncheckedAssertion: 50000,
+    });
+    const savings = renderHledgerBooks(books).find(
+      (file) => file.path === "sample-savings.journal",
+    )!;
+    expect(savings.content).toContain(
+      "    Liabilities:Sample Card   1000.00  ; dbu6-balance: 500.00\n",
+    );
   });
 
   it("keeps an assertion the ledger itself disagrees with on its line", () => {
@@ -314,6 +348,10 @@ describe.skipIf(!hledger)("hledger reads the export", () => {
   it("passes strict checks, the moved assertion included", () => {
     const balances = check(sampleBooks());
     expect(balances).toContain("Liabilities:Sample Card");
+  });
+
+  it("passes strict checks with an assertion its order never reaches", () => {
+    expect(check(withSecondPayment())).toContain("Liabilities:Sample Card");
   });
 
   it("passes strict checks with names that need escaping", () => {

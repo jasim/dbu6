@@ -66,8 +66,9 @@ function renderTransaction(transaction: HledgerTransaction): string[] {
   ];
 }
 
-// `    {account}  {amount}[ = {assertion}][  ; {comment}]`, the amounts
-// right-aligned in one column. Two spaces end the account name.
+// `    {account}  {amount}[ = {assertion}][  ; {comment}[, dbu6-balance: …]]`,
+// the amounts right-aligned in one column. Two spaces end the account name.
+// The comment has no `:`, so the tag is the only one hledger reads there.
 function renderPosting(
   posting: HledgerPosting,
   amount: string,
@@ -76,7 +77,13 @@ function renderPosting(
 ): string {
   const assertion =
     posting.assertion === null ? "" : ` = ${formatPaise(posting.assertion)}`;
-  const comment = posting.comment === null ? "" : `  ; ${posting.comment}`;
+  const texts = [
+    posting.comment,
+    posting.uncheckedAssertion === null
+      ? null
+      : `dbu6-balance: ${formatPaise(posting.uncheckedAssertion)}`,
+  ].filter((text): text is string => text !== null);
+  const comment = texts.length === 0 ? "" : `  ; ${texts.join(", ")}`;
   return `    ${posting.account.padEnd(accountWidth)}  ${amount.padStart(amountWidth)}${assertion}${comment}`;
 }
 

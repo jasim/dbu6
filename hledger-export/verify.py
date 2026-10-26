@@ -14,7 +14,9 @@ script reads the journal with hledger, through hledger-web's JSON API (or
   b. each dbu6 journal is one transaction, none twice (no double counting);
   c. each account's own balance and declared type;
   d. the balance sheet, from hledger's own bs, bse and is reports;
-  e. each balance assertion is in the journal, where hledger checks it;
+  e. each balance assertion is in the journal, where hledger checks it, or,
+     where hledger's order never reaches the balance (a day's lines read
+     from two files), a dbu6-balance tag this script checks in dbu6's order;
   f. the sampled transactions, posting by posting.
 
 Run it from anywhere, with hledger on PATH:
@@ -270,10 +272,41 @@ def check_balance_sheet(expected: dict) -> tuple[Check, list]:
     return check, rows
 
 
+def dbu6_order_balances(books: Books) -> list:
+    """
+    (transaction, posting, account's own balance after it), in dbu6's order:
+    date, dbu6-id, then posting order, which is dbu6's entry order.
+    """
+    ordered = sorted(
+        (t for t in books.transactions if dbu6_id(t) is not None),
+        key=lambda t: (t["tdate"], dbu6_id(t)),
+    )
+    running: dict[str, Decimal] = {}
+    rows = []
+    for t in ordered:
+        for p in t["tpostings"]:
+            account = p["paccount"]
+            running[account] = running.get(account, ZERO) + total(p["pamount"])
+            rows.append((t, p, running[account]))
+    return rows
+
+
 def check_assertions(books: Books, expected: dict) -> Check:
     check = Check("balance assertions")
     tagged: dict[int, set] = {}
     untagged = set()
+    replayed: dict[int, set] = {}
+    for t, p, balance in dbu6_order_balances(books):
+        for key, value in p["ptags"]:
+            if key != "dbu6-balance":
+                continue
+            asserted = Decimal(value)
+            replayed.setdefault(dbu6_id(t), set()).add((p["paccount"], asserted))
+            if asserted != balance:
+                check.differences.append(
+                    f"dbu6-id {dbu6_id(t)} {t['tdate']} {p['paccount']}"
+                    f" = {money(asserted)}: {money(balance)} in dbu6's order"
+                )
     for t in books.transactions:
         asserted = {
             (p["paccount"], quantity(p["pbalanceassertion"]["baamount"]))
@@ -285,7 +318,7 @@ def check_assertions(books: Books, expected: dict) -> Check:
             untagged |= {(t["tdate"], account, b) for account, b in asserted}
         else:
             tagged.setdefault(journal_id, set()).update(asserted)
-    moved = 0
+    moved = in_dbu6_order = 0
     for a in expected["assertions"]:
         balance = Decimal(a["balance"])
         if (a["account"], balance) in tagged.get(a["dbu6_id"], set()):
@@ -293,11 +326,17 @@ def check_assertions(books: Books, expected: dict) -> Check:
         if (a["date"], a["account"], balance) in untagged:
             moved += 1
             continue
+        if (a["account"], balance) in replayed.get(a["dbu6_id"], set()):
+            in_dbu6_order += 1
+            continue
         check.differences.append(
             f"dbu6-id {a['dbu6_id']} {a['date']} {a['account']} = {money(balance)}:"
             " not in the journal"
         )
-    check.detail = f"{len(expected['assertions'])} recorded, {moved} at end of day"
+    check.detail = (
+        f"{len(expected['assertions'])} recorded, {moved} at end of day,"
+        f" {in_dbu6_order} in dbu6's order"
+    )
     return check
 
 
