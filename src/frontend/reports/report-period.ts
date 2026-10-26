@@ -2,6 +2,7 @@ import { Temporal } from "@sapporta/shared/temporal";
 import type { DateSpan } from "../../shared/index";
 import { formatDaySpan, formatMonthSpan } from "../format";
 import {
+  financialYearLabel,
   financialYearOf,
   financialYearSpan,
   financialYearStart,
@@ -11,7 +12,10 @@ import {
   parseSpan,
   PERIOD_PRESETS,
   presetLabel,
+  presetMonths,
   presetSpan,
+  span,
+  upToToday,
   type PeriodPreset,
 } from "./periods";
 
@@ -34,10 +38,12 @@ export type ReportDates = { from_date?: string; to_date?: string };
 
 export type PeriodChoice = "all-time" | PeriodPreset | "custom";
 
+export const ALL_TIME_LABEL = "All time";
+
 /** The period menu, in order. */
 export const PERIOD_CHOICES: readonly { value: PeriodChoice; label: string }[] =
   [
-    { value: "all-time", label: "All time" },
+    { value: "all-time", label: ALL_TIME_LABEL },
     ...PERIOD_PRESETS.map(({ id, label }) => ({ value: id, label })),
     { value: "custom", label: "Custom range…" },
   ];
@@ -159,7 +165,7 @@ export function activePreset(
  * ("5–20 Mar 2026").
  */
 export function periodLabel(period: ReportPeriod, today: string): string {
-  if (period.kind === "all-time") return "All time";
+  if (period.kind === "all-time") return ALL_TIME_LABEL;
   const preset = activePreset(period, today);
   if (preset !== null) return presetLabel(preset);
   const { span } = period;
@@ -170,12 +176,12 @@ export function periodLabel(period: ReportPeriod, today: string): string {
     const { from, to } = spanMonths(span);
     return formatMonthSpan(from, to);
   }
-  return formatDaySpan(span, { withYear: true });
+  return spanLabel(span);
 }
 
-/** "FY 2024–25" for the year starting April 2024. */
-export function financialYearLabel(startYear: number): string {
-  return `FY ${startYear}–${String((startYear + 1) % 100).padStart(2, "0")}`;
+/** Days as a period names them: "5–20 Mar 2026", "1 Apr – 16 Sep 2026". */
+export function spanLabel(span: DateSpan): string {
+  return formatDaySpan(span, { withYear: true });
 }
 
 /**
@@ -266,16 +272,6 @@ export function monthOptions(
   return months;
 }
 
-/** How many months each preset steps by. */
-const PRESET_MONTHS: Record<PeriodPreset, number> = {
-  "this-month": 1,
-  "last-month": 1,
-  "last-3-months": 3,
-  "last-12-months": 12,
-  "this-financial-year": 12,
-  "last-financial-year": 12,
-};
-
 /**
  * The period one step back (-1) or on (+1), the length it is: a month by a
  * month, a financial year by a year, picked months by as many months, and
@@ -293,7 +289,7 @@ export function stepPeriod(
   const last = Temporal.PlainDate.from(period.span.last_date);
   const months =
     period.kind === "preset"
-      ? PRESET_MONTHS[period.preset]
+      ? presetMonths(period.preset)
       : wholeMonths(period.span, today)
         ? monthsFrom(first, last)
         : null;
@@ -330,16 +326,6 @@ function wholeMonths(dates: DateSpan, today: string): boolean {
 
 function monthsFrom(first: Temporal.PlainDate, last: Temporal.PlainDate) {
   return (last.year - first.year) * 12 + last.month - first.month + 1;
-}
-
-function upToToday(dates: DateSpan, today: string): DateSpan {
-  return dates.last_date > today && dates.first_date <= today
-    ? { ...dates, last_date: today }
-    : dates;
-}
-
-function span(first: Temporal.PlainDate, last: Temporal.PlainDate): DateSpan {
-  return { first_date: first.toString(), last_date: last.toString() };
 }
 
 function sameSpan(a: DateSpan, b: DateSpan): boolean {

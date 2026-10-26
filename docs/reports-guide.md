@@ -149,7 +149,15 @@ all from `"@dbu6/app/frontend"`:
   presets, From/To months over the books, and exact dates, and `[` and `]`
   step the period. It opens on all time;
   `useReportPeriod({ defaultPreset: "this-month" })` opens on a preset
-  instead, for a report too long over all time. `AsOfDateInput` with
+  instead, for a report too long over all time. A screen that keeps more
+  than the period in its query string reads and writes the period itself
+  with `readReportPeriod(search, today(), defaultPreset)` and
+  `writeReportPeriod(search, period, defaultPreset)`, and one that has to
+  name the dates gets them from `periodSpan(period, books, today())`, where
+  `books` is `useQuery(booksSpanQuery).data`: the days the books cover, which
+  All time runs over. `upToToday`, `financialYearLabel` ("FY 2024–25") and the
+  other period helpers (`presetSpan`, `financialYearSpan`, `monthEnd`) work
+  on `YYYY-MM-DD` dates. `AsOfDateInput` with
   `today()` is the day a balance stands on; `DateInput` is a plain date
   field. Keep every input in the URL (`useSearchParams`), so a report
   can be linked to and reloaded.

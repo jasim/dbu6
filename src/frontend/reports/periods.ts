@@ -8,19 +8,24 @@ import { Temporal } from "@sapporta/shared/temporal";
  * months are `YYYY-MM`. Each screen chooses which presets it shows.
  */
 
+/** Each preset's `months` is its length, which a step moves it by. */
 export const PERIOD_PRESETS = [
-  { id: "this-month", label: "This month" },
-  { id: "last-month", label: "Last month" },
-  { id: "last-3-months", label: "Last 3 months" },
-  { id: "last-12-months", label: "Last 12 months" },
-  { id: "this-financial-year", label: "This financial year" },
-  { id: "last-financial-year", label: "Last financial year" },
+  { id: "this-month", label: "This month", months: 1 },
+  { id: "last-month", label: "Last month", months: 1 },
+  { id: "last-3-months", label: "Last 3 months", months: 3 },
+  { id: "last-12-months", label: "Last 12 months", months: 12 },
+  { id: "this-financial-year", label: "This financial year", months: 12 },
+  { id: "last-financial-year", label: "Last financial year", months: 12 },
 ] as const;
 
 export type PeriodPreset = (typeof PERIOD_PRESETS)[number]["id"];
 
 export function presetLabel(preset: PeriodPreset): string {
   return PERIOD_PRESETS.find(({ id }) => id === preset)!.label;
+}
+
+export function presetMonths(preset: PeriodPreset): number {
+  return PERIOD_PRESETS.find(({ id }) => id === preset)!.months;
 }
 
 /** The preset a query string names, if it names one. */
@@ -46,9 +51,11 @@ export function presetSpan(preset: PeriodPreset, today: string): DateSpan {
       return span(lastMonth, monthEnd(lastMonth));
     }
     case "last-3-months":
-      return span(thisMonth.subtract({ months: 2 }), day);
     case "last-12-months":
-      return span(thisMonth.subtract({ months: 11 }), day);
+      return span(
+        thisMonth.subtract({ months: presetMonths(preset) - 1 }),
+        day,
+      );
     case "this-financial-year":
       return span(financialYearStart(day), day);
     case "last-financial-year": {
@@ -74,6 +81,11 @@ export function financialYearSpan(startYear: number): DateSpan {
   return span(first, first.add({ years: 1 }).subtract({ days: 1 }));
 }
 
+/** "FY 2024–25" for the year starting April 2024. */
+export function financialYearLabel(startYear: number): string {
+  return `FY ${startYear}–${String((startYear + 1) % 100).padStart(2, "0")}`;
+}
+
 /**
  * The dates a query string carries, when both are real calendar dates in
  * order; otherwise null.
@@ -87,8 +99,18 @@ export function monthEnd(date: Temporal.PlainDate): Temporal.PlainDate {
   return date.with({ day: date.daysInMonth });
 }
 
-function span(first: Temporal.PlainDate, last: Temporal.PlainDate): DateSpan {
+export function span(
+  first: Temporal.PlainDate,
+  last: Temporal.PlainDate,
+): DateSpan {
   return { first_date: first.toString(), last_date: last.toString() };
+}
+
+/** A period never ends after today: one running past it ends today. */
+export function upToToday(dates: DateSpan, today: string): DateSpan {
+  return dates.last_date > today && dates.first_date <= today
+    ? { ...dates, last_date: today }
+    : dates;
 }
 
 function financialYearStartYear(year: number, month: number): number {

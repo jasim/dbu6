@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  financialYearLabel,
   financialYearOf,
   financialYearSpan,
   parsePreset,
   parseSpan,
   PERIOD_PRESETS,
   presetSpan,
+  upToToday,
   type PeriodPreset,
 } from "./periods";
 import { today } from "./shared";
@@ -105,6 +107,26 @@ describe("the financial year", () => {
 
   it("runs from 1 April to 31 March", () => {
     expect(financialYearSpan(2027)).toEqual(dates("2027-04-01", "2028-03-31"));
+  });
+
+  it("is named by the years it spans", () => {
+    expect(financialYearLabel(2024)).toBe("FY 2024–25");
+    expect(financialYearLabel(2099)).toBe("FY 2099–00");
+  });
+});
+
+describe("a period up to today", () => {
+  it("ends today when it would run past it", () => {
+    expect(upToToday(dates("2026-09-01", "2026-09-30"), "2026-09-16")).toEqual(
+      dates("2026-09-01", "2026-09-16"),
+    );
+  });
+
+  it("is unchanged when it ends by today or starts after it", () => {
+    const past = dates("2026-08-01", "2026-08-31");
+    const future = dates("2026-10-01", "2026-10-31");
+    expect(upToToday(past, "2026-09-16")).toBe(past);
+    expect(upToToday(future, "2026-09-16")).toBe(future);
   });
 });
 

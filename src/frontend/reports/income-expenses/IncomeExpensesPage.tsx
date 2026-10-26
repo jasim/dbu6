@@ -84,11 +84,10 @@ export function IncomeExpensesPage() {
   const period = readPeriod(search, day);
   // All time runs over the days the books cover, so it waits for them.
   const books = useQuery(booksSpanQuery);
-  const dates = books.isPending
-    ? period.kind === "all-time"
+  const dates =
+    period.kind === "all-time" && books.data === undefined
       ? null
-      : period.span
-    : periodSpan(period, books.data ?? null, day);
+      : periodSpan(period, books.data ?? null, day);
   const query = useQuery({
     ...incomeExpensesQuery(dates ?? { first_date: day, last_date: day }),
     enabled: dates !== null,

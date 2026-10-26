@@ -21,10 +21,10 @@ import {
   selectTriggerClassName,
 } from "../components/ui/select";
 import { reportClient } from "../api";
-import { formatDaySpan, formatMonth } from "../format";
+import { formatMonth, formatRelativeDate } from "../format";
 import { typingIn } from "../keys";
 import { FRESH_QUERY } from "../queries";
-import type { PeriodPreset } from "./periods";
+import { presetSpan, type PeriodPreset } from "./periods";
 import {
   activePreset,
   choosePeriod,
@@ -37,6 +37,7 @@ import {
   pickTo,
   readReportPeriod,
   reportDates,
+  spanLabel,
   spanMonths,
   stepPeriod,
   writeReportPeriod,
@@ -78,7 +79,7 @@ export function useReportPeriod({
  * A report's period: ◂ and ▸ (and `[` and `]`) step it by its own length,
  * and the button between them opens the presets, a pair of month menus over
  * the months the books cover, and a calendar for exact dates. The dates it
- * covers stand beside it.
+ * covers stand beside it, unless the button already names them.
  */
 export function ReportPeriodField({
   period,
@@ -380,6 +381,50 @@ function RangeCalendar({
 }
 
 /**
+ * The day a report stands on: today, the end of last month, the end of last
+ * financial year, or a day picked on the calendar; and beside it how far
+ * that is from today: a plain "today", the way it is used most, or "6 months
+ * ago" lit up, so a figure for another day is never taken for today's.
+ */
+export function AsOfDateInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const now = today();
+  return (
+    <div className="flex items-center gap-2 text-row">
+      <span className="text-ink-meta">as of:</span>
+      <DayField value={value} onChange={onChange} presets={asOfPresets(now)} />
+      {value === now ? (
+        <span>today</span>
+      ) : (
+        <span className="rounded-control bg-attention-bg px-2 py-0.5 font-semibold text-attention-ink">
+          {formatRelativeDate(value, now)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** The days a balance is usually asked for. */
+export function asOfPresets(today: string): { label: string; date: string }[] {
+  return [
+    { label: "Today", date: today },
+    {
+      label: "End of last month",
+      date: presetSpan("last-month", today).last_date,
+    },
+    {
+      label: "End of last financial year",
+      date: presetSpan("last-financial-year", today).last_date,
+    },
+  ];
+}
+
+/**
  * The day a report stands on: a button naming it, opening the usual days
  * (each with its date beside it) and a calendar for any other.
  */
@@ -452,11 +497,6 @@ export function DayField({
       </PopoverContent>
     </Popover>
   );
-}
-
-/** A span as the field shows it: "1 Apr – 16 Sep 2026". */
-function spanLabel(span: DateSpan): string {
-  return formatDaySpan(span, { withYear: true });
 }
 
 /** A day as the field shows it: "31 Mar 2026". */

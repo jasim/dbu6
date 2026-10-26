@@ -1,9 +1,12 @@
 import {
+  financialYearLabel,
   financialYearOf,
   financialYearSpan,
   formatMonth,
+  monthEnd,
   monthName,
   Temporal,
+  upToToday,
 } from "../../report-kit";
 import type { DateSpan, IncomeExpenses } from "../../../shared/index";
 import { signedAmount } from "./figures";
@@ -61,7 +64,7 @@ export function chartBars(
         dates: upToToday(
           {
             first_date: first.toString(),
-            last_date: first.with({ day: first.daysInMonth }).toString(),
+            last_date: monthEnd(first).toString(),
           },
           today,
         ),
@@ -83,7 +86,7 @@ export function chartBars(
   });
   const todaysYear = financialYearOf(thisMonth);
   return Array.from(years, ([year, sums]) => {
-    const label = `FY ${year}–${String((year + 1) % 100).padStart(2, "0")}`;
+    const label = financialYearLabel(year);
     return bar({
       key: `fy-${year}`,
       label,
@@ -138,10 +141,4 @@ function bar(input: Omit<ChartBar, "description">): ChartBar {
     ...input,
     description: `${name} · Income ${signedAmount("income", input.income)} · Spending ${signedAmount("spending", input.spending)}`,
   };
-}
-
-function upToToday(dates: DateSpan, today: string): DateSpan {
-  return dates.last_date > today && dates.first_date <= today
-    ? { ...dates, last_date: today }
-    : dates;
 }

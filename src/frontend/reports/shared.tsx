@@ -10,10 +10,7 @@ import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { Temporal } from "@sapporta/shared/temporal";
 import { Input } from "@sapporta/ui";
 import { apiErrorMessage } from "../api";
-import { formatRelativeDate } from "../format";
 import { FRESH_QUERY } from "../queries";
-import { financialYearStart } from "./periods";
-import { DayField } from "./ReportPeriodField";
 
 /**
  * Today's date (`YYYY-MM-DD`) in the workspace's time zone, the zone the
@@ -107,49 +104,4 @@ export function DateInput({
       />
     </label>
   );
-}
-
-/**
- * The day a report stands on: today, the end of last month, the end of last
- * financial year, or a day picked on the calendar; and beside it how far
- * that is from today: a plain "today", the way it is used most, or "6 months
- * ago" lit up, so a figure for another day is never taken for today's.
- */
-export function AsOfDateInput({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const now = today();
-  return (
-    <div className="flex items-center gap-2 text-row">
-      <span className="text-ink-meta">as of:</span>
-      <DayField value={value} onChange={onChange} presets={asOfPresets(now)} />
-      {value === now ? (
-        <span>today</span>
-      ) : (
-        <span className="rounded-control bg-attention-bg px-2 py-0.5 font-semibold text-attention-ink">
-          {formatRelativeDate(value, now)}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** The days a balance is usually asked for. */
-export function asOfPresets(today: string): { label: string; date: string }[] {
-  const day = Temporal.PlainDate.from(today);
-  return [
-    { label: "Today", date: today },
-    {
-      label: "End of last month",
-      date: day.with({ day: 1 }).subtract({ days: 1 }).toString(),
-    },
-    {
-      label: "End of last financial year",
-      date: financialYearStart(day).subtract({ days: 1 }).toString(),
-    },
-  ];
 }

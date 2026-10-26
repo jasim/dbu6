@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, createElement } from "react";
+import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12,12 +12,17 @@ import {
   it,
   vi,
 } from "vitest";
-import { ReportPeriodField, useReportPeriod } from "./ReportPeriodField";
+import {
+  AsOfDateInput,
+  asOfPresets,
+  ReportPeriodField,
+  useReportPeriod,
+} from "./ReportPeriodField";
 
 /*
  * The period field on a date-range report: what it shows for each kind of
  * period, choosing from its popup, picking exact dates on the calendar, and
- * stepping with [ and ], all into the URL.
+ * stepping with [ and ], all into the URL; and the day a balance stands on.
  */
 
 vi.mock("@sapporta/frontend", () => ({ appTimeZone: () => "Asia/Kolkata" }));
@@ -206,5 +211,49 @@ describe("the report period field", () => {
     await act(async () => press("]"));
     await settle();
     expect(location()).toBe("?from_date=2026-09-01&to_date=2026-09-16");
+  });
+});
+
+function AsOf() {
+  const [value, setValue] = useState("2026-09-16");
+  return createElement(
+    "div",
+    null,
+    createElement("output", null, value),
+    createElement(AsOfDateInput, { value, onChange: setValue }),
+  );
+}
+
+describe("the as-of day", () => {
+  const asOfTrigger = () =>
+    host.querySelector<HTMLButtonElement>('[aria-label^="As of:"]');
+  const preset = (name: string) =>
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>("[role=dialog] li button"),
+    ).find((candidate) => candidate.textContent?.startsWith(name)) ?? null;
+
+  it("offers today, the end of last month and of last financial year", () => {
+    expect(asOfPresets("2026-09-16")).toEqual([
+      { label: "Today", date: "2026-09-16" },
+      { label: "End of last month", date: "2026-08-31" },
+      { label: "End of last financial year", date: "2026-03-31" },
+    ]);
+  });
+
+  it("names the day it stands on, and how far that is from today", async () => {
+    await act(async () => root.render(createElement(AsOf)));
+    expect(asOfTrigger()?.textContent).toBe("Today");
+    expect(host.textContent).toContain("today");
+
+    await click(asOfTrigger());
+    await click(preset("End of last financial year"));
+    expect(asked()).toBe("2026-03-31");
+    expect(asOfTrigger()?.textContent).toBe("End of last financial year");
+    expect(host.textContent).not.toMatch(/today$/);
+
+    await click(asOfTrigger());
+    await click(calendarDay("2026-03-05"));
+    expect(asked()).toBe("2026-03-05");
+    expect(asOfTrigger()?.textContent).toBe("5 Mar 2026");
   });
 });
