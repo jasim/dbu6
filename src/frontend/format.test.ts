@@ -8,6 +8,7 @@ import {
   formatFileSize,
   formatMonth,
   formatMonthSpan,
+  formatRelativeDate,
   formatShortDate,
 } from "./format";
 
@@ -25,6 +26,32 @@ describe("formatAmountRange", () => {
     expect(formatAmountRange({ min: 100000, max: null })).toBe(
       "1,00,000 or more",
     );
+  });
+});
+
+describe("formatRelativeDate", () => {
+  const today = "2026-10-26";
+
+  it("names today and the days either side of it", () => {
+    expect(formatRelativeDate("2026-10-26", today)).toBe("today");
+    expect(formatRelativeDate("2026-10-25", today)).toBe("yesterday");
+    expect(formatRelativeDate("2026-10-27", today)).toBe("tomorrow");
+  });
+
+  it("counts days up to two weeks, then weeks up to a month", () => {
+    expect(formatRelativeDate("2026-10-21", today)).toBe("5 days ago");
+    expect(formatRelativeDate("2026-10-13", today)).toBe("13 days ago");
+    expect(formatRelativeDate("2026-10-12", today)).toBe("2 weeks ago");
+    expect(formatRelativeDate("2026-11-16", today)).toBe("in 3 weeks");
+    expect(formatRelativeDate("2026-09-27", today)).toBe("4 weeks ago");
+  });
+
+  it("counts whole months up to two years, then whole years", () => {
+    expect(formatRelativeDate("2026-09-26", today)).toBe("1 month ago");
+    expect(formatRelativeDate("2026-04-10", today)).toBe("6 months ago");
+    expect(formatRelativeDate("2025-03-31", today)).toBe("18 months ago");
+    expect(formatRelativeDate("2024-10-26", today)).toBe("2 years ago");
+    expect(formatRelativeDate("2029-12-01", today)).toBe("in 3 years");
   });
 });
 

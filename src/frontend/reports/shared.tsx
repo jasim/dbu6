@@ -10,6 +10,7 @@ import type { GridDataset } from "@sapporta/shared/grid-dataset";
 import { Temporal } from "@sapporta/shared/temporal";
 import { Input } from "@sapporta/ui";
 import { apiErrorMessage } from "../api";
+import { formatRelativeDate } from "../format";
 import { FRESH_QUERY } from "../queries";
 
 /**
@@ -103,5 +104,32 @@ export function DateInput({
         className="tnum h-sap-ctl w-[140px] rounded-control font-mono text-row"
       />
     </label>
+  );
+}
+
+/**
+ * The day a report stands on, in the date input, and beside it how far that
+ * is from today: a plain "today", the way it is used most, or "6 months ago"
+ * lit up, so a figure for another day is never taken for today's.
+ */
+export function AsOfDateInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const now = today();
+  return (
+    <div className="flex items-center gap-2 text-row">
+      <DateInput label="as of" value={value} onChange={onChange} />
+      {value === now ? (
+        <span>today</span>
+      ) : (
+        <span className="rounded-control bg-attention-bg px-2 py-0.5 font-semibold text-attention-ink">
+          {formatRelativeDate(value, now)}
+        </span>
+      )}
+    </div>
   );
 }

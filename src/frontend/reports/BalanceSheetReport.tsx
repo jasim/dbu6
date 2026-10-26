@@ -1,6 +1,5 @@
 import {
   accountLedgerRow,
-  DateInput,
   formatDate,
   type GridDataset,
   incomeStatementHref,
@@ -19,6 +18,7 @@ import {
   useSearchParams,
 } from "../report-kit";
 import { reportsApi } from "./client";
+import { AsOfDateInput } from "./shared";
 
 const accountLedger = accountLedgerRow();
 
@@ -103,8 +103,7 @@ export function BalanceSheetReport() {
           <ReportRunButton loading={report.loading} onClick={report.run} />
         }
       >
-        <DateInput
-          label="as of"
+        <AsOfDateInput
           value={asOfDate}
           onChange={(value) => setParam("as_of_date", value)}
         />

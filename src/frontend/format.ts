@@ -1,6 +1,7 @@
 // Formatting for the everyday screens: money, dates, and identifiers in the
 // words a statement reader would use, never in ledger notation.
 
+import { Temporal } from "@sapporta/shared/temporal";
 import type { AccountKind, DateSpan, StatementAccount } from "../shared/index";
 
 const money = new Intl.NumberFormat("en-IN", {
@@ -100,6 +101,31 @@ export function formatDate(iso: string): string {
   const parts = isoParts(iso);
   if (!parts) return iso;
   return `${parts.d} ${MONTHS[parts.m - 1]} ${parts.y}`;
+}
+
+const relativeTime = new Intl.RelativeTimeFormat("en", { numeric: "always" });
+
+// How far a day is from today, in the largest unit that reads truly:
+// "yesterday", "tomorrow", "5 days ago", "3 weeks ago", "in 6 months",
+// "2 years ago". Days up to two weeks, weeks up to a month, months up to two
+// years, then whole years; each count is rounded down, so "6 months ago" is
+// at least six months. Today is "today".
+export function formatRelativeDate(iso: string, today: string): string {
+  const date = Temporal.PlainDate.from(iso);
+  const now = Temporal.PlainDate.from(today);
+  const days = date.since(now, { largestUnit: "days" }).days;
+  if (days === 0) return "today";
+  if (days === -1) return "yesterday";
+  if (days === 1) return "tomorrow";
+  const months = date.since(now, { largestUnit: "months" }).months;
+  if (Math.abs(months) >= 24) {
+    return relativeTime.format(Math.trunc(months / 12), "year");
+  }
+  if (months !== 0) return relativeTime.format(months, "month");
+  if (Math.abs(days) >= 14) {
+    return relativeTime.format(Math.trunc(days / 7), "week");
+  }
+  return relativeTime.format(days, "day");
 }
 
 // "2026-08-01" -> "1 Aug", the everyday screens' date. Anything else is
