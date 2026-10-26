@@ -22,6 +22,7 @@ import {
   codingAgentContract,
   commentWriterContract,
   draftTransactionsContract,
+  hledgerExportContract,
   homeContract,
   importDraftsContract,
   importPresetsContract,
@@ -77,6 +78,10 @@ export const categorizationRuleRequestsApi = createApiClient(
 );
 
 export const journalsApi = createApiClient(journalsContract, {
+  baseUrl: getApiBase,
+});
+
+export const hledgerExportApi = createApiClient(hledgerExportContract, {
   baseUrl: getApiBase,
 });
 

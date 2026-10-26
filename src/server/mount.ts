@@ -27,6 +27,7 @@ import categorizationRuleRequestsApi from "./app/categorization-rule-requests.js
 import classifyDraftTransactionsApi from "./app/classify-draft-transactions.js";
 import codingAgentApi from "./app/coding-agent.js";
 import commentWriterApi from "./app/comment-writer.js";
+import hledgerExportApi from "./app/hledger-export.js";
 import homeApi from "./app/home.js";
 import importDraftAbacusApi from "./app/import-draft-abacus.js";
 import importDraftStatementsAutoApi from "./app/import-draft-statements-auto.js";
@@ -109,6 +110,7 @@ export function loadDbu6App(
   mountApi(api, classifyDraftTransactionsApi(loadCategorizer));
   mountApi(api, renderDraftHledgerApi);
   mountApi(api, renderJournalsHledgerApi);
+  mountApi(api, hledgerExportApi);
   mountApi(api, postDraftsToJournalApi);
   mountApi(api, setDraftsAccountApi);
   mountApi(api, categorizationRuleRequestsApi);

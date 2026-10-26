@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { columnName, crc32, xlsxBytes } from "./xlsx";
+import { columnName, xlsxBytes } from "./xlsx";
+import { crc32 } from "./zip";
 
 describe("xlsx", () => {
   it("names columns as Excel does", () => {

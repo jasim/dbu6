@@ -166,6 +166,11 @@ export {
 } from "./agent-handoff.js";
 export { journalsContract } from "./journals.js";
 export {
+  hledgerExportContract,
+  hledgerExportFileSchema,
+  type HledgerExportFile,
+} from "./hledger-export.js";
+export {
   homeContract,
   homeAccountSchema,
   homeSummarySchema,

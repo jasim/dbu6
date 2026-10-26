@@ -1,6 +1,7 @@
 import {
   ClipboardPaste,
   Database,
+  FileArchive,
   FileText,
   FileUp,
   Settings,
@@ -31,6 +32,13 @@ const importTools: readonly LinkCardProps[] = [
     description: "Preview draft transactions as hledger journal text.",
     to: "/views/render-draft-hledger",
     icon: FileText,
+  },
+  {
+    label: "Export as hledger",
+    description:
+      "Download the books as hledger journal files: one per statement account, in a zip.",
+    to: "/views/export-hledger",
+    icon: FileArchive,
   },
 ];
 

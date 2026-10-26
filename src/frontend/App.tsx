@@ -56,6 +56,7 @@ import { ImportFreeformTransactions } from "./views/ImportFreeformTransactions";
 import { JournalsTable } from "./views/JournalsTable";
 import { SearchPage } from "./views/search/SearchPage";
 import { SEARCH_ROUTE } from "./views/search/routes";
+import { ExportHledger } from "./views/ExportHledger";
 import { RenderDraftHledger } from "./views/RenderDraftHledger";
 import { Settings as SettingsPage } from "./views/settings/Settings";
 import { BanksAndCards } from "./views/settings/BanksAndCards";
@@ -224,6 +225,7 @@ function ownProtectedRoutes(reports: readonly ReportDefinition[]) {
         path="views/render-draft-hledger"
         element={<RenderDraftHledger />}
       />
+      <Route path="views/export-hledger" element={<ExportHledger />} />
       <Route path="tables/journals" element={<JournalsTable />} />
 
       {retiredRoutes}
