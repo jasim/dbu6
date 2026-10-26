@@ -1,9 +1,15 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import { describe, expect, it } from "vitest";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
-import hledgerExportApi from "./hledger-export.js";
+import { hledgerExportApi, readVerifyScript } from "./hledger-export.js";
+
+const VERIFY_STUB = "# verify.py stand-in\n";
 
 /*
  * Sample Bank (1) is the presets' one account. It takes a salary in January
@@ -41,6 +47,9 @@ function ledger() {
       source_reference TEXT, source_transaction_key TEXT,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL, source_narration TEXT
     );
+    CREATE TABLE draft_transactions (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
+    );
     CREATE TABLE import_presets (
       id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT NOT NULL,
       scoped_to_user_id TEXT NOT NULL, name TEXT NOT NULL, parsers TEXT NOT NULL,
@@ -73,7 +82,10 @@ function ledger() {
   return sqlite;
 }
 
-function route(sqlite: Database.Database): TsRestApi<SapportaEnv> {
+function route(
+  sqlite: Database.Database,
+  verifyScript: () => string = () => VERIFY_STUB,
+): TsRestApi<SapportaEnv> {
   const app = new TsRestApi<SapportaEnv>();
   app.use(async (c, next) => {
     c.set("sqlite", sqlite);
@@ -81,7 +93,7 @@ function route(sqlite: Database.Database): TsRestApi<SapportaEnv> {
     c.set("auth", testLedgerAuth());
     await next();
   });
-  app.route("/", hledgerExportApi);
+  app.route("/", hledgerExportApi(verifyScript));
   return app;
 }
 
@@ -105,6 +117,8 @@ describe("the books as hledger files", () => {
       ["main.journal", 0],
       ["sample-savings.journal", 2],
       ["general-journals.journal", 1],
+      ["dbu6-expected.json", 0],
+      ["verify.py", 0],
     ]);
   });
 
@@ -131,5 +145,92 @@ describe("the books as hledger files", () => {
 
     expect(savings).toMatch(/Sample Bank\s+-100\.00 = 900\.00/);
     expect(savings).toContain("NOPII salary");
+  });
+
+  it("ships what hledger should find, the Balance Sheet included, and the script that checks it", async () => {
+    const { files } = await exportBooks();
+    const byPath = new Map(files.map((file) => [file.path, file.content]));
+    const expected = JSON.parse(byPath.get("dbu6-expected.json")!);
+
+    expect(byPath.get("verify.py")).toBe(VERIFY_STUB);
+    expect(expected.journal_count).toBe(3);
+    expect(expected.last_date).toBe("2026-02-20");
+    expect(expected.balance_sheet).toEqual({
+      assets: "900.00",
+      liabilities: "2000.00",
+      equity: "0.00",
+      income_less_spending: "-1100.00",
+      net_worth: "-1100.00",
+    });
+    expect(expected.accounts).toContainEqual({
+      account: "Sample Bank",
+      type: "A",
+      balance: "900.00",
+    });
+    expect(expected.assertions).toEqual([
+      {
+        dbu6_id: 11,
+        date: "2026-02-20",
+        account: "Sample Bank",
+        balance: "900.00",
+      },
+    ]);
+    expect(expected.sample_transactions).toHaveLength(3);
+  });
+});
+
+// The shipped verify.py, run as the person would (`uv run verify.py` in the
+// unzipped folder), against hledger itself; skipped where uv, hledger or
+// hledger-web isn't installed.
+const canVerify = ["uv", "hledger", "hledger-web"].every(
+  (command) => spawnSync(command, ["--version"]).status === 0,
+);
+
+describe.skipIf(!canVerify)("verify.py on the exported books", () => {
+  async function unzipped(): Promise<string> {
+    const response = await route(ledger(), readVerifyScript).request(
+      "/export/hledger",
+    );
+    const { files } = (await response.json()) as Exported;
+    const dir = mkdtempSync(join(tmpdir(), "dbu6-hledger-"));
+    for (const file of files) writeFileSync(join(dir, file.path), file.content);
+    return dir;
+  }
+
+  function verify(dir: string) {
+    return spawnSync("uv", ["run", "--quiet", "verify.py"], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, LEDGER_FILE: "" },
+    });
+  }
+
+  it("passes on the books as exported", async () => {
+    const dir = await unzipped();
+    try {
+      const run = verify(dir);
+      expect(run.stdout).toContain("All 6 checks passed");
+      expect(run.status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when an amount in the journals no longer matches the books", async () => {
+    const dir = await unzipped();
+    try {
+      const general = join(dir, "general-journals.journal");
+      writeFileSync(
+        general,
+        readFileSync(general, "utf8")
+          .replace("2000.00", "2001.00")
+          .replace("-2000.00", "-2001.00"),
+      );
+      const run = verify(dir);
+      expect(run.stdout).toMatch(/FAIL\s+account balances/);
+      expect(run.status).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

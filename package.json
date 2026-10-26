@@ -53,6 +53,7 @@
     "template/",
     "docs/",
     "custom-built-parsers/",
+    "hledger-export/",
     "user-config.example/",
     "DBU6-BOOKS.md",
     "CHANGELOG.md",

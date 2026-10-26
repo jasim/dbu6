@@ -4,14 +4,20 @@
 // files.
 export { escapeAccountSegment, hledgerAccountPaths } from "./account-names.js";
 export { buildHledgerBooks } from "./build.js";
-export { renderHledgerBooks } from "./render.js";
+export { buildHledgerExpectations } from "./expectations.js";
+export { formatPaise, renderHledgerBooks } from "./render.js";
 export type {
+  ExpectedAccount,
+  ExpectedAssertion,
+  ExpectedBalanceSheet,
+  ExpectedTransaction,
   ExportAccount,
   ExportEntry,
   ExportJournal,
   HledgerAccountDeclaration,
   HledgerAccountType,
   HledgerBooks,
+  HledgerExpectations,
   HledgerExportInput,
   HledgerJournalFile,
   HledgerPosting,

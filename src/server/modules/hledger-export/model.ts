@@ -105,3 +105,62 @@ export interface RenderedFile {
   path: string;
   content: string;
 }
+
+// --- what dbu6 expects hledger to find ---
+
+/**
+ * dbu6-expected.json, which verify.py checks the export against. Amounts are
+ * strings with two decimals (`"-1234.50"`), read as exact decimals. Account
+ * balances are debit positive, as hledger keeps them; the balance sheet's
+ * figures are as dbu6's Balance Sheet shows them, each section positive.
+ */
+export interface HledgerExpectations {
+  version: 1;
+  /** When the export was made, ISO 8601. */
+  generated_at: string;
+  /** The last journal's date, or null for empty books. */
+  last_date: string | null;
+  /** Every posted journal; each is one transaction with a dbu6-id tag. */
+  journal_count: number;
+  /** Every account with entries, by its hledger path. */
+  accounts: ExpectedAccount[];
+  balance_sheet: ExpectedBalanceSheet;
+  /** Every balance assertion dbu6 recorded. */
+  assertions: ExpectedAssertion[];
+  /** A random handful of journals, a different set each export. */
+  sample_transactions: ExpectedTransaction[];
+}
+
+export interface ExpectedAccount {
+  account: string;
+  type: HledgerAccountType;
+  /** Its own entries' sum, subaccounts excluded. */
+  balance: string;
+}
+
+/** dbu6's Balance Sheet over every journal. */
+export interface ExpectedBalanceSheet {
+  assets: string;
+  liabilities: string;
+  /** The equity accounts' total, Opening Balances included. */
+  equity: string;
+  /** Revenue less expenses, never closed: hledger's `is` net. */
+  income_less_spending: string;
+  /** equity + income_less_spending: hledger's `bs` net. */
+  net_worth: string;
+}
+
+export interface ExpectedAssertion {
+  dbu6_id: number;
+  date: string;
+  account: string;
+  balance: string;
+}
+
+export interface ExpectedTransaction {
+  dbu6_id: number;
+  date: string;
+  /** As hledger reads it: the exported, sanitized description. */
+  description: string;
+  postings: { account: string; amount: string }[];
+}

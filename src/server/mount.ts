@@ -110,7 +110,7 @@ export function loadDbu6App(
   mountApi(api, classifyDraftTransactionsApi(loadCategorizer));
   mountApi(api, renderDraftHledgerApi);
   mountApi(api, renderJournalsHledgerApi);
-  mountApi(api, hledgerExportApi);
+  mountApi(api, hledgerExportApi());
   mountApi(api, postDraftsToJournalApi);
   mountApi(api, setDraftsAccountApi);
   mountApi(api, categorizationRuleRequestsApi);

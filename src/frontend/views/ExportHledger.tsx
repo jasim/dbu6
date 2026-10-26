@@ -94,9 +94,7 @@ export function ExportHledger() {
                       {file.path}
                     </td>
                     <td className="tnum py-2 pl-3 pr-4 text-right font-mono">
-                      {file.path === "main.journal"
-                        ? ""
-                        : file.transaction_count}
+                      {holdsTransactions(file) ? file.transaction_count : ""}
                     </td>
                   </tr>
                 ))}
@@ -104,7 +102,21 @@ export function ExportHledger() {
             </table>
           </div>
         )}
+
+        {files && !loading && (
+          <p className="text-meta text-ink-meta">
+            Check it: in the unzipped folder, run <code>uv run verify.py</code>.
+          </p>
+        )}
       </div>
     </AppPage>
   );
+}
+
+/**
+ * Whether the file is one of the journals that hold transactions, rather
+ * than main.journal, the expected figures or the script that checks them.
+ */
+function holdsTransactions(file: HledgerExportFile): boolean {
+  return file.path.endsWith(".journal") && file.path !== "main.journal";
 }

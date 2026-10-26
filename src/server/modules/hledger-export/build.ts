@@ -25,7 +25,7 @@ const RESERVED_STEMS = new Set([
   "balance-assertions",
 ]);
 
-const TYPE_LETTER: Record<LedgerAccountType, HledgerAccountType> = {
+export const TYPE_LETTER: Record<LedgerAccountType, HledgerAccountType> = {
   Asset: "A",
   Liability: "L",
   Equity: "E",
