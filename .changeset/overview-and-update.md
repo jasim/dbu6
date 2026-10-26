@@ -3,9 +3,12 @@
 ---
 
 dbu6 now opens on Overview: one month's income, spending and savings beside
-the usual month, the largest spending categories, net worth, the last twelve
-months and each bank and card's balance with the date its books are complete
-until. It starts on the latest month every account covers. Until anything is
+the usual month and the difference, the largest spending categories adding up
+to the month's spending, net worth with where it sits, the last twelve months
+against the average spending, and each bank and card's balance with the date
+its books are complete until. It starts on the latest month every account
+covers and names the accounts holding it there; `[` and `]` step the month,
+and a category opens its month-by-month chart or its entries. Until anything is
 posted it shows the first run's card instead, so a new user still starts with
 setup. `GET /api/overview` returns the same figures, or `{"posted": false}`
 until anything beyond the opening balances is posted.

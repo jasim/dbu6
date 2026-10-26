@@ -111,7 +111,7 @@ export function Overview() {
         <div className="mt-5 space-y-4">
           <StatusLine summary={summary} overview={overview} />
           {/* The month's money on the left, where it stands on the right. */}
-          <div className="grid items-start gap-4 lg:grid-cols-[3fr_2fr]">
+          <div className="grid items-start gap-4 lg:grid-cols-2">
             <div className="min-w-0 space-y-4">
               <MonthFigures overview={overview} />
               <Categories overview={overview} />
@@ -518,21 +518,19 @@ function Categories({ overview }: { overview: PostedOverview }) {
                     }
                   >
                     {ledger === null ? (
-                      signedAmount("spending", row.amount)
+                      spent(row.amount)
                     ) : (
                       <Link
                         to={ledger}
                         className="text-foreground no-underline hover:underline hover:underline-offset-4"
                       >
-                        {signedAmount("spending", row.amount)}
+                        {spent(row.amount)}
                       </Link>
                     )}
                   </Td>
                   {averaged && (
                     <Td className="text-ink-soft">
-                      {row.average === null
-                        ? "—"
-                        : signedAmount("spending", row.average)}
+                      {row.average === null ? "—" : spent(row.average)}
                     </Td>
                   )}
                   {averaged && (
@@ -551,6 +549,11 @@ function Categories({ overview }: { overview: PostedOverview }) {
       )}
     </Card>
   );
+}
+
+/** A spending amount, signed; nothing spent reads "0.00", not "−0.00". */
+function spent(amount: number): string {
+  return amount === 0 ? formatMoney(0) : signedAmount("spending", amount);
 }
 
 /**
@@ -652,7 +655,7 @@ function WorthRow({
     >
       <td
         className={cn(
-          "max-w-0 truncate pr-3",
+          "w-full max-w-0 truncate pr-3",
           group ? "py-1 pl-4" : "py-2",
           // A total's label is softer than its figure; a group's is not.
           strong || group ? ink : "text-ink-soft",
