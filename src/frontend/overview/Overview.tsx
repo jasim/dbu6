@@ -30,9 +30,12 @@ import {
 import {
   averageLabel,
   categoryRows,
+  difference,
   monthDates,
+  type MonthTotals,
   monthSteps,
   netWorthChange,
+  savedShareDifference,
   waitingLabel,
 } from "./state";
 
@@ -247,8 +250,9 @@ function StatusLine({
 }
 
 /**
- * The month's income, spending and savings beside the usual ones: a row per
- * figure, so a phone has room for both columns.
+ * The month's income, spending and savings beside the usual ones and the
+ * difference: a row per figure, so a phone has room for the two columns it
+ * keeps.
  */
 function MonthFigures({ overview }: { overview: PostedOverview }) {
   const { average } = overview.figures;
@@ -270,6 +274,7 @@ function MonthFigures({ overview }: { overview: PostedOverview }) {
               </Link>
             </Th>
             {average && <Th>{averageLabel(average.months)}</Th>}
+            {average && <Th className={WIDE_ONLY}>Difference</Th>}
           </tr>
         </thead>
         <tbody>
@@ -288,6 +293,11 @@ function MonthFigures({ overview }: { overview: PostedOverview }) {
                 {row.value(current)}
               </Td>
               {usual && <Td className="text-ink-soft">{row.value(usual)}</Td>}
+              {average && (
+                <Td className={cn(WIDE_ONLY, "text-ink-soft")}>
+                  {row.difference(overview.figures, average)}
+                </Td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -298,21 +308,44 @@ function MonthFigures({ overview }: { overview: PostedOverview }) {
 
 type Shown = ReturnType<typeof figures>;
 
+/** Each figure, shown, and its difference from the average. */
 const FIGURE_ROWS: readonly {
   label: string;
   value: (shown: Shown) => string;
+  difference: (month: MonthTotals, average: MonthTotals) => string | null;
 }[] = [
-  { label: "Income", value: (shown) => shown.income.figure },
-  { label: "Spent", value: (shown) => shown.spending.figure },
+  {
+    label: "Income",
+    value: (shown) => shown.income.figure,
+    difference: (month, average) => difference(month.income, average.income),
+  },
+  {
+    label: "Spent",
+    value: (shown) => shown.spending.figure,
+    difference: (month, average) =>
+      difference(-month.spending, -average.spending),
+  },
   {
     label: "Saved",
     value: (shown) =>
       shown.remaining.tone === "saved"
         ? shown.remaining.figure
         : `${shown.remaining.figure} over`,
+    difference: (month, average) =>
+      difference(
+        month.income - month.spending,
+        average.income - average.spending,
+      ),
   },
-  { label: "Saved %", value: (shown) => shown.remaining.share ?? "—" },
+  {
+    label: "Saved %",
+    value: (shown) => shown.remaining.share ?? "—",
+    difference: savedShareDifference,
+  },
 ];
+
+/** A column a phone leaves out. */
+const WIDE_ONLY = "hidden sm:table-cell";
 
 /**
  * The month's largest spending categories beside their usual amounts, then
@@ -344,6 +377,7 @@ function Categories({ overview }: { overview: PostedOverview }) {
               <th className="w-full pb-2 text-left font-normal">Category</th>
               <Th>{formatMonth(overview.month)}</Th>
               {averaged && <Th>Average</Th>}
+              {averaged && <Th className={WIDE_ONLY}>Difference</Th>}
             </tr>
           </thead>
           <tbody>
@@ -381,6 +415,14 @@ function Categories({ overview }: { overview: PostedOverview }) {
                       {row.average === null
                         ? "—"
                         : signedAmount("spending", row.average)}
+                    </Td>
+                  )}
+                  {averaged && (
+                    <Td className={cn(WIDE_ONLY, "text-ink-soft")}>
+                      {difference(
+                        -row.amount,
+                        row.average === null ? null : -row.average,
+                      ) ?? "—"}
                     </Td>
                   )}
                 </tr>

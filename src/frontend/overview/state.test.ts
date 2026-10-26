@@ -3,9 +3,11 @@ import type { PostedOverview } from "../../shared/index";
 import {
   averageLabel,
   categoryRows,
+  difference,
   monthDates,
   monthSteps,
   netWorthChange,
+  savedShareDifference,
   waitingLabel,
 } from "./state";
 
@@ -147,5 +149,39 @@ describe("categoryRows", () => {
 
   it("has no rows without categories", () => {
     expect(categoryRows(overview([], 0, null))).toEqual([]);
+  });
+});
+
+describe("difference", () => {
+  it("is the month less the average, as the columns show them", () => {
+    expect(difference(1200, 1000)).toBe("+200.00");
+    // Spending shows negative: spending 500 more than usual reads −500.
+    expect(difference(-3500, -3000)).toBe("\u2212500.00");
+    expect(difference(-0.004, 0)).toBe("0.00");
+    expect(difference(1200, null)).toBeNull();
+  });
+});
+
+describe("savedShareDifference", () => {
+  it("compares saved % in points", () => {
+    const average = { income: 1000, spending: 800 };
+    expect(savedShareDifference({ income: 1000, spending: 600 }, average)).toBe(
+      "+20 pts",
+    );
+    expect(savedShareDifference({ income: 1000, spending: 900 }, average)).toBe(
+      "\u221210 pts",
+    );
+    expect(savedShareDifference({ income: 1000, spending: 800 }, average)).toBe(
+      "0 pts",
+    );
+  });
+
+  it("has none when either month saved nothing to share", () => {
+    const average = { income: 1000, spending: 800 };
+    expect(savedShareDifference({ income: 0, spending: 600 }, average)).toBe("—");
+    expect(
+      savedShareDifference({ income: 1000, spending: 1200 }, average),
+    ).toBe("—");
+    expect(savedShareDifference(average, null)).toBeNull();
   });
 });

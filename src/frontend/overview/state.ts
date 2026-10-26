@@ -1,6 +1,7 @@
 import type { PostedOverview } from "../../shared/index";
+import { MINUS } from "../components/amount";
 import { agree, formatMonth, plural } from "../format";
-import { Temporal } from "../report-kit";
+import { formatAmount, formatMoney, Temporal } from "../report-kit";
 
 /*
  * What Overview says, as pure functions of its two requests: the overview
@@ -117,6 +118,43 @@ export function categoryRows(overview: PostedOverview): CategoryRow[] {
       average: figures.average?.spending ?? null,
     },
   ];
+}
+
+/** A month's income and spending, both positive, as the overview has them. */
+export type MonthTotals = { income: number; spending: number };
+
+/**
+ * A figure less its average, both as the table shows them, so the column
+ * reads as one minus the other: spending shows negative, so spending more
+ * than usual makes a negative difference. Null without an average.
+ */
+export function difference(
+  shown: number,
+  average: number | null,
+): string | null {
+  if (average === null) return null;
+  const value = cents(shown - average);
+  if (value === 0) return formatMoney(0);
+  return formatAmount(value, value > 0 ? "in" : "out");
+}
+
+/** Saved % less the average's, in percentage points: "+14 pts". */
+export function savedShareDifference(
+  month: MonthTotals,
+  average: MonthTotals | null,
+): string | null {
+  if (average === null) return null;
+  const current = savedShare(month);
+  const usual = savedShare(average);
+  if (current === null || usual === null) return "—";
+  const points = current - usual;
+  return `${points > 0 ? "+" : points < 0 ? MINUS : ""}${Math.abs(points)} pts`;
+}
+
+/** Saved % in whole points, as the figures show it; null without savings. */
+function savedShare({ income, spending }: MonthTotals): number | null {
+  const saved = income - spending;
+  return income > 0 && saved >= 0 ? Math.round((saved / income) * 100) : null;
 }
 
 function cents(amount: number): number {
