@@ -2,6 +2,7 @@ import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
 import { errorBodySchema } from "@sapporta/shared/contracts";
 import { gridDatasetSchema } from "@sapporta/shared/grid-dataset";
+import { dateSpanSchema } from "./date-span.js";
 
 const c = initContract();
 
@@ -78,6 +79,11 @@ const incomeExpensesSectionSchema = z.object({
   // The section's top accounts: no parent among that type's accounts.
   accounts: z.array(incomeExpensesAccountSchema),
 });
+
+// The first and last days of the posted journals; null while there are none.
+// Drafts are not in the books yet, so they never count.
+export const booksSpanSchema = z.object({ span: dateSpanSchema.nullable() });
+export type BooksSpan = z.infer<typeof booksSpanSchema>;
 
 export const incomeExpensesSchema = z.object({
   income: incomeExpensesSectionSchema,
@@ -181,6 +187,17 @@ export const reportsContract = c.router({
     responses: {
       200: gridDatasetSchema,
       400: errorBodySchema,
+      403: errorBodySchema,
+    },
+  }),
+  booksSpan: c.query({
+    method: "GET",
+    path: "/reports/books-span",
+    summary: "The days the books cover",
+    metadata: { tags: ["reports"] },
+    query: noParamsQuery,
+    responses: {
+      200: booksSpanSchema,
       403: errorBodySchema,
     },
   }),

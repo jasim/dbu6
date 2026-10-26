@@ -3,6 +3,7 @@ import accountLedgerApi from "./reports/account-ledger.js";
 import assetInflowsApi from "./reports/asset-inflows.js";
 import balanceAssertionsApi from "./reports/balance-assertions.js";
 import balanceSheetApi from "./reports/balance-sheet.js";
+import booksSpanApi from "./reports/books-span.js";
 import dayBookApi from "./reports/day-book.js";
 import draftBalanceAssertionsApi from "./reports/draft-balance-assertions.js";
 import duplicateDraftsApi from "./reports/duplicate-drafts.js";
@@ -35,5 +36,6 @@ mountReport(lastReconciledApi);
 mountReport(balanceAssertionsApi);
 mountReport(draftBalanceAssertionsApi);
 mountReport(duplicateDraftsApi);
+mountReport(booksSpanApi);
 
 export default api;

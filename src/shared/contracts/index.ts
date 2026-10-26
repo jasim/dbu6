@@ -4,6 +4,8 @@
 
 export {
   reportsContract,
+  booksSpanSchema,
+  type BooksSpan,
   incomeExpensesAccountSchema,
   incomeExpensesSchema,
   type IncomeExpenses,
