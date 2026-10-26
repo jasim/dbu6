@@ -48,11 +48,20 @@ export function incomeStatementHref(fromDate: string, toDate: string): string {
   });
 }
 
-/** Income and Expenses over the days from `fromDate` to `toDate`. */
-export function incomeExpensesHref(fromDate: string, toDate: string): string {
+/**
+ * Income and Expenses over the days from `fromDate` to `toDate`, optionally
+ * with an account in focus and a month (`YYYY-MM`) of its chart selected.
+ */
+export function incomeExpensesHref(
+  fromDate: string,
+  toDate: string,
+  focus?: { accountId?: number; month?: string },
+): string {
   return createSnapshotUrl("/reports/income-expenses", {
     from_date: fromDate,
     to_date: toDate,
+    account: focus?.accountId?.toString(),
+    month: focus?.month,
   });
 }
 

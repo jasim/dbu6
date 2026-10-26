@@ -353,6 +353,12 @@ const WIDE_ONLY = "hidden sm:table-cell";
  */
 function Categories({ overview }: { overview: PostedOverview }) {
   const dates = monthDates(overview.month);
+  // A category's name opens its month-by-month chart over the twelve months
+  // shown here; its amount opens its entries for the month.
+  const trend = {
+    first_date: monthDates(overview.months[0].month).first_date,
+    last_date: dates.last_date,
+  };
   const averaged = overview.figures.average !== null;
   return (
     <Card
@@ -383,6 +389,13 @@ function Categories({ overview }: { overview: PostedOverview }) {
           <tbody>
             {categoryRows(overview).map((row) => {
               const total = row.kind === "total";
+              const ledger =
+                row.account_id === null
+                  ? null
+                  : accountLedgerHref(row.account_id, {
+                      from_date: dates.first_date,
+                      to_date: dates.last_date,
+                    });
               return (
                 <tr
                   key={row.account_id ?? row.kind}
@@ -401,14 +414,36 @@ function Categories({ overview }: { overview: PostedOverview }) {
                           : "text-foreground",
                     )}
                   >
-                    {row.name}
+                    {row.account_id === null ? (
+                      row.name
+                    ) : (
+                      <Link
+                        to={incomeExpensesHref(
+                          trend.first_date,
+                          trend.last_date,
+                          { accountId: row.account_id, month: overview.month },
+                        )}
+                        className="text-foreground no-underline hover:underline hover:underline-offset-4"
+                      >
+                        {row.name}
+                      </Link>
+                    )}
                   </td>
                   <Td
                     className={
                       total ? "font-semibold text-foreground" : "text-foreground"
                     }
                   >
-                    {signedAmount("spending", row.amount)}
+                    {ledger === null ? (
+                      signedAmount("spending", row.amount)
+                    ) : (
+                      <Link
+                        to={ledger}
+                        className="text-foreground no-underline hover:underline hover:underline-offset-4"
+                      >
+                        {signedAmount("spending", row.amount)}
+                      </Link>
+                    )}
                   </Td>
                   {averaged && (
                     <Td className="text-ink-soft">
