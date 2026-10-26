@@ -78,16 +78,9 @@ export function overviewReport(
   ledger: ReportLedger,
   query: { month: string | null; accounts: readonly OverviewAccountInput[] },
 ): PostedOverview {
-  const completeUntil = earliest(
-    query.accounts.flatMap((account) =>
-      account.books_until === null ? [] : [account.books_until],
-    ),
-  );
+  // This month, however far the books go.
   const month =
-    query.month ??
-    (completeUntil === null
-      ? lastJournalMonth(ledger)
-      : lastWholeMonth(completeUntil));
+    query.month ?? Temporal.Now.plainDateISO().toPlainYearMonth().toString();
 
   const yearMonth = Temporal.PlainYearMonth.from(month);
   const report = incomeExpensesReport(ledger, {
@@ -120,7 +113,6 @@ export function overviewReport(
   return {
     posted: true,
     month,
-    complete_until: completeUntil,
     first_month: report.first_month,
     figures: {
       income: report.months[current].income,
@@ -211,35 +203,4 @@ function worthGroups(rows: readonly AccountBalance[]): OverviewWorthGroup[] {
       amount: rest.reduce((sum, group) => sum + group.amount, 0),
     },
   ];
-}
-
-/**
- * The month of the latest posted journal. Overview reads it only once
- * something is posted, so there is one.
- */
-function lastJournalMonth(ledger: ReportLedger): string {
-  const row = ledger.one<{ month: string | null }>(
-    `SELECT strftime('%Y-%m', MAX(date)) AS month FROM scoped_journals`,
-  );
-  if (!row?.month) throw new Error("The books have no posted journal.");
-  return row.month;
-}
-
-/**
- * The last month that ends on or before `date`: the date's own month when it
- * is that month's last day, else the month before.
- */
-export function lastWholeMonth(date: string): string {
-  const day = Temporal.PlainDate.from(date);
-  const month = day.toPlainYearMonth();
-  return (
-    day.day === day.daysInMonth ? month : month.subtract({ months: 1 })
-  ).toString();
-}
-
-function earliest(dates: readonly string[]): string | null {
-  return dates.reduce<string | null>(
-    (first, date) => (first === null || date < first ? date : first),
-    null,
-  );
 }

@@ -36,7 +36,6 @@ import {
   averageLabel,
   categoryBars,
   categoryRows,
-  holdingAccounts,
   monthDates,
   monthForKey,
   monthSteps,
@@ -107,7 +106,7 @@ export function Overview() {
         </div>
       ) : summary && overview?.posted ? (
         <div className="mt-5 space-y-4">
-          <StatusLine summary={summary} overview={overview} />
+          <StatusLine summary={summary} />
           <MonthFigures overview={overview} />
           {/* Where the month's money went on the left, where it stands on the right. */}
           <div className="grid items-start gap-4 lg:grid-cols-2">
@@ -262,70 +261,19 @@ function typingIn(target: EventTarget | null): boolean {
   );
 }
 
-/**
- * How complete the books are, and which accounts stop there when others go
- * further; and what waits in Update. Hidden when there is neither a balance
- * check nor anything waiting.
- */
-function StatusLine({
-  summary,
-  overview,
-}: {
-  summary: HomeSummary;
-  overview: PostedOverview;
-}) {
+/** What waits in Update. Hidden when nothing does. */
+function StatusLine({ summary }: { summary: HomeSummary }) {
   const waiting = waitingLabel(waitingInUpdate(summary));
-  const holding = holdingAccounts(overview);
-  if (overview.complete_until === null && waiting === null) return null;
+  if (waiting === null) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-card border border-sap-border bg-card px-4 py-3">
-      {overview.complete_until !== null && (
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-label uppercase text-ink-meta">
-            Complete until
-          </span>
-          <span className="tnum font-mono text-row text-foreground">
-            {formatDate(overview.complete_until)}
-          </span>
-          {holding && (
-            <>
-              <span className="ml-3 text-label uppercase text-ink-meta">
-                Held back by
-              </span>
-              <span className="text-row text-foreground">
-                {holding.named.map((account, index) => {
-                  const ledger = accountLedgerHref(account.account_id);
-                  return (
-                    <span key={account.account_id}>
-                      {index > 0 && ", "}
-                      {ledger ? (
-                        <Link
-                          to={ledger}
-                          className="text-foreground no-underline hover:underline hover:underline-offset-4"
-                        >
-                          {account.name}
-                        </Link>
-                      ) : (
-                        account.name
-                      )}
-                    </span>
-                  );
-                })}
-                {holding.more > 0 && ` and ${holding.more} more`}
-              </span>
-            </>
-          )}
-        </div>
-      )}
-      {waiting !== null && (
-        <Link
-          to={UPDATE_ROUTE}
-          className="inline-flex items-center gap-1 text-row font-semibold text-attention-ink no-underline hover:underline hover:underline-offset-4"
-        >
-          {waiting}
-          <ChevronRight className="size-4" aria-hidden="true" />
-        </Link>
-      )}
+      <Link
+        to={UPDATE_ROUTE}
+        className="inline-flex items-center gap-1 text-row font-semibold text-attention-ink no-underline hover:underline hover:underline-offset-4"
+      >
+        {waiting}
+        <ChevronRight className="size-4" aria-hidden="true" />
+      </Link>
     </div>
   );
 }

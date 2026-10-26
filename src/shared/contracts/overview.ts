@@ -49,12 +49,8 @@ export type OverviewWorthGroup = z.infer<typeof overviewWorthGroupSchema>;
 // What the books show for the month, once anything is posted.
 const postedOverviewSchema = z.object({
   posted: z.literal(true),
-  // The month shown: the one asked for, or the latest month every account
-  // with a balance check covers, or else the latest month with an entry.
+  // The month shown: the one asked for, or else the current month.
   month: yearMonth,
-  // The earliest last balance check over the importable accounts that have
-  // one; null when none has.
-  complete_until: z.string().nullable(),
   // The first month with any income or spending entry.
   first_month: yearMonth.nullable(),
   figures: z.object({

@@ -1,7 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { overviewSchema } from "../../shared/index.js";
 import {
-  lastWholeMonth,
   overviewReport,
   type OverviewAccountInput,
 } from "./overview.js";
@@ -221,36 +220,24 @@ describe("overviewReport", () => {
     expect(overview.categories.every((c) => c.average === null)).toBe(true);
   });
 
-  it("defaults to the last month every account with a balance check covers", () => {
-    const { ledger, accounts } = books();
-
-    // The card's statement ends mid-April, so April isn't whole yet.
-    const behind = overviewReport(ledger, {
-      month: null,
-      accounts: accounts("2026-04-30", "2026-04-15"),
-    });
-    expect(behind.complete_until).toBe("2026-04-15");
-    expect(behind.month).toBe("2026-03");
-
-    // An account with no check yet doesn't hold the month back.
-    const unchecked = overviewReport(ledger, {
-      month: null,
-      accounts: accounts("2026-04-30", null),
-    });
-    expect(unchecked.complete_until).toBe("2026-04-30");
-    expect(unchecked.month).toBe("2026-04");
-  });
-
-  it("defaults to the last journal's month when no account has a check", () => {
-    const { ledger, accounts } = books();
-
-    const overview = overviewReport(ledger, {
-      month: null,
-      accounts: accounts(null, null),
+  describe("with no month asked for", () => {
+    afterEach(() => {
+      vi.useRealTimers();
     });
 
-    expect(overview.complete_until).toBeNull();
-    expect(overview.month).toBe("2026-04");
+    it("shows the current month, however far the books go", () => {
+      const { ledger, accounts } = books();
+      vi.useFakeTimers({ now: new Date(2026, 5, 10) });
+
+      // The card's statement ends mid-April; June has no entries at all.
+      const overview = overviewReport(ledger, {
+        month: null,
+        accounts: accounts("2026-04-30", "2026-04-15"),
+      });
+
+      expect(overview.month).toBe("2026-06");
+      expect(overview.figures.spending).toBe(0);
+    });
   });
 
   it("lists where net worth sits, at the first level that branches", () => {
@@ -322,13 +309,5 @@ describe("overviewReport", () => {
         accounts: accounts("2026-04-30", "2026-04-30"),
       }),
     ).toEqual(before);
-  });
-});
-
-describe("lastWholeMonth", () => {
-  it("takes a date's month only when the date ends it", () => {
-    expect(lastWholeMonth("2026-02-28")).toBe("2026-02");
-    expect(lastWholeMonth("2024-02-28")).toBe("2024-01");
-    expect(lastWholeMonth("2026-03-15")).toBe("2026-02");
   });
 });
