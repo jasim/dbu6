@@ -6,6 +6,7 @@ import {
   TsRestApi,
 } from "../../report-kit.js";
 import { reportsContract } from "../../../shared/index.js";
+import { loadAccountBalances } from "./account-amounts.js";
 import {
   sectionAccountResult,
   sectionFooterRow,
@@ -43,28 +44,10 @@ export function balanceSheetReport(
   ledger: ReportLedger,
   query: { asOfDate: string },
 ): GridDataset {
-  const accounts = ledger.all<SectionAccount>(
-    `
-    SELECT
-      a.id AS account_id,
-      a.name,
-      a.parent_id,
-      a.account_type,
-      CASE WHEN a.account_type IN ('Liability', 'Equity')
-           THEN COALESCE(SUM(je.credit), 0) - COALESCE(SUM(je.debit), 0)
-           ELSE COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0)
-      END AS amount
-    FROM scoped_accounts a
-    LEFT JOIN (
-      SELECT je.account_id, je.debit, je.credit
-      FROM scoped_journal_entries je
-      JOIN scoped_journals j ON j.id = je.journal_id
-      WHERE j.date <= @asOfDate
-    ) je ON je.account_id = a.id
-    WHERE a.account_type IN ('Asset', 'Liability', 'Equity')
-    GROUP BY a.id, a.name, a.parent_id, a.account_type`,
-    query,
-  );
+  const accounts = loadAccountBalances(ledger, {
+    types: ["Asset", "Liability", "Equity"],
+    asOf: query.asOfDate,
+  });
   const earnings = ledger.all<RetainedEarnings>(
     `
     SELECT

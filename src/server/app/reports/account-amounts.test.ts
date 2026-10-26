@@ -4,7 +4,11 @@ import {
   type GridDataset,
 } from "@sapporta/shared/grid-dataset";
 import { describe, expect, it } from "vitest";
-import { loadAccountAmounts, loadMonthlyAmounts } from "./account-amounts.js";
+import {
+  loadAccountAmounts,
+  loadAccountBalances,
+  loadMonthlyAmounts,
+} from "./account-amounts.js";
 import { expenseBreakdownReport } from "./expense-breakdown.js";
 import { incomeStatementReport } from "./income-statement.js";
 import { monthlySummaryReport } from "./monthly-summary.js";
@@ -131,6 +135,45 @@ function rootTotals(result: GridDataset, label: string, total: string) {
       ]),
   );
 }
+
+describe("account balances", () => {
+  it("signs what is held or owed positive, up to and including the date", () => {
+    const sqlite = ledger();
+    sqlite.exec(`
+      INSERT INTO accounts VALUES
+        (7, 'workspace', 'user', 'Sample Card', NULL, 'Liability'),
+        (8, 'workspace', 'user', 'Opening Balances', NULL, 'Equity');
+      INSERT INTO journals VALUES
+        (15, 'workspace', 'user', '2026-01-01', 'Opening balance'),
+        (16, 'workspace', 'user', '2026-02-01', 'Food on the card');
+      INSERT INTO journal_entries
+        (id, workspace_id, scoped_to_user_id, journal_id, account_id, debit, credit)
+      VALUES
+        (151, 'workspace', 'user', 15, 6, 1000, 0),
+        (152, 'workspace', 'user', 15, 8, 0, 1000),
+        (161, 'workspace', 'user', 16, 1, 300, 0),
+        (162, 'workspace', 'user', 16, 7, 0, 300);
+    `);
+    const balances = (asOf: string) =>
+      loadAccountBalances(readOnlyLedger(sqlite, auth), {
+        types: ["Asset", "Liability", "Equity"],
+        asOf,
+      })
+        .map((row) => [row.name, row.account_type, row.amount])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+    expect(balances("2026-01-31")).toEqual([
+      ["Opening Balances", "Equity", 1000],
+      ["Sample Card", "Liability", 0],
+      ["Sample Savings", "Asset", 47500],
+    ]);
+    expect(balances("2026-02-01")).toEqual([
+      ["Opening Balances", "Equity", 1000],
+      ["Sample Card", "Liability", 300],
+      ["Sample Savings", "Asset", 97500],
+    ]);
+  });
+});
 
 describe("the grids read the amounts", () => {
   it("income statement lists every account with an amount down the tree", () => {

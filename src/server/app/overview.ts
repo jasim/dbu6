@@ -14,6 +14,7 @@ import {
   type ReportLedger,
 } from "../modules/ledger-sql/index.js";
 import { loadHomeSummary } from "./home.js";
+import { loadAccountBalances } from "./reports/account-amounts.js";
 import { incomeExpensesReport } from "./reports/income-expenses.js";
 import { authorizeReport, monthEnd } from "./reports/shared.js";
 
@@ -179,35 +180,18 @@ function branchingLevel(
  * owed positive for a liability, and the two totals.
  */
 function loadBalances(ledger: ReportLedger, asOf: string) {
-  const rows = ledger.all<{
-    account_id: number;
-    account_type: "Asset" | "Liability";
-    balance: number;
-  }>(
-    `
-    SELECT
-      a.id AS account_id,
-      a.account_type,
-      CASE WHEN a.account_type = 'Liability'
-           THEN COALESCE(SUM(je.credit), 0) - COALESCE(SUM(je.debit), 0)
-           ELSE COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0)
-      END AS balance
-    FROM scoped_accounts a
-    JOIN scoped_journal_entries je ON je.account_id = a.id
-    JOIN scoped_journals j ON j.id = je.journal_id
-    WHERE a.account_type IN ('Asset', 'Liability')
-      AND j.date <= @asOf
-    GROUP BY a.id, a.account_type`,
-    { asOf },
-  );
+  const rows = loadAccountBalances(ledger, {
+    types: ["Asset", "Liability"],
+    asOf,
+  });
   const total = (type: "Asset" | "Liability") =>
     rows
       .filter((row) => row.account_type === type)
-      .reduce((sum, row) => sum + row.balance, 0);
+      .reduce((sum, row) => sum + row.amount, 0);
   return {
     assets: total("Asset"),
     liabilities: total("Liability"),
-    byAccount: new Map(rows.map((row) => [row.account_id, row.balance])),
+    byAccount: new Map(rows.map((row) => [row.account_id, row.amount])),
   };
 }
 

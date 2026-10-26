@@ -3,7 +3,8 @@ import type { ReportLedger } from "../../modules/ledger-sql/index.js";
 /*
  * Income and spending, per account and per month: the one source the
  * income statement, Expense breakdown, Monthly summary and Income and
- * Expenses read, so the page and the grids can't disagree. Amounts are
+ * Expenses read, so the page and the grids can't disagree. Balances at a
+ * date, for the balance sheet and Overview, are below them. Amounts are
  * signed so that income and spending are both positive: Revenue is
  * credit − debit, Expense is debit − credit. A refund larger than the
  * spending makes an amount negative.
@@ -58,6 +59,53 @@ export function loadAccountAmounts(
       toDate: query.toDate,
       types: JSON.stringify(query.types),
     },
+  );
+}
+
+/** An account type the balance sheet lists. */
+export type BalanceType = "Asset" | "Liability" | "Equity";
+
+/** An account and its own entries' balance at a date, children not included. */
+export type AccountBalance = {
+  account_id: number;
+  name: string;
+  parent_id: number | null;
+  account_type: BalanceType;
+  amount: number;
+};
+
+/**
+ * Every account of the given types with the balance of its own entries up to
+ * and including `asOf`, signed so that what it holds or owes is positive: an
+ * asset is debit − credit, a liability or equity account credit − debit.
+ * Accounts without entries are listed with 0, so a tree built from them
+ * keeps its parents. The balance sheet and Overview read it.
+ */
+export function loadAccountBalances(
+  ledger: ReportLedger,
+  query: { types: readonly BalanceType[]; asOf: string },
+): AccountBalance[] {
+  return ledger.all<AccountBalance>(
+    `
+      SELECT
+        a.id AS account_id,
+        a.name,
+        a.parent_id,
+        a.account_type,
+        CASE WHEN a.account_type IN ('Liability', 'Equity')
+             THEN COALESCE(SUM(je.credit), 0) - COALESCE(SUM(je.debit), 0)
+             ELSE COALESCE(SUM(je.debit), 0) - COALESCE(SUM(je.credit), 0)
+        END AS amount
+      FROM scoped_accounts a
+      LEFT JOIN (
+        SELECT je.account_id, je.debit, je.credit
+        FROM scoped_journal_entries je
+        JOIN scoped_journals j ON j.id = je.journal_id
+        WHERE j.date <= @asOf
+      ) je ON je.account_id = a.id
+      WHERE a.account_type IN (SELECT value FROM json_each(@types))
+      GROUP BY a.id, a.name, a.parent_id, a.account_type`,
+    { asOf: query.asOf, types: JSON.stringify(query.types) },
   );
 }
 
