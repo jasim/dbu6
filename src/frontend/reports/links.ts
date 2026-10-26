@@ -3,7 +3,6 @@ import {
   type ReportCellLink,
   type ReportCellLinkContext,
 } from "@sapporta/frontend/report";
-import { financialYearOf, financialYearSpan } from "./periods";
 
 export type LedgerLinkInput = {
   from_date?: string;
@@ -13,8 +12,7 @@ export type LedgerLinkInput = {
 /**
  * An account's ledger. Without `input` it opens on the ledger's default
  * period; a report's period carries over, so a report over all time asks
- * for all time and its totals match the ledger's. A balance as of a day
- * opens its financial year to that day, from the balance brought forward.
+ * for all time and its totals match the ledger's.
  */
 export function accountLedgerHref(
   accountId: unknown,
@@ -26,17 +24,11 @@ export function accountLedgerHref(
     input !== undefined &&
     input.from_date === undefined &&
     input.to_date === undefined;
-  const toDate = input?.to_date;
-  const fromDate =
-    input?.from_date ??
-    (toDate === undefined
-      ? undefined
-      : financialYearSpan(financialYearOf(toDate.slice(0, 7))).first_date);
   return createSnapshotUrl("/reports/account-ledger", {
     account_id: id,
     period: allTime ? "all-time" : undefined,
-    from_date: fromDate,
-    to_date: toDate,
+    from_date: input?.from_date,
+    to_date: input?.to_date,
   });
 }
 

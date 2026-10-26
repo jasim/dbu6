@@ -1,4 +1,3 @@
-import { Temporal } from "@sapporta/shared/temporal";
 import {
   dateColumn,
   type GridDataset,
@@ -229,8 +228,7 @@ export function ledgerPostings(
           [...new Set(against.map((other) => other.account_name))].join(", ") ||
           null,
         against_account_id: against.length === 1 ? against[0].account_id : null,
-        debit: direction > 0 ? value : 0,
-        credit: direction < 0 ? value : 0,
+        ...sideOf(direction * value),
       });
       const others = lines.filter((other) => other !== line);
       const opposite = others.filter(
@@ -281,11 +279,12 @@ export function ledgerPostings(
 /**
  * The account's postings in the period as the report's rows (`ledgerPostings`),
  * each with the balance it leaves and links to its journal, newest first: the
- * balances run from the oldest. A period with a start opens on the balance
- * brought forward, the last row, in the column of its side. The label names
- * the account, for the screen's title; the footer totals the period and closes
- * it, as a ledger book does: opening and current total make the closing
- * balance.
+ * balances run from the oldest, in `sequence`, which a sort on the date
+ * follows within a day. A period with a start opens on the balance brought
+ * forward, first in time and so the last row, in the column of its side. The
+ * label names the account, for the screen's title; the footer totals the
+ * period and closes it, as a ledger book does: opening and current total make
+ * the closing balance.
  */
 export function toAccountLedgerResult(
   account: AccountInfoRow | null,
@@ -304,7 +303,15 @@ export function toAccountLedgerResult(
         hiddenIdColumn("journal_id", "Journal ID"),
         hiddenIdColumn("entry_id", "Entry ID"),
         hiddenIdColumn("against_account_id", "Against Account ID"),
-        dateColumn("date", "Date", { width: 15 }),
+        // Many rows share a date; the order the balance runs in keeps them
+        // in step whichever way the date is sorted.
+        {
+          id: "sequence",
+          label: "Sequence",
+          kind: "number" as const,
+          visuallyHidden: true,
+        },
+        dateColumn("date", "Date", { width: 15, sortBy: ["date", "sequence"] }),
         // The text columns give way so the amounts, and the balance footer
         // under them, stay on screen at laptop widths. The screen links
         // Against to that account's ledger for the same period.
@@ -319,6 +326,7 @@ export function toAccountLedgerResult(
         moneyColumn("balance", "Balance", { width: 18, strong: true }),
       ],
       childLevels: [],
+      sort: [{ column: "date", direction: "desc" as const }],
       // The journal's other lines are a click away, not nested in the page.
       rowLinks: [
         openJournal,
@@ -341,16 +349,19 @@ export function toAccountLedgerResult(
   const openingBalance = Number(account.opening_balance);
   let balance = openingBalance;
   const journalEntries = groupJournalEntries(journalEntryRows);
+  let sequence = 0;
   const postings = journals.flatMap((journal) => {
     const lines = journalEntries.get(journal.journal_id) ?? [];
     return ledgerPostings(journal, lines, inLedger).map(
       ({ key, ...posting }) => {
         balance += posting.debit - posting.credit;
+        sequence += 1;
         return {
           rowKey: key,
           levelName: "entries",
           columns: {
             journal_id: journal.journal_id,
+            sequence,
             date: journal.date,
             ...posting,
             balance,
@@ -359,8 +370,6 @@ export function toAccountLedgerResult(
       },
     );
   });
-  // Dated the day before the period, as the balance stood that night, so
-  // that sorting by date keeps it beyond the period's first day either way.
   const opening =
     fromDate !== null
       ? [
@@ -372,9 +381,8 @@ export function toAccountLedgerResult(
               journal_id: null,
               entry_id: null,
               against_account_id: null,
-              date: Temporal.PlainDate.from(fromDate)
-                .subtract({ days: 1 })
-                .toString(),
+              sequence: 0,
+              date: fromDate,
               against: "Opening balance",
               narration: null,
               ...sideOf(openingBalance),
@@ -413,7 +421,7 @@ export function toAccountLedgerResult(
   };
 }
 
-/** A balance under the column of its side: debit when positive. */
+/** A signed amount under the column of its side: debit when positive. */
 function sideOf(balance: number): { debit: number; credit: number } {
   return {
     debit: balance > 0 ? balance : 0,

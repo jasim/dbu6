@@ -106,12 +106,16 @@ Look up an account's id with
   date, plus the drafts still waiting in Review.
 - **"Show me this account's history."**
   `/api/reports/account-ledger` with `account_id`, `from_date` and `to_date`.
-  It includes sub-accounts. Each row is one entry on the account, with
-  `narration` (the entry's comment, else its source narration, else the
-  journal's description), the account it was `against`, and the balance
-  after it. An
+  It includes sub-accounts. Rows come newest first. Each row is one entry on
+  the account, with `narration` (the entry's comment, else its source
+  narration, else the journal's description), the account it was `against`,
+  and the balance after it. An
   older grouped journal gives one row per statement transaction in it; a
   compound entry, such as a salary, lists every account on its other side.
+  With a `from_date`, the last row is not an entry: it is the balance brought
+  forward (`kind: "opening"`), its net in `debit` or `credit`, so leave it out
+  when adding up the period. The footer rows give the period's totals
+  (`current-total`) and the balance it ends on (`closing-balance`).
 - **"Find the transaction …"**
   `npx sapporta api get /api/search --query '{"q":"<words>"}'` searches the
   whole books, as the app's Search page does. It returns matching journals

@@ -1,5 +1,8 @@
+import { Temporal } from "@sapporta/shared/temporal";
 import type { DateSpan } from "../../shared/index";
 import {
+  financialYearStart,
+  isDate,
   parsePreset,
   parseSpan,
   PERIOD_PRESETS,
@@ -37,8 +40,11 @@ export const PERIOD_CHOICES: readonly { value: PeriodChoice; label: string }[] =
 const PERIOD_PARAMS = ["period", "from_date", "to_date"] as const;
 
 /**
- * The period a query string asks for. Any date parameter means picked dates,
- * which count only when both are valid and in order; then a known `period`;
+ * The period a query string asks for. A lone `to_date` is a balance as of
+ * that day, as the balance sheet and the reconciliation reports link to it:
+ * its financial year up to that day, which a ledger opens from the balance
+ * brought forward. Otherwise any date parameter means picked dates, which
+ * count only when both are valid and in order; then a known `period`;
  * otherwise the report's default: all time, which is what a report with no
  * dates has always shown, unless it names a preset.
  */
@@ -49,6 +55,10 @@ export function readReportPeriod(
 ): ReportPeriod {
   const from = search.get("from_date");
   const to = search.get("to_date");
+  if (from === null && isDate(to)) {
+    const first = financialYearStart(Temporal.PlainDate.from(to)).toString();
+    return { kind: "custom", span: { first_date: first, last_date: to } };
+  }
   if (from !== null || to !== null) {
     return { kind: "custom", span: parseSpan(from, to) };
   }

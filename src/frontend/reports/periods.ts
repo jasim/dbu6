@@ -95,7 +95,9 @@ function financialYearStartYear(year: number, month: number): number {
   return month >= FINANCIAL_YEAR_START_MONTH ? year : year - 1;
 }
 
-function financialYearStart(date: Temporal.PlainDate): Temporal.PlainDate {
+export function financialYearStart(
+  date: Temporal.PlainDate,
+): Temporal.PlainDate {
   return Temporal.PlainDate.from({
     year: financialYearStartYear(date.year, date.month),
     month: FINANCIAL_YEAR_START_MONTH,
@@ -103,7 +105,7 @@ function financialYearStart(date: Temporal.PlainDate): Temporal.PlainDate {
   });
 }
 
-function isDate(value: string | null): value is string {
+export function isDate(value: string | null): value is string {
   if (value === null || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   try {
     Temporal.PlainDate.from(value, { overflow: "reject" });

@@ -173,14 +173,22 @@ describe("Account Ledger result", () => {
       "Open journal entry",
     ]);
 
-    // Newest first, the opening balance under the oldest: the night before
-    // the period, in the column of its side.
+    // Newest first, as a sort on the date says; within a day, in the order
+    // the balance runs.
+    expect(entries?.sort).toEqual([{ column: "date", direction: "desc" }]);
+    expect(
+      entries?.columns.find((column) => column.id === "date")?.sortBy,
+    ).toEqual(["date", "sequence"]);
+
+    // The opening balance under the oldest, on the period's first day, in
+    // the column of its side.
     const rows = [...result.nodes].reverse();
+    expect(rows.map((row) => row.columns.sequence)).toEqual([0, 1, 2, 3, 4]);
     expect(rows[0]).toMatchObject({
       rowKey: "opening:2026-01-01",
       kind: "opening",
       columns: {
-        date: "2025-12-31",
+        date: "2026-01-01",
         against: "Opening balance",
         debit: 50,
         credit: 0,
@@ -293,6 +301,7 @@ describe("Account Ledger result", () => {
     expect(result.nodes.map((row) => row.columns)).toEqual([
       {
         journal_id: 11,
+        sequence: 1,
         date: "2026-01-12",
         entry_id: 111,
         narration: "UPI-sample-grocer-050505",

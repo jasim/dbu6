@@ -39,11 +39,23 @@ describe("reading the query string", () => {
     ).toEqual({ kind: "custom", span: dates("2026-03-05", "2026-03-20") });
   });
 
+  it("reads a lone end date as its financial year to that day, over any preset", () => {
+    expect(read("to_date=2026-07-31&period=this-month")).toEqual({
+      kind: "custom",
+      span: dates("2026-04-01", "2026-07-31"),
+    });
+    // March is the year before's.
+    expect(read("to_date=2026-03-31")).toEqual({
+      kind: "custom",
+      span: dates("2025-04-01", "2026-03-31"),
+    });
+  });
+
   it("keeps a custom range with nothing picked when the dates don't make a span", () => {
     for (const query of [
       "period=custom",
       "from_date=2026-03-01",
-      "to_date=2026-03-01&period=this-month",
+      "to_date=2026-02-30",
       "from_date=2026-02-30&to_date=2026-03-31",
       "from_date=2026-04-01&to_date=2026-03-01",
       "from_date=&to_date=",
