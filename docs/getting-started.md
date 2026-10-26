@@ -66,24 +66,34 @@ with Ctrl-C. `npx dbu6 start` is the same server for good, without the reload.
 
 ## Set up your books
 
-Home shows the next thing to do, one at a time.
+Until something is in your books, dbu6 opens on the next thing to do, one at a
+time.
 
 1. **Pick a chart of accounts.** Start from dbu6's starter chart, or describe
    your money in a sentence — "salaried in Bengaluru, rent, two children in
    school, a car loan, some freelance income" — and a coding agent proposes
    accounts that fit. Nothing is created until you accept.
-2. **Add a bank or card.** On Home, or Settings → Banks and cards. Name the
-   institution and which of your accounts its statements belong to.
+2. **Add a bank or card.** From that first card, later from Update's **+ Add**,
+   or in Settings → Banks and cards. Name the institution and which of your
+   accounts its statements belong to.
 3. **Import a recent statement for it.** Download one from your bank as a PDF,
    CSV or XLS and drop it on Import statements. dbu6 recognizes the layout,
    takes the account's starting balance from it, and shows you the rows it
    read. This is the step that tells dbu6 where your books start.
 4. **Add your opening balances** (optional). What your cash, investments and
    loans held when the books start, so the balance sheet is true from day one.
-5. **Review what it categorized, and add it to your books.** Home says when
+5. **Review what it categorized, and add it to your books.** Update says when
    drafts are waiting. Review is where you reclassify what needs it, check for
    duplicates against earlier imports, see the balance checks, and post.
    Nothing reaches your books until you post.
+
+Once something is posted, dbu6 opens on **Overview**: the month's income,
+spending and savings beside your usual month, the largest spending categories,
+net worth, the last twelve months, and each bank and card's balance with the
+date its books are complete until. It starts on the latest month every account
+covers, so a statement you haven't imported yet doesn't make a month look
+cheap. **Update** is where you keep the books current: each account, how far it
+is imported, and what waits on it, with Import and Review one click away.
 
 Steps 3 and 5 are worth reading up on: [Importing
 statements](statements.md) and [Categorization](categorization.md).

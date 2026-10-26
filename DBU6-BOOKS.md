@@ -35,7 +35,8 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
   `SAPPORTA_PUBLIC_APP_URL`, set in the project's `.env.development`. Read it; do not
   assume a port: the template's `http://localhost:2345` is only a default, and
   a second project on the same machine is on other ports.
-  - Home: `/`
+  - Overview: `/`, or one month with `/?month=YYYY-MM`
+  - Update (each account, how far it is imported, what waits on it): `/update`
   - Import statements: `/import`
   - Review: `/review/<account id>`, with the tabs `/drafts`,
     `/improve-categorization`, `/run-categorizer`, `/duplicates` and
@@ -79,6 +80,15 @@ Look up an account's id with
 - **"Where do my books stand? What's waiting?"**
   `npx sapporta api get /api/home` lists each import account with its last
   statement balance in the books and what is waiting in Review.
+- **"How did this month go?"**
+  `npx sapporta api get /api/overview --query '{"month":"YYYY-MM"}'` returns
+  what Overview shows: the month's income and spending beside their average
+  over the up to twelve months before it, the top spending categories, the
+  twelve months ending with it, net worth at its end and the month before's,
+  and each import account's balance and `books_until`. Without `month` it
+  picks the latest month every account with a balance check covers
+  (`complete_until`). Posted entries only: until anything beyond the opening
+  balances is posted it returns just `{"posted": false}`.
 - **"How much did I spend on X?", or "…in this period?"**
   `npx sapporta api get /api/reports/income-expenses --query '{"from_date":"…","to_date":"…"}'`
   returns income and spending as account trees: each `total` includes the
@@ -230,7 +240,7 @@ Leave a rule request you couldn't encode.
 
 ### Accounts and imports
 
-- **"I opened a new account or card."** Send the user to `/add` (Home's
+- **"I opened a new account or card."** Send the user to `/add` (Update's
   **+ Add** › Bank or card), where they drop its statements: dbu6 reads
   them, sets the account up with its opening balance, and imports them, in
   one go. Nothing is written until the statements are read and checked. A
@@ -316,7 +326,7 @@ Leave a rule request you couldn't encode.
     accounts needs one on each.
   - `{"action":"update",…}` and `{"action":"remove","account_id":<id>,"delete_account":true}`
     change or remove one, but only while it has no transactions of its own
-    (`account_has_transactions`), the rule `/add` and Home use: its opening
+    (`account_has_transactions`), the rule `/add` and Update use: its opening
     entry and what other accounts' statements put on it don't count. On
     screen, that is Settings › Banks & cards (`/settings/banks`). Removing
     one deletes its opening entry when that journal opens it alone, and
@@ -329,8 +339,9 @@ Leave a rule request you couldn't encode.
 - **Setting up the books.** The first run is a run of cards, one question
   each, and keeps nothing but the URL: `/setup` picks the chart of accounts,
   `/add?run=setup` adds the banks and cards one at a time, `/add/other`
-  records cash, deposits and loans, and Review takes over. Home resumes from
-  the books: no chart opens `/setup`, a chart with no bank or card
+  records cash, deposits and loans, and Review takes over. Until anything
+  is posted, Overview and Update show the first run's card, read from the
+  books: no chart points to `/setup`, a chart with no bank or card to
   `/add?run=setup`. A bank or card counts as imported once it has entries
   (its opening entry aside) or drafts from its own statements; a card
   payment another account's import posted to it doesn't count.

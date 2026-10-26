@@ -35,9 +35,11 @@ npx dbu6 dev
 ```
 
 `npm init @dbu6` creates the folder, installs dbu6 into it and makes the
-database. `dev` serves the app: open <http://localhost:2345> and sign up. Home then takes you
+database. `dev` serves the app: open <http://localhost:2345> and sign up. dbu6 then takes you
 through your chart of accounts, a bank or card, a recent statement for it, your
-opening balances, and reviewing what dbu6 categorized.
+opening balances, and reviewing what dbu6 categorized. Once something is in your
+books, it opens on Overview: the month's income, spending and savings, net worth,
+and how far each account's books go.
 
 A coding agent works in the folder when it is asked to. Give it access before
 handing it a prompt:
