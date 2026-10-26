@@ -81,7 +81,7 @@ import { SETUP_ROUTE } from "./setup/routes";
 const ownNavigation: Navigation = {
   groups: [
     {
-      label: "Your money",
+      label: "Reports",
       items: [
         { label: "Overview", icon: Home, to: "/" },
         {
@@ -105,7 +105,7 @@ const ownNavigation: Navigation = {
       ],
     },
     {
-      label: "Your books",
+      label: "Books",
       items: [
         {
           label: "Update",

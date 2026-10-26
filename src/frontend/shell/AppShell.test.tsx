@@ -62,7 +62,7 @@ const AUTH_CONTEXT = {
 const NAVIGATION: Navigation = {
   groups: [
     {
-      label: "Your money",
+      label: "Reports",
       items: [
         { label: "Overview", to: "/" },
         {
@@ -74,7 +74,7 @@ const NAVIGATION: Navigation = {
       ],
     },
     {
-      label: "Your books",
+      label: "Books",
       items: [
         {
           label: "Update",
@@ -337,10 +337,10 @@ describe("dbu6 app shell", () => {
     ]);
     const groups = Array.from(nav?.querySelectorAll('[role="group"]') ?? []);
     expect(groups.map((group) => group.getAttribute("aria-label"))).toEqual([
-      "Your money",
-      "Your books",
+      "Reports",
+      "Books",
     ]);
-    expect(groups[0].textContent).toContain("Your money");
+    expect(groups[0].textContent).toContain("Reports");
     expect(nav?.querySelector("hr")).toBeInstanceOf(HTMLElement);
   });
 

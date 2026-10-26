@@ -23,7 +23,7 @@ export interface NavigationItem extends SapportaNavigationItem {
   sidebarOnly?: boolean;
 }
 
-/** A labelled group of the sidebar: "Your money", "Your books". */
+/** A labelled group of the sidebar: "Reports", "Books". */
 export interface NavigationGroup {
   label: string;
   items: readonly NavigationItem[];
