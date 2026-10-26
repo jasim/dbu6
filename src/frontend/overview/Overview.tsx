@@ -683,45 +683,81 @@ function Accounts({ overview }: { overview: PostedOverview }) {
           {overview.accounts.map((account) => {
             const Icon = account.kind === "card" ? CreditCard : Landmark;
             const ledger = accountLedgerHref(account.account_id);
+            const balance =
+              account.kind === "card"
+                ? `${formatMoney(account.balance)} owed`
+                : formatMoney(account.balance);
+            const name = (
+              <span className="flex min-w-0 items-center gap-2">
+                <Icon
+                  className="size-4 shrink-0 text-ink-meta"
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-foreground">
+                    {account.name}
+                  </span>
+                  {/* On a phone the date goes under the name. */}
+                  <span className="block text-meta text-ink-meta sm:hidden">
+                    Books until {booksUntil(account.books_until)}
+                  </span>
+                </span>
+              </span>
+            );
+            // The whole row leads to the ledger: every cell is a link. The
+            // figures' links are for the pointer only, so the keyboard stops
+            // on the row once.
+            const rowLink = "block text-inherit no-underline outline-none";
             return (
               <tr
                 key={account.account_id}
-                className="border-t border-line-inner hover:bg-sap-row-hover"
+                className={cn(
+                  "border-t border-line-inner hover:bg-sap-row-hover",
+                  ledger && "group/row has-[a:focus-visible]:bg-sap-row-hover",
+                )}
               >
-                <td className="max-w-0 py-2 pr-3">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Icon
-                      className="size-4 shrink-0 text-ink-meta"
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                    />
-                    <span className="min-w-0">
-                      {ledger ? (
-                        <Link
-                          to={ledger}
-                          className="block truncate font-semibold text-foreground no-underline hover:underline hover:underline-offset-4"
-                        >
-                          {account.name}
-                        </Link>
-                      ) : (
-                        <span className="block truncate font-semibold">
-                          {account.name}
-                        </span>
-                      )}
-                      {/* On a phone the date goes under the name. */}
-                      <span className="block text-meta text-ink-meta sm:hidden">
-                        Books until {booksUntil(account.books_until)}
-                      </span>
-                    </span>
-                  </span>
+                <td className={cn("max-w-0", !ledger && "py-2 pr-3")}>
+                  {ledger ? (
+                    <Link to={ledger} className={cn(rowLink, "py-2 pr-3")}>
+                      {name}
+                    </Link>
+                  ) : (
+                    name
+                  )}
                 </td>
-                <Td className="text-foreground">
-                  {account.kind === "card"
-                    ? `${formatMoney(account.balance)} owed`
-                    : formatMoney(account.balance)}
+                <Td className={cn("text-foreground", ledger && "p-0")}>
+                  {ledger ? (
+                    <Link
+                      to={ledger}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className={cn(rowLink, "py-2 pl-6")}
+                    >
+                      {balance}
+                    </Link>
+                  ) : (
+                    balance
+                  )}
                 </Td>
-                <Td className="hidden text-ink-soft sm:table-cell">
-                  {booksUntil(account.books_until)}
+                <Td
+                  className={cn(
+                    "hidden text-ink-soft sm:table-cell",
+                    ledger && "p-0",
+                  )}
+                >
+                  {ledger ? (
+                    <Link
+                      to={ledger}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className={cn(rowLink, "py-2 pl-6")}
+                    >
+                      {booksUntil(account.books_until)}
+                    </Link>
+                  ) : (
+                    booksUntil(account.books_until)
+                  )}
                 </Td>
               </tr>
             );
