@@ -240,9 +240,9 @@ describe("reports over an account tree", () => {
       },
     });
     expect(result.nodes.map((node) => node.columns.section)).toEqual([
-      "What you own · Assets",
-      "What you owe · Liabilities",
-      "What your net worth is made of · Equity",
+      "Assets",
+      "Liabilities",
+      "Equity",
     ]);
     // The books balance, so the net worth is the only footer row.
     expect(footer(result, "section_total")).toEqual([74000]);

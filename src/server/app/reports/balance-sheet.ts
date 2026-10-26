@@ -101,9 +101,9 @@ function toBalanceSheetResult(
     label: "Balance Sheet",
     sections: ["Asset", "Liability", "Equity"],
     labels: {
-      Asset: "What you own · Assets",
-      Liability: "What you owe · Liabilities",
-      Equity: "What your net worth is made of · Equity",
+      Asset: "Assets",
+      Liability: "Liabilities",
+      Equity: "Equity",
     },
     accounts,
   });
