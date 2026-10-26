@@ -29,6 +29,7 @@ import {
 } from "../update/state";
 import {
   averageLabel,
+  categoryRows,
   monthDates,
   monthSteps,
   netWorthChange,
@@ -313,7 +314,10 @@ const FIGURE_ROWS: readonly {
   { label: "Saved %", value: (shown) => shown.remaining.share ?? "—" },
 ];
 
-/** The month's largest spending categories beside their usual amounts. */
+/**
+ * The month's largest spending categories beside their usual amounts, then
+ * the rest and the total, so the table adds up to Spent.
+ */
 function Categories({ overview }: { overview: PostedOverview }) {
   const dates = monthDates(overview.month);
   const averaged = overview.figures.average !== null;
@@ -343,26 +347,45 @@ function Categories({ overview }: { overview: PostedOverview }) {
             </tr>
           </thead>
           <tbody>
-            {overview.categories.map((category) => (
-              <tr
-                key={category.account_id}
-                className="border-t border-line-inner"
-              >
-                <td className="max-w-0 truncate py-2 pr-3 text-foreground">
-                  {category.name}
-                </td>
-                <Td className="text-foreground">
-                  {signedAmount("spending", category.amount)}
-                </Td>
-                {averaged && (
-                  <Td className="text-ink-soft">
-                    {category.average === null
-                      ? "—"
-                      : signedAmount("spending", category.average)}
+            {categoryRows(overview).map((row) => {
+              const total = row.kind === "total";
+              return (
+                <tr
+                  key={row.account_id ?? row.kind}
+                  className={cn(
+                    "border-t",
+                    total ? "border-sap-border-strong" : "border-line-inner",
+                  )}
+                >
+                  <td
+                    className={cn(
+                      "max-w-0 truncate py-2 pr-3",
+                      total
+                        ? "font-semibold text-foreground"
+                        : row.kind === "other"
+                          ? "text-ink-soft"
+                          : "text-foreground",
+                    )}
+                  >
+                    {row.name}
+                  </td>
+                  <Td
+                    className={
+                      total ? "font-semibold text-foreground" : "text-foreground"
+                    }
+                  >
+                    {signedAmount("spending", row.amount)}
                   </Td>
-                )}
-              </tr>
-            ))}
+                  {averaged && (
+                    <Td className="text-ink-soft">
+                      {row.average === null
+                        ? "—"
+                        : signedAmount("spending", row.average)}
+                    </Td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
