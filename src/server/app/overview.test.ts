@@ -106,7 +106,11 @@ function books() {
       },
     ] satisfies OverviewAccountInput[];
 
-  return { ...test, ids: { savings, card, expenses, food }, accounts };
+  return {
+    ...test,
+    ids: { assets, savings, card, expenses, food },
+    accounts,
+  };
 }
 
 describe("overviewReport", () => {
@@ -140,6 +144,9 @@ describe("overviewReport", () => {
       liabilities: 5000,
       net: 14000,
       previous_net: 13000,
+      // A single account under Assets and one card repeat the totals.
+      asset_groups: [],
+      liability_groups: [],
     });
     expect(overview.accounts).toEqual([
       {
@@ -244,6 +251,53 @@ describe("overviewReport", () => {
 
     expect(overview.complete_until).toBeNull();
     expect(overview.month).toBe("2026-04");
+  });
+
+  it("lists where net worth sits, at the first level that branches", () => {
+    const test = books();
+    const { ledger, accounts, ids } = test;
+    // Under Assets beside Sample Savings: a group holding a bank, and four
+    // more accounts, each funded from savings.
+    const banks = test.addAccount({
+      name: "Sample Banks",
+      account_type: "Asset",
+      parent_id: ids.assets,
+    });
+    ["One", "Two", "Three", "Four", "Five"].forEach((name, index) => {
+      const account = test.addAccount({
+        name: `Sample ${name}`,
+        account_type: "Asset",
+        parent_id: index === 0 ? banks : ids.assets,
+      });
+      test.addJournal({
+        date: "2026-03-05",
+        description: "NOPII transfer",
+        entries: [
+          { account_id: account, debit: 1000 * (index + 1) },
+          { account_id: ids.savings, credit: 1000 * (index + 1) },
+        ],
+      });
+    });
+
+    const overview = overviewReport(ledger, {
+      month: "2026-04",
+      accounts: accounts("2026-04-30", "2026-04-30"),
+    });
+
+    // Six accounts under Assets: the largest four, then Other for Sample Two
+    // and Sample Banks, which is listed rather than the bank under it.
+    expect(
+      overview.net_worth.asset_groups.map((group) => [group.name, group.amount]),
+    ).toEqual([
+      ["Sample Five", 5000],
+      ["Sample Four", 4000],
+      ["Sample Savings", 4000],
+      ["Sample Three", 3000],
+      ["Other", 3000],
+    ]);
+    expect(overview.net_worth.asset_groups.at(-1)?.account_id).toBeNull();
+    expect(overview.net_worth.assets).toBe(19000);
+    expect(overview.net_worth.liability_groups).toEqual([]);
   });
 
   it("never counts drafts", () => {

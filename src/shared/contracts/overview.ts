@@ -34,6 +34,18 @@ export const overviewCategorySchema = z.object({
 });
 export type OverviewCategory = z.infer<typeof overviewCategorySchema>;
 
+/**
+ * Where net worth sits: an account at the first level of the asset or
+ * liability tree that branches, with everything under it; or, with no
+ * account, the rest past the limit.
+ */
+export const overviewWorthGroupSchema = z.object({
+  account_id: z.number().nullable(),
+  name: z.string(),
+  amount: z.number(),
+});
+export type OverviewWorthGroup = z.infer<typeof overviewWorthGroupSchema>;
+
 // What the books show for the month, once anything is posted.
 const postedOverviewSchema = z.object({
   posted: z.literal(true),
@@ -67,6 +79,10 @@ const postedOverviewSchema = z.object({
     liabilities: z.number(),
     net: z.number(),
     previous_net: z.number(),
+    // At the month's end, largest first, up to five with the last of them
+    // Other; empty when the level has a single account. Owed is positive.
+    asset_groups: z.array(overviewWorthGroupSchema),
+    liability_groups: z.array(overviewWorthGroupSchema),
   }),
   // The importable accounts the ledger has, as Update orders them.
   accounts: z.array(overviewAccountSchema),

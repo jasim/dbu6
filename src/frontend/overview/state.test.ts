@@ -6,7 +6,7 @@ import {
   difference,
   monthDates,
   monthSteps,
-  netWorthChange,
+  otherWorthChange,
   savedShareDifference,
   waitingLabel,
 } from "./state";
@@ -39,16 +39,21 @@ describe("averageLabel", () => {
   });
 });
 
-describe("netWorthChange", () => {
-  it("compares with the month before's", () => {
-    const overview = {
-      month: "2026-01",
-      net_worth: { assets: 0, liabilities: 0, net: 14000, previous_net: 15000 },
-    } as PostedOverview;
-    expect(netWorthChange(overview)).toEqual({
-      label: "Change since Dec 2025",
-      value: -1000,
-    });
+describe("otherWorthChange", () => {
+  const overview = (net: number, previous: number) =>
+    ({
+      figures: { income: 5000, spending: 4000, average: null },
+      net_worth: { net, previous_net: previous },
+    }) as PostedOverview;
+
+  it("is zero when income and spending made the whole change", () => {
+    expect(otherWorthChange(overview(14000, 13000))).toBe(0);
+    expect(otherWorthChange(overview(14000.004, 13000))).toBe(0);
+  });
+
+  it("is what an opening balance added", () => {
+    // The books' first month: nothing before, an opening balance of 10000.
+    expect(otherWorthChange(overview(11000, 0))).toBe(10000);
   });
 });
 

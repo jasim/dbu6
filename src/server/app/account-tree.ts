@@ -80,6 +80,26 @@ export function accountTree<T extends AmountAccount>(
   );
 }
 
+/**
+ * The first level of a tree with more than one node: a chart that keeps
+ * everything under one `Expenses` (or `Assets`) account gives what is under
+ * it. A node with entries of its own stops the descent, so its amount is not
+ * lost.
+ */
+export function branchingLevel<
+  N extends { own: number; children: readonly N[] },
+>(nodes: readonly N[]): readonly N[] {
+  let level = nodes;
+  while (
+    level.length === 1 &&
+    level[0].children.length > 0 &&
+    level[0].own === 0
+  ) {
+    level = level[0].children;
+  }
+  return level;
+}
+
 /** Accounts as tops, and each account's children by its id. */
 type Forest<T extends TreeAccount> = {
   tops: T[];

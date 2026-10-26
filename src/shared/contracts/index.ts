@@ -178,10 +178,12 @@ export {
   overviewAccountSchema,
   overviewCategorySchema,
   overviewSchema,
+  overviewWorthGroupSchema,
   type Overview,
   type OverviewAccount,
   type PostedOverview,
   type OverviewCategory,
+  type OverviewWorthGroup,
 } from "./overview.js";
 export {
   reviewContract,

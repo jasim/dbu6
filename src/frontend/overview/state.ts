@@ -48,19 +48,16 @@ export function averageLabel(months: number): string {
   return `Average of ${plural(months, "month")}`;
 }
 
-/** "Change since Mar 2026": net worth against the month before's. */
-export function netWorthChange(overview: PostedOverview): {
-  label: string;
-  value: number;
-} {
-  return {
-    label: `Change since ${formatMonth(
-      Temporal.PlainYearMonth.from(overview.month)
-        .subtract({ months: 1 })
-        .toString(),
-    )}`,
-    value: overview.net_worth.net - overview.net_worth.previous_net,
-  };
+/**
+ * What moved net worth in the month besides income and spending: opening
+ * balances and other equity entries. Saved is the rest of the change, so
+ * this is zero in an ordinary month.
+ */
+export function otherWorthChange(overview: PostedOverview): number {
+  const { net_worth: worth, figures } = overview;
+  return cents(
+    worth.net - worth.previous_net - (figures.income - figures.spending),
+  );
 }
 
 /** A row of Spending by category: a category, the rest, or the total. */

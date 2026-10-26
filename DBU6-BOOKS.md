@@ -84,8 +84,9 @@ Look up an account's id with
   `npx sapporta api get /api/overview --query '{"month":"YYYY-MM"}'` returns
   what Overview shows: the month's income and spending beside their average
   over the up to twelve months before it, the top spending categories, the
-  twelve months ending with it, net worth at its end and the month before's,
-  and each import account's balance and `books_until`. Without `month` it
+  twelve months ending with it, net worth at its end and the month before's
+  with where it sits (`asset_groups`, `liability_groups`: the first level of
+  each tree that branches), and each import account's balance and `books_until`. Without `month` it
   picks the latest month every account with a balance check covers
   (`complete_until`). Posted entries only: until anything beyond the opening
   balances is posted it returns just `{"posted": false}`.

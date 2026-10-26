@@ -2,11 +2,12 @@ import { TsRestApi, type SapportaEnv } from "@sapporta/server";
 import { Temporal } from "@sapporta/shared/temporal";
 import {
   overviewContract,
-  type IncomeExpensesAccount,
   type OverviewAccount,
   type OverviewCategory,
+  type OverviewWorthGroup,
   type PostedOverview,
 } from "../../shared/index.js";
+import { accountTree, branchingLevel } from "./account-tree.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import { hasJournalsBesideOpenings } from "../modules/journals/index.js";
 import {
@@ -14,7 +15,10 @@ import {
   type ReportLedger,
 } from "../modules/ledger-sql/index.js";
 import { loadHomeSummary } from "./home.js";
-import { loadAccountBalances } from "./reports/account-amounts.js";
+import {
+  loadAccountBalances,
+  type AccountBalance,
+} from "./reports/account-amounts.js";
 import { incomeExpensesReport } from "./reports/income-expenses.js";
 import { authorizeReport, monthEnd } from "./reports/shared.js";
 
@@ -147,32 +151,14 @@ export function overviewReport(
       liabilities: balances.liabilities,
       net: balances.assets - balances.liabilities,
       previous_net: previous.assets - previous.liabilities,
+      asset_groups: worthGroups(balances.ofType("Asset")),
+      liability_groups: worthGroups(balances.ofType("Liability")),
     },
     accounts: query.accounts.map((account) => ({
       ...account,
       balance: balances.byAccount.get(account.account_id) ?? 0,
     })),
   };
-}
-
-/**
- * The first level of the spending tree with more than one account: a chart
- * that keeps everything under one `Expenses` account lists what is under it.
- * An account with entries of its own stops the descent, so its amount is not
- * lost.
- */
-function branchingLevel(
-  nodes: readonly IncomeExpensesAccount[],
-): readonly IncomeExpensesAccount[] {
-  let level = nodes;
-  while (
-    level.length === 1 &&
-    level[0].children.length > 0 &&
-    level[0].own === 0
-  ) {
-    level = level[0].children;
-  }
-  return level;
 }
 
 /**
@@ -184,15 +170,47 @@ function loadBalances(ledger: ReportLedger, asOf: string) {
     types: ["Asset", "Liability"],
     asOf,
   });
+  const ofType = (type: "Asset" | "Liability") =>
+    rows.filter((row) => row.account_type === type);
   const total = (type: "Asset" | "Liability") =>
-    rows
-      .filter((row) => row.account_type === type)
-      .reduce((sum, row) => sum + row.amount, 0);
+    ofType(type).reduce((sum, row) => sum + row.amount, 0);
   return {
     assets: total("Asset"),
     liabilities: total("Liability"),
+    ofType,
     byAccount: new Map(rows.map((row) => [row.account_id, row.amount])),
   };
+}
+
+/** The most groups Net worth lists under assets or liabilities. */
+const GROUP_LIMIT = 5;
+
+/**
+ * Where a type's balance sits: the first level of its tree that branches,
+ * largest first, and Other for the rest past the limit. None when the level
+ * has a single account, which would only repeat the total.
+ */
+function worthGroups(rows: readonly AccountBalance[]): OverviewWorthGroup[] {
+  const level = branchingLevel(accountTree(rows));
+  if (level.length < 2) return [];
+  const groups = level.map(
+    (node): OverviewWorthGroup => ({
+      account_id: node.account.account_id,
+      name: node.account.name,
+      amount: node.total,
+    }),
+  );
+  if (groups.length <= GROUP_LIMIT) return groups;
+  const shown = groups.slice(0, GROUP_LIMIT - 1);
+  const rest = groups.slice(GROUP_LIMIT - 1);
+  return [
+    ...shown,
+    {
+      account_id: null,
+      name: "Other",
+      amount: rest.reduce((sum, group) => sum + group.amount, 0),
+    },
+  ];
 }
 
 /**

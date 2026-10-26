@@ -5,11 +5,16 @@ import { cn } from "@sapporta/ui/cn";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@sapporta/frontend/auth";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import type { HomeSummary, PostedOverview } from "../../shared/index";
+import type {
+  HomeSummary,
+  OverviewWorthGroup,
+  PostedOverview,
+} from "../../shared/index";
 import { apiErrorMessage, overviewApi } from "../api";
 import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
 import { formatDate, formatMoney, formatMonth } from "../format";
+import { formatAmount } from "../report-kit";
 import { FRESH_QUERY, homeSummaryQuery } from "../queries";
 import { chartBars } from "../reports/income-expenses/chart";
 import { figures, signedAmount } from "../reports/income-expenses/figures";
@@ -34,7 +39,7 @@ import {
   monthDates,
   type MonthTotals,
   monthSteps,
-  netWorthChange,
+  otherWorthChange,
   savedShareDifference,
   waitingLabel,
 } from "./state";
@@ -470,11 +475,19 @@ function Categories({ overview }: { overview: PostedOverview }) {
   );
 }
 
-/** What is owned, owed and left at the month's end. */
+/**
+ * What is owned, less what is owed, at the month's end, each with where it
+ * sits. Saved is the month's change in net worth, so the change shows only
+ * for what moved it besides income and spending.
+ */
 function NetWorth({ overview }: { overview: PostedOverview }) {
   const { net_worth: worth } = overview;
-  const change = netWorthChange(overview);
+  const other = otherWorthChange(overview);
   const asOf = monthDates(overview.month).last_date;
+  const ledger = (group: OverviewWorthGroup) =>
+    group.account_id === null
+      ? null
+      : accountLedgerHref(group.account_id, { to_date: asOf });
   return (
     <Card
       title="Net worth"
@@ -490,52 +503,95 @@ function NetWorth({ overview }: { overview: PostedOverview }) {
       <table className="w-full text-row">
         <tbody>
           <WorthRow label="Assets" value={formatMoney(worth.assets)} />
-          <WorthRow label="Liabilities" value={formatMoney(worth.liabilities)} />
+          {worth.asset_groups.map((group) => (
+            <WorthRow
+              key={group.account_id ?? "other"}
+              label={group.name}
+              value={formatMoney(group.amount)}
+              href={ledger(group)}
+              group
+            />
+          ))}
+          <WorthRow label="Less liabilities" value={owed(worth.liabilities)} />
+          {worth.liability_groups.map((group) => (
+            <WorthRow
+              key={group.account_id ?? "other"}
+              label={group.name}
+              value={owed(group.amount)}
+              href={ledger(group)}
+              group
+            />
+          ))}
           <WorthRow
             label={`On ${formatDate(asOf)}`}
             value={formatMoney(worth.net)}
             strong
           />
-          <WorthRow
-            label={change.label}
-            value={signedAmount("income", change.value)}
-            className={change.value > 0 ? "text-money-in" : undefined}
-          />
+          {other !== 0 && (
+            <WorthRow
+              label={`Opening balances and equity in ${formatMonth(overview.month)}`}
+              value={signedAmount("income", other)}
+            />
+          )}
         </tbody>
       </table>
     </Card>
   );
 }
 
+/** An amount owed, taken away: "−2,19,305.00". */
+function owed(amount: number): string {
+  if (amount === 0) return formatMoney(0);
+  return formatAmount(amount, amount > 0 ? "out" : "in");
+}
+
 function WorthRow({
   label,
   value,
+  href = null,
+  group = false,
   strong = false,
-  className,
 }: {
   label: string;
   value: string;
+  // Where a group's row leads: its ledger up to the month's end.
+  href?: string | null;
+  // A group under Assets or Liabilities: indented, and lighter.
+  group?: boolean;
   strong?: boolean;
-  className?: string;
 }) {
+  const ink = strong
+    ? "font-semibold text-foreground"
+    : group
+      ? "text-ink-soft"
+      : "text-foreground";
   return (
-    <tr className="border-t border-line-inner first:border-t-0">
+    <tr
+      className={cn(
+        "first:border-t-0",
+        group ? "" : "border-t border-line-inner",
+      )}
+    >
       <td
         className={cn(
-          "py-2 pr-3",
-          strong ? "font-semibold text-foreground" : "text-ink-soft",
+          "max-w-0 truncate pr-3",
+          group ? "py-1 pl-4" : "py-2",
+          // A total's label is softer than its figure; a group's is not.
+          strong || group ? ink : "text-ink-soft",
         )}
       >
-        {label}
+        {href ? (
+          <Link
+            to={href}
+            className="text-inherit no-underline hover:underline hover:underline-offset-4"
+          >
+            {label}
+          </Link>
+        ) : (
+          label
+        )}
       </td>
-      <Td
-        className={cn(
-          strong ? "font-semibold text-foreground" : "text-foreground",
-          className,
-        )}
-      >
-        {value}
-      </Td>
+      <Td className={cn(ink, group && "py-1")}>{value}</Td>
     </tr>
   );
 }
