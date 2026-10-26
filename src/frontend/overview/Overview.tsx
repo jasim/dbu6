@@ -134,6 +134,12 @@ export function Overview() {
             series={null}
             onClearSeries={() => {}}
             alwaysSelected
+            spendingAverage={
+              overview.figures.average && {
+                label: averageLabel(overview.figures.average.months),
+                value: overview.figures.average.spending,
+              }
+            }
           />
         </div>
       ) : (

@@ -32,6 +32,7 @@ export function MonthChart({
   series,
   onClearSeries,
   alwaysSelected = false,
+  spendingAverage = null,
 }: {
   bars: readonly ChartBar[];
   selected: string | null;
@@ -43,13 +44,20 @@ export function MonthChart({
    * it, and clicking it again keeps it.
    */
   alwaysSelected?: boolean;
+  /**
+   * The usual month's spending and what it averages, as Overview has it: a
+   * dashed line across the income and spending bars, its figure in the
+   * legend, so the bars have a scale without hovering.
+   */
+  spendingAverage?: { label: string; value: number } | null;
 }) {
   const scale = series ? Math.max(0, ...series.values) : chartScale(bars);
-  const average =
-    series && series.values.length > 0
+  const average = series
+    ? series.values.length > 0
       ? series.values.reduce((sum, value) => sum + value, 0) /
         series.values.length
-      : null;
+      : null
+    : (spendingAverage?.value ?? null);
   const selectedBar = bars.find((bar) => bar.key === selected) ?? null;
   // Each series shaded on its own: the heaviest month deepest.
   const incomeShades = shades(bars.map((bar) => bar.income));
@@ -94,6 +102,18 @@ export function MonthChart({
           <>
             <LegendItem section="income">Income</LegendItem>
             <LegendItem section="spending">Spending</LegendItem>
+            {spendingAverage && (
+              <li className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="w-4 border-t-2 border-dashed border-ink-meta"
+                />
+                <span className="tnum font-mono">
+                  {spendingAverage.label}{" "}
+                  {signedAmount("spending", spendingAverage.value)}
+                </span>
+              </li>
+            )}
           </>
         )
       }
