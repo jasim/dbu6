@@ -147,7 +147,6 @@ function report(overrides: Partial<IncomeExpenses> = {}): IncomeExpenses {
       { month: "2026-08", income: 25000, spending: 11500 },
       { month: "2026-09", income: 25000, spending: 12000 },
     ],
-    first_month: "2025-09",
     ...overrides,
   };
 }

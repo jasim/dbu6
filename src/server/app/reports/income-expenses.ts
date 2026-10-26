@@ -98,9 +98,6 @@ export function incomeExpensesReport(
     const amounts = byAccount.get(accountId);
     return months.map((month) => amounts?.get(month) ?? 0);
   };
-  const firstMonth =
-    loadMonthlyAmounts(ledger, { fromDate: null, toDate: null })[0]?.month ??
-    null;
 
   return {
     income: section(accounts, "Revenue", ownMonths),
@@ -108,7 +105,6 @@ export function incomeExpensesReport(
     months: months.map(
       (month) => inPeriod.get(month) ?? { month, income: 0, spending: 0 },
     ),
-    first_month: firstMonth,
   };
 }
 

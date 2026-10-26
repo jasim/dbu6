@@ -38,7 +38,6 @@ function report(
     income: { total: total(income), accounts: income },
     spending: { total: total(spending), accounts: spending },
     months: [],
-    first_month: null,
   };
 }
 

@@ -197,10 +197,9 @@ describe("Income and Expenses", () => {
       { month: "2026-02", income: 0, spending: 0 },
       { month: "2026-03", income: 0, spending: 20000 },
     ]);
-    expect(report.first_month).toBe("2025-12");
   });
 
-  it("is empty for a period without entries, with the first month still known", () => {
+  it("is empty for a period without entries", () => {
     const report = incomeExpensesReport(readOnlyLedger(ledger(), auth), {
       fromDate: "2026-02-10",
       toDate: "2026-02-20",
@@ -210,17 +209,7 @@ describe("Income and Expenses", () => {
       income: { total: 0, accounts: [] },
       spending: { total: 0, accounts: [] },
       months: [{ month: "2026-02", income: 0, spending: 0 }],
-      first_month: "2025-12",
     });
-    expect(
-      incomeExpensesReport(
-        readOnlyLedger(new Database(":memory:").exec(schemaOnly()), auth),
-        {
-          fromDate: "2026-02-10",
-          toDate: "2026-02-20",
-        },
-      ).first_month,
-    ).toBeNull();
   });
 
   it("gives each account its total month by month, children included", () => {
@@ -281,24 +270,6 @@ describe("Income and Expenses", () => {
     expect(monthsBetween("2026-02-10", "2026-02-20")).toEqual(["2026-02"]);
   });
 });
-
-function schemaOnly(): string {
-  return `
-    CREATE TABLE accounts (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT,
-      parent_id INTEGER, account_type TEXT
-    );
-    CREATE TABLE journals (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, date TEXT, description TEXT
-    );
-    CREATE TABLE journal_entries (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, journal_id INTEGER,
-      account_id INTEGER, debit REAL, credit REAL
-    );
-    CREATE TABLE draft_transactions (
-      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT
-    );`;
-}
 
 describe("the income-expenses query", () => {
   const query = reportsContract.incomeExpenses.query;

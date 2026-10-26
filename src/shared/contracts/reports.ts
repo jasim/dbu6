@@ -96,8 +96,6 @@ export const incomeExpensesSchema = z.object({
       spending: z.number(),
     }),
   ),
-  // The first month with any income or spending entry, at any date.
-  first_month: z.string().nullable(),
 });
 export type IncomeExpenses = z.infer<typeof incomeExpensesSchema>;
 

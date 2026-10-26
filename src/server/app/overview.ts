@@ -17,6 +17,7 @@ import {
 import { loadHomeSummary } from "./home.js";
 import {
   loadAccountBalances,
+  loadMonthlyAmounts,
   type AccountBalance,
 } from "./reports/account-amounts.js";
 import { incomeExpensesReport } from "./reports/income-expenses.js";
@@ -88,13 +89,15 @@ export function overviewReport(
     toDate: monthEnd(month),
   });
   const current = report.months.length - 1;
-  // The months before `month` that the books cover, for the averages.
+  // The first month with any income or spending, at any date.
+  const firstMonth =
+    loadMonthlyAmounts(ledger, { fromDate: null, toDate: null })[0]?.month ??
+    null;
+  // The months before `month` from that one on, for the averages.
   const covered = report.months
     .slice(0, current)
     .flatMap((row, index) =>
-      report.first_month !== null && row.month >= report.first_month
-        ? [index]
-        : [],
+      firstMonth !== null && row.month >= firstMonth ? [index] : [],
     );
   // Null when the books cover none of them: there is nothing to average.
   const average =
@@ -113,7 +116,7 @@ export function overviewReport(
   return {
     posted: true,
     month,
-    first_month: report.first_month,
+    first_month: firstMonth,
     figures: {
       income: report.months[current].income,
       spending: report.months[current].spending,
@@ -124,14 +127,12 @@ export function overviewReport(
       },
     },
     categories: branchingLevel(report.spending.accounts)
-      .map(
-        (node): OverviewCategory => ({
-          account_id: node.account_id,
-          name: node.name,
-          amount: node.months[current],
-          average: average?.(node.months) ?? null,
-        }),
-      )
+      .map((node): OverviewCategory => ({
+        account_id: node.account_id,
+        name: node.name,
+        amount: node.months[current],
+        average: average?.(node.months) ?? null,
+      }))
       .filter(
         (category) => category.amount !== 0 || (category.average ?? 0) !== 0,
       )
@@ -185,13 +186,11 @@ const GROUP_LIMIT = 5;
 function worthGroups(rows: readonly AccountBalance[]): OverviewWorthGroup[] {
   const level = branchingLevel(accountTree(rows));
   if (level.length < 2) return [];
-  const groups = level.map(
-    (node): OverviewWorthGroup => ({
-      account_id: node.account.account_id,
-      name: node.account.name,
-      amount: node.total,
-    }),
-  );
+  const groups = level.map((node): OverviewWorthGroup => ({
+    account_id: node.account.account_id,
+    name: node.account.name,
+    amount: node.total,
+  }));
   if (groups.length <= GROUP_LIMIT) return groups;
   const shown = groups.slice(0, GROUP_LIMIT - 1);
   const rest = groups.slice(GROUP_LIMIT - 1);
