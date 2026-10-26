@@ -93,6 +93,11 @@ export function ReportPeriodField({
   const day = today();
   const books = useQuery(booksSpanQuery).data ?? null;
   const span = periodSpan(period, books, day);
+  // Picked days name themselves on the button.
+  const dates =
+    showSpan && span !== null && spanLabel(span) !== periodLabel(period, day)
+      ? spanLabel(span)
+      : null;
   const previous = stepPeriod(period, -1, day);
   const next = stepPeriod(period, 1, day);
 
@@ -141,10 +146,8 @@ export function ReportPeriodField({
           onChange={onChange}
         />
       </div>
-      {showSpan && span !== null ? (
-        <span className="tnum whitespace-nowrap text-ink-meta">
-          {spanLabel(span)}
-        </span>
+      {dates !== null ? (
+        <span className="tnum whitespace-nowrap text-ink-meta">{dates}</span>
       ) : null}
     </div>
   );

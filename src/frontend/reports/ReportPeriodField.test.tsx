@@ -172,6 +172,8 @@ describe("the report period field", () => {
       "?account_id=7&from_date=2026-04-03&to_date=2026-04-10",
     );
     expect(trigger()?.textContent).toBe("3–10 Apr 2026");
+    // Named once, on the button.
+    expect(host.textContent?.split("3–10 Apr 2026")).toHaveLength(2);
     expect(calendarDay("2026-04-10")).toBeNull();
   });
 
