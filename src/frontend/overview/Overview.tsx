@@ -36,14 +36,11 @@ import {
   averageLabel,
   categoryBars,
   categoryRows,
-  difference,
   holdingAccounts,
   monthDates,
   monthForKey,
-  type MonthTotals,
   monthSteps,
   otherWorthChange,
-  savedShareDifference,
   waitingLabel,
 } from "./state";
 
@@ -111,10 +108,10 @@ export function Overview() {
       ) : summary && overview?.posted ? (
         <div className="mt-5 space-y-4">
           <StatusLine summary={summary} overview={overview} />
-          {/* The month's money on the left, where it stands on the right. */}
+          <MonthFigures overview={overview} />
+          {/* Where the month's money went on the left, where it stands on the right. */}
           <div className="grid items-start gap-4 lg:grid-cols-2">
             <div className="min-w-0 space-y-4">
-              <MonthFigures overview={overview} />
               <Categories overview={overview} />
             </div>
             <div className="min-w-0 space-y-4">
@@ -334,9 +331,9 @@ function StatusLine({
 }
 
 /**
- * The month's income, spending and savings beside the usual ones and the
- * difference: a row per figure, so a phone has room for the two columns it
- * keeps.
+ * The month's income, spending and savings across one row, the usual ones in
+ * the row below, so each figure reads beside the one it makes up. It runs the
+ * page's width, and scrolls sideways where even that is too narrow.
  */
 function MonthFigures({ overview }: { overview: PostedOverview }) {
   const { average } = overview.figures;
@@ -345,91 +342,66 @@ function MonthFigures({ overview }: { overview: PostedOverview }) {
   const usual = average && figures(average);
   return (
     <Card>
-      <table className="w-full text-row">
-        <thead>
-          <tr className="text-meta text-ink-meta">
-            <th className="w-full pb-2 text-left font-normal" />
-            <Th>
-              <Link
-                to={incomeExpensesHref(dates.first_date, dates.last_date)}
-                className="text-row font-semibold text-foreground no-underline hover:underline hover:underline-offset-4"
-              >
-                {formatMonth(overview.month, "long")}
-              </Link>
-            </Th>
-            {average && <Th>{averageLabel(average.months)}</Th>}
-            {average && <Th className={WIDE_ONLY}>Difference</Th>}
-          </tr>
-        </thead>
-        <tbody>
-          {FIGURE_ROWS.map((row) => (
-            <tr key={row.label} className="border-t border-line-inner">
-              <td className="whitespace-nowrap py-2 pr-3 text-ink-soft">
-                {row.label}
+      <div className="overflow-x-auto">
+        <table className="w-full text-row">
+          <thead>
+            <tr className="text-meta text-ink-meta">
+              <th className="w-full pb-2 text-left font-normal" />
+              <Th>Income</Th>
+              <Th>Spent</Th>
+              <Th>Saved</Th>
+              <Th>Saved %</Th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-t border-line-inner">
+              <td className="whitespace-nowrap py-2 pr-3">
+                <Link
+                  to={incomeExpensesHref(dates.first_date, dates.last_date)}
+                  className="font-semibold text-foreground no-underline hover:underline hover:underline-offset-4"
+                >
+                  {formatMonth(overview.month, "long")}
+                </Link>
               </td>
               <Td
                 className={
-                  row.label === "Income" && current.income.direction === "in"
+                  current.income.direction === "in"
                     ? "text-money-in"
                     : "text-foreground"
                 }
               >
-                {row.value(current)}
+                {current.income.figure}
               </Td>
-              {usual && <Td className="text-ink-soft">{row.value(usual)}</Td>}
-              {average && (
-                <Td className={cn(WIDE_ONLY, "text-ink-soft")}>
-                  {row.difference(overview.figures, average)}
-                </Td>
-              )}
+              <Td className="text-foreground">{current.spending.figure}</Td>
+              <Td className="text-foreground">{savedFigure(current)}</Td>
+              <Td className="text-foreground">
+                {current.remaining.share ?? "—"}
+              </Td>
             </tr>
-          ))}
-        </tbody>
-      </table>
+            {average && usual && (
+              <tr className="border-t border-line-inner text-ink-soft">
+                <td className="whitespace-nowrap py-2 pr-3">
+                  {averageLabel(average.months)}
+                </td>
+                <Td>{usual.income.figure}</Td>
+                <Td>{usual.spending.figure}</Td>
+                <Td>{savedFigure(usual)}</Td>
+                <Td>{usual.remaining.share ?? "—"}</Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </Card>
   );
 }
 
-type Shown = ReturnType<typeof figures>;
-
-/** Each figure, shown, and its difference from the average. */
-const FIGURE_ROWS: readonly {
-  label: string;
-  value: (shown: Shown) => string;
-  difference: (month: MonthTotals, average: MonthTotals) => string | null;
-}[] = [
-  {
-    label: "Income",
-    value: (shown) => shown.income.figure,
-    difference: (month, average) => difference(month.income, average.income),
-  },
-  {
-    label: "Spent",
-    value: (shown) => shown.spending.figure,
-    difference: (month, average) =>
-      difference(-month.spending, -average.spending),
-  },
-  {
-    label: "Saved",
-    value: (shown) =>
-      shown.remaining.tone === "saved"
-        ? shown.remaining.figure
-        : `${shown.remaining.figure} over`,
-    difference: (month, average) =>
-      difference(
-        month.income - month.spending,
-        average.income - average.spending,
-      ),
-  },
-  {
-    label: "Saved %",
-    value: (shown) => shown.remaining.share ?? "—",
-    difference: savedShareDifference,
-  },
-];
-
-/** A column a phone leaves out. */
-const WIDE_ONLY = "hidden sm:table-cell";
+/** Saved, or by how much spending went over income. */
+function savedFigure(shown: ReturnType<typeof figures>): string {
+  return shown.remaining.tone === "saved"
+    ? shown.remaining.figure
+    : `${shown.remaining.figure} over`;
+}
 
 /**
  * The month's largest spending categories beside their usual amounts, then
@@ -469,7 +441,6 @@ function Categories({ overview }: { overview: PostedOverview }) {
               <th className="w-full pb-2 text-left font-normal">Category</th>
               <Th>{formatMonth(overview.month)}</Th>
               {averaged && <Th>Average</Th>}
-              {averaged && <Th className={WIDE_ONLY}>Difference</Th>}
             </tr>
           </thead>
           <tbody>
@@ -544,14 +515,6 @@ function Categories({ overview }: { overview: PostedOverview }) {
                   {averaged && (
                     <Td className="text-ink-soft">
                       {row.average === null ? "—" : spent(row.average)}
-                    </Td>
-                  )}
-                  {averaged && (
-                    <Td className={cn(WIDE_ONLY, "text-ink-soft")}>
-                      {difference(
-                        -row.amount,
-                        row.average === null ? null : -row.average,
-                      ) ?? "—"}
                     </Td>
                   )}
                 </tr>
