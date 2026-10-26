@@ -4,12 +4,10 @@ import {
   FileArchive,
   FileText,
   FileUp,
-  Settings,
   Settings2,
 } from "lucide-react";
 import { useSchemaStore } from "@sapporta/frontend/schema";
 import { usePageTitle } from "@sapporta/frontend/shell";
-import { ANY_CODING_AGENT } from "../shared/index";
 import { LinkCard, type LinkCardProps } from "./components/link-card";
 
 const importTools: readonly LinkCardProps[] = [
@@ -33,13 +31,6 @@ const importTools: readonly LinkCardProps[] = [
     to: "/views/render-draft-hledger",
     icon: FileText,
   },
-  {
-    label: "Export as hledger",
-    description:
-      "Download the books as hledger journal files: one per statement account, in a zip.",
-    to: "/views/export-hledger",
-    icon: FileArchive,
-  },
 ];
 
 export function Advanced() {
@@ -57,16 +48,23 @@ export function Advanced() {
           <h1 className="mt-3 text-title text-foreground sm:text-display">
             Every table and specialist tool
           </h1>
-          <p className="mt-4 text-body text-ink-soft">
-            The main sidebar follows the normal statement workflow. Use this
-            page when you need direct access to the underlying accounting data.
-          </p>
         </header>
 
-        <main className="grid gap-6 py-5 lg:grid-cols-2">
+        <div className="grid gap-6 py-8 lg:grid-cols-2">
+          <LinkCard
+            layout="tile"
+            accent
+            label="Export your books as plain text (hledger)"
+            description="Download your entire books as human-readable .journal files, ready to open in any text editor or run with hledger."
+            to="/views/export-hledger"
+            icon={FileArchive}
+          />
+        </div>
+
+        <main className="grid gap-6 border-t border-sap-border py-5 lg:grid-cols-2">
           <AdvancedSection
             title="Data tables"
-            description="Open the source records directly. Changes here affect the books, so use the guided workflow for routine imports."
+            description="Direct access to all dbu6 tables"
           >
             <div className="grid gap-2">
               {tables.map((table) => (
@@ -81,27 +79,12 @@ export function Advanced() {
             </div>
           </AdvancedSection>
 
-          <AdvancedSection
-            title="Import and posting tools"
-            description="These are the individual tools behind the statement workflow."
-          >
+          <AdvancedSection title="Import and posting tools">
             <div className="grid gap-2">
               {importTools.map((tool) => (
                 <LinkCard key={tool.to} {...tool} />
               ))}
             </div>
-          </AdvancedSection>
-
-          <AdvancedSection
-            title="Settings"
-            description="How dbu6 runs on this machine."
-          >
-            <LinkCard
-              label="Coding agent"
-              description={`Choose ${ANY_CODING_AGENT}: the agent dbu6 runs its AI on.`}
-              to="/settings"
-              icon={Settings}
-            />
           </AdvancedSection>
         </main>
       </div>
@@ -115,13 +98,15 @@ function AdvancedSection({
   children,
 }: {
   title: string;
-  description: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
     <section>
       <h2 className="text-heading text-foreground">{title}</h2>
-      <p className="mt-1 text-meta text-ink-meta">{description}</p>
+      {description && (
+        <p className="mt-1 text-meta text-ink-meta">{description}</p>
+      )}
       <div className="mt-4">{children}</div>
     </section>
   );

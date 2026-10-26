@@ -15,6 +15,8 @@ export type LinkCardProps = {
    * page (the financial statements).
    */
   layout?: "row" | "tile";
+  /** Tints the icon tile in the primary colour, for a card meant to stand out. */
+  accent?: boolean;
 };
 
 /** A card-shaped link: a name, one line on what it opens, and an arrow. */
@@ -24,6 +26,7 @@ export function LinkCard({
   to,
   icon: Icon,
   layout = "row",
+  accent = false,
 }: LinkCardProps) {
   const tile = layout === "tile";
   return (
@@ -35,7 +38,12 @@ export function LinkCard({
       )}
     >
       {Icon && (
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-muted text-ink-meta">
+        <span
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-control",
+            accent ? "bg-primary/10 text-primary" : "bg-muted text-ink-meta",
+          )}
+        >
           <Icon className="size-4" strokeWidth={1.8} />
         </span>
       )}
