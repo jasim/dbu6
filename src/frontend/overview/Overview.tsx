@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, CreditCard, Landmark } from "lucide-react";
 import { cn } from "@sapporta/ui/cn";
@@ -38,6 +38,7 @@ import {
   difference,
   holdingAccounts,
   monthDates,
+  monthForKey,
   type MonthTotals,
   monthSteps,
   otherWorthChange,
@@ -184,7 +185,10 @@ function FirstRun({ summary }: { summary: HomeSummary }) {
   );
 }
 
-/** ◂ April 2026 ▸, bounded by the books' first month and this month. */
+/**
+ * ◂ April 2026 ▸, bounded by the books' first month and this month; `[` and
+ * `]` step it too.
+ */
 function MonthPicker({
   overview,
   onPick,
@@ -193,6 +197,27 @@ function MonthPicker({
   onPick: (month: string) => void;
 }) {
   const steps = monthSteps(overview.month, overview.first_month, today());
+  // The listener reads the latest steps without being added again.
+  const latest = useRef({ steps, onPick });
+  latest.current = { steps, onPick };
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        typingIn(event.target)
+      )
+        return;
+      const to = monthForKey(event.key, latest.current.steps);
+      if (to === null) return;
+      event.preventDefault();
+      latest.current.onPick(to);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const step = (
     to: string | null,
     label: string,
@@ -213,7 +238,7 @@ function MonthPicker({
     <div className="flex items-center gap-1">
       {step(
         steps.previous,
-        "Previous month",
+        "Previous month ([)",
         <ChevronLeft className="size-4" aria-hidden="true" />,
       )}
       <span className="min-w-[136px] text-center text-heading text-foreground">
@@ -221,10 +246,21 @@ function MonthPicker({
       </span>
       {step(
         steps.next,
-        "Next month",
+        "Next month (])",
         <ChevronRight className="size-4" aria-hidden="true" />,
       )}
     </div>
+  );
+}
+
+/** Whether a key goes to a field, a menu or a dialog rather than the page. */
+function typingIn(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target.closest(
+        "input,textarea,select,[role=dialog],[role=listbox],[role=menu]",
+      ) !== null)
   );
 }
 

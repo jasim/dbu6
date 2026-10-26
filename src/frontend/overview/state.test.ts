@@ -6,6 +6,7 @@ import {
   difference,
   holdingAccounts,
   monthDates,
+  monthForKey,
   monthSteps,
   otherWorthChange,
   savedShareDifference,
@@ -29,6 +30,15 @@ describe("months", () => {
     expect(monthSteps("2026-02", "2026-02", "2026-10-25").previous).toBeNull();
     expect(monthSteps("2026-10", "2026-02", "2026-10-25").next).toBeNull();
     expect(monthSteps("2026-04", null, "2026-10-25").previous).toBeNull();
+  });
+});
+
+describe("monthForKey", () => {
+  it("steps back with [ and on with ], within the bounds", () => {
+    const steps = { previous: "2026-03", next: null };
+    expect(monthForKey("[", steps)).toBe("2026-03");
+    expect(monthForKey("]", steps)).toBeNull();
+    expect(monthForKey("ArrowLeft", steps)).toBeNull();
   });
 });
 

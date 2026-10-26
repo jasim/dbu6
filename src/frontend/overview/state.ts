@@ -42,6 +42,16 @@ export function monthSteps(
   };
 }
 
+/** The month a key steps to: `[` the one before, `]` the one after. */
+export function monthForKey(
+  key: string,
+  steps: { previous: string | null; next: string | null },
+): string | null {
+  if (key === "[") return steps.previous;
+  if (key === "]") return steps.next;
+  return null;
+}
+
 /** The averages' column label: "12-month average", or what it covers so far. */
 export function averageLabel(months: number): string {
   if (months === 12) return "12-month average";
