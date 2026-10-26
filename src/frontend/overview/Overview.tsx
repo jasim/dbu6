@@ -14,6 +14,7 @@ import { apiErrorMessage, overviewApi } from "../api";
 import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
 import { formatDate, formatMoney, formatMonth } from "../format";
+import { typingIn } from "../keys";
 import { formatAmount } from "../report-kit";
 import { FRESH_QUERY, homeSummaryQuery } from "../queries";
 import { chartBars } from "../reports/income-expenses/chart";
@@ -215,11 +216,7 @@ function MonthPicker({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  const step = (
-    to: string | null,
-    label: string,
-    icon: ReactNode,
-  ) => (
+  const step = (to: string | null, label: string, icon: ReactNode) => (
     <button
       type="button"
       disabled={to === null}
@@ -251,16 +248,6 @@ function MonthPicker({
 }
 
 /** Whether a key goes to a field, a menu or a dialog rather than the page. */
-function typingIn(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable ||
-      target.closest(
-        "input,textarea,select,[role=dialog],[role=listbox],[role=menu]",
-      ) !== null)
-  );
-}
-
 /** What waits in Update. Hidden when nothing does. */
 function StatusLine({ summary }: { summary: HomeSummary }) {
   const waiting = waitingLabel(waitingInUpdate(summary));

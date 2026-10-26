@@ -1,17 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  activePreset,
   emptyPeriodSentence,
-  monthOptions,
   periodHeading,
-  pickedLabel,
-  pickedMonths,
-  pickFrom,
-  pickTo,
-  presetSearch,
   readPeriod,
-  spanSearch,
   withinOneMonth,
+  writePeriod,
 } from "./period";
 
 const dates = (first_date: string, last_date: string) => ({
@@ -23,152 +16,47 @@ describe("the query string", () => {
   const day = "2026-09-16";
   const read = (query: string) => readPeriod(new URLSearchParams(query), day);
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("defaults to the last 12 months", () => {
+  it("defaults to the last 12 months, and reads all time when named", () => {
     expect(read("")).toEqual({
       kind: "preset",
       preset: "last-12-months",
       span: dates("2025-10-01", "2026-09-16"),
     });
-    expect(read("period=next-decade").kind).toBe("preset");
+    expect(read("period=custom")).toMatchObject({ preset: "last-12-months" });
+    expect(read("period=all-time")).toEqual({ kind: "all-time" });
   });
 
-  it("reads a named preset", () => {
-    expect(read("period=last-financial-year")).toEqual({
-      kind: "preset",
-      preset: "last-financial-year",
-      span: dates("2025-04-01", "2026-03-31"),
+  it("reads dates as every report does", () => {
+    expect(read("from_date=2026-03-05&to_date=2026-03-20")).toEqual({
+      kind: "custom",
+      span: dates("2026-03-05", "2026-03-20"),
     });
   });
 
-  it("lets valid dates win over a preset", () => {
+  it("keeps the account in focus and drops the selected bar", () => {
+    const search = new URLSearchParams("account=spending:4&month=2026-08");
+    expect(writePeriod(search, { kind: "all-time" }).toString()).toBe(
+      "account=spending%3A4&period=all-time",
+    );
     expect(
-      read("period=this-month&from_date=2026-03-05&to_date=2026-03-20"),
-    ).toEqual({ kind: "picked", span: dates("2026-03-05", "2026-03-20") });
-  });
-
-  it("ignores dates that are invalid, missing or out of order", () => {
-    for (const query of [
-      "from_date=2026-02-30&to_date=2026-03-31&period=this-month",
-      "from_date=2026-03-01&period=this-month",
-      "from_date=2026-04-01&to_date=2026-03-01&period=this-month",
-      "from_date=1/3/2026&to_date=2026-03-31&period=this-month",
-    ]) {
-      expect(read(query)).toMatchObject({ preset: "this-month" });
-    }
-  });
-
-  it("writes a preset by name and picked dates as dates", () => {
-    expect(presetSearch("this-month").toString()).toBe("period=this-month");
-    expect(spanSearch(dates("2026-03-01", "2026-03-31")).toString()).toBe(
-      "from_date=2026-03-01&to_date=2026-03-31",
-    );
-  });
-
-  it("round-trips a preset relative to the day it is read", () => {
-    const search = presetSearch("this-month");
-    expect(readPeriod(search, "2026-10-02").span).toEqual(
-      dates("2026-10-01", "2026-10-02"),
-    );
-  });
-});
-
-describe("the lit preset", () => {
-  const day = "2026-09-16";
-
-  it("is the chosen preset", () => {
-    expect(activePreset(readPeriod(presetSearch("last-month"), day), day)).toBe(
-      "last-month",
-    );
-  });
-
-  it("is the preset that picked dates match exactly, else none", () => {
-    const picked = (first: string, last: string) =>
-      activePreset({ kind: "picked", span: dates(first, last) }, day);
-
-    expect(picked("2026-08-01", "2026-08-31")).toBe("last-month");
-    expect(picked("2025-10-01", "2026-09-16")).toBe("last-12-months");
-    expect(picked("2025-10-01", "2026-09-15")).toBeNull();
-    expect(picked("2026-03-01", "2026-06-30")).toBeNull();
-  });
-});
-
-describe("picking months", () => {
-  const day = "2026-09-16";
-
-  it("covers whole months, up to today", () => {
-    expect(pickedMonths({ from: "2026-03", to: "2026-06" }, day)).toEqual(
-      dates("2026-03-01", "2026-06-30"),
-    );
-    expect(pickedMonths({ from: "2026-02", to: "2026-02" }, day)).toEqual(
-      dates("2026-02-01", "2026-02-28"),
-    );
-    expect(pickedMonths({ from: "2026-07", to: "2026-09" }, day)).toEqual(
-      dates("2026-07-01", "2026-09-16"),
-    );
-    expect(pickedMonths({ from: "2026-07", to: "2026-12" }, day)).toEqual(
-      dates("2026-07-01", "2026-09-16"),
-    );
-  });
-
-  it("moves the other month when the two would cross", () => {
-    const current = { from: "2026-03", to: "2026-06" };
-    expect(pickFrom("2026-08", current)).toEqual({
-      from: "2026-08",
-      to: "2026-08",
-    });
-    expect(pickFrom("2026-01", current)).toEqual({
-      from: "2026-01",
-      to: "2026-06",
-    });
-    expect(pickTo("2026-02", current)).toEqual({
-      from: "2026-02",
-      to: "2026-02",
-    });
-    expect(pickTo("2026-07", current)).toEqual({
-      from: "2026-03",
-      to: "2026-07",
-    });
-  });
-
-  it("offers the months from the first in the books to this one, newest first", () => {
-    expect(
-      monthOptions("2026-06", dates("2026-08-01", "2026-09-16"), day),
-    ).toEqual(["2026-09", "2026-08", "2026-07", "2026-06"]);
-    expect(monthOptions(null, dates("2026-08-01", "2026-08-31"), day)).toEqual([
-      "2026-09",
-      "2026-08",
-    ]);
-  });
-
-  it("tests whether dates fall within one month", () => {
-    expect(withinOneMonth(dates("2026-03-05", "2026-03-20"))).toBe(true);
-    expect(withinOneMonth(dates("2026-03-31", "2026-04-01"))).toBe(false);
+      writePeriod(search, {
+        kind: "custom",
+        span: dates("2026-03-01", "2026-03-31"),
+      }).toString(),
+    ).toBe("account=spending%3A4&from_date=2026-03-01&to_date=2026-03-31");
   });
 });
 
 describe("labels", () => {
-  const day = "2026-09-16";
-
   it("read the dates under the title in full", () => {
     expect(periodHeading(dates("2025-10-01", "2026-09-16"))).toBe(
       "1 October 2025 – 16 September 2026",
     );
   });
 
-  it("read picked months as months and other dates as days", () => {
-    expect(pickedLabel(dates("2026-03-01", "2026-06-30"), day)).toBe(
-      "Mar – Jun 2026",
-    );
-    expect(pickedLabel(dates("2026-07-01", "2026-09-16"), day)).toBe(
-      "Jul – Sep 2026",
-    );
-    expect(pickedLabel(dates("2026-03-05", "2026-03-20"), day)).toBe(
-      "5–20 Mar 2026",
-    );
+  it("tests whether dates fall within one month", () => {
+    expect(withinOneMonth(dates("2026-03-05", "2026-03-20"))).toBe(true);
+    expect(withinOneMonth(dates("2026-03-31", "2026-04-01"))).toBe(false);
   });
 
   it("say what an empty period covers", () => {

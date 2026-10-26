@@ -1,28 +1,22 @@
 import {
   apiErrorMessage,
+  booksSpanQuery,
   Button,
-  ChevronDown,
   cn,
   downloadXlsx,
   EmptyState,
   FileSpreadsheet,
   formatDaySpan,
-  formatMonth,
   FRESH_QUERY,
   incomeStatementHref,
   keepPreviousData,
   Link,
   LoadError,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+  periodSpan,
   queryOptions,
+  ReportPeriodField,
+  type ReportPeriod,
   Screen,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
   today,
   usePageTitle,
   useEffect,
@@ -40,22 +34,11 @@ import { incomeExpensesFileName, incomeExpensesSheets } from "./export";
 import { figures, isEmptyPeriod, type Figures } from "./figures";
 import { MonthChart, MonthChartSkeleton } from "./MonthChart";
 import {
-  activePreset,
   emptyPeriodSentence,
-  monthOptions,
   periodHeading,
-  pickedLabel,
-  pickedMonths,
-  pickFrom,
-  pickTo,
-  PRESETS,
-  presetSearch,
   readPeriod,
-  spanMonths,
-  spanSearch,
   withinOneMonth,
-  type Period,
-  type Preset,
+  writePeriod,
 } from "./period";
 import {
   ancestorIds,
@@ -99,17 +82,27 @@ export function IncomeExpensesPage() {
   const [search, setSearch] = useSearchParams();
   const day = today();
   const period = readPeriod(search, day);
-  const dates = period.span;
-  const query = useQuery(incomeExpensesQuery(dates));
+  // All time runs over the days the books cover, so it waits for them.
+  const books = useQuery(booksSpanQuery);
+  const dates = books.isPending
+    ? period.kind === "all-time"
+      ? null
+      : period.span
+    : periodSpan(period, books.data ?? null, day);
+  const query = useQuery({
+    ...incomeExpensesQuery(dates ?? { first_date: day, last_date: day }),
+    enabled: dates !== null,
+  });
   const report = query.data ?? null;
-  const error = query.isError ? apiErrorMessage(query.error) : null;
+  const error = query.isError
+    ? apiErrorMessage(query.error)
+    : books.isError
+      ? apiErrorMessage(books.error)
+      : null;
 
   // A new period keeps the account in focus, not the month.
-  const showPeriod = (next: URLSearchParams) => {
-    const account = search.get("account");
-    if (account !== null) next.set("account", account);
-    setSearch(next);
-  };
+  const showPeriod = (next: ReportPeriod) =>
+    setSearch(writePeriod(search, next));
 
   return (
     <Screen
@@ -119,15 +112,13 @@ export function IncomeExpensesPage() {
           <div className="min-w-0">
             <h1 className="text-title text-foreground">{TITLE}</h1>
             <p className="mt-1 text-body text-ink-meta">
-              {periodHeading(dates)}
+              {dates === null ? "\u00a0" : periodHeading(dates)}
             </p>
           </div>
-          <PeriodMenu
+          <ReportPeriodField
             period={period}
-            today={day}
-            firstMonth={report?.first_month ?? null}
-            onPreset={(preset) => showPeriod(presetSearch(preset))}
-            onDates={(next) => showPeriod(spanSearch(next))}
+            onChange={showPeriod}
+            showSpan={false}
           />
         </div>
       }
@@ -137,13 +128,16 @@ export function IncomeExpensesPage() {
           <LoadError
             title="Couldn't load income and expenses"
             message={error}
-            retry={() => void query.refetch()}
+            retry={() => {
+              void books.refetch();
+              void query.refetch();
+            }}
           />
         </div>
-      ) : report === null ? (
+      ) : report === null || dates === null ? (
         <>
           <FigureLine className="mt-5" figures={null} scope={null} />
-          {!withinOneMonth(dates) && <MonthChartSkeleton />}
+          {(dates === null || !withinOneMonth(dates)) && <MonthChartSkeleton />}
         </>
       ) : isEmptyPeriod(report) ? (
         <EmptyState
@@ -414,126 +408,5 @@ function Figure({
         {note && <span className="text-meta text-ink-meta">{note}</span>}
       </dd>
     </div>
-  );
-}
-
-/**
- * The period: one button naming it, opening the presets and a pair of
- * month menus for any other months.
- */
-function PeriodMenu({
-  period,
-  today,
-  firstMonth,
-  onPreset,
-  onDates,
-}: {
-  period: Period;
-  today: string;
-  firstMonth: string | null;
-  onPreset: (preset: Preset) => void;
-  onDates: (dates: DateSpan) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const lit = activePreset(period, today);
-  const months = spanMonths(period.span);
-  const items = monthOptions(firstMonth, period.span, today).map((month) => ({
-    value: month,
-    label: formatMonth(month),
-  }));
-  const pick = (next: { from: string; to: string }) =>
-    onDates(pickedMonths(next, today));
-  const label =
-    lit === null
-      ? pickedLabel(period.span, today)
-      : (PRESETS.find((preset) => preset.id === lit)?.label ?? "");
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        aria-label={`Period: ${label}`}
-        className="flex h-9 items-center gap-2 rounded-control border border-sap-border-strong bg-card px-3 text-row font-medium text-foreground shadow-card outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40"
-      >
-        {label}
-        <ChevronDown className="size-4 text-ink-meta" aria-hidden="true" />
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-[min(300px,calc(100vw-32px))] rounded-card p-2"
-      >
-        <ul role="list" aria-label="Period">
-          {PRESETS.map((preset) => (
-            <li key={preset.id}>
-              <button
-                type="button"
-                aria-pressed={preset.id === lit}
-                onClick={() => {
-                  onPreset(preset.id);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center rounded-control px-3 py-2 text-left text-row outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40",
-                  preset.id === lit
-                    ? "font-semibold text-foreground"
-                    : "text-ink-soft",
-                )}
-              >
-                {preset.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-2 grid grid-cols-2 gap-3 border-t border-line-inner px-1 pt-3 pb-1">
-          <MonthSelect
-            label="From"
-            value={months.from}
-            items={items}
-            onChange={(month) => pick(pickFrom(month, months))}
-          />
-          <MonthSelect
-            label="To"
-            value={months.to}
-            items={items}
-            onChange={(month) => pick(pickTo(month, months))}
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function MonthSelect({
-  label,
-  value,
-  items,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  items: { value: string; label: string }[];
-  onChange: (month: string) => void;
-}) {
-  return (
-    <Select<string>
-      value={value}
-      items={items}
-      onValueChange={(month) => {
-        if (month !== null) onChange(month);
-      }}
-    >
-      <div className="space-y-1.5">
-        <SelectLabel className="block text-meta text-ink-meta">
-          {label}
-        </SelectLabel>
-        <SelectTrigger placeholder="Choose a month" />
-      </div>
-      <SelectContent>
-        {items.map((item) => (
-          <SelectItem key={item.value} value={item.value}>
-            {item.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }

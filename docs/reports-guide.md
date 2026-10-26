@@ -145,10 +145,13 @@ all from `"@dbu6/app/frontend"`:
 - `ReportScreenFrame`, `ReportToolbar`, `ReportRunButton` and
   `ReportResultBody` are the frame, the toolbar, Run and the grid.
 - `useReportPeriod()` with `ReportPeriodField` keeps a period in the URL and
-  gives `dates` (`{ from_date?, to_date? }`). It opens on all time;
+  gives `dates` (`{ from_date?, to_date? }`). The field offers All time, the
+  presets, From/To months over the books, and exact dates, and `[` and `]`
+  step the period. It opens on all time;
   `useReportPeriod({ defaultPreset: "this-month" })` opens on a preset
-  instead, for a report too long over all time. `DateInput` with `today()` is a
-  single date. Keep every input in the URL (`useSearchParams`), so a report
+  instead, for a report too long over all time. `AsOfDateInput` with
+  `today()` is the day a balance stands on; `DateInput` is a plain date
+  field. Keep every input in the URL (`useSearchParams`), so a report
   can be linked to and reloaded.
 - Formatters (`formatMoney`, `formatDate`, `formatMonth`, …), `Amount`,
   `accountLedgerHref` and `accountLedgerRow` for links into the account

@@ -2,6 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   afterEach,
   beforeAll,
@@ -15,7 +16,8 @@ import { ReportPeriodField, useReportPeriod } from "./ReportPeriodField";
 
 /*
  * The period field on a date-range report: what it shows for each kind of
- * period, and picking a custom range on the calendar into the URL.
+ * period, choosing from its popup, picking exact dates on the calendar, and
+ * stepping with [ and ], all into the URL.
  */
 
 vi.mock("@sapporta/frontend", () => ({ appTimeZone: () => "Asia/Kolkata" }));
@@ -36,11 +38,20 @@ beforeEach(() => {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        span: { first_date: "2024-06-12", last_date: "2026-09-10" },
+      }),
+    ),
+  );
 });
 
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
@@ -60,12 +71,17 @@ async function renderAt(search: string) {
   await act(async () => {
     root.render(
       createElement(
-        MemoryRouter,
-        { initialEntries: [`/reports/income-statement${search}`] },
-        createElement(Report),
+        QueryClientProvider,
+        { client: new QueryClient() },
+        createElement(
+          MemoryRouter,
+          { initialEntries: [`/reports/income-statement${search}`] },
+          createElement(Report),
+        ),
       ),
     );
   });
+  await settle();
 }
 
 async function settle() {
@@ -78,8 +94,13 @@ async function settle() {
 
 const location = () => host.querySelector("code")?.textContent;
 const asked = () => host.querySelector("output")?.textContent;
-const rangeField = () =>
-  host.querySelector<HTMLButtonElement>('[aria-label^="Custom range:"]');
+const trigger = () =>
+  host.querySelector<HTMLButtonElement>('[aria-label^="Period:"]');
+// The popup opens in a portal.
+const menuButton = (name: string) =>
+  Array.from(
+    document.querySelectorAll<HTMLButtonElement>("[role=dialog] button"),
+  ).find((candidate) => candidate.textContent?.trim() === name) ?? null;
 // The calendar opens in a portal.
 const calendarDay = (date: string) =>
   document.querySelector<HTMLButtonElement>(`td[data-day="${date}"] button`);
@@ -91,55 +112,54 @@ async function click(element: HTMLElement | null) {
   await settle();
 }
 
+function press(key: string) {
+  window.dispatchEvent(new KeyboardEvent("keydown", { key }));
+}
+
 describe("the report period field", () => {
-  it("shows the dates a preset covers, with no calendar", async () => {
+  it("names a preset and shows the dates it covers", async () => {
     await renderAt("?account_id=7&period=this-financial-year");
 
-    expect(host.textContent).toContain("This financial year");
+    expect(trigger()?.textContent).toBe("This financial year");
     expect(host.textContent).toContain("1 Apr – 16 Sep 2026");
     expect(asked()).toBe('{"from_date":"2026-04-01","to_date":"2026-09-16"}');
-    expect(rangeField()).toBeNull();
   });
 
-  it("shows all time without dates", async () => {
+  it("shows all time over the days the books cover, asking for no dates", async () => {
     await renderAt("");
 
-    expect(host.textContent).toContain("All time");
+    expect(trigger()?.textContent).toBe("All time");
+    expect(host.textContent).toContain("12 Jun 2024 – 16 Sep 2026");
     expect(asked()).toBe("{}");
-    expect(rangeField()).toBeNull();
   });
 
   it("asks for dates on a custom range with none picked", async () => {
     await renderAt("?period=custom");
 
-    expect(host.textContent).toContain("Custom range…");
-    expect(rangeField()?.textContent).toBe("Pick dates");
-    expect(rangeField()?.getAttribute("aria-label")).toBe(
-      "Custom range: none picked",
-    );
+    expect(trigger()?.textContent).toBe("Pick dates");
     expect(asked()).toBe("{}");
   });
 
-  it("turns a preset into a custom range of the same dates", async () => {
+  it("chooses all time or a preset from the popup, keeping other parameters", async () => {
     await renderAt("?account_id=7&period=this-month");
 
-    await click(host.querySelector<HTMLElement>('[role="combobox"]'));
-    const option = Array.from(
-      document.querySelectorAll<HTMLElement>('[role="option"]'),
-    ).find((candidate) => candidate.textContent?.includes("Custom range…"));
-    await click(option ?? null);
+    await click(trigger());
+    expect(menuButton("This month")?.getAttribute("aria-pressed")).toBe("true");
+    await click(menuButton("All time"));
+    expect(location()).toBe("?account_id=7");
 
-    expect(location()).toBe(
-      "?account_id=7&from_date=2026-09-01&to_date=2026-09-16",
-    );
-    expect(rangeField()?.textContent).toBe("1–16 Sep 2026");
+    await click(trigger());
+    await click(menuButton("Last financial year"));
+    expect(location()).toBe("?account_id=7&period=last-financial-year");
+    expect(trigger()?.textContent).toBe("Last financial year");
   });
 
-  it("picks a range with two clicks, in either order, and keeps other parameters", async () => {
+  it("picks exact dates with two clicks, in either order", async () => {
     await renderAt("?account_id=7&from_date=2026-04-01&to_date=2026-05-03");
-    expect(rangeField()?.textContent).toBe("1 Apr – 3 May 2026");
+    expect(trigger()?.textContent).toBe("1 Apr – 3 May 2026");
 
-    await click(rangeField());
+    await click(trigger());
+    await click(menuButton("Exact dates…"));
     expect(document.body.textContent).toContain("April 2026");
 
     await click(calendarDay("2026-04-10"));
@@ -151,43 +171,38 @@ describe("the report period field", () => {
     expect(location()).toBe(
       "?account_id=7&from_date=2026-04-03&to_date=2026-04-10",
     );
-    expect(rangeField()?.textContent).toBe("3–10 Apr 2026");
-    expect(rangeField()?.getAttribute("aria-label")).toBe(
-      "Custom range: 3–10 Apr 2026",
-    );
+    expect(trigger()?.textContent).toBe("3–10 Apr 2026");
     expect(calendarDay("2026-04-10")).toBeNull();
   });
 
   it("keeps the dates it opened with when closed after one click", async () => {
     await renderAt("?from_date=2026-04-01&to_date=2026-05-03");
 
-    await click(rangeField());
+    await click(trigger());
+    await click(menuButton("Exact dates…"));
     await click(calendarDay("2026-04-10"));
-    await click(rangeField());
+    await click(trigger());
 
     expect(calendarDay("2026-04-10")).toBeNull();
     expect(location()).toBe("?from_date=2026-04-01&to_date=2026-05-03");
-
-    // Reopened, it shows the kept range again.
-    await click(rangeField());
-    expect(
-      calendarDay("2026-04-01")?.parentElement?.hasAttribute("data-selected"),
-    ).toBe(true);
-    expect(
-      calendarDay("2026-04-10")?.parentElement?.hasAttribute("data-selected"),
-    ).toBe(true);
   });
 
-  it("picks a single day with two clicks on it", async () => {
-    await renderAt("?period=custom");
+  it("steps with [ and ], lighting a preset it lands on", async () => {
+    await renderAt("?period=this-month");
 
-    await click(rangeField());
-    // With nothing picked, the calendar opens on this month.
-    expect(document.body.textContent).toContain("September 2026");
-    await click(calendarDay("2026-09-08"));
-    await click(calendarDay("2026-09-08"));
+    await act(async () => press("["));
+    await settle();
+    expect(location()).toBe("?from_date=2026-08-01&to_date=2026-08-31");
+    expect(trigger()?.textContent).toBe("Last month");
 
-    expect(location()).toBe("?from_date=2026-09-08&to_date=2026-09-08");
-    expect(rangeField()?.textContent).toBe("8 Sep 2026");
+    await act(async () => press("]"));
+    await settle();
+    expect(location()).toBe("?from_date=2026-09-01&to_date=2026-09-16");
+    expect(trigger()?.textContent).toBe("This month");
+
+    // Nothing after today.
+    await act(async () => press("]"));
+    await settle();
+    expect(location()).toBe("?from_date=2026-09-01&to_date=2026-09-16");
   });
 });

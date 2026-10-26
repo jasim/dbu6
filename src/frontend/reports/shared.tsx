@@ -12,6 +12,8 @@ import { Input } from "@sapporta/ui";
 import { apiErrorMessage } from "../api";
 import { formatRelativeDate } from "../format";
 import { FRESH_QUERY } from "../queries";
+import { financialYearStart } from "./periods";
+import { DayField } from "./ReportPeriodField";
 
 /**
  * Today's date (`YYYY-MM-DD`) in the workspace's time zone, the zone the
@@ -108,9 +110,10 @@ export function DateInput({
 }
 
 /**
- * The day a report stands on, in the date input, and beside it how far that
- * is from today: a plain "today", the way it is used most, or "6 months ago"
- * lit up, so a figure for another day is never taken for today's.
+ * The day a report stands on: today, the end of last month, the end of last
+ * financial year, or a day picked on the calendar; and beside it how far
+ * that is from today: a plain "today", the way it is used most, or "6 months
+ * ago" lit up, so a figure for another day is never taken for today's.
  */
 export function AsOfDateInput({
   value,
@@ -122,7 +125,8 @@ export function AsOfDateInput({
   const now = today();
   return (
     <div className="flex items-center gap-2 text-row">
-      <DateInput label="as of" value={value} onChange={onChange} />
+      <span className="text-ink-meta">as of:</span>
+      <DayField value={value} onChange={onChange} presets={asOfPresets(now)} />
       {value === now ? (
         <span>today</span>
       ) : (
@@ -132,4 +136,20 @@ export function AsOfDateInput({
       )}
     </div>
   );
+}
+
+/** The days a balance is usually asked for. */
+export function asOfPresets(today: string): { label: string; date: string }[] {
+  const day = Temporal.PlainDate.from(today);
+  return [
+    { label: "Today", date: today },
+    {
+      label: "End of last month",
+      date: day.with({ day: 1 }).subtract({ days: 1 }).toString(),
+    },
+    {
+      label: "End of last financial year",
+      date: financialYearStart(day).subtract({ days: 1 }).toString(),
+    },
+  ];
 }

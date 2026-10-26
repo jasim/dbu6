@@ -1,6 +1,6 @@
 import {
   accountLedgerRow,
-  DateInput,
+  AsOfDateInput,
   type GridDataset,
   type LedgerLinkInput,
   type ReportCellLinkResolvers,
@@ -39,8 +39,7 @@ export function TrialBalanceReport() {
           <ReportRunButton loading={report.loading} onClick={report.run} />
         }
       >
-        <DateInput
-          label="as of"
+        <AsOfDateInput
           value={asOfDate}
           onChange={(value) => setParam("as_of_date", value)}
         />

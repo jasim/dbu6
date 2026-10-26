@@ -1,11 +1,16 @@
 import { Temporal } from "@sapporta/shared/temporal";
 import type { DateSpan } from "../../shared/index";
+import { formatDaySpan, formatMonthSpan } from "../format";
 import {
+  financialYearOf,
+  financialYearSpan,
   financialYearStart,
   isDate,
+  monthEnd,
   parsePreset,
   parseSpan,
   PERIOD_PRESETS,
+  presetLabel,
   presetSpan,
   type PeriodPreset,
 } from "./periods";
@@ -128,4 +133,215 @@ export function choosePeriod(
         };
   }
   return { kind: "preset", preset: choice, span: presetSpan(choice, today) };
+}
+
+/**
+ * The preset a period reads as: the chosen one, or for picked dates the first
+ * preset that covers exactly those dates today, so stepping or picking months
+ * onto a preset lights it.
+ */
+export function activePreset(
+  period: ReportPeriod,
+  today: string,
+): PeriodPreset | null {
+  if (period.kind === "preset") return period.preset;
+  if (period.kind === "all-time" || period.span === null) return null;
+  const { span } = period;
+  return (
+    PERIOD_PRESETS.find(({ id }) => sameSpan(presetSpan(id, today), span))
+      ?.id ?? null
+  );
+}
+
+/**
+ * The period's name on the button: "All time", a preset's label, a
+ * financial year ("FY 2024–25"), whole months ("Mar – Jun 2026"), or days
+ * ("5–20 Mar 2026").
+ */
+export function periodLabel(period: ReportPeriod, today: string): string {
+  if (period.kind === "all-time") return "All time";
+  const preset = activePreset(period, today);
+  if (preset !== null) return presetLabel(preset);
+  const { span } = period;
+  if (span === null) return "Pick dates";
+  const year = financialYearOf(span.first_date.slice(0, 7));
+  if (sameSpan(span, financialYearSpan(year))) return financialYearLabel(year);
+  if (wholeMonths(span, today)) {
+    const { from, to } = spanMonths(span);
+    return formatMonthSpan(from, to);
+  }
+  return formatDaySpan(span, { withYear: true });
+}
+
+/** "FY 2024–25" for the year starting April 2024. */
+export function financialYearLabel(startYear: number): string {
+  return `FY ${startYear}–${String((startYear + 1) % 100).padStart(2, "0")}`;
+}
+
+/**
+ * The dates a period covers on a screen that has to name them. All time runs
+ * from the books' first day to today, or to their last day if that is later;
+ * with nothing in the books, it is today. Null for a custom range still
+ * waiting for its dates.
+ */
+export function periodSpan(
+  period: ReportPeriod,
+  books: DateSpan | null,
+  today: string,
+): DateSpan | null {
+  if (period.kind !== "all-time") return period.span;
+  if (books === null) return { first_date: today, last_date: today };
+  return {
+    first_date: books.first_date < today ? books.first_date : today,
+    last_date: books.last_date > today ? books.last_date : today,
+  };
+}
+
+/** The months a span starts and ends in, as the month menus show them. */
+export function spanMonths({ first_date, last_date }: DateSpan): {
+  from: string;
+  to: string;
+} {
+  return { from: first_date.slice(0, 7), to: last_date.slice(0, 7) };
+}
+
+/**
+ * The dates of whole picked months: from the 1st of `from` to the last day
+ * of `to`, or today when `to` is this month.
+ */
+export function pickedMonths(
+  months: { from: string; to: string },
+  today: string,
+): DateSpan {
+  const first = Temporal.PlainYearMonth.from(months.from).toPlainDate({
+    day: 1,
+  });
+  const last = monthEnd(
+    Temporal.PlainYearMonth.from(months.to).toPlainDate({ day: 1 }),
+  );
+  return upToToday(span(first, last), today);
+}
+
+/** Choosing a From after To moves To to it. */
+export function pickFrom(
+  month: string,
+  current: { from: string; to: string },
+): { from: string; to: string } {
+  return { from: month, to: month > current.to ? month : current.to };
+}
+
+/** Choosing a To before From moves From to it. */
+export function pickTo(
+  month: string,
+  current: { from: string; to: string },
+): { from: string; to: string } {
+  return { from: month < current.from ? month : current.from, to: month };
+}
+
+/**
+ * The months the menus offer, newest first: from the books' first month
+ * (or the period's first, if earlier) to this month (or the period's last,
+ * if later).
+ */
+export function monthOptions(
+  books: DateSpan | null,
+  period: DateSpan | null,
+  today: string,
+): string[] {
+  const thisMonth = today.slice(0, 7);
+  const ends = [thisMonth];
+  if (books !== null) ends.push(books.first_date.slice(0, 7));
+  if (period !== null) ends.push(...Object.values(spanMonths(period)));
+  ends.sort();
+  const oldest = ends[0]!;
+  const newest = ends[ends.length - 1]!;
+  const months: string[] = [];
+  for (
+    let month = Temporal.PlainYearMonth.from(newest);
+    month.toString() >= oldest;
+    month = month.subtract({ months: 1 })
+  ) {
+    months.push(month.toString());
+  }
+  return months;
+}
+
+/** How many months each preset steps by. */
+const PRESET_MONTHS: Record<PeriodPreset, number> = {
+  "this-month": 1,
+  "last-month": 1,
+  "last-3-months": 3,
+  "last-12-months": 12,
+  "this-financial-year": 12,
+  "last-financial-year": 12,
+};
+
+/**
+ * The period one step back (-1) or on (+1), the length it is: a month by a
+ * month, a financial year by a year, picked months by as many months, and
+ * picked days by as many days. A step never starts after today, and ends
+ * today at the latest. Null when there is nowhere to step: all time, a range
+ * not picked yet, or past today.
+ */
+export function stepPeriod(
+  period: ReportPeriod,
+  direction: -1 | 1,
+  today: string,
+): ReportPeriod | null {
+  if (period.kind === "all-time" || period.span === null) return null;
+  const first = Temporal.PlainDate.from(period.span.first_date);
+  const last = Temporal.PlainDate.from(period.span.last_date);
+  const months =
+    period.kind === "preset"
+      ? PRESET_MONTHS[period.preset]
+      : wholeMonths(period.span, today)
+        ? monthsFrom(first, last)
+        : null;
+  let next: DateSpan;
+  if (months !== null) {
+    const start = first.add({ months: direction * months });
+    next = span(
+      start,
+      monthEnd(start.add({ months: months - 1 }).with({ day: 1 })),
+    );
+  } else {
+    const days = first.until(last).days + 1;
+    next = span(
+      first.add({ days: direction * days }),
+      last.add({ days: direction * days }),
+    );
+  }
+  if (next.first_date > today) return null;
+  return { kind: "custom", span: upToToday(next, today) };
+}
+
+/**
+ * Whether a span is whole months: from a 1st to a month's last day, or to
+ * today in this month.
+ */
+function wholeMonths(dates: DateSpan, today: string): boolean {
+  const first = Temporal.PlainDate.from(dates.first_date);
+  const last = Temporal.PlainDate.from(dates.last_date);
+  return (
+    first.day === 1 &&
+    (last.equals(monthEnd(last)) || dates.last_date === today)
+  );
+}
+
+function monthsFrom(first: Temporal.PlainDate, last: Temporal.PlainDate) {
+  return (last.year - first.year) * 12 + last.month - first.month + 1;
+}
+
+function upToToday(dates: DateSpan, today: string): DateSpan {
+  return dates.last_date > today && dates.first_date <= today
+    ? { ...dates, last_date: today }
+    : dates;
+}
+
+function span(first: Temporal.PlainDate, last: Temporal.PlainDate): DateSpan {
+  return { first_date: first.toString(), last_date: last.toString() };
+}
+
+function sameSpan(a: DateSpan, b: DateSpan): boolean {
+  return a.first_date === b.first_date && a.last_date === b.last_date;
 }

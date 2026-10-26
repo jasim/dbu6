@@ -65,6 +65,11 @@ beforeEach(() => {
       if (request.pathname.endsWith("/entries")) {
         return Response.json({ entries });
       }
+      if (request.pathname.endsWith("/books-span")) {
+        return Response.json({
+          span: { first_date: "2023-09-30", last_date: "2026-09-12" },
+        });
+      }
       requests.push(request);
       const next = responses.length > 1 ? responses.shift() : responses[0];
       return Response.json(next);
@@ -254,6 +259,34 @@ describe("Income and Expenses", () => {
       "/reports/income-expenses?period=last-financial-year",
     );
     expect(asked(1)).toBe("2025-04-01 – 2026-03-31");
+  });
+
+  it("shows all time from the books' first day, a bar per financial year", async () => {
+    responses = [report()];
+    await renderAt("/reports/income-expenses");
+
+    await act(async () => button("Period: Last 12 months").click());
+    await settle();
+    await act(async () => button("All time").click());
+    await settle();
+
+    expect(location()).toBe("/reports/income-expenses?period=all-time");
+    expect(asked(1)).toBe("2023-09-30 – 2026-09-16");
+    expect(text()).toContain("30 September 2023 – 16 September 2026");
+    expect(button("Period: All time")).toBeTruthy();
+  });
+
+  it("steps the period back with [", async () => {
+    responses = [report()];
+    await renderAt("/reports/income-expenses?period=last-financial-year");
+
+    await act(async () => press("["));
+    await settle();
+
+    expect(location()).toBe(
+      "/reports/income-expenses?from_date=2024-04-01&to_date=2025-03-31",
+    );
+    expect(button("Period: FY 2024–25")).toBeTruthy();
   });
 
   it("names picked dates, and selects a month's bar without leaving the period", async () => {

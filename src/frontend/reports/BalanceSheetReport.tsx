@@ -1,6 +1,7 @@
 import { Checkbox } from "@sapporta/ui";
 import {
   accountLedgerRow,
+  AsOfDateInput,
   formatDate,
   type GridDataset,
   incomeStatementHref,
@@ -19,7 +20,6 @@ import {
   useSearchParams,
 } from "../report-kit";
 import { reportsApi } from "./client";
-import { AsOfDateInput } from "./shared";
 
 const accountLedger = accountLedgerRow();
 
@@ -85,9 +85,8 @@ export function BalanceSheetReport() {
   // Off unless the URL asks: personal books never close the year into
   // equity, so net worth is what you own less what you owe.
   const showEquity = searchParams.get("show_equity") === "true";
-  const report = useReportResult(
-    ["balance-sheet", asOfDate, showEquity],
-    () => callReport({ as_of_date: asOfDate, show_equity: showEquity }),
+  const report = useReportResult(["balance-sheet", asOfDate, showEquity], () =>
+    callReport({ as_of_date: asOfDate, show_equity: showEquity }),
   );
   const cells = useMemo(() => netWorthCells(asOfDate), [asOfDate]);
 

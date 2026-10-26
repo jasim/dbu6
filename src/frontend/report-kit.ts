@@ -56,6 +56,7 @@ export {
   type ReportCellRenderers,
 } from "@sapporta/frontend/report";
 export {
+  AsOfDateInput,
   DateInput,
   ReportResultBody,
   today,
@@ -67,11 +68,15 @@ export { usePageTitle } from "@sapporta/frontend/shell";
 
 // --- Periods ---
 export {
+  booksSpanQuery,
   ReportPeriodField,
   useReportPeriod,
 } from "./reports/ReportPeriodField";
 export {
+  periodSpan,
+  readReportPeriod,
   reportDates,
+  writeReportPeriod,
   type ReportDates,
   type ReportPeriod,
 } from "./reports/report-period";
