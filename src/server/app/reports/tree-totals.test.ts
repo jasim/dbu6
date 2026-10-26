@@ -642,7 +642,10 @@ async function januaryLedger(
 }
 
 function closingRow(ledger: GridDataset): Record<string, unknown> {
-  return ledger.footerRows?.[0]?.columns ?? {};
+  return (
+    ledger.footerRows?.find((row) => row.rowKey === "closing-balance")
+      ?.columns ?? {}
+  );
 }
 
 describe("reports over a deep account tree, with drafts filed on parents", () => {

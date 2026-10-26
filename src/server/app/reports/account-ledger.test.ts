@@ -173,11 +173,19 @@ describe("Account Ledger result", () => {
       "Open journal entry",
     ]);
 
-    // Newest first, the opening balance under the oldest.
+    // Newest first, the opening balance under the oldest: the night before
+    // the period, in the column of its side.
     const rows = [...result.nodes].reverse();
     expect(rows[0]).toMatchObject({
       rowKey: "opening:2026-01-01",
       kind: "opening",
+      columns: {
+        date: "2025-12-31",
+        against: "Opening balance",
+        debit: 50,
+        credit: 0,
+        balance: 50,
+      },
     });
     expect(rows[0]?.children).toBeUndefined();
     expect(
@@ -235,16 +243,42 @@ describe("Account Ledger result", () => {
 
     expect(rows.some((row) => row.children)).toBe(false);
 
-    // The opening balance counts toward the closing balance but not toward
-    // the period's debit and credit totals.
+    // The current total is the period's alone; with the opening balance it
+    // makes the closing balance, under the column of its side.
     expect(result.footerRows?.map((row) => row.columns)).toEqual([
-      {
-        against: "Closing balance",
-        debit: 2000,
-        credit: 1150,
-        balance: 900,
-      },
+      { against: "Current total", debit: 2000, credit: 1150 },
+      { against: "Closing balance", debit: 900, credit: 0, balance: 900 },
     ]);
+  });
+
+  it("brings a credit balance forward under Credit, and a nil one too", () => {
+    const ledger = (opening: number) =>
+      toAccountLedgerResult(
+        { id: 1, name: "Bank", opening_balance: opening },
+        [1],
+        [journals[0]],
+        lines.filter((entry) => entry.journal_id === 10),
+        "2026-01-01",
+      );
+
+    const owed = ledger(-3000);
+    expect(owed.nodes.at(-1)?.columns).toMatchObject({
+      debit: 0,
+      credit: 3000,
+      balance: -3000,
+    });
+    expect(owed.footerRows?.map((row) => row.columns)).toEqual([
+      { against: "Current total", debit: 2000, credit: 0 },
+      { against: "Closing balance", debit: 0, credit: 1000, balance: -1000 },
+    ]);
+
+    // Nothing brought forward still says so.
+    expect(ledger(0).nodes.at(-1)?.columns).toMatchObject({
+      against: "Opening balance",
+      debit: 0,
+      credit: 0,
+      balance: 0,
+    });
   });
 
   it("puts a line that shares its side against the one line opposite, in its own words", () => {

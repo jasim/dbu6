@@ -1,3 +1,4 @@
+import { Temporal } from "@sapporta/shared/temporal";
 import {
   dateColumn,
   type GridDataset,
@@ -280,9 +281,11 @@ export function ledgerPostings(
 /**
  * The account's postings in the period as the report's rows (`ledgerPostings`),
  * each with the balance it leaves and links to its journal, newest first: the
- * balances run from the oldest, and the opening balance is the last row. The
- * label names the account, for the screen's title; the footer closes the
- * period.
+ * balances run from the oldest. A period with a start opens on the balance
+ * brought forward, the last row, in the column of its side. The label names
+ * the account, for the screen's title; the footer totals the period and closes
+ * it, as a ledger book does: opening and current total make the closing
+ * balance.
  */
 export function toAccountLedgerResult(
   account: AccountInfoRow | null,
@@ -356,8 +359,10 @@ export function toAccountLedgerResult(
       },
     );
   });
+  // Dated the day before the period, as the balance stood that night, so
+  // that sorting by date keeps it beyond the period's first day either way.
   const opening =
-    fromDate !== null && openingBalance !== 0
+    fromDate !== null
       ? [
           {
             rowKey: `opening:${fromDate}`,
@@ -367,11 +372,12 @@ export function toAccountLedgerResult(
               journal_id: null,
               entry_id: null,
               against_account_id: null,
-              date: fromDate,
+              date: Temporal.PlainDate.from(fromDate)
+                .subtract({ days: 1 })
+                .toString(),
               against: "Opening balance",
               narration: null,
-              debit: 0,
-              credit: 0,
+              ...sideOf(openingBalance),
               balance: openingBalance,
             },
           },
@@ -384,20 +390,34 @@ export function toAccountLedgerResult(
     rootLevel: "entries",
     levels,
     nodes: [...postings.reverse(), ...opening],
+    // Labelled in Against, as the opening row is: the first column is a date
+    // too narrow for it.
     footerRows: [
-      // One row: the period's debits and credits under their columns, and
-      // the balance they leave. Labelled in Against, as the opening row is:
-      // the first column is a date too narrow for it.
+      {
+        rowKey: "current-total",
+        columns: {
+          against: "Current total",
+          debit: sum(postingColumns, "debit"),
+          credit: sum(postingColumns, "credit"),
+        },
+      },
       {
         rowKey: "closing-balance",
         columns: {
           against: "Closing balance",
-          debit: sum(postingColumns, "debit"),
-          credit: sum(postingColumns, "credit"),
+          ...sideOf(balance),
           balance,
         },
       },
     ],
+  };
+}
+
+/** A balance under the column of its side: debit when positive. */
+function sideOf(balance: number): { debit: number; credit: number } {
+  return {
+    debit: balance > 0 ? balance : 0,
+    credit: balance < 0 ? -balance : 0,
   };
 }
 
