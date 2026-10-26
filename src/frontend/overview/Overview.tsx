@@ -464,7 +464,8 @@ function Categories({ overview }: { overview: PostedOverview }) {
                 >
                   <td
                     className={cn(
-                      "max-w-0 py-2 pr-3",
+                      "max-w-0",
+                      row.account_id === null && "py-2 pr-3",
                       total
                         ? "font-semibold text-foreground"
                         : row.kind === "other"
@@ -472,41 +473,43 @@ function Categories({ overview }: { overview: PostedOverview }) {
                           : "text-foreground",
                     )}
                   >
-                    <span className="block truncate">
-                      {row.account_id === null ? (
-                        row.name
-                      ) : (
-                        <Link
-                          to={incomeExpensesHref(
-                            trend.first_date,
-                            trend.last_date,
-                            { accountId: row.account_id, month: overview.month },
-                          )}
-                          className="text-foreground no-underline hover:underline hover:underline-offset-4"
-                        >
-                          {row.name}
-                        </Link>
-                      )}
-                    </span>
-                    {bar && (
-                      <SpendBar
-                        amount={bar.amount}
-                        average={bar.average}
+                    {row.account_id === null ? (
+                      <CategoryName
+                        name={row.name}
+                        bar={bar}
                         soft={row.kind === "other"}
                       />
+                    ) : (
+                      <Link
+                        to={incomeExpensesHref(
+                          trend.first_date,
+                          trend.last_date,
+                          { accountId: row.account_id, month: overview.month },
+                        )}
+                        className={cn(CELL_LINK, "-ml-2 py-2 pl-2 pr-3")}
+                      >
+                        <CategoryName
+                          name={row.name}
+                          bar={bar}
+                          soft={row.kind === "other"}
+                        />
+                      </Link>
                     )}
                   </td>
                   <Td
-                    className={
-                      total ? "font-semibold text-foreground" : "text-foreground"
-                    }
+                    className={cn(
+                      total
+                        ? "font-semibold text-foreground"
+                        : "text-foreground",
+                      ledger !== null && "p-0",
+                    )}
                   >
                     {ledger === null ? (
                       spent(row.amount)
                     ) : (
                       <Link
                         to={ledger}
-                        className="text-foreground no-underline hover:underline hover:underline-offset-4"
+                        className={cn(CELL_LINK, "-mr-2 py-2 pl-6 pr-2")}
                       >
                         {spent(row.amount)}
                       </Link>
@@ -524,6 +527,26 @@ function Categories({ overview }: { overview: PostedOverview }) {
         </table>
       )}
     </Card>
+  );
+}
+
+/** A category's name, and under it its share of the month. */
+function CategoryName({
+  name,
+  bar,
+  soft,
+}: {
+  name: string;
+  bar: ReturnType<typeof categoryBars>[number];
+  soft: boolean;
+}) {
+  return (
+    <>
+      <span className="block truncate">{name}</span>
+      {bar && (
+        <SpendBar amount={bar.amount} average={bar.average} soft={soft} />
+      )}
+    </>
   );
 }
 
@@ -659,33 +682,50 @@ function WorthRow({
     : group
       ? "text-ink-soft"
       : "text-foreground";
+  const labelPad = cn("pr-3", group ? "py-1 pl-4" : "py-2");
+  const valuePad = cn("pl-6", group && "py-1");
+  // A row with somewhere to go is one target: both cells lead to the ledger
+  // and light up together. The figure's link is for the pointer only, so the
+  // keyboard stops on the row once.
+  const rowLink = cn(CELL_LINK, "group-hover/row:bg-sap-drill-down-link-soft");
   return (
     <tr
       className={cn(
         "first:border-t-0",
         group ? "" : "border-t border-line-inner",
+        href && "group/row",
       )}
     >
       <td
         className={cn(
-          "w-full max-w-0 truncate pr-3",
-          group ? "py-1 pl-4" : "py-2",
+          "w-full max-w-0 truncate",
+          !href && labelPad,
           // A total's label is softer than its figure; a group's is not.
           strong || group ? ink : "text-ink-soft",
         )}
       >
         {href ? (
-          <Link
-            to={href}
-            className="text-inherit no-underline hover:underline hover:underline-offset-4"
-          >
+          <Link to={href} className={cn(rowLink, "truncate", labelPad)}>
             {label}
           </Link>
         ) : (
           label
         )}
       </td>
-      <Td className={cn(ink, group && "py-1")}>{value}</Td>
+      <Td className={cn(ink, href ? "p-0" : valuePad)}>
+        {href ? (
+          <Link
+            to={href}
+            tabIndex={-1}
+            aria-hidden="true"
+            className={cn(rowLink, "-mr-2 pr-2", valuePad)}
+          >
+            {value}
+          </Link>
+        ) : (
+          value
+        )}
+      </Td>
     </tr>
   );
 }
@@ -782,6 +822,14 @@ function Card({
     </section>
   );
 }
+
+/**
+ * A link that fills its table cell, so the whole cell is the target and its
+ * fill shows at once under the pointer or keyboard focus. The cell drops its
+ * padding and the link carries it.
+ */
+const CELL_LINK =
+  "block text-inherit no-underline outline-none hover:bg-sap-drill-down-link-soft focus-visible:bg-sap-drill-down-link-soft";
 
 function Th({
   children,
