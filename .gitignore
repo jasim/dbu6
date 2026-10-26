@@ -20,3 +20,4 @@ data
 tmp
 *.pyc
 .package-source-switch.json
+.claude
