@@ -4,7 +4,6 @@ import {
   choosePeriod,
   monthOptions,
   PERIOD_CHOICES,
-  periodChoice,
   periodLabel,
   periodSpan,
   pickedMonths,
@@ -59,7 +58,7 @@ describe("reading the query string", () => {
     });
   });
 
-  it("keeps a custom range with nothing picked when the dates don't make a span", () => {
+  it("opens the report's default when the dates don't make a span", () => {
     for (const query of [
       "period=custom",
       "from_date=2026-03-01",
@@ -68,7 +67,10 @@ describe("reading the query string", () => {
       "from_date=2026-04-01&to_date=2026-03-01",
       "from_date=&to_date=",
     ]) {
-      expect(read(query)).toEqual({ kind: "custom", span: null });
+      expect(read(query)).toEqual({ kind: "all-time" });
+      expect(
+        readReportPeriod(new URLSearchParams(query), day, "this-month"),
+      ).toMatchObject({ kind: "preset", preset: "this-month" });
     }
   });
 });
@@ -82,11 +84,10 @@ describe("writing the query string", () => {
     ).toMatchObject({ span: dates("2026-10-01", "2026-10-02") });
   });
 
-  it("writes picked dates as dates, and an empty custom range by name", () => {
+  it("writes picked dates as dates", () => {
     expect(
       write({ kind: "custom", span: dates("2026-03-01", "2026-03-31") }),
     ).toBe("from_date=2026-03-01&to_date=2026-03-31");
-    expect(write({ kind: "custom", span: null })).toBe("period=custom");
   });
 
   it("replaces the old period and keeps every other parameter", () => {
@@ -103,7 +104,7 @@ describe("writing the query string", () => {
 
   it("round-trips every choice", () => {
     for (const { value } of PERIOD_CHOICES) {
-      const period = choosePeriod(value, { kind: "all-time" }, day);
+      const period = choosePeriod(value, day);
       expect(read(write(period))).toEqual(period);
     }
   });
@@ -133,16 +134,15 @@ describe("a report that defaults to a preset", () => {
 
   it("round-trips every choice", () => {
     for (const { value } of PERIOD_CHOICES) {
-      const period = choosePeriod(value, { kind: "all-time" }, day);
+      const period = choosePeriod(value, day);
       expect(readDefault(writeDefault(period))).toEqual(period);
     }
   });
 });
 
 describe("the dates a report is asked for", () => {
-  it("are none for all time or an unpicked range", () => {
+  it("are none for all time", () => {
     expect(reportDates({ kind: "all-time" })).toEqual({});
-    expect(reportDates({ kind: "custom", span: null })).toEqual({});
   });
 
   it("are the span's ends otherwise", () => {
@@ -154,7 +154,7 @@ describe("the dates a report is asked for", () => {
 });
 
 describe("choosing from the menu", () => {
-  it("lists all time, the presets, then a custom range", () => {
+  it("lists all time, then the presets", () => {
     expect(PERIOD_CHOICES.map(({ label }) => label)).toEqual([
       "All time",
       "This month",
@@ -163,38 +163,7 @@ describe("choosing from the menu", () => {
       "Last 12 months",
       "This financial year",
       "Last financial year",
-      "Custom range…",
     ]);
-  });
-
-  it("shows the chosen item", () => {
-    for (const { value } of PERIOD_CHOICES) {
-      expect(periodChoice(choosePeriod(value, { kind: "all-time" }, day))).toBe(
-        value,
-      );
-    }
-  });
-
-  it("starts a custom range from the preset's dates, so nothing changes yet", () => {
-    const preset = read("period=this-financial-year");
-    const custom = choosePeriod("custom", preset, day);
-    expect(custom).toEqual({
-      kind: "custom",
-      span: dates("2026-04-01", "2026-09-16"),
-    });
-    expect(reportDates(custom)).toEqual(reportDates(preset));
-  });
-
-  it("keeps a custom range's dates when custom range is chosen again", () => {
-    const picked: ReportPeriod = {
-      kind: "custom",
-      span: dates("2026-03-01", "2026-03-31"),
-    };
-    expect(choosePeriod("custom", picked, day)).toBe(picked);
-    expect(choosePeriod("custom", { kind: "all-time" }, day)).toEqual({
-      kind: "custom",
-      span: null,
-    });
   });
 });
 
@@ -238,7 +207,6 @@ describe("the period's name", () => {
     expect(periodLabel(custom("2026-03-05", "2026-03-20"), day)).toBe(
       "5–20 Mar 2026",
     );
-    expect(periodLabel({ kind: "custom", span: null }, day)).toBe("Pick dates");
   });
 });
 
@@ -299,9 +267,8 @@ describe("stepping", () => {
     );
   });
 
-  it("goes nowhere over all time or before dates are picked", () => {
+  it("goes nowhere over all time", () => {
     expect(step({ kind: "all-time" }, -1)).toBeNull();
-    expect(step({ kind: "custom", span: null }, 1)).toBeNull();
   });
 });
 
@@ -350,6 +317,5 @@ describe("picking months", () => {
       "2026-09",
       "2026-08",
     ]);
-    expect(monthOptions(null, null, day)).toEqual(["2026-09"]);
   });
 });

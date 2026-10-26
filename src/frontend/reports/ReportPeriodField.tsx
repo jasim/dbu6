@@ -96,7 +96,7 @@ export function ReportPeriodField({
   const span = periodSpan(period, books, day);
   // Picked days name themselves on the button.
   const dates =
-    showSpan && span !== null && spanLabel(span) !== periodLabel(period, day)
+    showSpan && spanLabel(span) !== periodLabel(period, day)
       ? spanLabel(span)
       : null;
   const previous = stepPeriod(period, -1, day);
@@ -200,7 +200,7 @@ function PeriodMenu({
   const lit: PeriodChoice | null =
     period.kind === "all-time" ? "all-time" : activePreset(period, today);
   const span = periodSpan(period, books, today);
-  const months = span === null ? null : spanMonths(span);
+  const months = spanMonths(span);
   const items = monthOptions(books, span, today).map((month) => ({
     value: month,
     label: formatMonth(month),
@@ -239,44 +239,36 @@ function PeriodMenu({
         {view === "menu" ? (
           <>
             <ul role="list" aria-label="Period">
-              {PERIOD_CHOICES.filter(({ value }) => value !== "custom").map(
-                (choice) => (
-                  <li key={choice.value}>
-                    <button
-                      type="button"
-                      aria-pressed={choice.value === lit}
-                      onClick={() =>
-                        choose(choosePeriod(choice.value, period, today))
-                      }
-                      className={cn(
-                        MENU_ROW_CLASS_NAME,
-                        choice.value === lit
-                          ? "font-semibold text-foreground"
-                          : "text-ink-soft",
-                      )}
-                    >
-                      {choice.label}
-                    </button>
-                  </li>
-                ),
-              )}
+              {PERIOD_CHOICES.map((choice) => (
+                <li key={choice.value}>
+                  <button
+                    type="button"
+                    aria-pressed={choice.value === lit}
+                    onClick={() => choose(choosePeriod(choice.value, today))}
+                    className={cn(
+                      MENU_ROW_CLASS_NAME,
+                      choice.value === lit
+                        ? "font-semibold text-foreground"
+                        : "text-ink-soft",
+                    )}
+                  >
+                    {choice.label}
+                  </button>
+                </li>
+              ))}
             </ul>
             <div className="mt-2 grid grid-cols-2 gap-3 border-t border-line-inner px-1 pt-3">
               <MonthSelect
                 label="From"
-                value={months?.from ?? null}
+                value={months.from}
                 items={items}
-                onChange={(month) =>
-                  pick(pickFrom(month, months ?? { from: month, to: month }))
-                }
+                onChange={(month) => pick(pickFrom(month, months))}
               />
               <MonthSelect
                 label="To"
-                value={months?.to ?? null}
+                value={months.to}
                 items={items}
-                onChange={(month) =>
-                  pick(pickTo(month, months ?? { from: month, to: month }))
-                }
+                onChange={(month) => pick(pickTo(month, months))}
               />
             </div>
             <button
@@ -307,7 +299,7 @@ function MonthSelect({
   onChange,
 }: {
   label: string;
-  value: string | null;
+  value: string;
   items: { value: string; label: string }[];
   onChange: (month: string) => void;
 }) {

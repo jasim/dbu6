@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { readReportPeriod } from "../report-period";
 import {
+  DEFAULT_PRESET,
   emptyPeriodSentence,
   periodHeading,
-  readPeriod,
   withinOneMonth,
   writePeriod,
 } from "./period";
@@ -14,7 +15,8 @@ const dates = (first_date: string, last_date: string) => ({
 
 describe("the query string", () => {
   const day = "2026-09-16";
-  const read = (query: string) => readPeriod(new URLSearchParams(query), day);
+  const read = (query: string) =>
+    readReportPeriod(new URLSearchParams(query), day, DEFAULT_PRESET);
 
   it("defaults to the last 12 months, and reads all time when named", () => {
     expect(read("")).toEqual({

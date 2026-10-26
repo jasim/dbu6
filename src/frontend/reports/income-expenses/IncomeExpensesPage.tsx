@@ -14,6 +14,7 @@ import {
   LoadError,
   periodSpan,
   queryOptions,
+  readReportPeriod,
   ReportPeriodField,
   type ReportPeriod,
   Screen,
@@ -34,9 +35,9 @@ import { incomeExpensesFileName, incomeExpensesSheets } from "./export";
 import { figures, isEmptyPeriod, type Figures } from "./figures";
 import { MonthChart, MonthChartSkeleton } from "./MonthChart";
 import {
+  DEFAULT_PRESET,
   emptyPeriodSentence,
   periodHeading,
-  readPeriod,
   withinOneMonth,
   writePeriod,
 } from "./period";
@@ -81,7 +82,7 @@ export function IncomeExpensesPage() {
   usePageTitle(TITLE);
   const [search, setSearch] = useSearchParams();
   const day = today();
-  const period = readPeriod(search, day);
+  const period = readReportPeriod(search, day, DEFAULT_PRESET);
   // All time runs over the days the books cover, so it waits for them.
   const books = useQuery(booksSpanQuery);
   const dates =

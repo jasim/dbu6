@@ -2,8 +2,6 @@ import {
   formatDateRange,
   formatDaySpan,
   type PeriodPreset,
-  presetSpan,
-  readReportPeriod,
   type ReportPeriod,
   writeReportPeriod,
 } from "../../report-kit";
@@ -18,24 +16,6 @@ import type { DateSpan } from "../../../shared/index";
 
 /** Twelve bars in the chart, even early in a financial year. */
 export const DEFAULT_PRESET: PeriodPreset = "last-12-months";
-
-/**
- * The period a query string asks for, as every report reads it, opening on
- * the last 12 months. A custom range with no dates yet shows the default's.
- */
-export function readPeriod(
-  search: URLSearchParams,
-  today: string,
-): ReportPeriod {
-  const period = readReportPeriod(search, today, DEFAULT_PRESET);
-  return period.kind === "custom" && period.span === null
-    ? {
-        kind: "preset",
-        preset: DEFAULT_PRESET,
-        span: presetSpan(DEFAULT_PRESET, today),
-      }
-    : period;
-}
 
 /**
  * The query string for a new period: it keeps the account in focus, not the

@@ -138,10 +138,12 @@ describe("the report period field", () => {
     expect(asked()).toBe("{}");
   });
 
-  it("asks for dates on a custom range with none picked", async () => {
+  it("opens the report's default on dates it can't read", async () => {
     await renderAt("?period=custom");
+    expect(trigger()?.textContent).toBe("All time");
 
-    expect(trigger()?.textContent).toBe("Pick dates");
+    await renderAt("?from_date=2026-04-01");
+    expect(trigger()?.textContent).toBe("All time");
     expect(asked()).toBe("{}");
   });
 
