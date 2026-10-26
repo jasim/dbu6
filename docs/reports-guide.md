@@ -115,6 +115,9 @@ Helpers from `"@dbu6/app/server"`:
 - Income and spending: `loadAccountAmounts(ledger, { types, fromDate, toDate })`
   gives each account's own amount in a period, and `loadMonthlyAmounts` the
   monthly totals.
+- Balances: `loadAccountBalances(ledger, { types, asOf })` gives each asset,
+  liability or equity account's own balance up to a date, what it holds or
+  owes positive.
 - The account tree: `accountTree(accounts)` totals every node from
   `parent_id`; `accountTreeLevel` and `accountTreeNodes` turn it into one tree
   level of a grid, the way Expense Breakdown shows it.

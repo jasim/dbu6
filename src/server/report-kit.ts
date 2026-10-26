@@ -39,13 +39,17 @@ export {
   withReferenceCaptions,
   type ReportFooterInput,
 } from "./app/reports/shared.js";
-// Income and spending per account, and the account tree with totals.
+// Income and spending per account, balances at a date, and the account tree
+// with totals.
 export {
   loadAccountAmounts,
+  loadAccountBalances,
   loadAccountMonthlyAmounts,
   loadMonthlyAmounts,
   type AccountAmount,
+  type AccountBalance,
   type AccountMonthAmount,
+  type BalanceType,
   type IncomeSpendingType,
   type MonthlyAmount,
 } from "./app/reports/account-amounts.js";

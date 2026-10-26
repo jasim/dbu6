@@ -1,12 +1,12 @@
 import {
   type GridDataset,
+  loadAccountBalances,
   type ReportLedger,
   reportLedger,
   type SapportaEnv,
   TsRestApi,
 } from "../../report-kit.js";
 import { reportsContract } from "../../../shared/index.js";
-import { loadAccountBalances } from "./account-amounts.js";
 import {
   sectionAccountResult,
   sectionFooterRow,
