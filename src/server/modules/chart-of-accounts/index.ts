@@ -9,10 +9,12 @@ export {
   type NormalizedChart,
 } from "./chart.js";
 export {
+  BANK_CARD_LOAN_GROUPS,
   chartWithAccounts,
   STARTER_CHART,
   STARTER_UNTICKED,
 } from "./starter-chart.js";
+export { chartCategorizationInstructions } from "./instructions.js";
 export {
   chartRequest,
   CHART_PROMPT,

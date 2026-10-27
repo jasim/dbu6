@@ -21,6 +21,11 @@ import {
   type ChartedAccount,
 } from "../modules/accounts/index.js";
 import {
+  DEFAULT_CUSTOM_MAPPINGS_FILENAME,
+  writeCustomMappingsFileIfMissing,
+} from "../modules/categorization/index.js";
+import {
+  chartCategorizationInstructions,
   chartRequest,
   normalizeChartProposal,
   STARTER_CHART,
@@ -102,16 +107,22 @@ export type ChartCreation =
       problems: string[];
     };
 
-/** Creates the chart in books with no accounts, or says why it can't. */
+/**
+ * Creates the chart in books with no accounts, or says why it can't. Once it
+ * is created, the notes of its accounts become the categorizer's first
+ * instructions, custom_mappings_default.prompt in `configDir`, unless that
+ * file is there already.
+ */
 export function createChart(
   ledger: Ledger,
   accounts: readonly ChartAccount[],
+  configDir?: string,
 ): ChartCreation {
   const valid = validateChartProposal(accounts);
   if (!valid.ok) {
     return { ok: false, code: "invalid_chart", problems: valid.problems };
   }
-  return ledger.db.transaction((tx: any): ChartCreation => {
+  const outcome = ledger.db.transaction((tx: any): ChartCreation => {
     // Read inside the transaction it writes in.
     if (chartIn(loadAccountChart(tx, ledger.auth))) {
       return {
@@ -125,6 +136,25 @@ export function createChart(
     const created = insertChartAccounts(tx, ledger.auth, valid.accounts);
     return { ok: true, created: created.length };
   });
+  const instructions = chartCategorizationInstructions(valid.accounts);
+  if (outcome.ok && instructions !== null) {
+    // The chart is in the books by now, and a refusal would leave setup
+    // unable to create it again: without the file, the categorizer only
+    // starts with no instructions.
+    try {
+      writeCustomMappingsFileIfMissing(
+        DEFAULT_CUSTOM_MAPPINGS_FILENAME,
+        instructions,
+        configDir,
+      );
+    } catch (error) {
+      console.error(
+        `[chart-of-accounts] couldn't write ${DEFAULT_CUSTOM_MAPPINGS_FILENAME}:`,
+        error,
+      );
+    }
+  }
+  return outcome;
 }
 
 export type ChartSuggestion =

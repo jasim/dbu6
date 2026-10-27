@@ -11,6 +11,17 @@ import type { ChartAccount, LedgerAccountType } from "../../../shared/index.js";
  * is written here, never from its name.
  */
 
+/**
+ * The groups the banks and cards step files each bank account, card and
+ * loan under. They start with nothing under them, and a statement line
+ * never goes to one.
+ */
+export const BANK_CARD_LOAN_GROUPS: readonly string[] = [
+  "Bank Accounts",
+  "Credit Cards",
+  "Loans",
+];
+
 type Tree = { [name: string]: Tree };
 
 const TREE: Record<LedgerAccountType, Tree> = {
@@ -102,16 +113,41 @@ const TREE: Record<LedgerAccountType, Tree> = {
   },
 };
 
-// A line under the accounts whose purpose isn't plain from the name.
+// What goes to an account, where its name doesn't say: shown on hover, and
+// the categorizer's first instructions. For the categorizer they name the
+// kinds of statement line, in general terms and never a merchant, for the
+// accounts that gather many kinds or whose lines don't carry their name; the
+// user adds their own specifics later. No group with accounts under it has
+// one; the notes on BANK_CARD_LOAN_GROUPS are for the hover alone, and the
+// instructions leave them out.
 const NOTES: Record<string, string> = {
-  "Bank Accounts":
-    "Your savings and current accounts; the next step adds each one here.",
-  "Credit Cards": "Each card you get statements for goes here.",
-  Loans: "Car, home or personal loans you repay.",
+  "Bank Accounts": "Each of your savings and current accounts goes under this.",
+  "Credit Cards": "Each card you get statements for goes under this.",
+  Loans: "Each car, home or personal loan you repay goes under this.",
+  Cash: "ATM and cash withdrawals.",
   Receivables: "Money others owe you.",
+  "Mutual Funds": "Mutual fund purchases and regular investment plan debits.",
   "Opening Balances":
     "What each account held when you started; needed for balance checks.",
   "Employer PF": "Your employer's share of EPF, from the payslip.",
+  "Savings Interest": "Interest a savings account credits.",
+  "Card Cashback": "Cashback and reward credits on a card.",
+  Groceries: "Supermarkets, grocery stores and grocery delivery apps.",
+  "Dining Out": "Restaurants, cafés, bakeries, bars and food courts.",
+  "Food Delivery":
+    "Meal orders from food delivery apps; their grocery orders go to Groceries.",
+  Fuel: "Fuel stations.",
+  "Cabs & Autos": "Taxis and ride-hailing apps.",
+  "Tolls & Parking": "Tolls, toll-tag top-ups and parking.",
+  Mobile: "Phone recharges and mobile bills.",
+  Medicines: "Pharmacies and medicine delivery.",
+  "Doctor & Lab": "Hospitals, clinics and diagnostic labs.",
+  Streaming: "Video and music streaming subscriptions.",
+  "Travel Tickets":
+    "Airlines, trains, long-distance buses and travel booking sites.",
+  "Income Tax": "Income tax paid to the tax authority.",
+  "Bank Charges":
+    "Bank and card fees, annual fees, late payment and finance charges, and the tax on them.",
 };
 
 /** The starter chart, each parent ahead of its children. */

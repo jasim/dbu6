@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChartAccount } from "../../../shared/index.js";
 import { normalizeChartProposal, validateChartProposal } from "./chart.js";
+import { chartCategorizationInstructions } from "./instructions.js";
 import {
   chartWithAccounts,
   STARTER_CHART,
@@ -127,6 +128,24 @@ describe("the starter chart", () => {
     expect(names.filter((name) => /HDFC|SBI|ICICI|Zerodha/.test(name))).toEqual(
       [],
     );
+  });
+
+  it("makes the categorizer's instructions from the notes of accounts a line can go to", () => {
+    const instructions = chartCategorizationInstructions(STARTER_CHART) ?? "";
+    const named = [...instructions.matchAll(/^- ([^:]+):/gm)].map(
+      (match) => match[1],
+    );
+    const parents = new Set(STARTER_CHART.map((one) => one.parent));
+
+    expect(named).toContain("Dining Out");
+    for (const left of ["Bank Accounts", "Credit Cards", "Loans"]) {
+      expect(named).not.toContain(left);
+    }
+    for (const name of named) {
+      const one = STARTER_CHART.find((a) => a.name === name);
+      expect(one?.account_type).not.toBe("Equity");
+      expect(parents.has(name)).toBe(false);
+    }
   });
 
   it("opens unticked only accounts it has, and never a top account", () => {

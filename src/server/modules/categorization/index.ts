@@ -28,11 +28,13 @@ export type {
 } from "./llm-categorization.js";
 export {
   CategorizationConfigError,
+  DEFAULT_CUSTOM_MAPPINGS_FILENAME,
   loadCategorizer,
   readAccountInstructions,
   readCustomMappingsFile,
   readTransactionMappings,
   TRANSACTION_MAPPINGS_FILENAME,
+  writeCustomMappingsFileIfMissing,
   type AccountInstructions,
   type CategorizerSettings,
   type LoadCategorizer,

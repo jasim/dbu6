@@ -1,7 +1,17 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { describe, expect, it } from "vitest";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChartAccount } from "../../shared/index.js";
 import {
   STARTER_CHART,
@@ -45,7 +55,8 @@ const account = (
   name: string,
   account_type: ChartAccount["account_type"],
   parent: string | null = null,
-): ChartAccount => ({ name, account_type, parent, note: null });
+  note: string | null = null,
+): ChartAccount => ({ name, account_type, parent, note });
 
 describe("loadChartOfAccounts", () => {
   it("offers the starter chart to books with no accounts", () => {
@@ -78,6 +89,16 @@ describe("loadChartOfAccounts", () => {
 });
 
 describe("createChart", () => {
+  // Where the categorizer's instructions are written, never the project's.
+  let configDir: string;
+  beforeEach(() => {
+    configDir = join(mkdtempSync(join(tmpdir(), "dbu6-chart-")), "user-config");
+  });
+  afterEach(() => {
+    rmSync(join(configDir, ".."), { recursive: true, force: true });
+  });
+  const prompt = () => join(configDir, "custom_mappings_default.prompt");
+
   it("creates the chart parents first, in the request's scope", () => {
     const ledger = books();
     const chart = [
@@ -86,7 +107,10 @@ describe("createChart", () => {
       account("Opening Balances", "Equity", "Equity"),
     ];
 
-    expect(createChart(ledger, chart)).toEqual({ ok: true, created: 7 });
+    expect(createChart(ledger, chart, configDir)).toEqual({
+      ok: true,
+      created: 7,
+    });
     expect(rows(ledger)).toEqual([
       { name: "Assets", account_type: "Asset", parent: null },
       { name: "Liabilities", account_type: "Liability", parent: null },
@@ -107,10 +131,61 @@ describe("createChart", () => {
 
   it("creates the whole starter chart", () => {
     const ledger = books();
-    expect(createChart(ledger, STARTER_CHART)).toEqual({
+    expect(createChart(ledger, STARTER_CHART, configDir)).toEqual({
       ok: true,
       created: STARTER_CHART.length,
     });
+  });
+
+  it("writes the created accounts' notes as the default instructions", () => {
+    const chart = [
+      ...STARTER_CHART.filter((one) => one.parent === null),
+      account("Opening Balances", "Equity", "Equity", "Starting balances."),
+      account("Food", "Expense", "Expenses", "All food."),
+      account("Dining Out", "Expense", "Food", "Restaurants and cafés."),
+      account("Rent", "Expense", "Expenses"),
+    ];
+
+    expect(createChart(books(), chart, configDir).ok).toBe(true);
+    const written = readFileSync(prompt(), "utf-8");
+    expect(written).toContain("- Dining Out: Restaurants and cafés.\n");
+    // No group, no Equity account, and no account without a note.
+    expect(written).not.toContain("Food:");
+    expect(written).not.toContain("Opening Balances");
+    expect(written).not.toContain("Rent");
+  });
+
+  it("creates the chart when the instructions can't be written", () => {
+    // A file where the folder should be.
+    mkdirSync(join(configDir, ".."), { recursive: true });
+    writeFileSync(configDir, "");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const ledger = books();
+
+    expect(createChart(ledger, STARTER_CHART, configDir)).toEqual({
+      ok: true,
+      created: STARTER_CHART.length,
+    });
+    expect(rows(ledger)).toHaveLength(STARTER_CHART.length);
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
+  it("keeps instructions the user already has", () => {
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(prompt(), "My own instructions.\n");
+
+    expect(createChart(books(), STARTER_CHART, configDir).ok).toBe(true);
+    expect(readFileSync(prompt(), "utf-8")).toBe("My own instructions.\n");
+  });
+
+  it("writes no instructions when no account has a note", () => {
+    const chart = [
+      ...STARTER_CHART.filter((one) => one.parent === null),
+      account("Opening Balances", "Equity", "Equity"),
+    ];
+    expect(createChart(books(), chart, configDir).ok).toBe(true);
+    expect(existsSync(prompt())).toBe(false);
   });
 
   it("refuses books that have an account, and writes nothing", () => {
@@ -118,16 +193,19 @@ describe("createChart", () => {
       INSERT INTO accounts (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
       VALUES (1, 'workspace', 'user', 'Cash', NULL, 'Asset', '', '');
     `);
-    expect(createChart(ledger, STARTER_CHART)).toMatchObject({
+    expect(createChart(ledger, STARTER_CHART, configDir)).toMatchObject({
       ok: false,
       code: "books_have_accounts",
     });
     expect(rows(ledger)).toHaveLength(1);
+    expect(existsSync(prompt())).toBe(false);
   });
 
   it("refuses a chart that breaks the rules", () => {
     const ledger = books();
-    expect(createChart(ledger, [account("Assets", "Asset")])).toMatchObject({
+    expect(
+      createChart(ledger, [account("Assets", "Asset")], configDir),
+    ).toMatchObject({
       ok: false,
       code: "invalid_chart",
     });

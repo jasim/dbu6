@@ -34,9 +34,15 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { parseTimeZone } from "@sapporta/shared/temporal";
 import {
+  DEFAULT_CUSTOM_MAPPINGS_FILENAME,
+  writeCustomMappingsFileIfMissing,
+} from "../modules/categorization/index.js";
+import {
+  chartCategorizationInstructions,
   chartWithAccounts,
   STARTER_CHART,
 } from "../modules/chart-of-accounts/index.js";
+import { userConfigDir } from "../paths.js";
 import { resolveApiPort } from "../project-auth/index.js";
 import { openDbu6Runtime } from "../runtime.js";
 import { todayIn } from "../../shared/index.js";
@@ -86,10 +92,14 @@ const DEMO_ACCOUNTS = [
   { name: CAR_LOAN, parent: "Loans" },
 ];
 
+const DEMO_CHART = chartWithAccounts(STARTER_CHART, DEMO_ACCOUNTS);
+
 /** Every account as { name, parent, type }, each parent ahead of its children. */
-export const ACCOUNTS = chartWithAccounts(STARTER_CHART, DEMO_ACCOUNTS).map(
-  ({ name, parent, account_type }) => ({ name, parent, type: account_type }),
-);
+export const ACCOUNTS = DEMO_CHART.map(({ name, parent, account_type }) => ({
+  name,
+  parent,
+  type: account_type,
+}));
 const ACCOUNT_TYPES = new Map(ACCOUNTS.map(({ name, type }) => [name, type]));
 
 // ── Dates ─────────────────────────────────────────────────────────────────
@@ -1838,7 +1848,7 @@ function writeImportPresets(sqlite, scope, accountIds, now) {
           name: f.account,
           is_credit_card: f.isCreditCard ?? false,
           account_identifiers: [],
-          custom_mappings_filenames: ["custom_mappings_default.prompt"],
+          custom_mappings_filenames: [DEFAULT_CUSTOM_MAPPINGS_FILENAME],
         },
       ]),
       now,
@@ -2000,6 +2010,13 @@ export async function seedSampleData(root, args) {
   } finally {
     runtime.close();
   }
+  // The instructions the presets name, as creating this chart in setup
+  // writes them; the project's own copy, when it has one, stays.
+  writeCustomMappingsFileIfMissing(
+    DEFAULT_CUSTOM_MAPPINGS_FILENAME,
+    chartCategorizationInstructions(DEMO_CHART),
+    userConfigDir(root),
+  );
   if (statements) writeStatementFiles(statements.dir, statements.files);
   printSummary(written, statements);
 }

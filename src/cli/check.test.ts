@@ -473,6 +473,11 @@ describe("checkConfig", () => {
     cpSync(packageDir("user-config.example"), join(root, "user-config"), {
       recursive: true,
     });
+    // Creating the chart writes this one, not setup.
+    write(
+      "user-config/custom_mappings_default.prompt",
+      "Sample instructions.\n",
+    );
     writeBooks(`
       INSERT INTO accounts
         (id, workspace_id, scoped_to_user_id, name, account_type, created_at, updated_at)

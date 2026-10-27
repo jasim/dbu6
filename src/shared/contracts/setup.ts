@@ -36,8 +36,10 @@ export const chartAccountSchema = z.object({
   account_type: ledgerAccountTypeSchema,
   // The parent's name; null for a type's top account. Same account_type.
   parent: z.string().nullable(),
-  // One line on what goes here, shown under the name. Optional for the
-  // starter; the LLM fills it so the user can see why an account is proposed.
+  // One line on what goes here: "Restaurants, cafés and bars." The user
+  // sees it on hover, and creating the chart makes the notes the
+  // categorizer's first instructions (custom_mappings_default.prompt). Null
+  // for an account whose purpose is plain from its name.
   note: z.string().nullable(),
 });
 export type ChartAccount = z.infer<typeof chartAccountSchema>;

@@ -227,8 +227,10 @@ In it, `pnpm <script>` runs what its `package.json` names and
   personal finances up to today, or up to the given date. The twelve months
   before that month are posted journals, and that month so far is HDFC savings
   drafts. The demo account gets an import preset institution for each
-  statement account, written with the ledger. Re-running replaces the demo
-  account's ledger and presets. With
+  statement account, written with the ledger; their instructions,
+  `user-config/custom_mappings_default.prompt`, are written from the demo's
+  chart as creating a chart writes them, when the project has none yet.
+  Re-running replaces the demo account's ledger and presets. With
   `--statements <dir>`, that month is written to `<dir>` as the statement files
   it would arrive in (HDFC savings XLS, HDFC credit card CSV, and an SBI PDF no
   saved parser reads, whose institution lists no parser) instead of drafts.

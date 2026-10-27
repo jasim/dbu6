@@ -47,7 +47,7 @@ Each account has:
 - "name": plain words, such as "Dining Out" or "School Fees". Never put a parent's name, a colon or a path in a name. Names are unique in the chart.
 - "account_type": one of Asset, Liability, Equity, Revenue, Expense.
 - "parent": the exact name of the account it sits under, or null for a type's top account.
-- "note": one short line saying what goes there, for an account you added or one whose purpose isn't plain from its name; otherwise null.
+- "note": one short sentence on what goes there, in general terms, such as "Restaurants, cafés, bakeries and bars." or "Taxis and ride-hailing apps." The person reads it, and so does the categorizer that sorts statement lines into accounts. Leave it null for a group account and for an account whose statement lines plainly carry its name; most accounts have none. Name a merchant, payee or amount only when the description gives that habit ("The monthly transfer to my landlord."). Keep the notes "current" has unless the description changes them.
 
 Rules:
 - Each type has exactly one top account, with parent null: Assets (Asset), Liabilities (Liability), Equity (Equity), Income (Revenue), Expenses (Expense). Keep those names.

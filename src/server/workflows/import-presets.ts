@@ -27,6 +27,7 @@ import {
 } from "../modules/accounts/index.js";
 import {
   CategorizationConfigError,
+  DEFAULT_CUSTOM_MAPPINGS_FILENAME,
   readCustomMappingsFile,
   readTransactionMappings,
   TRANSACTION_MAPPINGS_FILENAME,
@@ -381,9 +382,6 @@ function withLedgerNames<T extends PresetInstitution>(
  * account id.
  */
 
-// The instructions a new bank or card gets, when user-config/ has them.
-const DEFAULT_MAPPING_FILE = "custom_mappings_default.prompt";
-
 export type StatementAccountProblem = {
   code: StatementAccountRefusal["code"];
   message: string;
@@ -503,9 +501,9 @@ function sharedParents(
 
 /** The instruction files a new bank or card gets. */
 export function newStatementAccountMappingFiles(): string[] {
-  return readCustomMappingsFile(DEFAULT_MAPPING_FILE) === null
+  return readCustomMappingsFile(DEFAULT_CUSTOM_MAPPINGS_FILENAME) === null
     ? []
-    : [DEFAULT_MAPPING_FILE];
+    : [DEFAULT_CUSTOM_MAPPINGS_FILENAME];
 }
 
 /**

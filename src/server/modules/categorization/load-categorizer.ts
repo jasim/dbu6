@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { readFileSync } from "fs";
+import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
 import { userConfigDir } from "../../paths.js";
@@ -33,6 +33,11 @@ export class CategorizationConfigError extends Error {
 }
 
 export const TRANSACTION_MAPPINGS_FILENAME = "transaction_mappings.mjs";
+
+// The instructions a new bank or card gets, when user-config/ has them.
+// Creating the chart writes the first ones.
+export const DEFAULT_CUSTOM_MAPPINGS_FILENAME =
+  "custom_mappings_default.prompt";
 
 type TransactionClassifier = (transaction: Abacus) => Account | null;
 
@@ -140,6 +145,26 @@ export function readCustomMappingsFile(
     return readFileSync(join(configDir, filename), "utf-8");
   } catch (error) {
     if (isMissingFileError(error)) return null;
+    throw error;
+  }
+}
+
+/**
+ * Writes one of the user's instruction files unless it is there already:
+ * once it exists it is the user's, and nothing of ours replaces it. True
+ * when it was written.
+ */
+export function writeCustomMappingsFileIfMissing(
+  filename: string,
+  content: string,
+  configDir: string = userConfigDir(),
+): boolean {
+  mkdirSync(configDir, { recursive: true });
+  try {
+    writeFileSync(join(configDir, filename), content, { flag: "wx" });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
     throw error;
   }
 }
