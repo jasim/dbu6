@@ -213,8 +213,11 @@ string in the narration settles it. Both read the bank's text, a draft's
 `source_narration`, never its comment:
 
 - **Yes** → a rule in `user-config/transaction_mappings.mjs`; the file's
-  comments have the shape. Prefer this: free, instant, and it applies to every
-  account. An `account` that is not a name in Accounts silently leaves the row
+  comments have the shape. A rule reads every statement dbu6 imports, not
+  only the one its drafts came from. Write one only when the description
+  alone decides the account, on any statement it can appear on, in later
+  months too. The person's habits don't decide it, such as which bank paid a
+  card bill this month. An `account` that is not a name in Accounts silently leaves the row
   uncategorised. A contains rule can be limited to one direction and to an
   amount range (`amount: { min, max }`, either end open), for a phrase that
   alone would also catch other payments.
@@ -238,11 +241,38 @@ app, a marketplace, a payment wallet, a person), where one account rarely
 fits every payment, and lean to no rule. A rule the user asked for in their
 own words ("always put these under X", a rule request) is that yes.
 
+**A transfer gets a rule on one side only.** A transfer or card payment
+between the person's own accounts is printed on both statements, and only
+one copy needs an account: clean-up deletes the other one
+(`npx dbu6 docs playbook double-counted-transfers`). So a rule goes on the
+side whose description names the other account. On the savings statement,
+`BILLPAY HDFC CREDIT CARD` names the card. The card's statement prints
+`CREDIT CARD PAYMENT NET BANKING`, which doesn't say which account paid:
+write no rule for it. Set that draft by hand from the other statement's
+row, or leave it for clean-up.
+
 Neither sees the date. A string shared only by how the money moved (`UPI`,
 `NEFT`, `IMPS`, `POS`, `ATM`) settles nothing: a rule on it catches every such
-payment. Before adding a rule, count what it would have caught among the
-transactions already in the books that are in other accounts. Give a range
-from the amounts seen, rounded out to round figures, not the exact amounts.
+payment. Give a range from the amounts seen, rounded out to round figures,
+not the exact amounts.
+
+Before proposing a rule, count what it would catch, per statement, in the
+drafts and in the books, and where those rows sit now. A rule that catches
+rows sitting in another account is too broad. Narrow it with a longer
+phrase, a direction or an amount range, or don't write it.
+
+```sql
+SELECT b.name AS statement, a.name AS now_in, COUNT(*) AS n,
+       MIN(d.withdrawal + d.deposit) AS least, MAX(d.withdrawal + d.deposit) AS most
+FROM draft_transactions d
+JOIN accounts b ON b.id = d.base_account_id
+LEFT JOIN accounts a ON a.id = d.account_id
+WHERE upper(d.source_narration) LIKE '%<TEXT>%'
+GROUP BY 1, 2 ORDER BY n DESC;
+```
+
+For the books, the categorized line carries `source_narration`, and its
+statement is the other line of the same journal.
 
 Neither is retroactive: re-run the categoriser over the drafts with no
 account ("Categorise these" above), and restart a server started with

@@ -37,7 +37,8 @@ time.
    else" and "skip". If none fits, propose a new account's name and parent.
 5. Below both, under "Rules for next time", number each rule or prompt line
    you'd add: its text, its account (or "what you pick for <question>"), and
-   what else in the books it would catch. Each needs its own yes ("A rule
+   what it catches, per statement, as "Always put this under X" in the books
+   guide counts it. Each needs its own yes ("A rule
    needs its own yes" in the books guide): an account answer, or a yes to
    the list in 3, is not one. A rule request is already that yes.
 6. Create each new account the user approved, with its name, type and
@@ -61,6 +62,9 @@ What the categorizer sees decides what a rule can do:
 - Send a draft to its own base account.
 - Write a rule on a string only the payment method shares.
 - Write a rule or prompt line the user didn't say yes to.
+- Write a rule for the side of a transfer whose description doesn't name
+  the other account.
+- Write a rule for each side of the same transfer.
 
 ## Report
 

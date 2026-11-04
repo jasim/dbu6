@@ -27,6 +27,10 @@ What the categorizer sees decides what a rule can do:
 - Round an amount range out (60–480 becomes 50–500).
 - The user's `user-config/` files may name payees and amounts.
 
+A rule request comes from one statement's drafts. Its rule should read only
+that statement's rows as well as it can. Say so when the text would catch
+rows on other statements.
+
 Delete a rule request once it's encoded, or when the user drops it, which
 takes it off their list:
 `npx sapporta api delete /api/categorization-rule-requests/<rule request id>`.

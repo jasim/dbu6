@@ -279,9 +279,11 @@ The import already ran the rules and the AI. What is left has no account.
    these" in the books guide).
 2. Read what is still blank across *all* accounts together, with the
    accounts already used, as the `categorize` playbook says, and:
-   - categorize a transfer between the user's own accounts, or a card
-     payment, to the other account like any other row. Nothing is settled
-     here. A row going to an account whose statement is in the same upload
+   - categorize a transfer between the person's own accounts, or a card
+     payment, to the other account like any other row, by hand from what
+     both statements show. Propose a rule only for the side whose
+     description names the other account ("A transfer gets a rule on one
+     side only" in the books guide). Nothing is settled here. A row going to an account whose statement is in the same upload
      is that statement's row too, so expect it to fail a balance check in
      clean-up, and look for it there;
    - group the rest by what they are, by judgment;
@@ -554,7 +556,7 @@ Accounts I'll create
   5  Household help  under Household   (for 3b, if you pick it)
 
 Rules for next time, only the ones you say yes to
-  6  out, contains "SAMPLEFOOD", 100–1,000   → Eating out   catches nothing else
+  6  out, contains "SAMPLEFOOD", 100–1,000   → Eating out   42 on Sample card, none elsewhere
 ```
 
 - Counts and totals in aligned columns, amounts with Indian digit grouping;
