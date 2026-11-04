@@ -5,7 +5,8 @@
 Drafts wait in Review with no account (`account_id` is null): the rules in
 `user-config/transaction_mappings.mjs` missed them and the categorizer's AI
 wasn't sure. The aim is to settle where they go with the user, and to add
-rules so the categorizer places ones like them next time.
+the rules the user agrees to, so the categorizer places ones like them next
+time.
 
 ## Read
 
@@ -27,19 +28,24 @@ rules so the categorizer places ones like them next time.
    spending, a regular payment. Not by exact narration: reference numbers
    make nearly every narration unique.
 2. Find each group's likely account, from where ones like it sit in the
-   books, and its rule.
+   books, and whether a rule could catch ones like it next time.
 3. Show every group you're sure of in one list, a line each: a few
-   descriptions and how many, the account, the rule. The user says yes or
-   names the ones to change.
+   descriptions and how many, and the account. The user says yes or names
+   the ones to change.
 4. Ask about the rest: a few descriptions with dates and amounts, and 2–4 of
    the user's accounts as numbered options, likeliest first, plus "something
    else" and "skip". If none fits, propose a new account's name and parent.
-5. Encode what the user agrees to as a rule or a prompt line, as the books
-   guide says. A draft like no other gets its account set directly
-   (`/api/draft-transactions/set-account`), no rule. A new account the user
-   approved is created with its name, type and parent in one call
-   (`npx sapporta rows create accounts`).
-6. A rule request whose drafts are now encoded is done: delete it, as the
+5. Below both, under "Rules for next time", number each rule or prompt line
+   you'd add: its text, its account (or "what you pick for <question>"), and
+   what else in the books it would catch. Each needs its own yes ("A rule
+   needs its own yes" in the books guide): an account answer, or a yes to
+   the list in 3, is not one. A rule request is already that yes.
+6. Create each new account the user approved, with its name, type and
+   parent in one call (`npx sapporta rows create accounts`). Set the drafts
+   of every group the user settled (`/api/draft-transactions/set-account`).
+   Write only the rules and prompt lines the user said yes to, as the books
+   guide says.
+7. A rule request whose drafts are now encoded is done: delete it, as the
    `rule-requests` playbook says.
 
 What the categorizer sees decides what a rule can do:
@@ -54,10 +60,11 @@ What the categorizer sees decides what a rule can do:
 
 - Send a draft to its own base account.
 - Write a rule on a string only the payment method shares.
+- Write a rule or prompt line the user didn't say yes to.
 
 ## Report
 
-- **New rules:** each rule or instruction line, and how many drafts it
-  covers.
+- **New rules:** each rule or instruction line the user said yes to, and
+  how many of these drafts it matches.
 - **Set by hand:** how many drafts you set directly.
 - **Still without an account:** how many drafts.

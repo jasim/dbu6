@@ -13,8 +13,9 @@ computed in your books before posting anything.
 * **One plan and one round of questions.** The agent proposes a plan first
   and does not change anything until you approve it. After you approve the
   plan, the agent processes your statements and asks all of its remaining
-  questions in a single message. The agent turns your answers into rules so
-  it does not ask the same questions again.
+  questions in a single message. It offers to turn your answers into rules
+  so it does not ask the same questions again, and adds only the ones you
+  agree to.
 * **Categorized by your rules and your agent.** dbu6 applies your
   categorization rules first, and then your coding agent categorizes the
   remaining transactions using your existing AI subscription.

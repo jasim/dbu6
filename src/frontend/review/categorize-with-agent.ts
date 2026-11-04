@@ -2,9 +2,9 @@
 // that go together and saying where, the coding agent reads every draft the
 // categorizer couldn't place, finds what they have in common, and talks the
 // user through it. What it is sure of it proposes in a batch; what it isn't,
-// it asks, offering a few accounts to pick from. What the user agrees to
-// becomes rules or guidance, as a rule request would; a one-off with nothing
-// to make a rule from gets its account set directly.
+// it asks, offering a few accounts to pick from. The drafts get their
+// accounts set directly; a rule or guidance line for next time is proposed
+// on its own and written only on the user's yes to it.
 
 import type {
   CategorizationRuleRequest,
@@ -35,7 +35,7 @@ export function categorizeWithAgentPrompt(
 \`npx sapporta api get /api/categorization-rule-requests --query '{"base_account_id":${id}}'\``,
         ];
   return agentPrompt({
-    outcome: `Settle with me where ${account.name}'s ${plural(account.uncategorised, "uncategorized draft")} go, and add rules so the categorizer places ones like them next time.`,
+    outcome: `Settle with me where ${account.name}'s ${plural(account.uncategorised, "uncategorized draft")} go, and add the rules I agree to, so the categorizer places ones like them next time.`,
     facts: [
       accountLine(detail),
       `Screen: ${reviewHref(id, IMPROVE_CATEGORIZATION_TAB)}`,
@@ -46,6 +46,6 @@ export function categorizeWithAgentPrompt(
     playbook: "categorize",
     how: `Ask about the groups you're not sure of at most ${QUESTIONS_AT_A_TIME} at a time.
 ${USER_RUNS_CATEGORIZER}`,
-    next: "Run categorizer, on Review.",
+    next: "Run categorizer, on Review, for any you skipped.",
   });
 }

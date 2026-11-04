@@ -35,7 +35,9 @@ Split   Shopping → Clothes, Household       112  1,84,000       9      3
 Delete  Snacks (empty after the merge)
 ```
 
-The yes covers what the plan lists, and nothing else. For a split, list
+The yes covers what the plan lists, and nothing else. Rules counts the
+existing rules and prompt lines repointed or renamed; new rules for a split
+are asked after, one at a time. For a split, list
 each group with a few descriptions, so the user agrees to where each goes.
 
 What the API does for each:
@@ -61,8 +63,8 @@ What the API does for each:
   `npx sapporta rows create accounts --values '{"name":"…","account_type":"…","parent_id":<id>}'`;
   group A's entries and drafts by what they are, with SQL, as for "All my X
   payments are in the wrong account" in the books guide; move each group as
-  for a merge; add rules so future imports follow. Keep A for what is left,
-  or delete it once it is empty.
+  for a merge; propose rules so future imports follow, each on its own
+  yes. Keep A for what is left, or delete it once it is empty.
 
 A bank or card (an import preset lists it) is never merged or split: its
 entries carry its statements' balances. Rename or move it like any account;

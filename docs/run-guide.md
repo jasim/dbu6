@@ -269,7 +269,7 @@ parser for it; import it freeform, as `npx dbu6 docs freeform-guide` says:
 
 The import already ran the rules and the AI. What is left has no account.
 
-1. For each account, after any rule you added: `classify` over its drafts
+1. For each account, after the rule requests you encoded: `classify` over its drafts
    with no account, with its own `custom_mappings_filenames` ("Categorise
    these" in the books guide).
 2. Read what is still blank across *all* accounts together, with the
@@ -345,15 +345,16 @@ What clean-up doesn't settle joins the question round.
 One message, as [Questions](#questions) says: what the money looks like,
 the categories, then the questions, the clean-up's among them. Then:
 
-- each answer becomes a rule or a prompt line ("Always put this under X" in
-  the books guide; count first what a rule would catch in other accounts);
+- each answer sets its drafts by hand (`/api/draft-transactions/set-account`);
+- each rule or prompt line the user said yes to is written ("Always put this
+  under X" in the books guide); one with no yes is not;
 - each new account the user approved is created with its name, type and
   parent in one call:
   `npx sapporta rows create accounts --values '{"name":"…","account_type":"…","parent_id":<id>}'`;
-- each one-off is set by hand (`/api/draft-transactions/set-account`);
 - each opening balance the user gave is posted, as [Accounts with no
   statements](#accounts-with-no-statements) says;
-- then `classify` again over what is still blank, and the clean-up again
+- then, when you wrote a rule, `classify` again over what is still blank;
+  and the clean-up again
   over the accounts the answers touched.
 
 There is no second round: what the answers left open goes in the report,
@@ -535,7 +536,7 @@ statements](#accounts-with-no-statements)).
 
 ```
 Doing these unless you say otherwise
-  1  Sample food app (42 · 18,400)            → Eating out    rule: contains "SAMPLEFOOD"
+  1  Sample food app (42 · 18,400)            → Eating out
   2  Sample card payment (6 · 2,10,000)       → Sample card   transfer, both statements
 
 Need your call
@@ -546,6 +547,9 @@ Need your call
 
 Accounts I'll create
   5  Household help  under Household   (for 3b, if you pick it)
+
+Rules for next time, only the ones you say yes to
+  6  out, contains "SAMPLEFOOD", 100–1,000   → Eating out   catches nothing else
 ```
 
 - Counts and totals in aligned columns, amounts with Indian digit grouping;
@@ -553,12 +557,16 @@ Accounts I'll create
 - 2–4 options, likeliest first, plus "something else" and "skip".
 - New accounts with their parent and what needs them, so the same reply
   approves them.
+- Each rule or prompt line you'd add is its own numbered line under "Rules
+  for next time", with what else in the books it would catch. An answer to
+  a group, or `ok`, sets those drafts and adds no rule ("A rule needs its
+  own yes" in the books guide).
 - Ordered by total, largest first, so the user can answer the top and skip
   the rest. Past about 25 groups, say how many there are and offer them in
   pages of that size.
 - The user may reply in shorthand: `ok` accepts the first block; `3b 4a`;
-  `5 no`; `rest skip`. Free text is fine too. Say so in the message's
-  last line, in those words, so they know they can.
+  `5 no`; `6 yes`; `rest skip`. Free text is fine too. Say so in the message's last line, in
+  those words, so they know they can.
 - A rename, merge or drop of a category they ask for in their reply is
   the `chart-change` playbook's, applied to drafts only, with no plan of
   its own: their reply is the yes.
@@ -616,8 +624,7 @@ Skipped               Fixed deposits: no balance given
   Drafts grid), a possible duplicate or a failing check you couldn't
   settle (see "Still open"), or an account it waits on that isn't
   ready. The user adds it from Review once it is.
-- Every change the go-ahead covered (the first column below) that happened
-  is in the report: accounts, rules, parsers, preset changes, drafts
+- Every change you made is in the report: accounts, rules, parsers, preset changes, drafts
   deleted, balance checks blanked. A transfer no balance confirms yet goes
   under "Still open", with the statement that will.
 - Opening balances you posted for [accounts with no
@@ -630,7 +637,7 @@ This replaces "Before changing anything" in the books guide for the run.
 
 | Covered by the plan's go-ahead | Asked in the question round | Asked on its own | Never |
 | --- | --- | --- | --- |
-| the starter chart, on books with none; parsers and their tests; preset changes for accounts in the plan; adding the accounts in the plan and importing; opening balances the statements give; categorizing drafts; rules and prompt lines for "sure" groups; rules and prompt lines for the rule requests the plan lists; deleting a draft that duplicates the same statement row; deleting a transfer's second copy and blanking the balance checks the `double-counted-transfers` playbook allows | new accounts; renaming, merging or dropping a category the user names; rules for the user's answers; anything "needs your call"; opening balances of accounts with no statements | any change to a posted entry; deleting a draft for any other reason; changing an opening balance already recorded; a change to dbu6 itself (`statement_disagreement`) | changing a statement balance; deleting to pass a check; editing `node_modules/@dbu6/app`; writing SQLite |
+| the starter chart, on books with none; parsers and their tests; preset changes for accounts in the plan; adding the accounts in the plan and importing; opening balances the statements give; categorizing drafts; rules and prompt lines for the rule requests the plan lists; deleting a draft that duplicates the same statement row; deleting a transfer's second copy and blanking the balance checks the `double-counted-transfers` playbook allows | new accounts; renaming, merging or dropping a category the user names; every other rule and prompt line, each on its own yes; anything "needs your call"; opening balances of accounts with no statements | any change to a posted entry; deleting a draft for any other reason; changing an opening balance already recorded; a change to dbu6 itself (`statement_disagreement`) | changing a statement balance; deleting to pass a check; editing `node_modules/@dbu6/app`; writing SQLite |
 
 The rest of the books guide's rules hold, deleting a draft that carries a
 statement balance among them, and nothing from the user's data goes into a

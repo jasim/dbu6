@@ -14,7 +14,7 @@ dbu6 is a shim that connects coding agents to a local SQLite ledger. The user's 
 
 Before we added the automated run workflow, the user had to trigger each step manually. They had to open the app and click a button for each task, such as "Classify these" and then "Figure out why these balances mismatch." Although the AI helped with each step, the user still had to move the workflow from one step to the next. That manual handoff is a leftover from software built before AI, because an agent that can write a parser can also determine which step comes next.
 
-Because the agent runs the workflow, the user only needs to step in when a decision requires human judgement. In bookkeeping, this usually means reviewing a few transactions that the agent cannot categorize on its own. When the user answers a question, the agent saves the answer as a rule or a prompt line so it does not ask the same question again. Because the agent handles the routine steps, the user does not need a traditional step-by-step interface.
+Because the agent runs the workflow, the user only needs to step in when a decision requires human judgement. In bookkeeping, this usually means reviewing a few transactions that the agent cannot categorize on its own. When the user answers a question, the agent offers to save the answer as a rule or a prompt line, and saves it on the user's yes, so it does not ask the same question again. Because the agent handles the routine steps, the user does not need a traditional step-by-step interface.
 
 We still keep the app screens so the user can open them whenever they want to inspect their data, check a balance, or make a manual edit. However, no screen exists just to advance the workflow.
 
@@ -27,7 +27,7 @@ We still keep the app screens so the user can open them whenever they want to in
 5. They read Message 2, which summarizes their finances and batches all the questions the agent could not resolve on its own into a single round. They can reply using shorthand (for example, `ok`, `3b 4a`, or `rest skip`).
 6. They read Message 3, which explains what to do next. From there, they can open Review to post the ready accounts, or ask the agent to post them.
 
-When the user adds statements in a later month, they follow the same flow starting at step 1. Because the agent saved their previous answers as rules, Message 2 is shorter.
+When the user adds statements in a later month, they follow the same flow starting at step 1. Because the agent saved the previous answers they agreed to as rules, Message 2 is shorter.
 
 ## How dbu6 does it today
 
@@ -66,8 +66,8 @@ dbu6 does not store separate state for a run. Instead, the agent reads the curre
 
 The "Permissions inside a run" table in the run guide defines what the agent is allowed to do during a run:
 
-* **Covered by "go" in Message 1:** Setting up the starter chart, writing parsers, creating presets for the planned accounts, adding and importing those accounts, recording opening balances printed on the statements, categorizing rows, writing rules for the "sure" groups and for the rule requests the plan lists, deleting exact duplicates, and resolving double-counted transfers according to the playbook.
-* **Asked in Message 2:** Creating new accounts, making chart changes requested by the user, categorizing the "needs your call" groups, and setting opening balances for accounts that do not have statements.
+* **Covered by "go" in Message 1:** Setting up the starter chart, writing parsers, creating presets for the planned accounts, adding and importing those accounts, recording opening balances printed on the statements, categorizing rows, writing rules for the rule requests the plan lists, deleting exact duplicates, and resolving double-counted transfers according to the playbook.
+* **Asked in Message 2:** Creating new accounts, making chart changes requested by the user, categorizing the "needs your call" groups, each new rule or prompt line (one yes per rule), and setting opening balances for accounts that do not have statements.
 * **Asked individually:** Modifying a posted journal entry, deleting any row that is not an exact duplicate or a double-counted transfer, changing an existing opening balance, and changing dbu6 itself (`statement_disagreement`).
 * **Never allowed:** Changing a statement balance, deleting transactions just to make a balance check pass, editing files inside `node_modules/@dbu6/app`, or writing to the SQLite database directly.
 
@@ -121,7 +121,7 @@ The code in `src/frontend` builds every prompt that an agent button sends to the
 
 When you design or audit a screen, button, or workflow step, put it into one of three categories:
 
-1. **Judgement.** These are decisions that only the user can make, such as explaining what a payment was for, deciding whether to create a new account, or providing an opening balance when there is no bank statement. The agent should batch these questions into a single round, show the relevant transactions, offer two to four options, and explain what happens if the user skips the question. Once the user answers, the agent saves the answer as a rule so it does not ask the same question again.
+1. **Judgement.** These are decisions that only the user can make, such as explaining what a payment was for, deciding whether to create a new account, or providing an opening balance when there is no bank statement. The agent should batch these questions into a single round, show the relevant transactions, offer two to four options, and explain what happens if the user skips the question. Once the user answers, the agent offers to save the answer as a rule, and saves it on the user's yes.
 2. **Advancing the workflow.** These are steps that move the data from one stage to the next, such as categorizing rows, settling duplicates, fixing balance checks, or configuring an account preset. The agent should run these steps automatically during a run. While a screen can keep a quiet manual link for users who want to do the task by hand, the user should never have to click a button just to start the next step.
 3. **Looking at the books.** These are views that let the user inspect their finances, such as Reports, Overview, the summary counts on Review, and the Drafts grid. We keep these screens because they let the user see what is in their books and verify that the numbers are right.
 
@@ -129,7 +129,7 @@ Use these questions to evaluate any UI element or workflow step:
 
 * If a button only exists to trigger the next step in a sequence, the run guide should have the agent take that step without it.
 * If the agent can figure out the right action by reading the data, do not ask the user or show them a choice.
-* If the agent must ask the user a question, make sure the agent batches it with the other questions in Message 2 and saves the answer as a rule for future runs.
+* If the agent must ask the user a question, make sure the agent batches it with the other questions in Message 2, and offers a rule for future runs that it writes only on the user's yes.
 * If the agent gets stuck and cannot finish a task, it must explain the problem under the "Still open" heading in Message 3, rather than making the user open a screen in the app to discover the error.
 
 Follow these rules when you change a workflow:

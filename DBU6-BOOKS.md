@@ -59,6 +59,9 @@ so you can skip OpenAPI discovery. For anything not covered here, use the
 - Reading needs no permission. Every change does. Describe it in the user's
   words (date, description, amount, old → new account, and how many), then
   wait for a yes.
+- A new rule or prompt line in `user-config/` decides future transactions,
+  not just the ones in front of you. Each one needs its own yes ("A rule needs
+  its own yes" below); no plan, go-ahead or category answer stands in for it.
 - After a change, run the check that prompted it again, such as the Review
   status or the report, and tell the user what the screen now shows.
 - The balances printed on statements are the bank's numbers. Never change
@@ -179,7 +182,7 @@ or to a `from_date` after `to_date`; leave a date out rather than guess one.
     `npx sapporta api get /api/import-presets` whose `account_id` is this account
     (see [Import presets](#import-presets)).
   - Setting a draft by hand teaches the categoriser nothing. To make it stick,
-    add a mapping (next section).
+    offer a mapping (next section).
 - **"Is this a duplicate?"**
   `npx sapporta api get /api/reports/duplicate-drafts --query '{"base_account_id":<id>}'`.
   A draft is compared with other drafts on the same account, and with
@@ -222,6 +225,19 @@ string in the narration settles it. Both read the bank's text, a draft's
   direction and amount beside its narration, so a line may give an amount
   range too.
 
+**A rule needs its own yes.** Where a draft goes and whether to add a rule
+are two questions. (Keeping existing rules in step with an account the user
+renamed or merged is part of that change, not a new rule.) The user naming
+an account, or saying "ok" to a group, settles those drafts only: set them
+by hand
+(`/api/draft-transactions/set-account`). Propose each rule or prompt line
+separately, as "Rule for next time?": its text, direction and amount range,
+its account, and what it would catch. Write it only on a yes to that rule;
+no answer is no. Say when a payee covers varied things (a bill-splitting
+app, a marketplace, a payment wallet, a person), where one account rarely
+fits every payment, and lean to no rule. A rule the user asked for in their
+own words ("always put these under X", a rule request) is that yes.
+
 Neither sees the date. A string shared only by how the money moved (`UPI`,
 `NEFT`, `IMPS`, `POS`, `ATM`) settles nothing: a rule on it catches every such
 payment. Before adding a rule, count what it would have caught among the
@@ -253,7 +269,8 @@ Leave a rule request you couldn't encode.
      journal_entries <entry id> --values '{"account_id":<account>}'` per
      entry.
   3. Update the matching drafts too.
-  4. Add a mapping so future imports get it right (above).
+  4. Offer a mapping so future imports get it right; write it only on its
+     own yes (above).
 - **"This one transaction is in the wrong account."**
   Update the categorized account's entry's `account_id`. Never change the
   line on the statement's own account. If the old or new account is itself a bank or
