@@ -32,7 +32,7 @@ let host: HTMLDivElement;
 let root: Root;
 let batches: StatementInboxBatch[];
 let saved: string[][];
-let removed: string[];
+let discarded: string[];
 let cleared: number;
 let alreadyUploaded: string[];
 let agentSettings: CodingAgentSettings;
@@ -92,7 +92,7 @@ beforeEach(() => {
   root = createRoot(host);
   batches = [];
   saved = [];
-  removed = [];
+  discarded = [];
   cleared = 0;
   alreadyUploaded = [];
   agentSettings = CLAUDE_READY;
@@ -102,19 +102,19 @@ beforeEach(() => {
       const request = input instanceof Request ? input : null;
       const url = request?.url ?? String(input);
       const method = request?.method ?? init?.method ?? "GET";
-      if (url.includes("/statement-inbox/remove")) {
-        const { saved_path } = JSON.parse(String(init?.body)) as {
-          saved_path: string;
-        };
-        removed.push(saved_path);
-        batches = [];
-        return Response.json({ removed: saved_path });
-      }
-      if (url.includes("/statement-inbox/clear")) {
+      if (url.includes("/statement-inbox/discard-all")) {
         cleared += 1;
         const files = batches.flatMap((batch) => batch.files).length;
         batches = [];
-        return Response.json({ removed: files });
+        return Response.json({ discarded: files });
+      }
+      if (url.includes("/statement-inbox/discard")) {
+        const { saved_path } = JSON.parse(String(init?.body)) as {
+          saved_path: string;
+        };
+        discarded.push(saved_path);
+        batches = [];
+        return Response.json({ discarded: saved_path });
       }
       if (url.includes("/statement-inbox") && method === "POST") {
         const form = init?.body as FormData;
@@ -363,7 +363,7 @@ describe("removing a file", () => {
     });
     await settle();
 
-    expect(removed).toEqual([BATCH.files[0].saved_path]);
+    expect(discarded).toEqual([BATCH.files[0].saved_path]);
     expect(host.textContent).not.toContain("sample-savings-050505.pdf");
     expect(doMyBooksButton()).toBeUndefined();
   });
@@ -396,7 +396,7 @@ describe("clearing the inbox", () => {
     await settle();
 
     expect(cleared).toBe(1);
-    expect(removed).toEqual([]);
+    expect(discarded).toEqual([]);
     expect(host.textContent).not.toContain("sample-savings-050505.pdf");
     expect(host.textContent).not.toContain("sample-card-050505.csv");
     expect(doMyBooksButton()).toBeUndefined();

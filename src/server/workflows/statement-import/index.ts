@@ -16,7 +16,6 @@ export {
   importStatementBatch,
   type BatchImportOutcome,
   type ImportedGroup,
-  type StagedStatement,
 } from "./auto-import.js";
 export { importFreeformStatement } from "./freeform-import.js";
 export { isImportRefusal, type ImportRefusal } from "./refusals.js";

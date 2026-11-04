@@ -36,9 +36,15 @@ add, and each account's `relies_on`.
 
 `/add-account/read`, `/add-account/add` and `/import-draft/statements/auto`
 also take statements waiting in the inbox by path (`inbox_files`, repeated),
-read where they are rather than copied, and left in the inbox: the run
-takes each out (`POST /api/statement-inbox/remove`) once its rows are in the
-drafts. A path outside the inbox is refused with `not_in_inbox`.
+read where they are rather than copied, and so does `/import-draft/abacus`
+(`inbox_files` in its JSON) for the file its rows were read from. An import
+deletes its files from the inbox once their rows are in the drafts and lists
+them in `inbox_files_imported`; for `/import-draft/statements/auto`, after an
+account fails, those of the accounts imported before it. A read, or an
+import that refuses, leaves them. `POST /api/statement-inbox/discard`
+deletes a file the person doesn't want imported, and
+`/api/statement-inbox/discard-all` every file. A path outside the inbox is
+refused with `not_in_inbox`.
 
 The first run's card, on Overview and Update while the books have no chart
 or nothing imported, is now **Do my books**. Setting up by hand is a link on

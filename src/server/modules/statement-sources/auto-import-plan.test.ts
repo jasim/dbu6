@@ -76,7 +76,8 @@ function recognized(
 ): FileRecognition {
   return {
     outcome: "recognized",
-    file,
+    fileName: file,
+    path: `/staged/${file}`,
     parserName,
     statement: statement(account, institution),
   };
@@ -90,7 +91,7 @@ function groupNames(plan: AutoImportPlan) {
   if (!plan.ok) throw new Error("expected an importable plan");
   return plan.groups.map((group) => [
     group.account.name,
-    group.statements.map((one) => one.file),
+    group.statements.map((one) => one.fileName),
   ]);
 }
 
@@ -131,7 +132,8 @@ describe("planAutoImport", () => {
         status: "resolved",
         period: null,
         transactions: 0,
-        file: "card-jan.xls",
+        fileName: "card-jan.xls",
+        path: "/staged/card-jan.xls",
         accountId: 21,
         accountName: "Card A",
         parserName: CARD_PARSER,
@@ -157,7 +159,8 @@ describe("planAutoImport", () => {
         recognized("bank-jan.xls", BANK_PARSER, bankAccount),
         {
           outcome: "unrecognized",
-          file: "holiday-photos.csv",
+          fileName: "holiday-photos.csv",
+          path: "/staged/holiday-photos.csv",
           candidateParserNames: [CARD_PARSER],
         },
       ],
@@ -170,7 +173,8 @@ describe("planAutoImport", () => {
         status: "resolved",
         period: null,
         transactions: 0,
-        file: "bank-jan.xls",
+        fileName: "bank-jan.xls",
+        path: "/staged/bank-jan.xls",
         accountId: 11,
         accountName: "Bank",
         parserName: BANK_PARSER,
@@ -179,7 +183,8 @@ describe("planAutoImport", () => {
       },
       {
         status: "unrecognized",
-        file: "holiday-photos.csv",
+        fileName: "holiday-photos.csv",
+        path: "/staged/holiday-photos.csv",
         candidateParserNames: [CARD_PARSER],
       },
     ]);
@@ -190,7 +195,8 @@ describe("planAutoImport", () => {
       [
         {
           outcome: "ambiguous",
-          file: "statement.xls",
+          fileName: "statement.xls",
+          path: "/staged/statement.xls",
           matchingParserNames: [BANK_PARSER, CARD_PARSER],
         },
       ],
@@ -202,7 +208,8 @@ describe("planAutoImport", () => {
       files: [
         {
           status: "ambiguous",
-          file: "statement.xls",
+          fileName: "statement.xls",
+          path: "/staged/statement.xls",
           matchingParserNames: [BANK_PARSER, CARD_PARSER],
         },
       ],
@@ -220,7 +227,7 @@ describe("planAutoImport", () => {
       status: "unresolved",
       period: null,
       transactions: 0,
-      file: "card-jan.xls",
+      fileName: "card-jan.xls",
       reason: "no_institution_for_parser",
       parserName: CARD_PARSER,
       account: cardAccountA,

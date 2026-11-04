@@ -119,7 +119,10 @@ account's name in lower case and its spaces written as hyphens:
 `base_account` is the ledger account exactly as the prompt names it, and
 `is_credit_card` is `true` when the prompt says the transactions are from a
 credit card. The import needs nothing else about the account. `source_name` is
-a short label that appears in the result and in error messages.
+a short label that appears in the result and in error messages. When the rows
+come from a file waiting in the statement inbox, add `"inbox_files":
+["<saved_path>"]`: the import deletes the file from the inbox once the rows
+are in Drafts.
 
 ## 4. Import
 

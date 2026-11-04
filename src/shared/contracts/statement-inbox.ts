@@ -10,7 +10,9 @@ const errorSchema = z.object({ error: z.string() }).passthrough();
  * agent (`npx dbu6 docs run`), saved under the project's
  * tmp/statement-inbox/<batch>/ and nothing more. Nothing reads or imports
  * them until the agent sends them to an import by `saved_path`
- * (`inbox_files`), and removes each once its rows are in the drafts.
+ * (`inbox_files`). The import deletes each from the inbox once its rows are
+ * in the drafts, so what waits there is what hasn't gone in. Discarding a
+ * file deletes it unimported.
  */
 
 export const statementInboxFileSchema = z.object({
@@ -44,7 +46,7 @@ export const statementInboxContract = c.router({
     method: "GET",
     path: "/statement-inbox",
     summary:
-      "The batches of statements waiting in the inbox for a run (`npx dbu6 docs run`), oldest first, each with its files. Send a file to /add-account/read, /add-account/add or /import-draft/statements/auto as `inbox_files=<saved_path>`; it stays in the inbox until /statement-inbox/remove takes it out",
+      "The batches of statements waiting in the inbox for a run (`npx dbu6 docs run`), oldest first, each with its files. Send a file to /add-account/read, /add-account/add or /import-draft/statements/auto as `inbox_files=<saved_path>` (or to /import-draft/abacus in `inbox_files`, for rows read from it); an import deletes it from the inbox once its rows are in the drafts, and a read leaves it",
     responses: {
       200: z.object({ batches: z.array(statementInboxBatchSchema) }),
       403: errorSchema,
@@ -63,26 +65,26 @@ export const statementInboxContract = c.router({
       403: errorSchema,
     },
   }),
-  removeFromStatementInbox: c.mutation({
+  discardFromStatementInbox: c.mutation({
     method: "POST",
-    path: "/statement-inbox/remove",
+    path: "/statement-inbox/discard",
     summary:
-      "Remove one dropped statement from the inbox, by its `saved_path`: once its rows are in the drafts, or to leave it out",
+      "Discard one dropped statement the person doesn't want imported, by its `saved_path`: it is deleted from the inbox unimported. An import deletes its own inbox files, so a file that went in never needs this",
     body: z.object({ saved_path: z.string() }),
     responses: {
-      200: z.object({ removed: z.string() }),
+      200: z.object({ discarded: z.string() }),
       403: errorSchema,
       404: errorSchema,
     },
   }),
-  clearStatementInbox: c.mutation({
+  discardStatementInbox: c.mutation({
     method: "POST",
-    path: "/statement-inbox/clear",
+    path: "/statement-inbox/discard-all",
     summary:
-      "Remove every dropped statement from the inbox, every batch with it, without importing any. `removed` is how many files went",
+      "Discard every dropped statement, every batch with it: all are deleted from the inbox unimported. `discarded` is how many files went",
     body: z.object({}),
     responses: {
-      200: z.object({ removed: z.number().int().nonnegative() }),
+      200: z.object({ discarded: z.number().int().nonnegative() }),
       403: errorSchema,
     },
   }),

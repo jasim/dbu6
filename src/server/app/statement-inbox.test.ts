@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  clearInbox,
+  discardInbox,
   inboxFilesFromField,
   listInbox,
   saveToInbox,
-  useUpInboxFiles,
+  deleteInboxFiles,
 } from "./statement-inbox.js";
 
 // A scratch project root, so nothing lands in the real one.
@@ -130,12 +130,12 @@ describe("the statement inbox", () => {
     if (!("files" in field)) throw new Error("expected inbox files");
     const [first, second] = field.files;
 
-    await useUpInboxFiles([first]);
+    await deleteInboxFiles([first]);
     expect(await listInbox()).toEqual([
       { batch: saved.batch, files: [saved.files[1]] },
     ]);
 
-    await useUpInboxFiles([second]);
+    await deleteInboxFiles([second]);
     expect(await exists(join(root, "tmp/statement-inbox", saved.batch))).toBe(
       false,
     );
@@ -149,11 +149,11 @@ describe("the statement inbox", () => {
     ]);
     await saveToInbox([new File(["c"], "third.pdf")]);
 
-    expect(await clearInbox()).toBe(3);
+    expect(await discardInbox()).toBe(3);
     expect(await listInbox()).toEqual([]);
     expect(await exists(join(root, "tmp/statement-inbox", first.batch))).toBe(
       false,
     );
-    expect(await clearInbox()).toBe(0);
+    expect(await discardInbox()).toBe(0);
   });
 });

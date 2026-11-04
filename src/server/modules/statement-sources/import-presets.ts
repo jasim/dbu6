@@ -4,8 +4,9 @@ import type {
 } from "../../../shared/index.js";
 
 export interface ParsedStatementIdentity {
-  // Name of the uploaded file, used only to make a rejection actionable.
-  file: string;
+  // The name the file was dropped with, used only to make a rejection
+  // actionable.
+  fileName: string;
   // The parser's name, exactly as institutions list it, e.g. `hdfc-cc-xls`.
   parserName: string;
   // The identifier the parser emitted, or null when it emitted none.
@@ -60,13 +61,13 @@ export function resolveImportAccount(
   if (!institution) {
     return reject(
       "no_institution_for_parser",
-      `No institution lists ${statement.parserName}, which parsed ${statement.file}.`,
+      `No institution lists ${statement.parserName}, which parsed ${statement.fileName}.`,
     );
   }
   if (accounts.length === 0) {
     return reject(
       "institution_has_no_accounts",
-      `"${institution.name}" lists ${statement.parserName}, which parsed ${statement.file}, but has no accounts to import it into.`,
+      `"${institution.name}" lists ${statement.parserName}, which parsed ${statement.fileName}, but has no accounts to import it into.`,
     );
   }
 
@@ -81,7 +82,7 @@ export function resolveImportAccount(
   if (statement.identifier === null) {
     return reject(
       "statement_account_identifier_required",
-      `${statement.parserName} reported no account identifier for ${statement.file}, and "${institution.name}" needs one to pick ${expected}.`,
+      `${statement.parserName} reported no account identifier for ${statement.fileName}, and "${institution.name}" needs one to pick ${expected}.`,
     );
   }
   const account = accounts.find((one) =>
@@ -90,7 +91,7 @@ export function resolveImportAccount(
   if (!account) {
     return reject(
       "statement_account_identifier_mismatch",
-      `${statement.file} reports account identifier ${statement.identifier}, which no account of "${institution.name}" lists; it expected ${expected}.`,
+      `${statement.fileName} reports account identifier ${statement.identifier}, which no account of "${institution.name}" lists; it expected ${expected}.`,
     );
   }
   return { ok: true, institution, account };

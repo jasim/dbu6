@@ -62,6 +62,8 @@ export const abacusImportRequestSchema = z.object({
   is_credit_card: z.boolean(),
   // A short label for the result and for error messages.
   source_name: z.string().trim().min(1).optional(),
+  // The statement inbox files the rows were read from, by `saved_path`.
+  inbox_files: z.array(z.string().min(1)).optional(),
   statement: abacusJsonSchema.extend({
     opening: z.number(),
     closing: z.number(),

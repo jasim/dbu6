@@ -10,7 +10,7 @@ const BANK_PARSER = "hdfc-bank-xls";
 const CARD_PARSER = "hdfc-cc-xls";
 
 function statement(parserName: string, identifier: string | null) {
-  return { file: "statement.xls", parserName, identifier };
+  return { fileName: "statement.xls", parserName, identifier };
 }
 
 function account(

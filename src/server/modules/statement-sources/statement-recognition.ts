@@ -124,27 +124,32 @@ export async function savedCustomStatementParserNames(
   return parserNames.filter((name): name is string => name !== null).sort();
 }
 
-/** One upload: the name the user dropped it under, and where its copy is. */
-export interface StatementUpload {
-  name: string;
+/**
+ * One dropped statement: the name the person dropped it with, and the
+ * absolute path it is read from (a staged copy, or the inbox file itself).
+ * The path tells apart two files dropped with one name.
+ */
+export interface DroppedFile {
+  fileName: string;
   path: string;
 }
 
 /**
- * Every upload against the saved parsers for its file type, all at once:
+ * Every dropped file against the saved parsers for its file type, all at once:
  * `parserSlots` bounds how many parsers run together.
  */
 export async function recognizeStatementFiles(
-  uploads: readonly StatementUpload[],
-): Promise<(StatementRecognition & { file: string })[]> {
+  files: readonly DroppedFile[],
+): Promise<(StatementRecognition & DroppedFile)[]> {
   return Promise.all(
-    uploads.map(async (upload) => {
+    files.map(async (file) => {
       const candidates = await savedCustomStatementParserNames(
-        path.extname(upload.path),
+        path.extname(file.path),
       );
       return {
-        ...(await recognizeStatementFile(candidates, upload.path)),
-        file: upload.name,
+        ...(await recognizeStatementFile(candidates, file.path)),
+        fileName: file.fileName,
+        path: file.path,
       };
     }),
   );

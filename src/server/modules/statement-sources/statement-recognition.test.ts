@@ -172,14 +172,16 @@ describe("reading uploads", () => {
     await writeProjectParser("sample-ledger-a", ".sample", "NOPII Bank A");
     await writeProjectParser("sample-ledger-b", ".sample", "NOPII Bank B");
 
+    const path = await sampleLedger();
     const [recognition] = await recognizeStatementFiles([
-      { name: "NOPII-statement.sample", path: await sampleLedger() },
+      { fileName: "NOPII-statement.sample", path },
     ]);
 
     expect(recognition).toEqual({
       outcome: "ambiguous",
       matchingParserNames: ["sample-ledger-a", "sample-ledger-b"],
-      file: "NOPII-statement.sample",
+      fileName: "NOPII-statement.sample",
+      path,
     });
   }, 60_000);
 

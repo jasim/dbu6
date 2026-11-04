@@ -93,14 +93,14 @@ export function DoMyBooks({
   });
   const remove = useMutation({
     mutationFn: (savedPath: string) =>
-      statementInboxApi.removeFromStatementInbox({
+      statementInboxApi.discardFromStatementInbox({
         body: { saved_path: savedPath },
       }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: STATEMENT_INBOX_KEY }),
   });
   const clear = useMutation({
-    mutationFn: () => statementInboxApi.clearStatementInbox({ body: {} }),
+    mutationFn: () => statementInboxApi.discardStatementInbox({ body: {} }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: STATEMENT_INBOX_KEY }),
   });
@@ -314,9 +314,8 @@ function HowItWorks() {
       </p>
       <p>
         It will start your coding agent in a terminal, and start importing your
-        statements. It'll automatically categorize each of the transactions,
-        but if something is ambiguous, then it will ask you about it in the
-        session.
+        statements. It'll automatically categorize each of the transactions, but
+        if something is ambiguous, then it will ask you about it in the session.
       </p>
       <p>
         All the entries it creates will go into the drafts. You have to confirm

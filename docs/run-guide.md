@@ -85,10 +85,12 @@ entries in the books.
   each file's `saved_path` and size. The files were only saved: nothing has
   read or imported them. Send them to the app by path, one
   `-F "inbox_files=<saved_path>"` each, in place of `-F "files=@<path>"`:
-  they are read where they are, and stay in the inbox. Once a file's rows
-  are in the drafts, take it out:
-  `npx sapporta api post /api/statement-inbox/remove --body '{"saved_path":"<saved_path>"}'`.
-  What is left there afterwards is what didn't go in.
+  they are read where they are. An import deletes its files from the inbox
+  once their rows are in the drafts, and its reply lists them
+  (`inbox_files_imported`); a read, or an import that refuses, leaves them.
+  So what is left there is what didn't go in, and you never delete a file
+  yourself. When the user doesn't want a file imported, discard it:
+  `npx sapporta api post /api/statement-inbox/discard --body '{"saved_path":"<saved_path>"}'`.
 - **From the user's words:** a folder they named ("my statements are in
   ~/Downloads/bank"). Read the files from there; don't copy them into the
   project.
@@ -137,8 +139,10 @@ Sample wallet        1    2025-08-02  2025-08-29  text       account, opening an
 ```
 
 Note under it: files read by several parsers, files of two accounts, a
-statement already in the books (`already_in_books`), and a period with a gap
-between two files.
+statement whose period the books already hold, and a period with a gap
+between two files. Import such a statement with the rest of its account's
+files all the same: rows the books hold are skipped, and the import deletes
+the file from the inbox.
 
 ### 2. Plan gate: Message 1, what you gave me
 
@@ -260,8 +264,9 @@ parser for it; import it freeform, as `npx dbu6 docs freeform-guide` says:
   a suggestion to confirm, never used on its own.
 - After go, create a new account with
   `npx sapporta rows create accounts`, then `POST /api/import-draft/abacus`
-  in the account's turn among the imports, oldest first. Once its rows are
-  in the drafts, take the file out of the inbox, as for any import.
+  in the account's turn among the imports, oldest first, naming the file
+  its rows came from in `inbox_files` when it waits in the inbox: the
+  import deletes it from the inbox, as any import does.
 - A balance mismatch goes back to the user in the question round; never
   change rows or balances to make them agree.
 

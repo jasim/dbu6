@@ -184,6 +184,9 @@ export const addAccountAddedSchema = z.object({
   drafts: z.number().int(),
   // ...and how many of them the rules or the coding agent categorized.
   categorized: z.number().int(),
+  // The `saved_path`s of the inbox files sent: imported, and so deleted from
+  // the statement inbox. Absent when none were sent.
+  inbox_files_imported: z.array(z.string()).optional(),
 });
 export type AddAccountAdded = z.infer<typeof addAccountAddedSchema>;
 
@@ -310,7 +313,7 @@ export const addAccountContract = c.router({
     method: "POST",
     path: "/add-account/add",
     summary:
-      "Add a bank or card from its statements (`files`, or `inbox_files` as /add-account/read takes them, all one account's; fields per addAccountFieldsSchema, and an optional `progress_id` for addProgress): create the ledger account and its preset entry (or use the one named, or the empty one the files belong to), tie it to the parser and number, record its opening balance the day before the earliest row, then import the files as /import does, categorization included. Everything that doesn't depend on timing is checked before anything is written. Inbox files stay in the inbox",
+      "Add a bank or card from its statements (`files`, or `inbox_files` as /add-account/read takes them, all one account's; fields per addAccountFieldsSchema, and an optional `progress_id` for addProgress): create the ledger account and its preset entry (or use the one named, or the empty one the files belong to), tie it to the parser and number, record its opening balance the day before the earliest row, then import the files as /import does, categorization included. Everything that doesn't depend on timing is checked before anything is written. Inbox files sent are deleted from the inbox once the account is added, as `inbox_files_imported` lists",
     contentType: "multipart/form-data",
     body: z.any(),
     responses: {

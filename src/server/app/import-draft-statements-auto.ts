@@ -8,6 +8,7 @@ import {
   type AutoImportFailedGroup,
   type AutoImportGroupResult,
   type AutoImportPlanFile,
+  type AutoImportResult,
 } from "../../shared/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import type {
@@ -35,7 +36,7 @@ import {
   type StagedUploads,
 } from "./upload-tmp.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
-import { inboxFilesFromField } from "./statement-inbox.js";
+import { inboxFilesFromField, deleteInboxFiles } from "./statement-inbox.js";
 import { writeCommentsSoon } from "../workflows/comment-writer.js";
 
 // Automatic statement import: the user uploads statement files, and
@@ -63,7 +64,7 @@ import { writeCommentsSoon } from "../workflows/comment-writer.js";
 type AutoImportRouteResponse =
   | {
       status: 200;
-      body: { files: AutoImportPlanFile[]; groups: AutoImportGroupResult[] };
+      body: AutoImportResult;
     }
   | { status: 400; body: AutoImportErrorBody }
   | { status: 422; body: AutoImportErrorBody };
@@ -76,7 +77,7 @@ function planFileRow(
     case "resolved":
       return {
         status: "resolved",
-        file_name: file.file,
+        file_name: file.fileName,
         saved_path: savedPath,
         parser_path: file.parserName,
         account: file.account,
@@ -89,21 +90,21 @@ function planFileRow(
     case "unrecognized":
       return {
         status: "unrecognized",
-        file_name: file.file,
+        file_name: file.fileName,
         saved_path: savedPath,
         candidate_parser_paths: file.candidateParserNames,
       };
     case "ambiguous":
       return {
         status: "ambiguous",
-        file_name: file.file,
+        file_name: file.fileName,
         saved_path: savedPath,
         matching_parser_paths: file.matchingParserNames,
       };
     case "unresolved":
       return {
         status: "unresolved",
-        file_name: file.file,
+        file_name: file.fileName,
         saved_path: savedPath,
         parser_path: file.parserName,
         account: file.account,
@@ -127,7 +128,7 @@ function failedGroup(
     account_name: group.account.name,
     base_account: baseAccount,
     is_credit_card: accountKindOf(group.account.is_credit_card) === "card",
-    file_names: group.statements.map((one) => one.file),
+    file_names: group.statements.map((one) => one.fileName),
   };
 }
 
@@ -141,7 +142,7 @@ function groupResult({
     account_name: group.account.name,
     base_account: baseAccount,
     is_credit_card: accountKindOf(group.account.is_credit_card) === "card",
-    file_names: group.statements.map((one) => one.file),
+    file_names: group.statements.map((one) => one.fileName),
     result: {
       ...result,
       custom_statement_parser_paths: Array.from(
@@ -152,13 +153,13 @@ function groupResult({
 }
 
 // The reply for a batch's outcome. `savedPath` says where a file's staged copy
-// is, by the name it was uploaded under.
+// is, by where it was read from.
 export function batchResponse(
   outcome: BatchImportOutcome,
-  savedPath: (fileName: string) => string | null,
+  savedPath: (path: string) => string | null,
 ): AutoImportRouteResponse {
   const files = outcome.files.map((file) =>
-    planFileRow(file, savedPath(file.file)),
+    planFileRow(file, savedPath(file.path)),
   );
   switch (outcome.kind) {
     case "unplanned": {
@@ -191,7 +192,7 @@ export function batchResponse(
             ? {}
             : {
                 imported_groups: imported,
-                partial_import: `${done} imported before "${outcome.failed.account.name}" failed. Those drafts are saved; drop their files before retrying.`,
+                partial_import: `${done} imported before "${outcome.failed.account.name}" failed. Those drafts are saved; leave their files out of a retry.`,
               }),
         },
       };
@@ -209,13 +210,23 @@ export interface AutoImportUploads {
   gpay: File | null;
 }
 
+/**
+ * What the route answers with: the reply, and the paths of the dropped files
+ * whose rows are now in the drafts. That is every file when the batch
+ * imported, else the files of the accounts imported before one failed.
+ */
+export interface AutoImportReply {
+  response: AutoImportRouteResponse;
+  importedPaths: ReadonlySet<string>;
+}
+
 export async function importStatementsAutomatically(
   uploads: AutoImportUploads,
   institutions: readonly ImportInstitution[],
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
   onProgress?: OnImportProgress,
-): Promise<AutoImportRouteResponse> {
+): Promise<AutoImportReply> {
   const { statements, gpay } = uploads;
   const received = statements
     .map((file) =>
@@ -254,12 +265,12 @@ async function importStaged(
   ledger: Ledger,
   loadCategorizer: LoadCategorizer,
   onProgress: OnImportProgress | undefined,
-): Promise<AutoImportRouteResponse> {
+): Promise<AutoImportReply> {
   return withStagedUploads(statements, async (staged) => {
     const outcome = await importStatementBatch(
       {
         statements: statements.map((file, index) => ({
-          name: file.name,
+          fileName: file.name,
           path: staged.paths[index],
         })),
         gpayHtmlPath,
@@ -271,15 +282,24 @@ async function importStaged(
     );
     // The new drafts' comments, in the background.
     writeCommentsSoon();
-    // The outcome keys a file by the name it was uploaded under, which is how
-    // its staged copy is found again.
+    // The outcome keeps where each file was read from, which is how its
+    // staged copy is found again, even for two uploads of one name.
     const stagedAt = new Map(
-      statements.map((file, index) => [file.name, staged.projectPaths[index]]),
+      staged.paths.map((path, index) => [path, staged.projectPaths[index]]),
     );
-    return keepUploadsFor(
-      batchResponse(outcome, (name) => stagedAt.get(name) ?? null),
-      staged,
-    );
+    return {
+      response: keepUploadsFor(
+        batchResponse(outcome, (path) => stagedAt.get(path) ?? null),
+        staged,
+      ),
+      importedPaths: new Set(
+        outcome.kind === "unplanned"
+          ? []
+          : outcome.imported.flatMap(({ group }) =>
+              group.statements.map((one) => one.path),
+            ),
+      ),
+    };
   });
 }
 
@@ -303,6 +323,27 @@ function keepUploadsFor(
   };
 }
 
+// The reply, naming by `saved_path` the inbox files that were imported, and
+// so deleted: on a success every one sent, after a failed account those of
+// the accounts imported before it.
+function withInboxFilesImported(
+  response: AutoImportRouteResponse,
+  savedPaths: readonly string[],
+): AutoImportRouteResponse {
+  if (savedPaths.length === 0) return response;
+  if (response.status === 200) {
+    return {
+      ...response,
+      body: { ...response.body, inbox_files_imported: [...savedPaths] },
+    };
+  }
+  if (!("failed_group" in response.body)) return response;
+  return {
+    ...response,
+    body: { ...response.body, inbox_files_imported: [...savedPaths] },
+  };
+}
+
 // Where each file would go, as the import would read it. Only the copies of
 // files that wouldn't import are kept, for the prompt that sets them up.
 export async function checkStatementUploads(
@@ -312,7 +353,7 @@ export async function checkStatementUploads(
   return withStagedUploads(statements, async (staged) => {
     const planned = await checkStatementBatch(
       statements.map((file, index) => ({
-        name: file.name,
+        fileName: file.name,
         path: staged.paths[index],
       })),
       institutions,
@@ -368,13 +409,18 @@ export default function importDraftStatementsAutoApi(
 
       const tracked = running.start(formFields(request.body).progress_id);
       try {
-        return await importStatementsAutomatically(
+        const { response, importedPaths } = await importStatementsAutomatically(
           { statements, gpay: uploadedFile(uploadedFiles, "gpay") },
           loadImportPresets(ledger.db, ledger.auth),
           ledger,
           loadCategorizer,
           tracked?.onProgress,
         );
+        // An import deletes its inbox files once their rows are in the drafts.
+        const importedInboxFiles = await deleteInboxFiles(
+          inbox.files.filter((file) => importedPaths.has(file.path)),
+        );
+        return withInboxFilesImported(response, importedInboxFiles);
       } finally {
         tracked?.finish();
       }

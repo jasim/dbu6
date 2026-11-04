@@ -9,22 +9,23 @@ import {
   resolveImportAccount,
   type ImportAccountRejectionReason,
 } from "./import-presets.js";
-import type { StatementRecognition } from "./statement-recognition.js";
+import type {
+  DroppedFile,
+  StatementRecognition,
+} from "./statement-recognition.js";
 
-// One uploaded file that exactly one saved parser claimed, with the statement
-// that parser produced. `file` is the name the user uploaded, not the staged
-// temp path, so every row of the plan is one the user can point at.
-export interface RecognizedStatement {
-  file: string;
+// One dropped file that exactly one saved parser claimed, with the statement
+// that parser produced. Its `fileName` makes every row of the plan one the
+// person can point at; its `path` tells apart two files of one name.
+export interface RecognizedStatement extends DroppedFile {
   // The parser's name, as institutions list it, e.g. `hdfc-cc-xls`.
   parserName: string;
   statement: AbacusStatement;
 }
 
-// What running the saved parsers over one upload established, under the name
-// the user uploaded it as. Detection is per file, so a batch can mix
-// recognized and unrecognized files.
-export type FileRecognition = StatementRecognition & { file: string };
+// What running the saved parsers over one dropped file established. Detection
+// is per file, so a batch can mix recognized and unrecognized files.
+export type FileRecognition = StatementRecognition & DroppedFile;
 
 // The account a recognized statement reports about itself, carried through the
 // plan so every row explains itself whether or not it resolved to an account.
@@ -37,38 +38,38 @@ interface ReportedAccount {
   transactions: number;
 }
 
-// One upload's place in the plan: the preset account it will import into, or
+// One dropped file's place in the plan: the preset account it will import into, or
 // why it has none. `unrecognized` and `ambiguous` come from detection;
 // `unresolved` means a parser read the file but no single account claims it.
 export type PlannedFile =
   | ({
       status: "resolved";
-      file: string;
       accountId: number;
       accountName: string;
-    } & ReportedAccount)
-  | { status: "unrecognized"; file: string; candidateParserNames: string[] }
-  | { status: "ambiguous"; file: string; matchingParserNames: string[] }
+    } & DroppedFile &
+      ReportedAccount)
+  | ({ status: "unrecognized"; candidateParserNames: string[] } & DroppedFile)
+  | ({ status: "ambiguous"; matchingParserNames: string[] } & DroppedFile)
   | ({
       status: "unresolved";
-      file: string;
       reason: ImportAccountRejectionReason;
       message: string;
       institutionName: string | null;
       candidateAccountNames: string[];
-    } & ReportedAccount);
+    } & DroppedFile &
+      ReportedAccount);
 
 // One preset account's share of the batch: the statements that resolved to
-// it, in upload order. One group is one account import.
+// it, in the order they were dropped. One group is one account import.
 export interface AutoImportGroup {
   institution: ImportInstitution;
   account: ImportAccount;
   statements: RecognizedStatement[];
 }
 
-// Either every upload resolved to an account and the groups say what to import,
+// Either every dropped file resolved to an account and the groups say what to import,
 // or at least one did not and nothing may be imported. `files` carries every
-// upload in both cases, so a rejection is as explanatory as a success.
+// dropped file in both cases, so a rejection is as explanatory as a success.
 export type AutoImportPlan =
   | { ok: true; files: PlannedFile[]; groups: AutoImportGroup[] }
   | { ok: false; files: PlannedFile[] };
@@ -100,7 +101,7 @@ export function statementPeriod(
   };
 }
 
-// Decide what a batch of recognized uploads would import, without touching the
+// Decide what a batch of recognized files would import, without touching the
 // ledger. Every file resolves through `resolveImportAccount`, and files that
 // resolve to one account, by its account_id, become one group.
 //
@@ -118,7 +119,8 @@ export function planAutoImport(
     if (recognition.outcome === "unrecognized") {
       files.push({
         status: "unrecognized",
-        file: recognition.file,
+        fileName: recognition.fileName,
+        path: recognition.path,
         candidateParserNames: recognition.candidateParserNames,
       });
       continue;
@@ -126,21 +128,23 @@ export function planAutoImport(
     if (recognition.outcome === "ambiguous") {
       files.push({
         status: "ambiguous",
-        file: recognition.file,
+        fileName: recognition.fileName,
+        path: recognition.path,
         matchingParserNames: recognition.matchingParserNames,
       });
       continue;
     }
 
     const resolution = resolveImportAccount(institutions, {
-      file: recognition.file,
+      fileName: recognition.fileName,
       parserName: recognition.parserName,
       identifier: recognition.statement.account?.identifier ?? null,
     });
     if (!resolution.ok) {
       files.push({
         status: "unresolved",
-        file: recognition.file,
+        fileName: recognition.fileName,
+        path: recognition.path,
         reason: resolution.reason,
         message: resolution.message,
         institutionName: resolution.institutionName,
@@ -152,7 +156,8 @@ export function planAutoImport(
 
     files.push({
       status: "resolved",
-      file: recognition.file,
+      fileName: recognition.fileName,
+      path: recognition.path,
       accountId: resolution.account.account_id,
       accountName: resolution.account.name,
       ...reportedAccount(recognition),

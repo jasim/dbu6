@@ -215,16 +215,21 @@ export const autoImportGroupResultSchema = z.object({
 
 // A freeform import names its ledger account directly, not through a preset,
 // so its result is a group without a preset account.
-export const abacusImportResultSchema = autoImportGroupResultSchema.omit({
-  account_id: true,
-  account_name: true,
-});
+// The `saved_path`s of the inbox files an import imported, their rows now in
+// the drafts, and so deleted from the statement inbox. Absent when there are
+// none.
+const inboxFilesImportedSchema = z.array(z.string()).optional();
+
+export const abacusImportResultSchema = autoImportGroupResultSchema
+  .omit({ account_id: true, account_name: true })
+  .extend({ inbox_files_imported: inboxFilesImportedSchema });
 
 // Every file's outcome, plus the import each account's group produced. The plan
 // is reported whether or not anything was imported.
 export const autoImportResultSchema = z.object({
   files: z.array(autoImportPlanFileSchema),
   groups: z.array(autoImportGroupResultSchema),
+  inbox_files_imported: inboxFilesImportedSchema,
 });
 
 // The account whose import raised the error, with the files that went into
@@ -240,7 +245,8 @@ export const autoImportFailedGroupSchema = z.object({
 // Why the automatic import refused a batch, one variant per way it can stop.
 // An account's import raising a statement import error carries every file's
 // outcome and the account that failed; accounts imported before it are saved
-// (`imported_groups`), and their files must leave the batch before a retry.
+// (`imported_groups`), their inbox files are deleted
+// (`inbox_files_imported`), and their files stay out of a retry.
 export const autoImportErrorSchema = z.union([
   z.intersection(
     statementImportErrorSchema,
@@ -249,6 +255,7 @@ export const autoImportErrorSchema = z.union([
       failed_group: autoImportFailedGroupSchema,
       imported_groups: z.array(autoImportGroupResultSchema).optional(),
       partial_import: z.string().optional(),
+      inbox_files_imported: inboxFilesImportedSchema,
     }),
   ),
   // Nothing was imported: some file couldn't be tied to an import preset.
@@ -284,7 +291,7 @@ export const importDraftsContract = c.router({
     method: "POST",
     path: "/import-draft/statements/auto",
     summary:
-      "Upload statement files as `files` (or name ones waiting in the statement inbox as `inbox_files`, `saved_path`s from GET /statement-inbox; they stay in the inbox), and optionally a Google Pay Takeout HTML as `gpay` to name UPI recipients, and a `progress_id` for statementsAutoProgress; each file is recognised by a saved parser, its preset account is resolved from the institution listing that parser and the account the statement reports, and one statement import runs per account",
+      "Upload statement files as `files` (or name ones waiting in the statement inbox as `inbox_files`, `saved_path`s from GET /statement-inbox; each is deleted from the inbox once its account's rows are in the drafts, as `inbox_files_imported` lists), and optionally a Google Pay Takeout HTML as `gpay` to name UPI recipients, and a `progress_id` for statementsAutoProgress; each file is recognised by a saved parser, its preset account is resolved from the institution listing that parser and the account the statement reports, and one statement import runs per account",
     contentType: "multipart/form-data",
     body: z.any(),
     responses: {
@@ -323,11 +330,15 @@ export const importDraftsContract = c.router({
   importAbacusStatement: c.mutation({
     method: "POST",
     path: "/import-draft/abacus",
-    summary: `Import one Abacus JSON statement, with its opening and closing balances, into drafts for the named ledger account. Coding agents post freeform transactions here; run \`${guideCommand("freeform-guide")}\` for the guide`,
+    summary: `Import one Abacus JSON statement, with its opening and closing balances, into drafts for the named ledger account. Coding agents post freeform transactions here; run \`${guideCommand("freeform-guide")}\` for the guide. \`inbox_files\` names the statement inbox files the rows were read from (\`saved_path\`s from GET /statement-inbox): the server doesn't read them, and deletes them from the inbox once the rows are in the drafts, as \`inbox_files_imported\` lists`,
     body: abacusImportRequestSchema,
     responses: {
       200: abacusImportResultSchema,
-      400: statementImportErrorSchema,
+      400: z.union([
+        statementImportErrorSchema,
+        // An `inbox_files` path that isn't a file in the statement inbox.
+        z.object({ error: z.literal("not_in_inbox"), message: z.string() }),
+      ]),
       403: errorBodySchema,
       422: statementImportErrorSchema,
     },

@@ -1,6 +1,6 @@
 import { access, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -181,7 +181,9 @@ afterEach(async () => {
 // Narrows the handler's response union to a rejection, so a test that expects
 // one reads its body without restating the union.
 function rejection(
-  response: Awaited<ReturnType<typeof importStatementsAutomatically>>,
+  response: Awaited<
+    ReturnType<typeof importStatementsAutomatically>
+  >["response"],
 ) {
   if (response.status === 200) {
     throw new Error("expected the batch to be rejected, but it imported");
@@ -191,7 +193,9 @@ function rejection(
 
 /** The batch refused before any account was imported. */
 function planRejection(
-  response: Awaited<ReturnType<typeof importStatementsAutomatically>>,
+  response: Awaited<
+    ReturnType<typeof importStatementsAutomatically>
+  >["response"],
 ) {
   const body = rejection(response);
   if (body.error !== "auto_import_files_unresolved") {
@@ -202,7 +206,9 @@ function planRejection(
 
 /** One account's import failed. */
 function groupFailure(
-  response: Awaited<ReturnType<typeof importStatementsAutomatically>>,
+  response: Awaited<
+    ReturnType<typeof importStatementsAutomatically>
+  >["response"],
 ) {
   const body = rejection(response);
   if (!("failed_group" in body)) {
@@ -256,7 +262,7 @@ describe("automatic statement import", () => {
   it("recognises each upload, groups it by account, and imports once per account", async () => {
     runStatementImport.mockResolvedValue(importedNothing());
 
-    const response = await importStatementsAutomatically(
+    const { response } = await importStatementsAutomatically(
       {
         statements: [
           await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
@@ -403,7 +409,7 @@ describe("automatic statement import", () => {
   });
 
   it("imports nothing when no institution lists a recognised file's parser, and explains every file", async () => {
-    const response = await importStatementsAutomatically(
+    const { response } = await importStatementsAutomatically(
       {
         statements: [
           await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
@@ -438,7 +444,7 @@ describe("automatic statement import", () => {
   }, 120_000);
 
   it("rejects a file no saved parser recognises, naming the parsers it tried", async () => {
-    const response = await importStatementsAutomatically(
+    const { response } = await importStatementsAutomatically(
       {
         statements: [
           new File(
@@ -504,7 +510,7 @@ describe("automatic statement import", () => {
   it("keeps a rejected batch's uploads in the project, where the reply says", async () => {
     const contents =
       "date,narration,amount\n2026-01-01,NOPII sample payee,1000\n";
-    const response = await importStatementsAutomatically(
+    const { response } = await importStatementsAutomatically(
       { statements: [new File([contents], "sample-notes.csv")], gpay: null },
       [bankPreset],
       ledger,
@@ -527,7 +533,7 @@ describe("automatic statement import", () => {
       .mockResolvedValueOnce(importedNothing())
       .mockRejectedValueOnce(new ClosingBalanceUnavailable());
 
-    const response = await importStatementsAutomatically(
+    const { response, importedPaths } = await importStatementsAutomatically(
       {
         statements: [
           await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),
@@ -549,6 +555,10 @@ describe("automatic statement import", () => {
     ]);
     expect(body.partial_import).toContain("Sample Bank");
     expect(body.partial_import).toContain("Sample Card");
+    // Only the file of the account imported before the failure went in.
+    expect([...importedPaths].map((path) => basename(path))).toEqual([
+      "0-bank-jan.xls",
+    ]);
     expect(body.failed_group).toEqual({
       account_id: 2,
       account_name: "Sample Card",
@@ -560,7 +570,7 @@ describe("automatic statement import", () => {
   }, 120_000);
 
   it("refuses an account whose ledger account was deleted, naming the preset calls", async () => {
-    const response = await importStatementsAutomatically(
+    const { response } = await importStatementsAutomatically(
       {
         statements: [await fixtureFile("hdfc-cc-xls", "card-jan.xls")],
         gpay: null,
@@ -593,7 +603,7 @@ describe("automatic statement import", () => {
   it("hands one staged Google Pay takeout to every account's import", async () => {
     runStatementImport.mockResolvedValue(importedNothing());
 
-    const response = await importStatementsAutomatically(
+    const { response } = await importStatementsAutomatically(
       {
         statements: [
           await fixtureFile("hdfc-bank-xls", "bank-jan.xls"),

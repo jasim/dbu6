@@ -30,9 +30,11 @@ import { requireOwner } from "./workflow-auth.js";
  * saves them as one batch under tmp/statement-inbox/<batch>/, and hands their
  * coding agent a prompt that names the inbox. Nothing here reads a statement
  * or touches the books. The agent's run sends inbox files to the imports by
- * their `saved_path` (`inbox_files`), and removes each once its rows are in
- * the drafts; a batch with none left goes with it, so no copy of the
- * statements lingers. A file dropped again, the same bytes under any name,
+ * their `saved_path` (`inbox_files`), and each import deletes its files
+ * once their rows are in the drafts (`deleteInboxFiles`); a batch with none
+ * left goes with it, so no copy of the statements lingers. Discarding a file
+ * deletes it unimported, when the person doesn't want it imported. A file
+ * dropped again, the same bytes under any name,
  * is not saved twice. The owner's only, like every upload.
  */
 
@@ -64,8 +66,8 @@ api.register(
 );
 
 api.register(
-  "removeFromStatementInbox",
-  statementInboxContract.removeFromStatementInbox,
+  "discardFromStatementInbox",
+  statementInboxContract.discardFromStatementInbox,
   async ({ c, request }) => {
     requireOwner(c);
     const { saved_path } = request.body;
@@ -76,17 +78,17 @@ api.register(
         body: { error: `${saved_path} isn't a file in the statement inbox` },
       };
     }
-    await useUpInboxFiles([file]);
-    return { status: 200, body: { removed: saved_path } };
+    await deleteInboxFiles([file]);
+    return { status: 200, body: { discarded: saved_path } };
   },
 );
 
 api.register(
-  "clearStatementInbox",
-  statementInboxContract.clearStatementInbox,
+  "discardStatementInbox",
+  statementInboxContract.discardStatementInbox,
   async ({ c }) => {
     requireOwner(c);
-    return { status: 200, body: { removed: await clearInbox() } };
+    return { status: 200, body: { discarded: await discardInbox() } };
   },
 );
 
@@ -206,19 +208,23 @@ export async function inboxFilesFromField(
   return { files };
 }
 
-/** Removes inbox files, and each batch left empty. */
-export async function useUpInboxFiles(
+/**
+ * Deletes inbox files, by their absolute paths, and each batch left empty;
+ * returns their `saved_path`s, as the listing gives them.
+ */
+export async function deleteInboxFiles(
   files: readonly ProjectFile[],
-): Promise<void> {
+): Promise<string[]> {
   for (const file of files) await rm(file.path, { force: true });
   for (const dir of new Set(files.map((file) => dirname(file.path)))) {
     // Only an empty folder goes; one with files left keeps them.
     await rmdir(dir).catch(() => {});
   }
+  return files.map((file) => relative(projectRoot(), file.path));
 }
 
-/** Removes every file waiting, and its batch; returns how many went. */
-export async function clearInbox(): Promise<number> {
+/** Deletes every file waiting, unimported, and its batch; returns how many. */
+export async function discardInbox(): Promise<number> {
   const batches = await listInbox();
   for (const { batch } of batches) {
     await rm(join(statementInboxDir(), batch), {

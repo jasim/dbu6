@@ -24,7 +24,7 @@ import {
   type StagedUploads,
 } from "./upload-tmp.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
-import { inboxFilesFromField } from "./statement-inbox.js";
+import { inboxFilesFromField, deleteInboxFiles } from "./statement-inbox.js";
 import { writeCommentsSoon } from "../workflows/comment-writer.js";
 
 /*
@@ -34,8 +34,8 @@ import { writeCommentsSoon } from "../workflows/comment-writer.js";
  * prompt for (`promptedFiles`). The browser sends the files again with the
  * add, which reads them afresh and keeps nothing. A coding agent's run sends
  * files waiting in the statement inbox by path (`inbox_files`) instead: they
- * are read where they are and stay there; the agent removes each once its
- * rows are in the drafts.
+ * are read where they are, and an add deletes them from the inbox once their
+ * rows are in the drafts. A read leaves them there.
  *
  * An add sent with a `progress_id` says how far it has got to
  * `addProgress` while it runs (import-progress.ts).
@@ -114,8 +114,17 @@ export default function addAccountApi(
           );
           // The new drafts' comments, in the background.
           writeCommentsSoon();
-          if (done.ok) return { status: 200 as const, body: done.added };
-          return addRefusal(done);
+          if (!done.ok) return addRefusal(done);
+          if (inbox.files.length === 0) {
+            return { status: 200 as const, body: done.added };
+          }
+          return {
+            status: 200 as const,
+            body: {
+              ...done.added,
+              inbox_files_imported: await deleteInboxFiles(inbox.files),
+            },
+          };
         });
       } finally {
         tracked?.finish();
@@ -161,7 +170,7 @@ function dropped(
   staged: StagedUploads,
 ) {
   return files.map((file, index): DroppedStatement => ({
-    name: file.name,
+    fileName: file.name,
     path: staged.paths[index],
     projectPath: staged.projectPaths[index],
   }));

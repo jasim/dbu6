@@ -10,6 +10,7 @@ import type { LoadCategorizer } from "../modules/categorization/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { importFreeformStatement } from "../workflows/statement-import/index.js";
 import { respondWithImportErrors } from "./import-error-response.js";
+import { inboxFilesFromField, deleteInboxFiles } from "./statement-inbox.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
 import { writeCommentsSoon } from "../workflows/comment-writer.js";
 
@@ -21,6 +22,10 @@ import { writeCommentsSoon } from "../workflows/comment-writer.js";
 // involved. The response is raw data for the agent to explain: the
 // per-account result the automatic import reports, or the import error's own
 // payload.
+//
+// The server never reads the file the rows came from, so the agent names it
+// in `inbox_files`, and the import deletes it from the statement inbox once
+// the rows are in the drafts, as every import deletes its own files.
 
 type AbacusImportRouteResponse =
   | { status: 200; body: AbacusImportResult }
@@ -69,12 +74,29 @@ export default function importDraftAbacusApi(
   api.register(
     "importAbacusStatement",
     importDraftsContract.importAbacusStatement,
-    async ({ c, request }) =>
-      importAbacusStatement(
+    async ({ c, request }) => {
+      const ledger = requireWorkflowLedger(c);
+      const inbox = await inboxFilesFromField(request.body);
+      if ("notInInbox" in inbox) {
+        return {
+          status: 400 as const,
+          body: { error: "not_in_inbox" as const, message: inbox.notInInbox },
+        };
+      }
+      const response = await importAbacusStatement(
         request.body,
-        requireWorkflowLedger(c),
+        ledger,
         loadCategorizer,
-      ),
+      );
+      if (response.status !== 200 || inbox.files.length === 0) return response;
+      return {
+        status: 200 as const,
+        body: {
+          ...response.body,
+          inbox_files_imported: await deleteInboxFiles(inbox.files),
+        },
+      };
+    },
   );
   return api;
 }

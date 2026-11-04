@@ -8,7 +8,7 @@ export {
   recognizeStatementFile,
   recognizeStatementFiles,
   savedCustomStatementParserNames,
-  type StatementUpload,
+  type DroppedFile,
 } from "./statement-recognition.js";
 export {
   resolveImportAccount,

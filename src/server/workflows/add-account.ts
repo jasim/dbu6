@@ -44,6 +44,7 @@ import {
   reportedAccount,
   statementPeriod,
   type AutoImportGroup,
+  type DroppedFile,
   type FileRecognition,
 } from "../modules/statement-sources/index.js";
 import { parseAccount, sameAmount } from "../modules/values/index.js";
@@ -64,7 +65,6 @@ import {
   isImportRefusal,
   type ImportRefusal,
   type OnImportProgress,
-  type StagedStatement,
 } from "./statement-import/index.js";
 
 /*
@@ -101,7 +101,7 @@ import {
  */
 
 /** A dropped statement, staged, and its path relative to the project. */
-export interface DroppedStatement extends StagedStatement {
+export interface DroppedStatement extends DroppedFile {
   projectPath: string;
 }
 
@@ -150,7 +150,7 @@ export function groupDrop(
   const groups = new Map<string, DropGroup>();
   recognitions.forEach((recognition, index) => {
     if (recognition.outcome !== "recognized") return;
-    const { file, parserName, statement } = recognition;
+    const { fileName, path, parserName, statement } = recognition;
     const placed = planned[index];
     const accountId =
       placed.status === "resolved"
@@ -164,7 +164,7 @@ export function groupDrop(
         ? newAccountKey(parserName, statement.account)
         : `account:${accountId}`;
     const group = groups.get(key) ?? { key, accountId, statements: [] };
-    group.statements.push({ file, parserName, statement });
+    group.statements.push({ fileName, path, parserName, statement });
     groups.set(key, group);
   });
   for (const group of groups.values()) {
@@ -268,14 +268,14 @@ async function readDrop(
       case "unrecognized":
         return {
           status: "unrecognized",
-          file_name: file.name,
+          file_name: file.fileName,
           saved_path: file.projectPath,
           candidate_parser_paths: recognition.candidateParserNames,
         };
       case "ambiguous":
         return {
           status: "ambiguous",
-          file_name: file.name,
+          file_name: file.fileName,
           saved_path: file.projectPath,
           matching_parser_paths: recognition.matchingParserNames,
         };
@@ -286,7 +286,7 @@ async function readDrop(
         )!;
         return {
           status: "read",
-          file_name: file.name,
+          file_name: file.fileName,
           account_key: group.key,
           parser: recognition.parserName,
           period: statementPeriod([statement]),
@@ -362,7 +362,7 @@ function describeGroup(ledger: Ledger, group: PlacedGroup): CandidateReading {
   const common = {
     key,
     parsers,
-    file_names: statements.map((one) => one.file),
+    file_names: statements.map((one) => one.fileName),
     identifier: printed?.identifier ?? null,
     period: statementPeriod(statements.map((one) => one.statement)),
   };
@@ -467,7 +467,7 @@ function checkStatements(
   typedAmount: number | null,
 ): StatementsCheck {
   const parts = statements.map((one) => one.statement);
-  const names = statements.map((one) => one.file);
+  const names = statements.map((one) => one.fileName);
   let assembled: AbacusStatement | null = null;
   let importRefusal: ImportRefusal | null = null;
   try {
@@ -889,7 +889,8 @@ async function importAdded(
   const outcome = await importPlannedGroups(
     statements.map((one) => ({
       status: "resolved",
-      file: one.file,
+      fileName: one.fileName,
+      path: one.path,
       accountId: account.id,
       accountName: home.account.name,
       ...reportedAccount(one),

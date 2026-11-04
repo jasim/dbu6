@@ -1,4 +1,10 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { listInbox, saveToInbox } from "./statement-inbox.js";
@@ -17,7 +23,9 @@ import { parseAccount } from "../modules/values/index.js";
 
 // The parsers are stubbed: these tests are about the requests, the replies
 // and where the dropped files go. Every parser exists; a file's name says
-// what it is (`uploadName` keeps it, after the batch's index).
+// what it is (`uploadName` keeps it, after the batch's index), and its month
+// comes from the name or else from the file's contents, so two files of one
+// name can hold different months.
 const { recognizeStatementFile, PARSERS } = vi.hoisted(() => ({
   recognizeStatementFile: vi.fn(),
   PARSERS: ["other-bank-pdf", "sample-bank-xls"],
@@ -26,12 +34,13 @@ vi.mock("../modules/statement-sources/index.js", async (importActual) => ({
   ...(await importActual<object>()),
   recognizeStatementFile,
   recognizeStatementFiles: async (
-    uploads: readonly { name: string; path: string }[],
+    files: readonly { fileName: string; path: string }[],
   ) =>
     Promise.all(
-      uploads.map(async (upload) => ({
-        ...(await recognizeStatementFile(PARSERS, upload.path)),
-        file: upload.name,
+      files.map(async (file) => ({
+        ...(await recognizeStatementFile(PARSERS, file.path)),
+        fileName: file.fileName,
+        path: file.path,
       })),
     ),
   savedCustomStatementParserNames: async () => PARSERS,
@@ -97,12 +106,16 @@ beforeEach(() => {
       if (parser === undefined || !parsers.includes(parser)) {
         return { outcome: "unrecognized", candidateParserNames: parsers };
       }
-      // "other-mar" opens at 16,000, every other statement at 10,000;
-      // "other-bad" says it closed 1,000 higher than its rows reach.
-      const month = /-(\w{3})\./.exec(name)?.[1] ?? "aug";
+      // "other-mar" opens at 16,000 and "feb" at 14,000, where "jan" closes;
+      // every other statement opens at 10,000. "other-bad" says it closed
+      // 1,000 higher than its rows reach.
+      const month =
+        /-(\w{3})\./.exec(name)?.[1] ??
+        /\b(jan|feb|mar|aug)\b/.exec(readFileSync(path, "utf8"))?.[1] ??
+        "aug";
       const read = statement(
         MONTHS[month] ? month : "aug",
-        month === "mar" ? 16000 : 10000,
+        month === "mar" ? 16000 : month === "feb" ? 14000 : 10000,
         parser,
       );
       return {
@@ -132,7 +145,12 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-const MONTHS: Record<string, string> = { jan: "01", mar: "03", aug: "08" };
+const MONTHS: Record<string, string> = {
+  jan: "01",
+  feb: "02",
+  mar: "03",
+  aug: "08",
+};
 
 // 5,000 in and 1,000 out in the month, from `opening`.
 function statement(month: string, opening: number, parser: string) {
@@ -388,7 +406,7 @@ describe("statements waiting in the inbox", () => {
     return body;
   }
 
-  it("reads them where they are, then adds them and removes them", async () => {
+  it("reads them where they are, then adds them and deletes them", async () => {
     const { batch, files } = await saveToInbox([
       new File(["NOPII"], "other-aug.pdf"),
     ]);
@@ -414,8 +432,118 @@ describe("statements waiting in the inbox", () => {
       }),
     });
     expect(added.status, await added.clone().text()).toBe(200);
-    // The agent removes them once their rows are in the drafts.
+    // Their rows are in the drafts, so they are deleted from the inbox.
+    expect(await added.json()).toMatchObject({ inbox_files_imported: paths });
+    expect(await listInbox()).toEqual([]);
+  });
+
+  it("imports two files of one name and deletes both", async () => {
+    const { files } = await saveToInbox([
+      new File(["NOPII jan"], "savings.xls"),
+      new File(["NOPII feb"], "savings.xls"),
+    ]);
+    const paths = files.map((file) => file.saved_path);
+
+    const imported = await app.request("/import-draft/statements/auto", {
+      method: "POST",
+      body: inboxForm(paths),
+    });
+    expect(imported.status, await imported.clone().text()).toBe(200);
+    const body = (await imported.json()) as {
+      groups: { result: { draft_transaction_count: number } }[];
+      inbox_files_imported: string[];
+    };
+    // Both months went in, as two files, not one read twice.
+    expect(
+      body.groups.map((one) => one.result.draft_transaction_count),
+    ).toEqual([4]);
+    expect(body.inbox_files_imported).toEqual(paths);
+    expect(await listInbox()).toEqual([]);
+  });
+
+  it("keeps an automatic import's files when it is refused", async () => {
+    const { batch, files } = await saveToInbox([
+      new File(["NOPII savings"], "savings-aug.xls"),
+      new File(["NOPII notes"], "unknown.csv"),
+    ]);
+
+    const refused = await app.request("/import-draft/statements/auto", {
+      method: "POST",
+      body: inboxForm(files.map((file) => file.saved_path)),
+    });
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).not.toHaveProperty("inbox_files_imported");
     expect(await listInbox()).toEqual([{ batch, files }]);
+  });
+
+  it("deletes the file a freeform import's rows came from", async () => {
+    const { files } = await saveToInbox([
+      new File(["NOPII freeform rows"], "sample-notes.txt"),
+    ]);
+    const paths = files.map((file) => file.saved_path);
+    const request = {
+      base_account: "Sample Savings",
+      is_credit_card: false,
+      source_name: "sample-notes",
+      inbox_files: paths,
+      statement: {
+        kind: "abacus",
+        account: null,
+        institution: null,
+        rows: [
+          {
+            date: "2026-01-03",
+            narration: "NOPII SALARY",
+            withdrawal: 0,
+            deposit: 5000,
+            balance: null,
+          },
+        ],
+        opening: 10000,
+        closing: 15000,
+      },
+    };
+
+    const imported = await app.request("/import-draft/abacus", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    expect(imported.status, await imported.clone().text()).toBe(200);
+    expect(await imported.json()).toMatchObject({
+      inbox_files_imported: paths,
+    });
+    expect(await listInbox()).toEqual([]);
+  });
+
+  it("refuses a freeform import naming a file that isn't in the inbox", async () => {
+    const response = await app.request("/import-draft/abacus", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        base_account: "Sample Savings",
+        is_credit_card: false,
+        inbox_files: ["package.json"],
+        statement: {
+          kind: "abacus",
+          account: null,
+          institution: null,
+          rows: [
+            {
+              date: "2026-01-03",
+              narration: "NOPII SALARY",
+              withdrawal: 0,
+              deposit: 5000,
+              balance: null,
+            },
+          ],
+          opening: 10000,
+          closing: 15000,
+        },
+      }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "not_in_inbox" });
   });
 
   it("keeps them when the add is refused", async () => {

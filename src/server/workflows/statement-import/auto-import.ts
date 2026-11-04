@@ -3,6 +3,7 @@ import { loadLedgerAccounts } from "../../modules/accounts/index.js";
 import {
   planAutoImport,
   type AutoImportGroup,
+  type DroppedFile,
   type PlannedFile,
   recognizeStatementFiles,
 } from "../../modules/statement-sources/index.js";
@@ -29,15 +30,8 @@ import {
 //
 // The Takeout names UPI recipients in every account the batch imports.
 
-// One uploaded statement: the name the user dropped it under, and where its
-// staged copy is.
-export interface StagedStatement {
-  name: string;
-  path: string;
-}
-
 export interface StatementBatch {
-  statements: readonly StagedStatement[];
+  statements: readonly DroppedFile[];
   gpayHtmlPath: string | null;
   institutions: readonly ImportInstitution[];
 }
@@ -84,7 +78,7 @@ export async function importStatementBatch(
     `[auto-statement-upload] importing ${plan.groups.length} account(s): ${plan.groups
       .map(
         (group) =>
-          `${group.account.name} <- ${group.statements.map((one) => one.file).join(", ")}`,
+          `${group.account.name} <- ${group.statements.map((one) => one.fileName).join(", ")}`,
       )
       .join("; ")}`,
   );
@@ -107,7 +101,7 @@ export async function importStatementBatch(
  * import itself doesn't run the parsers again.
  */
 export async function checkStatementBatch(
-  statements: readonly StagedStatement[],
+  statements: readonly DroppedFile[],
   institutions: readonly ImportInstitution[],
 ): Promise<PlannedFile[]> {
   const recognitions = await recognizeStatementFiles(statements);
@@ -159,7 +153,7 @@ export async function importPlannedGroups(
           onProgress,
         },
         ledger,
-        group.statements.map((one) => one.file),
+        group.statements.map((one) => one.fileName),
       );
       imported.push({ group, baseAccount: ledgerName, result });
     } catch (error) {

@@ -35,12 +35,13 @@ vi.mock("../modules/statement-sources/index.js", async (importActual) => ({
   ...(await importActual<object>()),
   recognizeStatementFile,
   recognizeStatementFiles: async (
-    uploads: readonly { name: string; path: string }[],
+    files: readonly { fileName: string; path: string }[],
   ) =>
     Promise.all(
-      uploads.map(async (upload) => ({
-        ...(await recognizeStatementFile(PARSERS, upload.path)),
-        file: upload.name,
+      files.map(async (file) => ({
+        ...(await recognizeStatementFile(PARSERS, file.path)),
+        fileName: file.fileName,
+        path: file.path,
       })),
     ),
   savedCustomStatementParserNames: async () => PARSERS,
@@ -135,7 +136,11 @@ const fixtures = new Map<string, Fixture>();
 function dropped(name: string, fixture: Fixture): DroppedStatement {
   const path = `/sample/${name}`;
   fixtures.set(path, fixture);
-  return { name, path, projectPath: `tmp/statement-uploads/sample/${name}` };
+  return {
+    fileName: name,
+    path,
+    projectPath: `tmp/statement-uploads/sample/${name}`,
+  };
 }
 
 // A project of its own: a new bank or card looks for the default
@@ -1203,7 +1208,8 @@ describe("groupDrop", () => {
   ) =>
     ({
       outcome: "recognized",
-      file,
+      fileName: file,
+      path: `/staged/${file}`,
       parserName: fixture.parsers[0],
       statement: fixture.statement,
     }) as Parameters<typeof groupDrop>[0][number];
@@ -1216,7 +1222,8 @@ describe("groupDrop", () => {
         recognized("NOPII-sav.xls", savings("08")),
         {
           outcome: "unrecognized",
-          file: "NOPII.txt",
+          fileName: "NOPII.txt",
+          path: "/staged/NOPII.txt",
           candidateParserNames: [],
         },
         recognized("NOPII-jul.pdf", otherBank("07", { opening: 10000 })),
@@ -1228,7 +1235,7 @@ describe("groupDrop", () => {
       groups.map((one) => [
         one.key,
         one.accountId,
-        one.statements.map((read) => read.file),
+        one.statements.map((read) => read.fileName),
       ]),
     ).toEqual([
       ["new:bank:050505000099", null, ["NOPII-jul.pdf", "NOPII-aug.pdf"]],
