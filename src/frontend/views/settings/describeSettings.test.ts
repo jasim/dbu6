@@ -73,7 +73,7 @@ describe("rulesValue", () => {
       state: "read",
       filename: "transaction_mappings.mjs",
       exact: [{}, {}],
-      includes: [{}],
+      contains: [{}],
     } as unknown as TransactionMappingsView;
     expect(rulesValue(data)).toEqual({ tone: "plain", text: "3 rules" });
   });

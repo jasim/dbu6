@@ -12,6 +12,7 @@ import {
   type StatementAccountRefusal,
   type StatementAccountRow,
   type StatementAccounts,
+  type StatementScopeView,
   type TransactionMappingsView,
 } from "../../shared/index.js";
 import {
@@ -30,6 +31,9 @@ import {
   DEFAULT_CUSTOM_MAPPINGS_FILENAME,
   readCustomMappingsFile,
   readTransactionMappings,
+  type ContainsRule,
+  type ExactRule,
+  type StatementScope,
   TRANSACTION_MAPPINGS_FILENAME,
 } from "../modules/categorization/index.js";
 import {
@@ -90,8 +94,9 @@ export function loadImportPresetsView(ledger: Ledger): ImportPresetsView {
 }
 
 /**
- * The user's transaction_mappings.mjs, read now, each rule's account checked
- * against the ledger's names; or why no run can use it.
+ * The user's transaction_mappings.mjs, read now, each account a rule names
+ * checked against the ledger's names, and each rule's account against the
+ * accounts with statements; or why no run can use it.
  */
 export async function loadTransactionMappingsView(
   ledger: Ledger,
@@ -106,27 +111,56 @@ export async function loadTransactionMappingsView(
     }
     throw error;
   }
-  const names = new Set(
-    loadLedgerAccounts(ledger.sqlite, ledger.auth).map((one) => one.name),
-  );
+  const accountNames = ledgerAccountNames(ledger);
+  const names = new Set(accountNames.values());
+  const withStatements = accountsWithStatements(ledger, accountNames);
+  const scope = (statement: StatementScope): StatementScopeView =>
+    statement.every
+      ? { every: true }
+      : {
+          every: false,
+          accounts: statement.accounts.map((name) => ({
+            name,
+            in_ledger: names.has(name),
+          })),
+        };
+  const common = (rule: ExactRule | ContainsRule) => ({
+    statement: scope(rule.statement),
+    money: rule.money,
+    map_to_account: rule.mapToAccount,
+    in_ledger: names.has(rule.mapToAccount),
+    map_to_has_statements: withStatements.has(rule.mapToAccount),
+  });
   return {
     state: "read",
     filename,
-    exact: Object.entries(rules.exact).map(([narration, account]) => ({
-      narration,
-      account,
-      in_ledger: names.has(account),
+    exact: rules.exact.map((rule) => ({
+      ...common(rule),
+      narrations: rule.narrations,
     })),
-    includes: rules.includes.map((rule) => ({
-      account: rule.account,
-      in_ledger: names.has(rule.account),
-      direction: rule.direction ?? null,
+    contains: rules.contains.map((rule) => ({
+      ...common(rule),
+      contains: rule.contains,
       amount: rule.amount
         ? { min: rule.amount.min ?? null, max: rule.amount.max ?? null }
         : null,
-      values: rule.values,
     })),
   };
+}
+
+/** The names of the ledger accounts an import preset lists: those with statements. */
+function accountsWithStatements(
+  ledger: Ledger,
+  accountNames: ReadonlyMap<number, string>,
+): Set<string> {
+  const listed = new Set<string>();
+  for (const institution of loadImportPresets(ledger.db, ledger.auth)) {
+    for (const account of institution.accounts) {
+      const name = accountNames.get(account.account_id);
+      if (name !== undefined) listed.add(name);
+    }
+  }
+  return listed;
 }
 
 export async function changeImportPresets(

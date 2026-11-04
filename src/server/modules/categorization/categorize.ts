@@ -10,12 +10,12 @@ import {
   resolveAccountIdForCategorized,
   type AccountsByName,
   type CategorizedTransaction,
+  type StatementTransaction,
 } from "./CategorizedTransaction.js";
 import {
   categorizeViaLLM,
   nothingSentReport,
   type CategorizationLlm,
-  type StatementTransaction,
 } from "./llm-categorization.js";
 import { PROMPT_TEMPLATE } from "./prompt-template.js";
 import { whileCategorizing } from "./categorizing.js";
@@ -33,8 +33,8 @@ export type ConfigPart<T> =
 
 export interface Categorizer {
   // The mapping rules (transaction_mappings.mjs), needed as soon as there is a
-  // row.
-  classify: ConfigPart<(transaction: Abacus) => Account | null>;
+  // row. They read the whole row, its statement included, as the LLM does.
+  classify: ConfigPart<(row: StatementTransaction) => Account | null>;
   // The account's instructions (custom_mappings_*.prompt), needed once a row is
   // left for the LLM.
   customMappings: ConfigPart<string>;
@@ -43,20 +43,22 @@ export interface Categorizer {
 
 export interface CategorizationRow {
   transaction: Abacus;
-  // The ledger account whose statement holds the row, for the same-account
-  // rule and for the LLM to know whose statement it reads; null when the
-  // ledger has no such account.
+  // The ledger account whose statement holds the row, for the rules and the
+  // LLM to know whose statement they read, and for the same-account rule;
+  // null when the ledger has no such account.
   baseAccountId: number | null;
 }
 
-// Who gave a row its ledger account, or why it has none: an answer that is
-// the row's own base account, or no answer that names a ledger account.
+// Who gave a row its ledger account, or why it has none: an LLM answer that
+// is the row's own base account (a rule never answers with it), or no
+// answer that names a ledger account.
 export type CategorizationOutcome =
   "rule" | "llm" | "same-account" | "uncategorized";
 
 export interface CategorizedRow extends CategorizedTransaction {
   // The ledger account `account` names, or null: uncategorized, an answer
-  // that names no ledger account, or the row's own base account.
+  // that names no ledger account, or the row's own base account (from the
+  // LLM: a rule never answers with it).
   accountId: number | null;
   // "rule" or "llm" exactly when `accountId` is set.
   outcome: CategorizationOutcome;
@@ -91,7 +93,7 @@ export interface Categorization {
 /**
  * Each row's account: the mapping rules first, the LLM for the rest, choosing
  * from the ledger's accounts, then the ledger account the answer names, left
- * out when it is the row's own base account. With the report of how the LLM
+ * out when the LLM answered with the row's own base account. With the report of how the LLM
  * fared. Counted as categorization while it runs (`categorizationIdle`).
  */
 export function categorize(
@@ -249,7 +251,7 @@ async function answerAccounts(
 
   // 1. Apply the authoritative executable mappings before asking the LLM.
   const { mapped, unmappedIndices } = partitionByClassifier(
-    transactions,
+    statementTransactions,
     need(categorizer.classify),
   );
   onProgress?.({
@@ -288,18 +290,18 @@ async function answerAccounts(
   };
 }
 
-// Each transaction the rules answer, by its index, and the rest. A rule can
-// turn on the direction and the amount, so the same narration may be
-// answered for one transaction and not another.
+// Each row the rules answer, by its index, and the rest. A rule can turn on
+// the statement, the direction and the amount, so the same narration may be
+// answered for one row and not another.
 function partitionByClassifier(
-  transactions: Abacus[],
-  classify: (transaction: Abacus) => Account | null,
+  rows: readonly StatementTransaction[],
+  classify: (row: StatementTransaction) => Account | null,
 ): { mapped: Map<number, Account>; unmappedIndices: number[] } {
   const mapped = new Map<number, Account>();
   const unmappedIndices: number[] = [];
 
-  transactions.forEach((transaction, index) => {
-    const account = classify(transaction);
+  rows.forEach((row, index) => {
+    const account = classify(row);
     if (account) mapped.set(index, account);
     else unmappedIndices.push(index);
   });

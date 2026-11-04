@@ -13,7 +13,10 @@ import {
 } from "../modules/values/index.js";
 import {
   categorize,
+  previewRule,
   tallyCategorization,
+  type OneRule,
+  type RulePreview,
   type LoadCategorizer,
   type OnCategorizationProgress,
 } from "../modules/categorization/index.js";
@@ -28,6 +31,7 @@ import {
   insertCategorizationRuleRequest,
   loadCategorizationRuleRequest,
   loadDraftsById,
+  loadRulePreviewRows,
   saveReclassifiedDrafts,
   type ReclassifiedDraft,
 } from "../modules/drafts/index.js";
@@ -250,4 +254,16 @@ export function forgetCategorizationRuleRequests(
   baseAccountId: number,
 ): number {
   return clearCategorizationRuleRequests(ledger.db, ledger.auth, baseAccountId);
+}
+
+/**
+ * What one rule would catch, per statement, among the drafts and the books,
+ * matched by the categorizer itself. Reads only. Throws as the rules file
+ * would refuse the rule (`compileMappings`).
+ */
+export function previewCategorizationRule(
+  ledger: Ledger,
+  rule: OneRule,
+): RulePreview {
+  return previewRule(rule, loadRulePreviewRows(ledger.sqlite, ledger.auth));
 }

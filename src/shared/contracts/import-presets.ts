@@ -212,34 +212,59 @@ export const accountInstructionsSchema = z.object({
 });
 export type AccountInstructions = z.infer<typeof accountInstructionsSchema>;
 
-// A mapping rule's account, and whether the ledger has an account of that
-// exact name. A rule whose account is not there leaves its entries
-// uncategorized.
-const mappingTargetFields = {
-  account: z.string(),
+// A ledger account a rule names, and whether the ledger has an account of
+// that exact name. A rule whose account is not there leaves its entries
+// uncategorized; a statement that is not there is read by no import.
+const namedAccountSchema = z.object({
+  name: z.string(),
   in_ledger: z.boolean(),
+});
+
+// The statements a rule reads: every statement ("*" in the file), or the
+// accounts whose statements print the rows, by name.
+export const statementScopeViewSchema = z.discriminatedUnion("every", [
+  z.object({ every: z.literal(true) }),
+  z.object({ every: z.literal(false), accounts: z.array(namedAccountSchema) }),
+]);
+export type StatementScopeView = z.infer<typeof statementScopeViewSchema>;
+
+// Which way the money moved, relative to the statement's account.
+export const ruleMoneySchema = z.enum(["in", "out", "either"]);
+export type RuleMoney = z.infer<typeof ruleMoneySchema>;
+
+// What every rule has: the statements it reads, which way the money moved,
+// and the account it answers with. `map_to_has_statements` is true when an
+// import preset lists that account, which makes the rule a transfer between
+// the person's own accounts.
+const ruleFields = {
+  statement: statementScopeViewSchema,
+  money: ruleMoneySchema,
+  map_to_account: z.string(),
+  in_ledger: z.boolean(),
+  map_to_has_statements: z.boolean(),
 };
 
 // user-config/transaction_mappings.mjs as a run reads it: the rules applied
-// to every account's entries before the LLM sees the ones they don't match.
+// to a statement's entries before the LLM sees the ones they don't match.
 export const transactionMappingsViewSchema = z.discriminatedUnion("state", [
   z.object({
     state: z.literal("read"),
     filename: z.string(),
-    // A whole narration and its account; checked before any includes rule.
-    exact: z.array(z.object({ narration: z.string(), ...mappingTargetFields })),
+    // Whole-narration rules; checked before any contains rule.
+    exact: z.array(
+      z.object({ ...ruleFields, narrations: z.array(z.string()) }),
+    ),
     // In the order they are checked; the first to match wins. A rule matches
-    // a narration containing any of its values, moving money in `direction`
-    // when it has one, and an amount within `amount` when it has one.
-    includes: z.array(
+    // a narration containing any of its texts, on a statement it reads,
+    // moving money its way, and an amount within `amount` when it has one.
+    contains: z.array(
       z.object({
-        ...mappingTargetFields,
-        direction: z.enum(["withdrawal", "deposit"]).nullable(),
+        ...ruleFields,
+        contains: z.array(z.string()),
         // Both ends included; an open end is null.
         amount: z
           .object({ min: z.number().nullable(), max: z.number().nullable() })
           .nullable(),
-        values: z.array(z.string()),
       }),
     ),
   }),
@@ -327,7 +352,7 @@ export const importPresetsContract = c.router({
     method: "GET",
     path: "/import-presets/transaction-mappings",
     summary:
-      "user-config/transaction_mappings.mjs, read now: its exact and includes rules, each account checked against the ledger",
+      "user-config/transaction_mappings.mjs, read now: its exact and contains rules, each with the statements it reads and its account, checked against the ledger",
     responses: {
       200: transactionMappingsViewSchema,
       403: z.object({ error: z.string() }),

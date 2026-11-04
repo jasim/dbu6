@@ -2,7 +2,6 @@ import { type ReactNode, useDeferredValue, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@sapporta/ui/cn";
 import { apiErrorMessage } from "../../api";
-import { formatAmountRange } from "../../format";
 import { LoadError } from "../../components/load-error";
 import {
   AccountParentPath,
@@ -14,6 +13,9 @@ import {
   exactByAccount,
   exactExample,
   findIncludes,
+  isUnscopedTransfer,
+  ruleLimits,
+  statementsNotInBooks,
   type ReadMappings,
 } from "./mapping-rules";
 import {
@@ -25,11 +27,13 @@ import {
   Matched,
   NotInBooks,
   RuleCard,
+  StatementNotInBooks,
+  TransferOnEveryStatement,
 } from "./rule-parts";
 
 /*
  * The Exact and Contains tabs: the rules in transaction_mappings.mjs, which
- * every account's transactions meet before the AI does. Read-only; the
+ * the statements each rule names meet before the AI does. Read-only; the
  * file is edited in user-config/.
  */
 export function RulesPanel({ tab }: { tab: "exact" | "contains" }) {
@@ -69,8 +73,8 @@ export function RulesPanel({ tab }: { tab: "exact" | "contains" }) {
 const FIRST_DESCRIPTIONS = 6;
 
 /**
- * One row per account, its descriptions under it: those whose account the
- * books don't have first, then most rules first.
+ * One row per account, statement and money, its descriptions under it:
+ * those that need fixing first, then most descriptions first.
  */
 function ExactRules({ mappings }: { mappings: ReadMappings }) {
   const [query, setQuery] = useState("");
@@ -94,7 +98,7 @@ function ExactRules({ mappings }: { mappings: ReadMappings }) {
         }
       />
       <RuleCard
-        title="Descriptions, by account"
+        title="Descriptions, by account and statement"
         search={
           mappings.exact.length > 0 && (
             <FindInput
@@ -113,17 +117,16 @@ function ExactRules({ mappings }: { mappings: ReadMappings }) {
           }
         >
           {rows.map((row) => {
-            const open = finding || expanded.has(row.account);
+            const open = finding || expanded.has(row.key);
             const shown = open
               ? row.found
               : row.found.slice(0, FIRST_DESCRIPTIONS);
             const more = row.found.length - shown.length;
             return (
-              <li key={row.account} className={ROW}>
+              <li key={row.key} className={ROW}>
                 <Account
-                  name={row.account}
-                  parentPath={paths.byName(row.account)}
-                  inLedger={row.in_ledger}
+                  rule={row.rule}
+                  parentPath={paths.byName(row.rule.map_to_account)}
                 />
                 <ul className={CHIPS}>
                   {shown.map((text, index) => (
@@ -134,9 +137,9 @@ function ExactRules({ mappings }: { mappings: ReadMappings }) {
                       <button
                         type="button"
                         onClick={() =>
-                          setExpanded((was) => new Set(was).add(row.account))
+                          setExpanded((was) => new Set(was).add(row.key))
                         }
-                        aria-label={`Show ${more} more for ${row.account}`}
+                        aria-label={`Show ${more} more for ${row.rule.map_to_account}`}
                         className="rounded-[5px] px-1.5 py-0.5 text-meta font-semibold text-primary hover:underline hover:underline-offset-4"
                       >
                         +{more}
@@ -179,18 +182,18 @@ function ContainsRules({ mappings }: { mappings: ReadMappings }) {
       <RuleCard
         title="Phrases, in the order they're checked"
         search={
-          mappings.includes.length > 0 && (
+          mappings.contains.length > 0 && (
             <FindInput
               value={query}
               onChange={setQuery}
-              label="Find a phrase or account"
+              label="Find a phrase, account or statement"
             />
           )
         }
       >
         <RuleRows
           empty={
-            mappings.includes.length === 0
+            mappings.contains.length === 0
               ? "No contains rules yet."
               : `Nothing matches “${query.trim()}”.`
           }
@@ -205,18 +208,11 @@ function ContainsRules({ mappings }: { mappings: ReadMappings }) {
               </span>
               <div>
                 <Account
-                  name={rule.account}
-                  parentPath={paths.byName(rule.account)}
-                  inLedger={rule.in_ledger}
-                >
-                  {(rule.direction !== null || rule.amount !== null) && (
-                    <span className="text-meta font-normal text-ink-soft">
-                      {ruleLimits(rule)}
-                    </span>
-                  )}
-                </Account>
+                  rule={rule}
+                  parentPath={paths.byName(rule.map_to_account)}
+                />
                 <ul className={CHIPS}>
-                  {rule.values.map((value, index) => (
+                  {rule.contains.map((value, index) => (
                     <Chip key={index}>{value}</Chip>
                   ))}
                 </ul>
@@ -248,44 +244,35 @@ function RuleRows({
   );
 }
 
-/** What a contains rule is limited to: "money out · up to 500". */
-function ruleLimits(rule: {
-  direction: "withdrawal" | "deposit" | null;
-  amount: { min: number | null; max: number | null } | null;
-}): string {
-  return [
-    rule.direction === null
-      ? null
-      : rule.direction === "withdrawal"
-        ? "money out"
-        : "money in",
-    rule.amount === null ? null : formatAmountRange(rule.amount),
-  ]
-    .filter((part) => part !== null)
-    .join(" · ");
-}
-
 /**
- * A rule's account in bold, with facts beside it and its parent path under
- * it. A rule may name an account the books don't have, which has no path.
+ * A rule's account in bold, with what it reads and is limited to beside it,
+ * statement first, and its parent path under it. A rule may name an account
+ * the books don't have, which has no path.
  */
 function Account({
-  name,
+  rule,
   parentPath,
-  inLedger,
-  children,
 }: {
-  name: string;
+  rule: Parameters<typeof ruleLimits>[0] &
+    Parameters<typeof isUnscopedTransfer>[0] & {
+      map_to_account: string;
+      in_ledger: boolean;
+    };
   parentPath: string | null;
-  inLedger: boolean;
-  children?: ReactNode;
 }) {
+  const missingStatements = statementsNotInBooks(rule.statement);
   return (
     <div className="min-w-0">
       <p className="flex flex-wrap items-baseline gap-x-2.5 text-row font-semibold text-foreground">
-        {name}
-        {children}
-        {!inLedger && <NotInBooks />}
+        {rule.map_to_account}
+        <span className="text-meta font-normal text-ink-soft">
+          {ruleLimits(rule)}
+        </span>
+        {!rule.in_ledger && <NotInBooks />}
+        {missingStatements.length > 0 && (
+          <StatementNotInBooks names={missingStatements} />
+        )}
+        {isUnscopedTransfer(rule) && <TransferOnEveryStatement />}
       </p>
       {parentPath !== null && <AccountParentPath path={parentPath} />}
     </div>

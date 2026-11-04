@@ -34,8 +34,9 @@ const PAGE_TITLE = "Categorization rules";
  * Categorization rules: what decides a statement's
  * transactions' accounts on import, one tab per step in the order a
  * transaction meets them. Exact and Contains are the rules in
- * transaction_mappings.mjs, which apply to every account; AI is each bank
- * or card's notes, for whatever the rules miss. Each tab opens on one of
+ * transaction_mappings.mjs, each of which reads the statements it names
+ * (or every statement); AI is each bank or card's notes, for whatever the
+ * rules miss. Each tab opens on one of
  * the user's own rules as an example. Read-only: the files are edited in
  * user-config/. Its one action, beside the title while drafts need an
  * account, is Improve categorization.
@@ -69,7 +70,7 @@ export function ImportInstructions() {
     mappings.data?.state === "read" ? mappings.data : null;
   const tabs: TabItem<RuleTab>[] = [
     { id: "exact", label: "Exact", count: rules?.exact.length },
-    { id: "contains", label: "Contains", count: rules?.includes.length },
+    { id: "contains", label: "Contains", count: rules?.contains.length },
     { id: "ai", label: "AI" },
   ];
   const baseId = useId();

@@ -341,69 +341,111 @@ describe("the transaction mappings", () => {
     );
   }
 
-  it("lists the rules in order, each account checked against the ledger, with any amount range", async () => {
+  it("lists the rules in order, each account checked against the ledger and the presets, with any amount range", async () => {
     writeMappings({
-      exact: { "SAMPLE CAFE 050505": "Sample Card" },
-      includes: [
+      exact: [
         {
-          account: "Sample Savings",
-          direction: "deposit",
-          values: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
+          statement: "Sample Savings",
+          money: "out",
+          narrations: ["SAMPLE CAFE 050505"],
+          mapToAccount: "Sample Card",
+        },
+      ],
+      contains: [
+        {
+          statement: ["Sample Card", "Sample Gone"],
+          money: "in",
+          contains: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
+          mapToAccount: "Sample Savings",
         },
         {
-          account: "Sample Gone",
+          statement: "*",
+          money: "either",
+          contains: ["SAMPLE SHOP"],
           amount: { max: 500 },
-          values: ["SAMPLE SHOP"],
+          mapToAccount: "Sample Gone",
         },
       ],
     });
-    expect(await books().mappings()).toEqual({
+    const presets = books();
+    expect((await presets.change(bankWithSavings)).status).toBe(200);
+    expect(await presets.mappings()).toEqual({
       status: 200,
       body: {
         state: "read",
         filename: "transaction_mappings.mjs",
         exact: [
           {
-            narration: "SAMPLE CAFE 050505",
-            account: "Sample Card",
+            statement: {
+              every: false,
+              accounts: [{ name: "Sample Savings", in_ledger: true }],
+            },
+            money: "out",
+            narrations: ["SAMPLE CAFE 050505"],
+            map_to_account: "Sample Card",
             in_ledger: true,
+            map_to_has_statements: false,
           },
         ],
-        includes: [
+        contains: [
           {
-            account: "Sample Savings",
-            in_ledger: true,
-            direction: "deposit",
+            statement: {
+              every: false,
+              accounts: [
+                { name: "Sample Card", in_ledger: true },
+                { name: "Sample Gone", in_ledger: false },
+              ],
+            },
+            money: "in",
+            contains: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
             amount: null,
-            values: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
+            map_to_account: "Sample Savings",
+            in_ledger: true,
+            // The bank's preset lists the savings account.
+            map_to_has_statements: true,
           },
           {
-            account: "Sample Gone",
-            in_ledger: false,
-            direction: null,
+            statement: { every: true },
+            money: "either",
+            contains: ["SAMPLE SHOP"],
             amount: { min: null, max: 500 },
-            values: ["SAMPLE SHOP"],
+            map_to_account: "Sample Gone",
+            in_ledger: false,
+            map_to_has_statements: false,
           },
         ],
       },
     });
   });
 
+  it("refuses the format from before rules named their statement, saying so", async () => {
+    writeMappings({ exact: { "SAMPLE ONE": "Sample Card" }, includes: [] });
+    const old = await books().mappings();
+    expect(old.body).toMatchObject({ state: "unreadable" });
+    expect(old.body.error).toContain("Categorization rules in the old format");
+  });
+
   it("reads an edit without a restart", async () => {
     const presets = books();
-    writeMappings({ exact: { "SAMPLE ONE": "Sample Card" }, includes: [] });
+    const rule = (narrations: string[]) => ({
+      statement: "*",
+      money: "out",
+      narrations,
+      mapToAccount: "Sample Card",
+    });
+    writeMappings({ exact: [rule(["SAMPLE ONE"])], contains: [] });
     expect((await presets.mappings()).body.exact).toHaveLength(1);
 
     writeMappings({
-      exact: { "SAMPLE ONE": "Sample Card", "SAMPLE TWO": "Sample Card" },
-      includes: [],
+      exact: [rule(["SAMPLE ONE"]), rule(["SAMPLE TWO"])],
+      contains: [],
     });
     expect((await presets.mappings()).body.exact).toHaveLength(2);
   });
 
   it("says why a file no run can use is refused", async () => {
     const presets = books();
-    writeMappings({ exact: "not rules" });
+    writeMappings({ exact: "not rules", contains: [] });
     const invalid = await presets.mappings();
     expect(invalid.body).toMatchObject({ state: "unreadable" });
     expect(invalid.body.error).toContain("Invalid categorization config file");

@@ -82,40 +82,68 @@ const INSTRUCTIONS: Record<number, AccountInstructions> = {
   },
 };
 
+const EVERY = { every: true } as const;
+const ON_SAMPLE_BANK = {
+  every: false as const,
+  accounts: [{ name: "Sample Bank", in_ledger: true }],
+};
+
 const RULES: TransactionMappingsView = {
   state: "read",
   filename: "transaction_mappings.mjs",
   exact: [
-    { narration: "NOPII CAFE ONE", account: "Dining", in_ledger: true },
-    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
-      narration: `NOPII SHOP ${n}`,
-      account: "Groceries",
+    {
+      statement: EVERY,
+      money: "either",
+      narrations: ["NOPII CAFE ONE", "NOPII CAFE TWO"],
+      map_to_account: "Dining",
       in_ledger: true,
-    })),
-    { narration: "NOPII CAFE TWO", account: "Dining", in_ledger: true },
-    { narration: "NOPII OLD PAYEE", account: "Sample Gone", in_ledger: false },
+      map_to_has_statements: false,
+    },
+    {
+      statement: ON_SAMPLE_BANK,
+      money: "out",
+      narrations: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `NOPII SHOP ${n}`),
+      map_to_account: "Groceries",
+      in_ledger: true,
+      map_to_has_statements: false,
+    },
+    {
+      statement: EVERY,
+      money: "either",
+      narrations: ["NOPII OLD PAYEE"],
+      map_to_account: "Sample Gone",
+      in_ledger: false,
+      map_to_has_statements: false,
+    },
   ],
-  includes: [
+  contains: [
     {
-      account: "Dining",
-      in_ledger: true,
-      direction: "withdrawal",
+      statement: EVERY,
+      money: "out",
+      contains: ["NOPII CAFE", "NOPII BISTRO"],
       amount: { min: null, max: 500 },
-      values: ["NOPII CAFE", "NOPII BISTRO"],
+      map_to_account: "Dining",
+      in_ledger: true,
+      map_to_has_statements: false,
     },
     {
-      account: "Salary",
-      in_ledger: true,
-      direction: "deposit",
+      statement: ON_SAMPLE_BANK,
+      money: "in",
+      contains: ["NOPII PAYROLL"],
       amount: null,
-      values: ["NOPII PAYROLL"],
+      map_to_account: "Salary",
+      in_ledger: true,
+      map_to_has_statements: false,
     },
     {
-      account: "Transfers",
-      in_ledger: true,
-      direction: null,
+      statement: EVERY,
+      money: "either",
+      contains: ["sample-payee@okaxis"],
       amount: null,
-      values: ["sample-payee@okaxis"],
+      map_to_account: "Sample Card",
+      in_ledger: true,
+      map_to_has_statements: true,
     },
   ],
 };
@@ -285,7 +313,7 @@ describe("Categorization rules", () => {
     expect(host.querySelector("h1")?.textContent).toBe("Categorization rules");
     expect(text()).toContain("How to categorize your transactions.");
     expect(tabsOf(tabLists()[0])).toEqual([
-      { text: "Exact11", selected: true },
+      { text: "Exact3", selected: true },
       { text: "Contains3", selected: false },
       { text: "AI", selected: false },
     ]);
@@ -349,9 +377,9 @@ describe("Categorization rules", () => {
       await renderAt("/categorization-rules?show=exact");
 
       expect(rows()).toEqual([
-        "Sample Gonenot in your books: NOPII OLD PAYEE",
-        "GroceriesExpenses > Kitchen: NOPII SHOP 1 · NOPII SHOP 2 · NOPII SHOP 3 · NOPII SHOP 4 · NOPII SHOP 5 · NOPII SHOP 6 · +2",
-        "DiningExpenses: NOPII CAFE ONE · NOPII CAFE TWO",
+        "Sample GoneOn every statementnot in your books: NOPII OLD PAYEE",
+        "GroceriesOn Sample Bank · money outExpenses > Kitchen: NOPII SHOP 1 · NOPII SHOP 2 · NOPII SHOP 3 · NOPII SHOP 4 · NOPII SHOP 5 · NOPII SHOP 6 · +2",
+        "DiningOn every statementExpenses: NOPII CAFE ONE · NOPII CAFE TWO",
       ]);
 
       await click(host.querySelector('button[aria-label^="Show 2 more"]'));
@@ -363,7 +391,9 @@ describe("Categorization rules", () => {
       await renderAt("/categorization-rules?show=exact");
 
       await find("shop 5");
-      expect(rows()).toEqual(["GroceriesExpenses > Kitchen: NOPII SHOP 5"]);
+      expect(rows()).toEqual([
+        "GroceriesOn Sample Bank · money outExpenses > Kitchen: NOPII SHOP 5",
+      ]);
 
       await find("groceries");
       expect(rows()[0]).toContain("NOPII SHOP 7 · NOPII SHOP 8");
@@ -374,7 +404,7 @@ describe("Categorization rules", () => {
   });
 
   describe("Contains", () => {
-    it("lists the rules in checking order, with their direction and amounts", async () => {
+    it("lists the rules in checking order, with their statement, money and amounts, flagging a transfer on every statement", async () => {
       await renderAt("/categorization-rules?show=contains");
 
       expect(text()).toContain(
@@ -382,9 +412,9 @@ describe("Categorization rules", () => {
       );
       expect(host.querySelector("mark")?.textContent).toBe("NOPII CAFE");
       expect(rows()).toEqual([
-        "1Diningmoney out · up to 500Expenses: NOPII CAFE · NOPII BISTRO",
-        "2Salarymoney in: NOPII PAYROLL",
-        "3Transfers: sample-payee@okaxis",
+        "1DiningOn every statement · money out · up to 500Expenses: NOPII CAFE · NOPII BISTRO",
+        "2SalaryOn Sample Bank · money in: NOPII PAYROLL",
+        "3Sample CardOn every statementtransfer on every statement: sample-payee@okaxis",
       ]);
     });
 
@@ -392,7 +422,9 @@ describe("Categorization rules", () => {
       await renderAt("/categorization-rules?show=contains");
 
       await find("payroll");
-      expect(rows()).toEqual(["2Salarymoney in: NOPII PAYROLL"]);
+      expect(rows()).toEqual([
+        "2SalaryOn Sample Bank · money in: NOPII PAYROLL",
+      ]);
     });
   });
 

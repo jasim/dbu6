@@ -23,7 +23,7 @@ const GROCERIES_ACCOUNT_ID = 2;
 const categorizer: Categorizer = {
   classify: {
     ok: true,
-    value: (transaction): Account | null =>
+    value: ({ transaction }): Account | null =>
       transaction.narration.startsWith("NOPII SHOP")
         ? parseAccount("Groceries")
         : null,

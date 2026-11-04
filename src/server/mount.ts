@@ -25,6 +25,7 @@ import statementInboxApi from "./app/statement-inbox.js";
 import accountsApi from "./app/accounts.js";
 import agentHandoffApi from "./app/agent-handoff.js";
 import categorizationRuleRequestsApi from "./app/categorization-rule-requests.js";
+import categorizationRulesApi from "./app/categorization-rules.js";
 import classifyDraftTransactionsApi from "./app/classify-draft-transactions.js";
 import codingAgentApi from "./app/coding-agent.js";
 import commentWriterApi from "./app/comment-writer.js";
@@ -115,6 +116,7 @@ export function loadDbu6App(
   mountApi(api, postDraftsToJournalApi);
   mountApi(api, setDraftsAccountApi);
   mountApi(api, categorizationRuleRequestsApi);
+  mountApi(api, categorizationRulesApi);
   mountApi(api, homeApi);
   mountApi(api, overviewApi);
   mountApi(api, reviewApi);

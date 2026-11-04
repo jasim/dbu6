@@ -3,8 +3,8 @@
 // reclassifying and clearing them, the comments the comment writer fills,
 // what an account's drafts hold, whether a bank or card has transactions of
 // its own, where drafts begin, and the rule requests the user makes to
-// improve the categoriser from them. Import from here rather than from the
-// files.
+// improve the categoriser from them, and every statement row as a rule
+// preview reads it. Import from here rather than from the files.
 export {
   partitionByCategorization,
   type CategorizedDraft,
@@ -65,3 +65,4 @@ export {
   type FailingChecksFilter,
   type OtherStatementDrafts,
 } from "./draft-status.js";
+export { loadRulePreviewRows } from "./rule-preview-rows.js";

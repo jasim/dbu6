@@ -4,58 +4,119 @@ import {
   exactByAccount,
   exactExample,
   findIncludes,
+  isUnscopedTransfer,
+  ruleLimits,
   type ReadMappings,
 } from "./mapping-rules";
+
+const EVERY = { every: true } as const;
+const on = (...names: string[]) => ({
+  every: false as const,
+  accounts: names.map((name) => ({ name, in_ledger: true })),
+});
+
+const exact = (
+  narrations: string[],
+  map_to_account: string,
+  more: Partial<ReadMappings["exact"][number]> = {},
+): ReadMappings["exact"][number] => ({
+  statement: EVERY,
+  money: "either",
+  narrations,
+  map_to_account,
+  in_ledger: true,
+  map_to_has_statements: false,
+  ...more,
+});
 
 const mappings: ReadMappings = {
   state: "read",
   filename: "transaction_mappings.mjs",
   exact: [
-    { narration: "SAMPLE CAFE 050505", account: "Food", in_ledger: true },
-    { narration: "NOPII SHOP", account: "Sample Gone", in_ledger: false },
-    { narration: "NOPII BAKERY", account: "Food", in_ledger: true },
+    exact(["SAMPLE CAFE 050505"], "Food"),
+    exact(["NOPII SHOP"], "Sample Gone", { in_ledger: false }),
+    exact(["NOPII BAKERY"], "Food"),
+    exact(["NOPII BAKERY 2"], "Food", {
+      statement: on("Sample Savings"),
+      money: "out",
+    }),
   ],
-  includes: [
+  contains: [
     {
-      account: "Sample Card",
-      in_ledger: true,
-      direction: "withdrawal",
+      statement: on("Sample Savings"),
+      money: "out",
+      contains: ["CARD PAYMENT 050505"],
       amount: null,
-      values: ["CARD PAYMENT 050505"],
+      map_to_account: "Sample Card",
+      in_ledger: true,
+      map_to_has_statements: true,
     },
     {
-      account: "Sample Gone",
-      in_ledger: false,
-      direction: null,
+      statement: EVERY,
+      money: "either",
+      contains: ["sample-payee@okaxis"],
       amount: null,
-      values: ["sample-payee@okaxis"],
+      map_to_account: "Sample Gone",
+      in_ledger: false,
+      map_to_has_statements: false,
     },
   ],
 };
 
-const empty: ReadMappings = { ...mappings, exact: [], includes: [] };
+const empty: ReadMappings = { ...mappings, exact: [], contains: [] };
 
-describe("the exact rules by account", () => {
-  it("groups the narrations under their account, those not in the books first, then most rules first", () => {
+describe("the exact rules by account and statement", () => {
+  it("groups the narrations under their account, statement and money, those to fix first, then most first", () => {
     expect(
-      exactByAccount(mappings).map((row) => [row.account, row.narrations]),
+      exactByAccount(mappings).map((row) => [
+        row.rule.map_to_account,
+        ruleLimits(row.rule),
+        row.narrations,
+      ]),
     ).toEqual([
-      ["Sample Gone", ["NOPII SHOP"]],
-      ["Food", ["SAMPLE CAFE 050505", "NOPII BAKERY"]],
+      ["Sample Gone", "On every statement", ["NOPII SHOP"]],
+      ["Food", "On every statement", ["SAMPLE CAFE 050505", "NOPII BAKERY"]],
+      ["Food", "On Sample Savings · money out", ["NOPII BAKERY 2"]],
     ]);
   });
 
-  it("finds narrations, or every narration of an account it finds, ignoring case", () => {
+  it("finds narrations, or every narration of an account or statement it finds, ignoring case", () => {
     expect(
-      exactByAccount(mappings, "cafe").map((row) => [row.account, row.found]),
+      exactByAccount(mappings, "cafe").map((row) => [
+        row.rule.map_to_account,
+        row.found,
+      ]),
     ).toEqual([["Food", ["SAMPLE CAFE 050505"]]]);
     expect(exactByAccount(mappings, " FOOD ").map((row) => row.found)).toEqual([
       ["SAMPLE CAFE 050505", "NOPII BAKERY"],
+      ["NOPII BAKERY 2"],
     ]);
+    expect(
+      exactByAccount(mappings, "sample savings").map((row) => row.found),
+    ).toEqual([["NOPII BAKERY 2"]]);
+  });
+
+  it("puts a transfer on every statement first, as one to fix", () => {
+    const transfer: ReadMappings = {
+      ...mappings,
+      exact: [
+        exact(["NOPII ONE", "NOPII TWO"], "Food"),
+        exact(["BILLPAY SAMPLE CARD"], "Sample Card", {
+          map_to_has_statements: true,
+        }),
+      ],
+    };
+    const rows = exactByAccount(transfer);
+    expect(rows.map((row) => row.rule.map_to_account)).toEqual([
+      "Sample Card",
+      "Food",
+    ]);
+    expect(isUnscopedTransfer(rows[0].rule)).toBe(true);
+    expect(isUnscopedTransfer(rows[1].rule)).toBe(false);
   });
 });
 
-describe("the includes rules", () => {
+describe("the contains rules", () => {
   it("keeps each rule's place in the checking order", () => {
     expect(
       findIncludes(mappings, "OKAXIS").map((rule) => rule.position),
@@ -63,10 +124,26 @@ describe("the includes rules", () => {
     expect(findIncludes(mappings).map((rule) => rule.position)).toEqual([1, 2]);
   });
 
-  it("finds values and accounts, ignoring case", () => {
+  it("finds texts, accounts and statements, ignoring case", () => {
     expect(
-      findIncludes(mappings, "sample card").map((rule) => rule.values),
+      findIncludes(mappings, "sample card").map((rule) => rule.contains),
     ).toEqual([["CARD PAYMENT 050505"]]);
+    expect(
+      findIncludes(mappings, "on sample savings").map((rule) => rule.position),
+    ).toEqual([1]);
+  });
+
+  it("say what each reads, statement first", () => {
+    expect(
+      ruleLimits({
+        statement: on("Sample Card", "Sample Savings"),
+        money: "in",
+        amount: { min: null, max: 5000 },
+      }),
+    ).toMatch(/^On Sample Card, Sample Savings · money in · /);
+    expect(
+      ruleLimits({ statement: EVERY, money: "either", amount: null }),
+    ).toBe("On every statement");
   });
 });
 
@@ -86,10 +163,7 @@ describe("the examples", () => {
   it("never show a UPI address as the exact example, which matches inside longer descriptions", () => {
     const upiFirst: ReadMappings = {
       ...mappings,
-      exact: [
-        { narration: "sample@okbank", account: "Food", in_ledger: true },
-        ...mappings.exact,
-      ],
+      exact: [exact(["sample@okbank"], "Food"), ...mappings.exact],
     };
     expect(exactExample(upiFirst).text).toBe("SAMPLE CAFE 050505");
   });

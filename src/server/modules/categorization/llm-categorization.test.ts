@@ -8,8 +8,8 @@ import {
   splitIntoCalls,
   type CategorizationLlm,
   type LLMCategorizationConfig,
-  type StatementTransaction,
 } from "./llm-categorization.js";
+import type { StatementTransaction } from "./CategorizedTransaction.js";
 import type { CategorizationProgress } from "./categorize.js";
 
 const listMock = vi.fn();

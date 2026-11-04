@@ -57,8 +57,10 @@ describe("classifyDraftTransactions", () => {
     writeFileSync(
       join(configDir, "transaction_mappings.mjs"),
       `export const mappings = {
-        exact: {},
-        includes: [{ account: "Coffee", values: ["COFFEE SHOP |"] }],
+        exact: [],
+        contains: [
+          { statement: "*", money: "either", contains: ["COFFEE SHOP |"], mapToAccount: "Coffee" },
+        ],
       };`,
     );
     writeFileSync(
@@ -173,8 +175,10 @@ describe("classifyDraftTransactions", () => {
     writeFileSync(
       join(configDir, "transaction_mappings.mjs"),
       `export const mappings = {
-        exact: {},
-        includes: [{ account: "Coffee", values: ["UPI debit"] }],
+        exact: [],
+        contains: [
+          { statement: "*", money: "either", contains: ["UPI debit"], mapToAccount: "Coffee" },
+        ],
       };`,
     );
 

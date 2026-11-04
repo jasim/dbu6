@@ -119,6 +119,10 @@ export {
   type ImportPresetsFileRefusal,
   type ImportPresetsView,
   type TransactionMappingsView,
+  type StatementScopeView,
+  type RuleMoney,
+  statementScopeViewSchema,
+  ruleMoneySchema,
 } from "./import-presets.js";
 export {
   canonicalStatementIdentifier,
@@ -347,3 +351,9 @@ export {
   type SearchJournal,
   type SearchResults,
 } from "./search.js";
+export {
+  categorizationRulesContract,
+  rulePreviewSchema,
+  rulePreviewStatementSchema,
+  type RulePreviewView,
+} from "./categorization-rules.js";

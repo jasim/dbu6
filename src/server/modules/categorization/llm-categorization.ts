@@ -10,6 +10,7 @@ import {
   parseAccount,
   isWithdrawal,
 } from "../values/index.js";
+import type { StatementTransaction } from "./CategorizedTransaction.js";
 import type { OnCategorizationProgress } from "./categorize.js";
 
 /*
@@ -71,13 +72,6 @@ export interface CategorizationLlm {
         pauseBetweenCalls(): Promise<void>;
       }
     | { ready: false; reason: string };
-}
-
-// A transaction the rules left, with the ledger account whose statement holds
-// it; null when the ledger has no such account.
-export interface StatementTransaction {
-  transaction: Abacus;
-  statementAccount: string | null;
 }
 
 export interface LLMCategorizationConfig {

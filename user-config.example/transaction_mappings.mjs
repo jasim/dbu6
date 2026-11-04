@@ -1,53 +1,100 @@
-// Deterministic transaction mappings, applied before the LLM is consulted.
-// Pure data — the matching engine is dbu6's.
+// Rules that decide where a statement's rows go, before the AI is asked.
+// Each rule reads one statement's rows (or several, or every statement's)
+// and says where money moving one way, with a description like this, went
+// or came from. Pure data: the matching engine is dbu6's.
 //
-// Narrations are normalized before matching: Unicode NFKC, runs of whitespace
-// collapsed to one space, trimmed, upper-cased. Write patterns in whatever
-// case is convenient.
+//   statement     the account whose statement prints the row, by its name in
+//                 Accounts: one name, a list of names, or "*" for every
+//                 statement. Never the account the money went to or came from.
+//   money         "in", "out" or "either", relative to that account. On a
+//                 card's statement, a bill payment is "in".
+//   mapToAccount  where the money went or came from, by its name in Accounts
+//
+// "*" is for a payee's own name or UPI address, which means the same account
+// on any statement. A rule to one of your own banks or cards (a transfer, a
+// card bill) names the statement it reads, and goes on the side whose
+// description names the other account:
+//
+//   {
+//     statement: "Sample savings",
+//     money: "out",
+//     contains: ["BILLPAY SAMPLE CARD"],
+//     mapToAccount: "Sample card",
+//   },
+//
+// A rule never answers with the row's own statement account; when it would,
+// the next rule or the AI gets the row.
+//
+// Descriptions are normalized before matching: Unicode NFKC, runs of
+// whitespace collapsed to one space, trimmed, upper-cased. Write them in
+// whatever case is convenient.
 
 export const mappings = {
-  // Whole-narration matches. Checked first, and they always win. A key that
-  // is a UPI VPA (`payee@psp`) also matches when that VPA appears inside a
-  // longer narration, e.g. `UPIOUT/<ref>/payee@psp/UPI/0000`.
-  exact: {
-    "ACME SUPERMARKET": "Groceries",
-    "The Corner Cafe": "Food",
-    "CITY TRANSIT AUTHORITY": "Travel",
-    "billing@example-isp": "Internet",
-  },
+  // Whole-description matches. Checked first. A description that is a UPI
+  // address (payee@psp) also matches inside a longer description, e.g.
+  // `UPIOUT/<ref>/payee@psp/UPI/0000`.
+  exact: [
+    {
+      statement: "*",
+      money: "out",
+      narrations: ["ACME SUPERMARKET"],
+      mapToAccount: "Groceries",
+    },
+    {
+      statement: "*",
+      money: "out",
+      narrations: ["The Corner Cafe"],
+      mapToAccount: "Food",
+    },
+    {
+      statement: "*",
+      money: "out",
+      narrations: ["CITY TRANSIT AUTHORITY"],
+      mapToAccount: "Travel",
+    },
+    {
+      statement: "*",
+      money: "out",
+      narrations: ["billing@example-isp"],
+      mapToAccount: "Internet",
+    },
+  ],
 
-  // Substring matches, checked in this order after exact misses. Keep narrower
-  // patterns ahead of broader ones.
-  //
-  //   account   - the account to assign, by its name in the Accounts table
-  //   values    - substrings to look for in the narration
-  //   direction - optional, "withdrawal" or "deposit"; omit to match both
-  //   amount    - optional, { min, max }: only amounts in this range, both
-  //               ends included; leave either end out to leave it open
-  includes: [
+  // Phrase matches, checked in this order after the exact rules; the first
+  // to match wins. Put narrower phrases ahead of broader ones. A contains
+  // rule may add `amount: { min, max }`: only amounts in this range, both
+  // ends included; leave either end out to leave it open.
+  contains: [
     {
-      account: "Tolls & Parking",
-      direction: "withdrawal",
+      statement: "*",
+      money: "out",
+      contains: ["CITY CAR PARK"],
       amount: { max: 200 },
-      values: ["CITY CAR PARK"],
+      mapToAccount: "Tolls & Parking",
     },
     {
-      account: "Electricity",
-      values: ["CITY POWER", "ELECTRIC UTILITY"],
+      statement: "*",
+      money: "out",
+      contains: ["CITY POWER", "ELECTRIC UTILITY"],
+      mapToAccount: "Electricity",
     },
     {
-      account: "Groceries",
-      values: ["SUPERMARKET", "GROCERS"],
+      statement: "*",
+      money: "out",
+      contains: ["SUPERMARKET", "GROCERS"],
+      mapToAccount: "Groceries",
     },
     {
-      account: "Cash",
-      direction: "withdrawal",
-      values: ["TO ATM", "ATM WITHDRAWAL"],
+      statement: "*",
+      money: "out",
+      contains: ["TO ATM", "ATM WITHDRAWAL"],
+      mapToAccount: "Cash",
     },
     {
-      account: "Interest",
-      direction: "deposit",
-      values: ["INTEREST PAID"],
+      statement: "*",
+      money: "in",
+      contains: ["INTEREST PAID"],
+      mapToAccount: "Interest",
     },
   ],
 };

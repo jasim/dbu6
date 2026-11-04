@@ -3,8 +3,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
 import { userConfigDir } from "../../paths.js";
-import type { Abacus } from "../statement/index.js";
 import { type Account, parseAccount } from "../values/index.js";
+import type { StatementTransaction } from "./CategorizedTransaction.js";
 import type { Categorizer, ConfigPart } from "./categorize.js";
 import type { CategorizationLlm } from "./llm-categorization.js";
 import {
@@ -39,7 +39,7 @@ export const TRANSACTION_MAPPINGS_FILENAME = "transaction_mappings.mjs";
 export const DEFAULT_CUSTOM_MAPPINGS_FILENAME =
   "custom_mappings_default.prompt";
 
-type TransactionClassifier = (transaction: Abacus) => Account | null;
+type TransactionClassifier = (row: StatementTransaction) => Account | null;
 
 function isMissingFileError(error: unknown): boolean {
   return (
@@ -65,16 +65,8 @@ function readRequiredConfigFile(configDir: string, filename: string): string {
   }
 }
 
-/**
- * The user's `transaction_mappings.mjs`, read and validated: the file exists,
- * is a JavaScript module, exports `mappings` in the schema's shape, and its
- * rules compile. Every failure is a `CategorizationConfigError` naming the
- * file. It is read afresh on every call. `dbu6 check` calls this to say
- * whether the file still parses, and the categorization rules page to show it.
- */
-export async function readTransactionMappings(
-  configDir: string = userConfigDir(),
-): Promise<MappingRules> {
+// The `mappings` export of the user's `transaction_mappings.mjs`, unparsed.
+async function importMappingsExport(configDir: string): Promise<unknown> {
   const filePath = join(configDir, TRANSACTION_MAPPINGS_FILENAME);
   const source = readRequiredConfigFile(
     configDir,
@@ -100,13 +92,53 @@ export async function readTransactionMappings(
       { cause: error },
     );
   }
+  return loaded.mappings;
+}
 
-  const rules = mappingRulesSchema.safeParse(loaded.mappings);
+// The format from before rules named their statement: `includes`, or
+// `exact` as an object keyed by narration. Refused by name, so the person
+// learns what changed rather than reading a schema error.
+function isOldFormat(mappings: unknown): boolean {
+  if (typeof mappings !== "object" || mappings === null) return false;
+  const { exact, includes } = mappings as Record<string, unknown>;
+  return (
+    includes !== undefined ||
+    (typeof exact === "object" && exact !== null && !Array.isArray(exact))
+  );
+}
+
+/**
+ * The user's `transaction_mappings.mjs`, read and validated: the file exists,
+ * is a JavaScript module, exports `mappings` in the schema's shape, and its
+ * rules compile. Every failure is a `CategorizationConfigError` naming the
+ * file; a file in the format from before rules named their statement says
+ * so. It is read afresh on every call. `dbu6 check`
+ * calls this to say whether the file still parses, and the categorization
+ * rules page to show it.
+ */
+export async function readTransactionMappings(
+  configDir: string = userConfigDir(),
+): Promise<MappingRules> {
+  const filePath = join(configDir, TRANSACTION_MAPPINGS_FILENAME);
+  const mappings = await importMappingsExport(configDir);
+
+  if (isOldFormat(mappings)) {
+    throw new CategorizationConfigError(
+      `Categorization rules in the old format: ${filePath}. dbu6 no longer ` +
+        `reads \`includes\` or an \`exact\` object keyed by narration. Every ` +
+        `rule now names the statement it reads: \`exact\` and \`contains\` ` +
+        `are lists of { statement, money, narrations | contains, ` +
+        `mapToAccount }. Rewrite the file in that format; ` +
+        `\`npx dbu6 docs books\` ("Always put this under X") describes it.`,
+    );
+  }
+
+  const rules = mappingRulesSchema.safeParse(mappings);
   if (!rules.success) {
     throw new CategorizationConfigError(
       `Invalid categorization config file: ${filePath}. ` +
         `${TRANSACTION_MAPPINGS_FILENAME} must export a "mappings" object of ` +
-        `{ exact, includes }: ${rules.error.message}`,
+        `{ exact, contains }: ${rules.error.message}`,
     );
   }
 
@@ -126,8 +158,8 @@ async function loadTransactionClassifier(
   configDir: string,
 ): Promise<TransactionClassifier> {
   const compiled = compileMappings(await readTransactionMappings(configDir));
-  return (transaction) => {
-    const account = classifyWith(compiled, transaction);
+  return (row) => {
+    const account = classifyWith(compiled, row);
     return account === null ? null : parseAccount(account);
   };
 }

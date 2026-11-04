@@ -236,6 +236,34 @@ export function NotInBooks() {
   );
 }
 
+/**
+ * Beside a rule for every statement whose account has statements of its
+ * own: a transfer rule must name the statement it reads, and `dbu6 check`
+ * fails until it does.
+ */
+export function TransferOnEveryStatement() {
+  return (
+    <span
+      title="This account has statements of its own, so this rule is a transfer. Name the statement it reads instead of every statement."
+      className="text-meta font-normal text-attention-ink"
+    >
+      transfer on every statement
+    </span>
+  );
+}
+
+/** Beside a rule that reads the statement of an account the books don't have. */
+export function StatementNotInBooks({ names }: { names: string[] }) {
+  return (
+    <span
+      title="No import reads this statement. Rename it in the rule, or remove it."
+      className="text-meta font-normal text-attention-ink"
+    >
+      {names.join(", ")} not in your books
+    </span>
+  );
+}
+
 /** Where a tab's rules are edited. */
 export function EditFooter({ file }: { file: string }) {
   return (

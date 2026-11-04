@@ -34,7 +34,7 @@ export function rulesValue(data: TransactionMappingsView): StatusCell {
   if (data.state === "unreadable") {
     return { tone: "attention", text: `${data.filename} can't be read` };
   }
-  const count = data.exact.length + data.includes.length;
+  const count = data.exact.length + data.contains.length;
   return count === 0
     ? { tone: "quiet", text: "None yet" }
     : { tone: "plain", text: plural(count, "rule") };

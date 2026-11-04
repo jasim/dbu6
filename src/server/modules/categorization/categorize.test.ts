@@ -21,8 +21,8 @@ import {
   categorizeViaLLM,
   type CategorizationLlm,
   type LLMCategorization,
-  type StatementTransaction,
 } from "./llm-categorization.js";
+import type { StatementTransaction } from "./CategorizedTransaction.js";
 import { PROMPT_TEMPLATE } from "./prompt-template.js";
 
 const llmMock = categorizeViaLLM as unknown as ReturnType<typeof vi.fn>;
@@ -78,8 +78,10 @@ beforeEach(() => {
   writeFileSync(
     join(dir, "transaction_mappings.mjs"),
     `export const mappings = {
-      exact: { STARBUCKS: "Food" },
-      includes: [],
+      exact: [
+        { statement: "*", money: "either", narrations: ["STARBUCKS"], mapToAccount: "Food" },
+      ],
+      contains: [],
     };`,
   );
   writeFileSync(join(dir, "custom-a.txt"), "MAP A");
@@ -287,9 +289,9 @@ describe("categorize", () => {
     writeFileSync(
       join(dir, "transaction_mappings.mjs"),
       `export const mappings = {
-        exact: {},
-        includes: [
-          { account: "Food", amount: { max: 500 }, values: ["SAMPLE CAFE"] },
+        exact: [],
+        contains: [
+          { statement: "*", money: "either", amount: { max: 500 }, contains: ["SAMPLE CAFE"], mapToAccount: "Food" },
         ],
       };`,
     );
@@ -449,6 +451,68 @@ describe("categorize", () => {
         account: "Sample Bank",
       },
     ]);
+  });
+});
+
+describe("rules read the row's statement", () => {
+  it("applies a rule only to the statements it names", async () => {
+    writeFileSync(
+      join(dir, "transaction_mappings.mjs"),
+      `export const mappings = {
+        exact: [],
+        contains: [
+          { statement: "Sample Bank", money: "out", contains: ["BILLPAY SAMPLE"], mapToAccount: "Food" },
+        ],
+      };`,
+    );
+    llmMock.mockImplementation(answered({}));
+    const row = withdrawal("BILLPAY SAMPLE 050505");
+    const result = await categorize(
+      await loadCategorizer(baseConfig(), dir),
+      [
+        { transaction: row, baseAccountId: 21 },
+        { transaction: row, baseAccountId: 31 },
+      ],
+      ACCOUNTS,
+    );
+    expect(
+      result.rows.map(({ account, outcome }) => [account, outcome]),
+    ).toEqual([
+      ["Food", "rule"],
+      [UNCATEGORIZED, "uncategorized"],
+    ]);
+  });
+
+  it('leaves a row a "*" rule would send to its own statement account for the LLM', async () => {
+    writeFileSync(
+      join(dir, "transaction_mappings.mjs"),
+      `export const mappings = {
+        exact: [],
+        contains: [
+          { statement: "*", money: "either", contains: ["to my sample"], mapToAccount: "Sample Bank" },
+        ],
+      };`,
+    );
+    llmMock.mockImplementation(
+      answered({ "to my sample": parseAccount("Food") }),
+    );
+    const onTheBank = withdrawal("to my sample", 1000);
+    const onACard = withdrawal("to my sample", 1000);
+    const result = await categorize(
+      await loadCategorizer(baseConfig(), dir),
+      [
+        { transaction: onTheBank, baseAccountId: 21 },
+        { transaction: onACard, baseAccountId: 31 },
+      ],
+      ACCOUNTS,
+    );
+    expect(
+      result.rows.map(({ account, outcome }) => [account, outcome]),
+    ).toEqual([
+      ["Food", "llm"],
+      ["Sample Bank", "rule"],
+    ]);
+    expect(result.sameAccountSkips).toEqual([]);
   });
 });
 

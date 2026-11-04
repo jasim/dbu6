@@ -659,8 +659,8 @@ built, tested and understood without anything above it. Lowest first:
 | 0 | `schema/`, `paths.ts`, `app-settings.ts`, `data-lock.ts`, `dbu-config.ts`, `modules/ledger-sql/` | schema, paths, app-settings, data-lock, dbu-config, ledger-sql | Tables; where everything is, in the project and in the package, the database file included; which environment variables are the app's own settings, kept from parsers and agent terminals; the data folder's lock; what dbu6 keeps about the machine in `dbu_config`; row scoping for raw SQL, built from Sapporta's `rowSecurity`, and the auth type every store takes | Domain queries; a hand-written workspace/user filter |
 | 1 | `modules/values/` | values | Money and its direction, amounts in paise and when two are the same, Account, Chrono, the text normalization transaction identity uses | I/O, statements, ledger tables |
 | 2 | `modules/statement/` | statement | Statement rows and documents (Abacus): parsing, ordering, running balances, joining a multi-part upload, and the statement's own errors | HTTP status, wire payloads, checkpoints, upload or request advice |
-| 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources, chart-of-accounts, comment-writer, hledger-export | Transaction keys and matchers; mapping rules, the prompt, the LLM interface, and turning an answer into a ledger account id, the same-account rule included, and whether categorization is running (`categorizing.ts`); the Google Pay Takeout index and enrichment; the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan; the starter chart of accounts and the rules a proposed chart keeps; the comment writer's prompt and the checks its answers pass; the hledger export's model, account-name escaping, and its rendering | Database access, coding-agent names, route concepts |
-| 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent; import-presets; search | Accounts as the stores and screens look them up, and the Opening Balances account; posted journals, writing them from a plan, every journal as the hledger export reads it (`export-rows.ts`), the last reconciled checkpoint, the comments the comment writer reads and writes on every user's entries (`entry-comments.ts`), and each account's opening entry, the entries beside it, and rewriting or deleting a standalone one (`opening-entries.ts`); matching against stored drafts and journals, running balances, the balance-check rule, the opening balance each account's first check implies (`loadImpliedOpenings`), the since-checkpoint filter (its checkpoint-day rule and why: `reconciliation/checkpoint-day.md`); draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status, whether a bank or card has transactions of its own (`statement-activity.ts`), where an account's drafts begin (`first-drafts.ts`), the comments the comment writer reads and writes on every user's drafts (`draft-comments.ts`), and the rule requests the user makes from them (`categorization-rule-requests.ts`). The coding agent: detection, models, handoff, its access to the app (`.env.agent` and the token in it, `agent-access.ts`), settings, and at its top the engine categorization runs on. The import_presets rows, read and written under the request's auth. Search over the books: which journals, drafts and accounts match, by Sapporta's table search, and what a result shows | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
+| 3 | `modules/` | transaction-identity, categorization, gpay, journal-plan, statement-sources, chart-of-accounts, comment-writer, hledger-export | Transaction keys and matchers; mapping rules and previewing one over given rows (`rule-preview.ts`), the prompt, the LLM interface, and turning an answer into a ledger account id, the same-account rule included, and whether categorization is running (`categorizing.ts`); the Google Pay Takeout index and enrichment; the journal plan and the one hledger formatter; saved parsers, import presets and the auto-import plan; the starter chart of accounts and the rules a proposed chart keeps; the comment writer's prompt and the checks its answers pass; the hledger export's model, account-name escaping, and its rendering | Database access, coding-agent names, route concepts |
+| 4 | `modules/` | accounts < journals < reconciliation < drafts; coding-agent; import-presets; search | Accounts as the stores and screens look them up, and the Opening Balances account; posted journals, writing them from a plan, every journal as the hledger export reads it (`export-rows.ts`), the last reconciled checkpoint, the comments the comment writer reads and writes on every user's entries (`entry-comments.ts`), and each account's opening entry, the entries beside it, and rewriting or deleting a standalone one (`opening-entries.ts`); matching against stored drafts and journals, running balances, the balance-check rule, the opening balance each account's first check implies (`loadImpliedOpenings`), the since-checkpoint filter (its checkpoint-day rule and why: `reconciliation/checkpoint-day.md`); draft rows: saving, placing balance assertions, loading, reclassifying, clearing once posted, status, whether a bank or card has transactions of its own (`statement-activity.ts`), where an account's drafts begin (`first-drafts.ts`), the comments the comment writer reads and writes on every user's drafts (`draft-comments.ts`), the rule requests the user makes from them (`categorization-rule-requests.ts`), and every draft and posted statement row as a rule preview reads it (`rule-preview-rows.ts`). The coding agent: detection, models, handoff, its access to the app (`.env.agent` and the token in it, `agent-access.ts`), settings, and at its top the engine categorization runs on. The import_presets rows, read and written under the request's auth. Search over the books: which journals, drafts and accounts match, by Sapporta's table search, and what a result shows | Workflow sequencing, report columns; ledger concepts anywhere in coding-agent but its top file |
 | 5 | `workflows/` | statement-import, posting, reclassification, opening-balances, import-presets, chart-of-accounts, comment-writer, hledger-export; add-account above opening-balances, import-presets and statement-import | The domain workflows, where the action happens: they sequence module calls and make the domain decisions | SQL, text formatting, HTTP; imports of each other |
 | 6 | `app/`, `runtime.ts`, `mount.ts`, `open.ts`, `config.ts`, `project-reports.ts`, `route-collisions.ts`, `report-kit.ts`, `index.ts` | app | Routes, reports (rendering only), error translation, uploads, auth guards, the Overview, Update and Review views, hosting; the project's reports and `dbu6.config.ts`; the promised exports | Queries or rules another module needs |
 
@@ -813,14 +813,33 @@ code that reads them. `categorize` (`categorization/categorize.ts`) applies what
 it read: the rules, then the LLM for the rest, choosing from the ledger's
 accounts, then the ledger account each answer names by its exact name in
 Accounts. A name the ledger doesn't hold, or the
-statement's own account, leaves the row uncategorized. A file that is missing
+statement's own account from the LLM, leaves the row uncategorized. A file that is missing
 or broken refuses only once a row needs it, so an import with nothing new
 needs no config.
 
-Narrations are normalized before matching (NFKC, whitespace collapsed, trimmed,
-upper-cased). `exact` wins outright; `includes` are substring rules checked in
-declaration order, so put narrow patterns ahead of broad ones. `direction` is
-optional and limits a rule to `"withdrawal"` or `"deposit"`.
+Every rule names its `statement`: the account whose statement prints the
+row (one name, a list, or `"*"` for every statement), never the account the
+money went to. `money` (`"in"`, `"out"` or `"either"`) is relative to that
+account, and `mapToAccount` is the answer. The rules get the whole row,
+`StatementTransaction { transaction, statementAccount }`, as the LLM does: a
+rule applies only to a row on a statement it names, moving money its way,
+and never answers with the row's own statement account, so a same-account
+skip comes from the LLM alone. Narrations are normalized before matching
+(NFKC, whitespace collapsed, trimmed, upper-cased). `exact` rules match the
+whole narration (a UPI VPA also inside one) and are checked first;
+`contains` rules are substring rules checked in declaration order, so put
+narrow patterns ahead of broad ones, and may add an `amount` range. Loading
+refuses a rule that reads its own `mapToAccount`'s statement, two exact
+rules that could answer one row differently, and the format from before
+rules named their statement. `dbu6 check` also fails on a statement the
+ledger doesn't hold and on a `"*"` rule whose account has statements of its
+own.
+
+`POST /api/categorization-rules/preview` runs one rule through `classifyWith`
+over every draft and posted row (`drafts/rule-preview-rows.ts` reads them; in
+a posted journal the line with `source_narration` is the categorized side and
+the line without one is the statement), and answers what it catches per
+statement. Agents preview a rule before proposing it.
 
 ### LLM prompts
 
