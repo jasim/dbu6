@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { initContract } from "@sapporta/rest-core";
+import { ruleMoneySchema } from "./categorization-rules.js";
 import { statementAccountIdentifierSchema } from "./statement-account.js";
 
 const c = initContract();
@@ -212,36 +213,24 @@ export const accountInstructionsSchema = z.object({
 });
 export type AccountInstructions = z.infer<typeof accountInstructionsSchema>;
 
-// A ledger account a rule names, and whether the ledger has an account of
-// that exact name. A rule whose account is not there leaves its entries
-// uncategorized; a statement that is not there is read by no import.
-const namedAccountSchema = z.object({
-  name: z.string(),
-  in_ledger: z.boolean(),
-});
-
 // The statements a rule reads: every statement ("*" in the file), or the
-// accounts whose statements print the rows, by name.
+// accounts whose statements print the rows, by name. Each is an account in
+// the ledger: a file naming one that isn't can't be read.
 export const statementScopeViewSchema = z.discriminatedUnion("every", [
   z.object({ every: z.literal(true) }),
-  z.object({ every: z.literal(false), accounts: z.array(namedAccountSchema) }),
+  z.object({ every: z.literal(false), accounts: z.array(z.string()) }),
 ]);
 export type StatementScopeView = z.infer<typeof statementScopeViewSchema>;
 
-// Which way the money moved, relative to the statement's account.
-export const ruleMoneySchema = z.enum(["in", "out", "either"]);
-export type RuleMoney = z.infer<typeof ruleMoneySchema>;
-
 // What every rule has: the statements it reads, which way the money moved,
-// and the account it answers with. `map_to_has_statements` is true when an
-// import preset lists that account, which makes the rule a transfer between
-// the person's own accounts.
+// and the account it answers with, and whether the ledger has an account of
+// that exact name. A rule whose account is not there leaves its entries
+// uncategorized.
 const ruleFields = {
   statement: statementScopeViewSchema,
   money: ruleMoneySchema,
   map_to_account: z.string(),
   in_ledger: z.boolean(),
-  map_to_has_statements: z.boolean(),
 };
 
 // user-config/transaction_mappings.mjs as a run reads it: the rules applied

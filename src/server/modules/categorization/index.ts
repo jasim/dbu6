@@ -40,17 +40,7 @@ export {
   type CategorizerSettings,
   type LoadCategorizer,
 } from "./load-categorizer.js";
-export {
-  EVERY_STATEMENT,
-  MappingRuleError,
-  oneRuleSchema,
-  type ContainsRule,
-  type OneRule,
-  type ExactRule,
-  type MappingRules,
-  type Money,
-  type StatementScope,
-} from "./mapping-rules.js";
+export { MappingRuleError } from "./mapping-rules.js";
 export {
   previewRule,
   type PreviewRow,

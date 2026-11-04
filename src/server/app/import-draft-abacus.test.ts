@@ -13,6 +13,12 @@ vi.mock("../modules/coding-agent/categorization-llm.js", () => ({
   }),
 }));
 
+// The rules are compiled against the books' account names.
+vi.mock("../modules/accounts/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../modules/accounts/index.js")>()),
+  loadLedgerAccounts: () => [],
+}));
+
 const { runStatementImport } = vi.hoisted(() => ({
   runStatementImport: vi.fn(),
 }));

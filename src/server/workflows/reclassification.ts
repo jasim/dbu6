@@ -3,6 +3,7 @@ import type {
   CategorizationRuleRequest,
   CategorizationReport,
   CategorizationTally,
+  OneRule,
 } from "../../shared/index.js";
 import type { Abacus } from "../modules/statement/index.js";
 import { enrichWithGPay, parseGPayHtml } from "../modules/gpay/index.js";
@@ -15,7 +16,6 @@ import {
   categorize,
   previewRule,
   tallyCategorization,
-  type OneRule,
   type RulePreview,
   type LoadCategorizer,
   type OnCategorizationProgress,
@@ -24,6 +24,7 @@ import { categorizationLlm } from "../modules/coding-agent/index.js";
 import {
   loadAccountParentPaths,
   loadAccountsByName,
+  loadLedgerAccounts,
 } from "../modules/accounts/index.js";
 import {
   clearCategorizationRuleRequests,
@@ -70,6 +71,7 @@ export async function classifyDraftTransactions(input: {
   const { db, auth, ids, customMappingsFilenames, gpayHtmlPath, onProgress } =
     input;
   const categorizer = await input.loadCategorizer({
+    accountNames: new Set(loadAccountsByName(db, auth).keys()),
     customMappingsFilenames,
     llm: await categorizationLlm(),
   });
@@ -257,13 +259,19 @@ export function forgetCategorizationRuleRequests(
 }
 
 /**
- * What one rule would catch, per statement, among the drafts and the books,
- * matched by the categorizer itself. Reads only. Throws as the rules file
- * would refuse the rule (`compileMappings`).
+ * What one rule matches on its own, per statement, among the drafts and the
+ * books, matched by the categorizer itself. Reads only. Throws as the rules
+ * file would refuse the rule (`compileMappings`).
  */
 export function previewCategorizationRule(
   ledger: Ledger,
   rule: OneRule,
 ): RulePreview {
-  return previewRule(rule, loadRulePreviewRows(ledger.sqlite, ledger.auth));
+  return previewRule(
+    rule,
+    loadRulePreviewRows(ledger.sqlite, ledger.auth),
+    new Set(
+      loadLedgerAccounts(ledger.sqlite, ledger.auth).map((one) => one.name),
+    ),
+  );
 }

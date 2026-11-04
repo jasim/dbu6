@@ -4,7 +4,6 @@ import {
   exactByAccount,
   exactExample,
   findIncludes,
-  isUnscopedTransfer,
   ruleLimits,
   type ReadMappings,
 } from "./mapping-rules";
@@ -12,7 +11,7 @@ import {
 const EVERY = { every: true } as const;
 const on = (...names: string[]) => ({
   every: false as const,
-  accounts: names.map((name) => ({ name, in_ledger: true })),
+  accounts: names,
 });
 
 const exact = (
@@ -25,7 +24,6 @@ const exact = (
   narrations,
   map_to_account,
   in_ledger: true,
-  map_to_has_statements: false,
   ...more,
 });
 
@@ -49,7 +47,6 @@ const mappings: ReadMappings = {
       amount: null,
       map_to_account: "Sample Card",
       in_ledger: true,
-      map_to_has_statements: true,
     },
     {
       statement: EVERY,
@@ -58,7 +55,6 @@ const mappings: ReadMappings = {
       amount: null,
       map_to_account: "Sample Gone",
       in_ledger: false,
-      map_to_has_statements: false,
     },
   ],
 };
@@ -66,7 +62,7 @@ const mappings: ReadMappings = {
 const empty: ReadMappings = { ...mappings, exact: [], contains: [] };
 
 describe("the exact rules by account and statement", () => {
-  it("groups the narrations under their account, statement and money, those to fix first, then most first", () => {
+  it("groups the narrations under their account, statement and money, those whose account the books don't have first, then most first", () => {
     expect(
       exactByAccount(mappings).map((row) => [
         row.rule.map_to_account,
@@ -94,25 +90,6 @@ describe("the exact rules by account and statement", () => {
     expect(
       exactByAccount(mappings, "sample savings").map((row) => row.found),
     ).toEqual([["NOPII BAKERY 2"]]);
-  });
-
-  it("puts a transfer on every statement first, as one to fix", () => {
-    const transfer: ReadMappings = {
-      ...mappings,
-      exact: [
-        exact(["NOPII ONE", "NOPII TWO"], "Food"),
-        exact(["BILLPAY SAMPLE CARD"], "Sample Card", {
-          map_to_has_statements: true,
-        }),
-      ],
-    };
-    const rows = exactByAccount(transfer);
-    expect(rows.map((row) => row.rule.map_to_account)).toEqual([
-      "Sample Card",
-      "Food",
-    ]);
-    expect(isUnscopedTransfer(rows[0].rule)).toBe(true);
-    expect(isUnscopedTransfer(rows[1].rule)).toBe(false);
   });
 });
 

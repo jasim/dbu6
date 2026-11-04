@@ -8,6 +8,7 @@ import {
 } from "../../modules/statement/index.js";
 import { parseAccount } from "../../modules/values/index.js";
 import { categorizationLlm } from "../../modules/coding-agent/index.js";
+import { loadLedgerAccounts } from "../../modules/accounts/index.js";
 import type { LoadCategorizer } from "../../modules/categorization/index.js";
 import type { Ledger } from "../../modules/ledger-sql/index.js";
 import {
@@ -55,7 +56,13 @@ export async function importFreeformStatement(
     {
       baseAccount: parseAccount(baseAccount),
       accountKind,
-      categorizer: await loadCategorizer({ customMappingsFilenames: [], llm }),
+      categorizer: await loadCategorizer({
+        accountNames: new Set(
+          loadLedgerAccounts(ledger.sqlite, ledger.auth).map((one) => one.name),
+        ),
+        customMappingsFilenames: [],
+        llm,
+      }),
       gpay: null,
     },
     ledger,

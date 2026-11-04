@@ -94,6 +94,7 @@ afterEach(() => {
 });
 
 const baseConfig = (): CategorizerSettings => ({
+  accountNames: new Set(ACCOUNTS.keys()),
   customMappingsFilenames: ["custom-a.txt", "custom-b.txt"],
   llm,
 });

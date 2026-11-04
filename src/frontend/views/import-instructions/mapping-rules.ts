@@ -19,7 +19,7 @@ const matcher = (query: string) => {
 /** The statements a rule reads, as the rules page says it: "On Sample savings". */
 export function statementLabel(statement: StatementScopeView): string {
   if (statement.every) return "On every statement";
-  return `On ${statement.accounts.map((one) => one.name).join(", ")}`;
+  return `On ${statement.accounts.join(", ")}`;
 }
 
 function moneyLabel(money: RuleMoney): string | null {
@@ -44,35 +44,8 @@ export function ruleLimits(rule: {
     .join(" · ");
 }
 
-/**
- * Whether a rule needs fixing beside it: it reads every statement but
- * answers with an account that has statements of its own, so it is a
- * transfer rule that doesn't say which statement it reads.
- */
-export function isUnscopedTransfer(rule: {
-  statement: StatementScopeView;
-  map_to_has_statements: boolean;
-}): boolean {
-  return rule.statement.every && rule.map_to_has_statements;
-}
-
-/** The statement names a rule reads that the books don't have. */
-export function statementsNotInBooks(statement: StatementScopeView): string[] {
-  return statement.every
-    ? []
-    : statement.accounts.filter((one) => !one.in_ledger).map((one) => one.name);
-}
-
-function needsFixing(rule: ExactRule): boolean {
-  return (
-    !rule.in_ledger ||
-    isUnscopedTransfer(rule) ||
-    statementsNotInBooks(rule.statement).length > 0
-  );
-}
-
 const scopeKey = (statement: StatementScopeView) =>
-  statement.every ? "*" : statement.accounts.map((one) => one.name).join("\n");
+  statement.every ? "*" : statement.accounts.join("\n");
 
 export interface ExactRow {
   key: string;
@@ -83,8 +56,7 @@ export interface ExactRow {
 
 /**
  * The exact rules as one row per account, statement and money: first
- * those that need fixing (an account the books don't have, a transfer on
- * every statement), then most descriptions first. Each row keeps all its
+ * those whose account the books don't have, then most descriptions first. Each row keeps all its
  * narrations, in file order, and the ones `query` finds, ignoring case:
  * every one when it finds the account or a statement, and the row goes
  * when it finds nothing.
@@ -108,7 +80,7 @@ export function exactByAccount(mappings: ReadMappings, query = ""): ExactRow[] {
   return [...rows.values()]
     .sort(
       (a, b) =>
-        Number(needsFixing(b.rule)) - Number(needsFixing(a.rule)) ||
+        Number(!b.rule.in_ledger) - Number(!a.rule.in_ledger) ||
         b.narrations.length - a.narrations.length,
     )
     .map((row) => ({

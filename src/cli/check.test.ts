@@ -574,7 +574,7 @@ describe("checkConfig", () => {
     ]);
   });
 
-  it("fails on a rule's unknown statement and on a transfer rule for every statement", async () => {
+  it("fails on a rule that reads the statement of an account not in Accounts, and takes a rule for every statement to one", async () => {
     write(
       "user-config/transaction_mappings.mjs",
       `export const mappings = {
@@ -583,8 +583,6 @@ describe("checkConfig", () => {
         ],
         contains: [
           { statement: "*", money: "either", contains: ["BILLPAY SAMPLE CARD"], mapToAccount: "Sample Savings" },
-          { statement: "*", money: "out", contains: ["NOPII CAFE"], mapToAccount: "Dining" },
-          { statement: "Sample Savings", money: "out", contains: ["NOPII BAKERY"], mapToAccount: "Dining" },
         ],
       };\n`,
     );
@@ -592,28 +590,30 @@ describe("checkConfig", () => {
       INSERT INTO accounts
         (id, workspace_id, scoped_to_user_id, name, account_type, created_at, updated_at)
       VALUES (1, 'workspace', 'user', 'Sample Savings', 'Asset', '', '');
-      INSERT INTO import_presets
-        (workspace_id, scoped_to_user_id, name, parsers, accounts, updated_at)
-      VALUES ('workspace', 'user', 'Sample Bank', '["hdfc-bank-xls"]', '${JSON.stringify(
-        [
-          {
-            account_id: 1,
-            name: "Sample Savings",
-            is_credit_card: false,
-            account_identifiers: [],
-            custom_mappings_filenames: [],
-          },
-        ],
-      )}', '');
     `);
-    const line = byName(
+    const failing = byName(
       await checkConfig(root),
       "user-config/transaction_mappings.mjs",
     );
-    expect(line?.status).toBe("fail");
-    expect(line?.detail.split("\n")).toEqual([
-      'exact rule 1 (→ "Groceries") reads the statement of "Sample Gone", which is not in Accounts',
-      'contains rule 1 (→ "Sample Savings") reads every statement ("*"), but "Sample Savings" has statements of its own: a transfer rule must name the statement it reads',
-    ]);
+    expect(failing?.status).toBe("fail");
+    expect(failing?.detail).toContain(
+      'exact rule 1 (→ "Groceries") reads the statement of "Sample Gone", which is not an account in the books',
+    );
+
+    write(
+      "user-config/transaction_mappings.mjs",
+      `export const mappings = {
+        exact: [],
+        contains: [
+          { statement: "*", money: "either", contains: ["BILLPAY SAMPLE CARD"], mapToAccount: "Sample Savings" },
+        ],
+      };\n`,
+    );
+    const passing = byName(
+      await checkConfig(root),
+      "user-config/transaction_mappings.mjs",
+    );
+    expect(passing?.status).toBe("ok");
+    expect(passing?.detail).toBe("0 exact and 1 contains rule(s)");
   });
 });

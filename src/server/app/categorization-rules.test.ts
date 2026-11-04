@@ -151,11 +151,25 @@ describe("POST /categorization-rules/preview", () => {
     });
     expect(selfMapping.status).toBe(422);
     expect(selfMapping.body.error).toContain("own statement");
-    const noStatement = await preview({
+    const unknownStatement = await preview({
+      statement: "Sample Savng",
+      money: "out",
+      contains: ["SAMPLEFOOD"],
+      mapToAccount: "Eating Out",
+    });
+    expect(unknownStatement.status).toBe(422);
+    expect(unknownStatement.body.error).toContain(
+      '"Sample Savng", which is not an account in the books',
+    );
+  });
+
+  it("answers a body not in the file's shape with a 400", async () => {
+    const noStatement = await books()({
       money: "in",
       contains: ["PAYMENT"],
       mapToAccount: "Groceries",
     });
-    expect(noStatement.status).toBe(422);
+    expect(noStatement.status).toBe(400);
+    expect(noStatement.body.code).toBe("BAD_REQUEST");
   });
 });

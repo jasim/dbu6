@@ -146,6 +146,7 @@ export async function importPlannedGroups(
           ...(await importOptionsFromAccount(
             group.account,
             ledgerName,
+            new Set(ledgerNames.values()),
             gpay,
             llm,
             loadCategorizer,

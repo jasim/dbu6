@@ -8,11 +8,10 @@ import type { StatementTransaction } from "./CategorizedTransaction.js";
 import type { Categorizer, ConfigPart } from "./categorize.js";
 import type { CategorizationLlm } from "./llm-categorization.js";
 import {
-  classifyWith,
-  compileMappings,
   mappingRulesSchema,
   type MappingRules,
-} from "./mapping-rules.js";
+} from "../../../shared/index.js";
+import { classifyWith, compileMappings } from "./mapping-rules.js";
 
 /*
  * Categorization's top: the one place that reads the user's categorization
@@ -21,6 +20,8 @@ import {
  */
 
 export interface CategorizerSettings {
+  // The books' account names, which a rule's statement must be one of.
+  accountNames: ReadonlySet<string>;
   // The account's instructions for the LLM, in the user-config directory, in
   // the order they are joined.
   customMappingsFilenames: readonly string[];
@@ -110,13 +111,14 @@ function isOldFormat(mappings: unknown): boolean {
 /**
  * The user's `transaction_mappings.mjs`, read and validated: the file exists,
  * is a JavaScript module, exports `mappings` in the schema's shape, and its
- * rules compile. Every failure is a `CategorizationConfigError` naming the
- * file; a file in the format from before rules named their statement says
- * so. It is read afresh on every call. `dbu6 check`
- * calls this to say whether the file still parses, and the categorization
- * rules page to show it.
+ * rules compile against `accountNames`, the books' account names. Every
+ * failure is a `CategorizationConfigError` naming the file; a file in the
+ * format from before rules named their statement says so. It is read afresh
+ * on every call. `dbu6 check` calls this to say whether the file still
+ * parses, and the categorization rules page to show it.
  */
 export async function readTransactionMappings(
+  accountNames: ReadonlySet<string>,
   configDir: string = userConfigDir(),
 ): Promise<MappingRules> {
   const filePath = join(configDir, TRANSACTION_MAPPINGS_FILENAME);
@@ -125,10 +127,8 @@ export async function readTransactionMappings(
   if (isOldFormat(mappings)) {
     throw new CategorizationConfigError(
       `Categorization rules in the old format: ${filePath}. dbu6 no longer ` +
-        `reads \`includes\` or an \`exact\` object keyed by narration. Every ` +
-        `rule now names the statement it reads: \`exact\` and \`contains\` ` +
-        `are lists of { statement, money, narrations | contains, ` +
-        `mapToAccount }. Rewrite the file in that format; ` +
+        `reads \`includes\` or an \`exact\` object keyed by narration: ` +
+        `every rule now names the statement it reads. Rewrite the file as ` +
         `\`npx dbu6 docs books\` ("Always put this under X") describes it.`,
     );
   }
@@ -143,7 +143,7 @@ export async function readTransactionMappings(
   }
 
   try {
-    compileMappings(rules.data);
+    compileMappings(rules.data, accountNames);
   } catch (error) {
     throw new CategorizationConfigError(
       `Invalid categorization config file: ${filePath}. ` +
@@ -155,9 +155,13 @@ export async function readTransactionMappings(
 }
 
 async function loadTransactionClassifier(
+  accountNames: ReadonlySet<string>,
   configDir: string,
 ): Promise<TransactionClassifier> {
-  const compiled = compileMappings(await readTransactionMappings(configDir));
+  const compiled = compileMappings(
+    await readTransactionMappings(accountNames, configDir),
+    accountNames,
+  );
   return (row) => {
     const account = classifyWith(compiled, row);
     return account === null ? null : parseAccount(account);
@@ -234,7 +238,9 @@ export async function loadCategorizer(
   configDir: string = userConfigDir(),
 ): Promise<Categorizer> {
   return {
-    classify: await settle(() => loadTransactionClassifier(configDir)),
+    classify: await settle(() =>
+      loadTransactionClassifier(settings.accountNames, configDir),
+    ),
     customMappings: await settle(
       () =>
         readAccountInstructions(settings.customMappingsFilenames, configDir)

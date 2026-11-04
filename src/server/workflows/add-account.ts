@@ -830,6 +830,13 @@ async function checkBeforeWriting(
   // What `categorize` needs once a row reaches it: every row does here.
   try {
     const categorizer = await loadCategorizer({
+      // The account being added is one of them: the import runs once it is.
+      accountNames: new Set([
+        ...loadLedgerAccounts(ledger.sqlite, ledger.auth).map(
+          (one) => one.name,
+        ),
+        account.name,
+      ]),
       customMappingsFilenames: [...account.mappingFiles],
       llm: await categorizationLlm(),
     });

@@ -341,7 +341,7 @@ describe("the transaction mappings", () => {
     );
   }
 
-  it("lists the rules in order, each account checked against the ledger and the presets, with any amount range", async () => {
+  it("lists the rules in order, each account checked against the ledger, with any amount range", async () => {
     writeMappings({
       exact: [
         {
@@ -353,7 +353,7 @@ describe("the transaction mappings", () => {
       ],
       contains: [
         {
-          statement: ["Sample Card", "Sample Gone"],
+          statement: ["Sample Card"],
           money: "in",
           contains: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
           mapToAccount: "Sample Savings",
@@ -376,33 +376,21 @@ describe("the transaction mappings", () => {
         filename: "transaction_mappings.mjs",
         exact: [
           {
-            statement: {
-              every: false,
-              accounts: [{ name: "Sample Savings", in_ledger: true }],
-            },
+            statement: { every: false, accounts: ["Sample Savings"] },
             money: "out",
             narrations: ["SAMPLE CAFE 050505"],
             map_to_account: "Sample Card",
             in_ledger: true,
-            map_to_has_statements: false,
           },
         ],
         contains: [
           {
-            statement: {
-              every: false,
-              accounts: [
-                { name: "Sample Card", in_ledger: true },
-                { name: "Sample Gone", in_ledger: false },
-              ],
-            },
+            statement: { every: false, accounts: ["Sample Card"] },
             money: "in",
             contains: ["NOPII TRANSFER", "UPI-sample-payee-050505"],
             amount: null,
             map_to_account: "Sample Savings",
             in_ledger: true,
-            // The bank's preset lists the savings account.
-            map_to_has_statements: true,
           },
           {
             statement: { every: true },
@@ -411,11 +399,31 @@ describe("the transaction mappings", () => {
             amount: { min: null, max: 500 },
             map_to_account: "Sample Gone",
             in_ledger: false,
-            map_to_has_statements: false,
           },
         ],
       },
     });
+  });
+
+  it("can't read a rule that reads the statement of an account the books don't have, saying which", async () => {
+    writeMappings({
+      exact: [],
+      contains: [
+        {
+          statement: ["Sample Card", "Sample Gone"],
+          money: "in",
+          contains: ["NOPII TRANSFER"],
+          mapToAccount: "Sample Savings",
+        },
+      ],
+    });
+    const presets = books();
+    expect((await presets.change(bankWithSavings)).status).toBe(200);
+    const read = await presets.mappings();
+    expect(read.body).toMatchObject({ state: "unreadable" });
+    expect(read.body.error).toContain(
+      'contains rule 1 (→ "Sample Savings") reads the statement of "Sample Gone", which is not an account in the books',
+    );
   });
 
   it("refuses the format from before rules named their statement, saying so", async () => {

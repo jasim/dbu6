@@ -6,6 +6,7 @@
 //   statement     the account whose statement prints the row, by its name in
 //                 Accounts: one name, a list of names, or "*" for every
 //                 statement. Never the account the money went to or came from.
+//                 A name not in Accounts stops every import until it's fixed.
 //   money         "in", "out" or "either", relative to that account. On a
 //                 card's statement, a bill payment is "in".
 //   mapToAccount  where the money went or came from, by its name in Accounts

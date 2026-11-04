@@ -120,9 +120,7 @@ export {
   type ImportPresetsView,
   type TransactionMappingsView,
   type StatementScopeView,
-  type RuleMoney,
   statementScopeViewSchema,
-  ruleMoneySchema,
 } from "./import-presets.js";
 export {
   canonicalStatementIdentifier,
@@ -353,7 +351,21 @@ export {
 } from "./search.js";
 export {
   categorizationRulesContract,
+  containsRuleSchema,
+  EVERY_STATEMENT,
+  exactRuleSchema,
+  mappingRulesSchema,
+  oneRuleSchema,
+  ruleMoneySchema,
   rulePreviewSchema,
   rulePreviewStatementSchema,
+  type AmountRange,
+  type ContainsRule,
+  type ExactRule,
+  type MappingRules,
+  type MappingRulesFile,
+  type OneRule,
+  type RuleMoney,
   type RulePreviewView,
+  type StatementScope,
 } from "./categorization-rules.js";

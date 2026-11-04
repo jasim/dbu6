@@ -1,17 +1,13 @@
 import { amount } from "../values/index.js";
 import type { StatementTransaction } from "./CategorizedTransaction.js";
-import {
-  classifyWith,
-  compileMappings,
-  rulesOfOne,
-  type OneRule,
-} from "./mapping-rules.js";
+import type { OneRule } from "../../../shared/index.js";
+import { classifyWith, compileMappings } from "./mapping-rules.js";
 
 /*
- * One rule run alone over rows already in the books and the drafts, through
- * the categorizer's own matching, so what the preview shows is what the
- * categorizer will do: per statement, how many rows it catches, their
- * amounts, and where they sit now.
+ * One rule run on its own over rows already in the books and the drafts,
+ * through the categorizer's own matching: per statement, how many rows it
+ * matches, their amounts, and where they sit now. Rules earlier in the file
+ * may answer some of these rows first, so this is the most it can catch.
  */
 
 // A row the rule may catch: a draft, or a posted journal's categorized line.
@@ -39,14 +35,20 @@ export interface RulePreview {
 }
 
 /**
- * What `rule` catches among `rows`, by statement. Throws as `compileMappings`
- * does for a rule the file would refuse.
+ * What `rule` matches among `rows`, by statement. Throws as `compileMappings`
+ * does, against `accountNames`, for a rule the file would refuse.
  */
 export function previewRule(
   rule: OneRule,
   rows: Iterable<PreviewRow>,
+  accountNames: ReadonlySet<string>,
 ): RulePreview {
-  const compiled = compileMappings(rulesOfOne(rule));
+  const compiled = compileMappings(
+    "narrations" in rule
+      ? { exact: [rule], contains: [] }
+      : { exact: [], contains: [rule] },
+    accountNames,
+  );
   const byStatement = new Map<
     string | null,
     RulePreviewStatement & { nowIn: Map<string | null, number> }

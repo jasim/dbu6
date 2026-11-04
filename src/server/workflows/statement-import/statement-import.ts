@@ -390,6 +390,7 @@ export async function runStatementImport(
 export async function importOptionsFromAccount(
   account: ImportAccount,
   ledgerAccountName: string,
+  accountNames: ReadonlySet<string>,
   gpay: GPayIndex | null,
   llm: CategorizationLlm,
   loadCategorizer: LoadCategorizer,
@@ -398,6 +399,7 @@ export async function importOptionsFromAccount(
     baseAccount: parseAccount(ledgerAccountName),
     accountKind: accountKindOf(account.is_credit_card),
     categorizer: await loadCategorizer({
+      accountNames,
       customMappingsFilenames: account.custom_mappings_filenames,
       llm,
     }),

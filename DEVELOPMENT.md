@@ -828,18 +828,23 @@ skip comes from the LLM alone. Narrations are normalized before matching
 (NFKC, whitespace collapsed, trimmed, upper-cased). `exact` rules match the
 whole narration (a UPI VPA also inside one) and are checked first;
 `contains` rules are substring rules checked in declaration order, so put
-narrow patterns ahead of broad ones, and may add an `amount` range. Loading
-refuses a rule that reads its own `mapToAccount`'s statement, two exact
-rules that could answer one row differently, and the format from before
-rules named their statement. `dbu6 check` also fails on a statement the
-ledger doesn't hold and on a `"*"` rule whose account has statements of its
-own.
+narrow patterns ahead of broad ones, and may add an `amount` range. The
+file's shape is the shared schema in `shared/contracts/categorization-rules.ts`;
+`compileMappings` refuses what the shape can't say: a rule that reads the
+statement of an account the books don't have (it compiles against the
+books' account names, which `CategorizerSettings.accountNames` carries), a
+rule that reads its own `mapToAccount`'s statement, and two exact rules that
+could answer one row differently. The loader also refuses the format from
+before rules named their statement. Imports, the preview, the rules page
+and `dbu6 check` all meet these refusals through the loader or
+`compileMappings`, and check nothing of their own.
 
 `POST /api/categorization-rules/preview` runs one rule through `classifyWith`
 over every draft and posted row (`drafts/rule-preview-rows.ts` reads them; in
 a posted journal the line with `source_narration` is the categorized side and
-the line without one is the statement), and answers what it catches per
-statement. Agents preview a rule before proposing it.
+the line without one is the statement), and answers what it matches on its
+own, per statement: rules earlier in the file may answer some of those
+rows first. Agents preview a rule before proposing it.
 
 ### LLM prompts
 

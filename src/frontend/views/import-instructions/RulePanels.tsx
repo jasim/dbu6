@@ -13,9 +13,7 @@ import {
   exactByAccount,
   exactExample,
   findIncludes,
-  isUnscopedTransfer,
   ruleLimits,
-  statementsNotInBooks,
   type ReadMappings,
 } from "./mapping-rules";
 import {
@@ -27,8 +25,6 @@ import {
   Matched,
   NotInBooks,
   RuleCard,
-  StatementNotInBooks,
-  TransferOnEveryStatement,
 } from "./rule-parts";
 
 /*
@@ -74,7 +70,7 @@ const FIRST_DESCRIPTIONS = 6;
 
 /**
  * One row per account, statement and money, its descriptions under it:
- * those that need fixing first, then most descriptions first.
+ * those whose account the books don't have first, then most descriptions first.
  */
 function ExactRules({ mappings }: { mappings: ReadMappings }) {
   const [query, setQuery] = useState("");
@@ -253,14 +249,12 @@ function Account({
   rule,
   parentPath,
 }: {
-  rule: Parameters<typeof ruleLimits>[0] &
-    Parameters<typeof isUnscopedTransfer>[0] & {
-      map_to_account: string;
-      in_ledger: boolean;
-    };
+  rule: Parameters<typeof ruleLimits>[0] & {
+    map_to_account: string;
+    in_ledger: boolean;
+  };
   parentPath: string | null;
 }) {
-  const missingStatements = statementsNotInBooks(rule.statement);
   return (
     <div className="min-w-0">
       <p className="flex flex-wrap items-baseline gap-x-2.5 text-row font-semibold text-foreground">
@@ -269,10 +263,6 @@ function Account({
           {ruleLimits(rule)}
         </span>
         {!rule.in_ledger && <NotInBooks />}
-        {missingStatements.length > 0 && (
-          <StatementNotInBooks names={missingStatements} />
-        )}
-        {isUnscopedTransfer(rule) && <TransferOnEveryStatement />}
       </p>
       {parentPath !== null && <AccountParentPath path={parentPath} />}
     </div>

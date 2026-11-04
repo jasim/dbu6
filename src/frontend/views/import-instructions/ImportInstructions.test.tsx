@@ -85,7 +85,7 @@ const INSTRUCTIONS: Record<number, AccountInstructions> = {
 const EVERY = { every: true } as const;
 const ON_SAMPLE_BANK = {
   every: false as const,
-  accounts: [{ name: "Sample Bank", in_ledger: true }],
+  accounts: ["Sample Bank"],
 };
 
 const RULES: TransactionMappingsView = {
@@ -98,7 +98,6 @@ const RULES: TransactionMappingsView = {
       narrations: ["NOPII CAFE ONE", "NOPII CAFE TWO"],
       map_to_account: "Dining",
       in_ledger: true,
-      map_to_has_statements: false,
     },
     {
       statement: ON_SAMPLE_BANK,
@@ -106,7 +105,6 @@ const RULES: TransactionMappingsView = {
       narrations: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `NOPII SHOP ${n}`),
       map_to_account: "Groceries",
       in_ledger: true,
-      map_to_has_statements: false,
     },
     {
       statement: EVERY,
@@ -114,7 +112,6 @@ const RULES: TransactionMappingsView = {
       narrations: ["NOPII OLD PAYEE"],
       map_to_account: "Sample Gone",
       in_ledger: false,
-      map_to_has_statements: false,
     },
   ],
   contains: [
@@ -125,7 +122,6 @@ const RULES: TransactionMappingsView = {
       amount: { min: null, max: 500 },
       map_to_account: "Dining",
       in_ledger: true,
-      map_to_has_statements: false,
     },
     {
       statement: ON_SAMPLE_BANK,
@@ -134,7 +130,6 @@ const RULES: TransactionMappingsView = {
       amount: null,
       map_to_account: "Salary",
       in_ledger: true,
-      map_to_has_statements: false,
     },
     {
       statement: EVERY,
@@ -143,7 +138,6 @@ const RULES: TransactionMappingsView = {
       amount: null,
       map_to_account: "Sample Card",
       in_ledger: true,
-      map_to_has_statements: true,
     },
   ],
 };
@@ -404,7 +398,7 @@ describe("Categorization rules", () => {
   });
 
   describe("Contains", () => {
-    it("lists the rules in checking order, with their statement, money and amounts, flagging a transfer on every statement", async () => {
+    it("lists the rules in checking order, with their statement, money and amounts", async () => {
       await renderAt("/categorization-rules?show=contains");
 
       expect(text()).toContain(
@@ -414,7 +408,7 @@ describe("Categorization rules", () => {
       expect(rows()).toEqual([
         "1DiningOn every statement · money out · up to 500Expenses: NOPII CAFE · NOPII BISTRO",
         "2SalaryOn Sample Bank · money in: NOPII PAYROLL",
-        "3Sample CardOn every statementtransfer on every statement: sample-payee@okaxis",
+        "3Sample CardOn every statement: sample-payee@okaxis",
       ]);
     });
 

@@ -239,7 +239,10 @@ string in the narration settles it. Both read the bank's text, a draft's
   this month. Name the statements its drafts came from. Use `"*"` only for
   a payee's own name or UPI address that means the same account on any
   statement (a merchant, `payee@psp`). Never use `"*"` when `mapToAccount`
-  has statements of its own: `npx dbu6 check` fails on it. A rule never
+  has statements of its own: that is a transfer, and gets a rule on one
+  side only (below). A `statement` that isn't an account in Accounts makes
+  the whole file unreadable: imports, the preview and `npx dbu6 check`
+  refuse it, naming the rule. A rule never
   answers with the row's own statement account; the next rule or the AI
   gets that row.
 - **No** → a line in a `custom_mappings_*.prompt` file in `user-config/`,
@@ -281,9 +284,12 @@ not the exact amounts.
 **Preview before you propose.**
 `npx sapporta api post /api/categorization-rules/preview --body '{"rule":{…}}'`,
 with the rule as the file would hold it, runs it through the categorizer's
-own matching over the drafts and the books. It answers, per statement, how
-many rows it catches (`drafts`, `posted`), their amounts (`least`, `most`),
-and where they sit now (`now_in`). A rule that catches rows sitting in
+own matching over the drafts and the books, on its own: rules earlier in
+the file may answer some of those rows first, so it shows the most the
+rule can catch. It answers, per statement, how many rows it matches
+(`drafts`, `posted`), their amounts (`least`, `most`), and where they sit
+now (`now_in`). A body not in the file's shape is a 400; a rule the file
+would refuse is a 422 saying why. A rule that catches rows sitting in
 another account is too broad: narrow it (a longer phrase, `money`, an
 amount range, fewer statements) or don't write it.
 

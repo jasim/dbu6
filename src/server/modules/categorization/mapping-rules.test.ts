@@ -2,16 +2,22 @@ import { describe, expect, it } from "vitest";
 import type { Abacus } from "../statement/index.js";
 import { moneyFromColumns } from "../values/index.js";
 import {
-  classifyWith,
-  compileMappings,
   mappingRulesSchema,
-  normalize,
   type MappingRules,
   type MappingRulesFile,
-} from "./mapping-rules.js";
+} from "../../../shared/index.js";
+import { classifyWith, compileMappings, normalize } from "./mapping-rules.js";
 
 const parse = (rules: MappingRulesFile): MappingRules =>
   mappingRulesSchema.parse(rules);
+
+// The accounts in the books the rules are compiled against.
+const BOOKS: ReadonlySet<string> = new Set([
+  "Sample savings",
+  "Other savings",
+  "Sample card",
+  "Other",
+]);
 
 const RULES = parse({
   exact: [
@@ -79,7 +85,7 @@ function classify(
   rules: MappingRules = RULES,
   amount = 100,
 ) {
-  return classifyWith(compileMappings(rules), {
+  return classifyWith(compileMappings(rules, BOOKS), {
     transaction: transaction(narration, direction, amount),
     statementAccount,
   });
@@ -401,10 +407,55 @@ describe("compileMappings", () => {
             },
           ],
         }),
+        BOOKS,
       ),
     ).toThrow(
       /contains rule 1 \(→ "Sample savings"\) reads "Sample savings"'s own statement/,
     );
+  });
+
+  it("refuses a rule that reads the statement of an account the books don't have", () => {
+    expect(() =>
+      compileMappings(
+        parse({
+          exact: [exactRule("Sample savng", "out", "ACME", "Groceries")],
+          contains: [],
+        }),
+        BOOKS,
+      ),
+    ).toThrow(
+      /exact rule 1 \(→ "Groceries"\) reads the statement of "Sample savng", which is not an account in the books/,
+    );
+    expect(() =>
+      compileMappings(
+        parse({
+          exact: [],
+          contains: [
+            {
+              statement: ["Sample savings", "Gone card"],
+              money: "out",
+              contains: ["ACME"],
+              mapToAccount: "Groceries",
+            },
+          ],
+        }),
+        BOOKS,
+      ),
+    ).toThrow(
+      /contains rule 1 \(→ "Groceries"\) reads the statement of "Gone card"/,
+    );
+  });
+
+  it("accepts an answer the books don't have yet", () => {
+    expect(() =>
+      compileMappings(
+        parse({
+          exact: [exactRule("*", "out", "ACME", "Not yet made")],
+          contains: [],
+        }),
+        new Set(),
+      ),
+    ).not.toThrow();
   });
 
   it("refuses two exact rules that overlap with different accounts", () => {
@@ -426,7 +477,9 @@ describe("compileMappings", () => {
       ],
     ];
     for (const exact of overlapping) {
-      expect(() => compileMappings(parse({ exact, contains: [] }))).toThrow(
+      expect(() =>
+        compileMappings(parse({ exact, contains: [] }), BOOKS),
+      ).toThrow(
         /exact rule 2 \(→ "Food"\) and exact rule 1 \(→ "Groceries"\) both match/,
       );
     }
@@ -449,7 +502,7 @@ describe("compileMappings", () => {
     ];
     for (const exact of allowed) {
       expect(() =>
-        compileMappings(parse({ exact, contains: [] })),
+        compileMappings(parse({ exact, contains: [] }), BOOKS),
       ).not.toThrow();
     }
   });

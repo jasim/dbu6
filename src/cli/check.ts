@@ -46,13 +46,11 @@ import {
   PROJECT_API_TOKEN_FILE,
   readProjectApiToken,
 } from "@sapporta/server";
-import { guideCommand, type ImportInstitution } from "../shared/index.js";
+import { guideCommand } from "../shared/index.js";
 import {
   CategorizationConfigError,
-  EVERY_STATEMENT,
   readTransactionMappings,
   TRANSACTION_MAPPINGS_FILENAME,
-  type MappingRules,
 } from "../server/modules/categorization/index.js";
 import {
   chosenCodingAgent,
@@ -734,34 +732,28 @@ async function checkTransactionMappings(
   dir: string,
 ): Promise<CheckLine> {
   const name = `user-config/${TRANSACTION_MAPPINGS_FILENAME}`;
-  let rules;
   try {
-    rules = await readTransactionMappings(dir);
+    const rules = await readTransactionMappings(
+      await readAccountNames(root),
+      dir,
+    );
+    return ok(
+      name,
+      `${rules.exact.length} exact and ${rules.contains.length} contains rule(s)`,
+    );
   } catch (error) {
     if (error instanceof CategorizationConfigError) {
       return fail(name, error.message);
     }
     throw error;
   }
-  const counted = `${rules.exact.length} exact and ${rules.contains.length} contains rule(s)`;
-  const ledger = await readRuleAccounts(root);
-  if (ledger === null) return ok(name, counted);
-  const problems = ruleProblems(rules, ledger);
-  return problems.length > 0
-    ? fail(name, problems.join("\n"))
-    : ok(name, counted);
 }
 
-// The ledger's account names, and those an import preset lists: the
-// accounts with statements. Null before the database and its tables exist.
-interface RuleAccounts {
-  names: ReadonlySet<string>;
-  withStatements: ReadonlySet<string>;
-}
-
-async function readRuleAccounts(root: string): Promise<RuleAccounts | null> {
+// The ledger's account names, which a rule's statement must be one of;
+// none before the database and its tables exist.
+async function readAccountNames(root: string): Promise<Set<string>> {
   const file = databaseFile(root);
-  if (!existsSync(file)) return null;
+  if (!existsSync(file)) return new Set();
   const { default: Database } = await import("better-sqlite3");
   const sqlite = new Database(file, { readonly: true });
   try {
@@ -770,77 +762,15 @@ async function readRuleAccounts(root: string): Promise<RuleAccounts | null> {
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'accounts'",
       )
       .get();
-    if (hasAccounts === undefined) return null;
-    const byId = new Map(
+    if (hasAccounts === undefined) return new Set();
+    return new Set(
       (
-        sqlite.prepare("SELECT id, name FROM accounts").all() as {
-          id: number;
-          name: string;
-        }[]
-      ).map((row) => [row.id, row.name]),
+        sqlite.prepare("SELECT name FROM accounts").all() as { name: string }[]
+      ).map((row) => row.name),
     );
-    let institutions: ImportInstitution[];
-    try {
-      institutions = readEveryImportPreset(sqlite) ?? [];
-    } catch {
-      // The import presets line says what is wrong with them.
-      institutions = [];
-    }
-    const withStatements = new Set(
-      institutions.flatMap((institution) =>
-        institution.accounts.flatMap(
-          (account) => byId.get(account.account_id) ?? [],
-        ),
-      ),
-    );
-    return { names: new Set(byId.values()), withStatements };
   } finally {
     sqlite.close();
   }
-}
-
-/**
- * What makes a rule wrong against the ledger: a statement it names that the
- * ledger doesn't hold, and a rule for every statement whose account has
- * statements of its own, a transfer rule that must name the statement it
- * reads. An answer the ledger doesn't hold is the rules page's to flag: the
- * example rules name accounts a new project hasn't made yet.
- */
-export function ruleProblems(
-  rules: MappingRules,
-  { names, withStatements }: RuleAccounts,
-): string[] {
-  const problems: string[] = [];
-  const each = [
-    ...rules.exact.map((rule, index) => ({
-      rule,
-      label: `exact rule ${index + 1}`,
-    })),
-    ...rules.contains.map((rule, index) => ({
-      rule,
-      label: `contains rule ${index + 1}`,
-    })),
-  ];
-  for (const { rule, label } of each) {
-    const which = `${label} (→ ${JSON.stringify(rule.mapToAccount)})`;
-    if (rule.statement.every) {
-      if (withStatements.has(rule.mapToAccount)) {
-        problems.push(
-          `${which} reads every statement ("${EVERY_STATEMENT}"), but ${JSON.stringify(rule.mapToAccount)} has statements of its own: ` +
-            `a transfer rule must name the statement it reads`,
-        );
-      }
-      continue;
-    }
-    for (const statement of rule.statement.accounts) {
-      if (!names.has(statement)) {
-        problems.push(
-          `${which} reads the statement of ${JSON.stringify(statement)}, which is not in Accounts`,
-        );
-      }
-    }
-  }
-  return problems;
 }
 
 async function checkImportPresets(

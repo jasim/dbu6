@@ -47,7 +47,10 @@ export type JournalPlan<A> = PlannedJournal<A>[];
  * narration too, where matching looks for it, and the comment. The
  * statement import tells its own rows from another account's by which line
  * holds the key (`loadPostedRowsOn`, reconciliation/checkpoint-day.md), so
- * moving the key breaks that.
+ * moving the key breaks that. A rule preview tells the statement's line by
+ * its null source narration (`drafts/rule-preview-rows.ts`), which also
+ * reads grouped journals from before keys, so moving the narration breaks
+ * that.
  */
 export function planJournals<A>(
   rows: Chrono<PlanRow<A>>,

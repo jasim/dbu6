@@ -12,7 +12,8 @@ import {
   type StatementAccountRefusal,
   type StatementAccountRow,
   type StatementAccounts,
-  type StatementScopeView,
+  type ContainsRule,
+  type ExactRule,
   type TransactionMappingsView,
 } from "../../shared/index.js";
 import {
@@ -31,9 +32,6 @@ import {
   DEFAULT_CUSTOM_MAPPINGS_FILENAME,
   readCustomMappingsFile,
   readTransactionMappings,
-  type ContainsRule,
-  type ExactRule,
-  type StatementScope,
   TRANSACTION_MAPPINGS_FILENAME,
 } from "../modules/categorization/index.js";
 import {
@@ -94,42 +92,29 @@ export function loadImportPresetsView(ledger: Ledger): ImportPresetsView {
 }
 
 /**
- * The user's transaction_mappings.mjs, read now, each account a rule names
- * checked against the ledger's names, and each rule's account against the
- * accounts with statements; or why no run can use it.
+ * The user's transaction_mappings.mjs, read now against the ledger's
+ * account names, each rule's account checked against them; or why no run
+ * can use it.
  */
 export async function loadTransactionMappingsView(
   ledger: Ledger,
 ): Promise<TransactionMappingsView> {
   const filename = TRANSACTION_MAPPINGS_FILENAME;
+  const names = new Set(ledgerAccountNames(ledger).values());
   let rules;
   try {
-    rules = await readTransactionMappings();
+    rules = await readTransactionMappings(names);
   } catch (error) {
     if (error instanceof CategorizationConfigError) {
       return { state: "unreadable", filename, error: error.message };
     }
     throw error;
   }
-  const accountNames = ledgerAccountNames(ledger);
-  const names = new Set(accountNames.values());
-  const withStatements = accountsWithStatements(ledger, accountNames);
-  const scope = (statement: StatementScope): StatementScopeView =>
-    statement.every
-      ? { every: true }
-      : {
-          every: false,
-          accounts: statement.accounts.map((name) => ({
-            name,
-            in_ledger: names.has(name),
-          })),
-        };
   const common = (rule: ExactRule | ContainsRule) => ({
-    statement: scope(rule.statement),
+    statement: rule.statement,
     money: rule.money,
     map_to_account: rule.mapToAccount,
     in_ledger: names.has(rule.mapToAccount),
-    map_to_has_statements: withStatements.has(rule.mapToAccount),
   });
   return {
     state: "read",
@@ -146,21 +131,6 @@ export async function loadTransactionMappingsView(
         : null,
     })),
   };
-}
-
-/** The names of the ledger accounts an import preset lists: those with statements. */
-function accountsWithStatements(
-  ledger: Ledger,
-  accountNames: ReadonlyMap<number, string>,
-): Set<string> {
-  const listed = new Set<string>();
-  for (const institution of loadImportPresets(ledger.db, ledger.auth)) {
-    for (const account of institution.accounts) {
-      const name = accountNames.get(account.account_id);
-      if (name !== undefined) listed.add(name);
-    }
-  }
-  return listed;
 }
 
 export async function changeImportPresets(

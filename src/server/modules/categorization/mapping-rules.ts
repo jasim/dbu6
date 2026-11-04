@@ -1,108 +1,21 @@
-import { z } from "zod";
-import { isVpa } from "../../../shared/index.js";
+import {
+  isVpa,
+  type AmountRange,
+  type ContainsRule,
+  type ExactRule,
+  type MappingRules,
+  type RuleMoney,
+  type StatementScope,
+} from "../../../shared/index.js";
 import { amount, isWithdrawal } from "../values/index.js";
 import type { StatementTransaction } from "./CategorizedTransaction.js";
 
 /*
- * The rules in the user's `transaction_mappings.mjs`. Each rule reads one
- * statement's rows (or several statements', or every statement's) and says
- * where money moving one way, with a description like this, went or came
- * from. The rules get the whole row, statement included, as the LLM does.
+ * The rules in the user's `transaction_mappings.mjs`, compiled and applied.
+ * Their shape is the shared schema's (`contracts/categorization-rules.ts`);
+ * what they may not hold beyond it, and how a row meets them, is here. The
+ * rules get the whole row, statement included, as the LLM does.
  */
-
-const accountNameSchema = z.string().trim().min(1);
-const textSchema = z.string().trim().min(1);
-
-// Every statement, or the accounts whose statements a rule reads, by name.
-export type StatementScope =
-  { every: true } | { every: false; accounts: readonly string[] };
-
-export const EVERY_STATEMENT = "*";
-
-// `"*"`, one account's name, or a list of names. The one place `"*"` is read.
-const statementScopeSchema = z
-  .union([accountNameSchema, z.array(accountNameSchema).min(1)])
-  .superRefine((value, ctx) => {
-    if (Array.isArray(value) && value.includes(EVERY_STATEMENT)) {
-      ctx.addIssue({
-        code: "custom",
-        message: `"${EVERY_STATEMENT}" means every statement; write it alone, not in a list`,
-      });
-    }
-  })
-  .transform((value): StatementScope => {
-    if (value === EVERY_STATEMENT) return { every: true };
-    const names = typeof value === "string" ? [value] : value;
-    return { every: false, accounts: [...new Set(names)] };
-  });
-
-// Which way the money moved, relative to the statement's account. On a
-// card's statement, a bill payment is "in".
-const moneySchema = z.enum(["in", "out", "either"]);
-export type Money = z.infer<typeof moneySchema>;
-
-// The amounts a rule applies to, both ends included, compared with the
-// amount that moved, whichever way. Either end may be left open.
-const amountRangeSchema = z
-  .object({
-    min: z.number().nonnegative().optional(),
-    max: z.number().nonnegative().optional(),
-  })
-  .strict()
-  .refine((range) => range.min !== undefined || range.max !== undefined, {
-    message: "an amount range needs a min, a max, or both",
-  })
-  .refine(
-    (range) =>
-      range.min === undefined ||
-      range.max === undefined ||
-      range.min <= range.max,
-    { message: "an amount range's min is above its max" },
-  );
-export type AmountRange = z.infer<typeof amountRangeSchema>;
-
-export const exactRuleSchema = z
-  .object({
-    statement: statementScopeSchema,
-    money: moneySchema,
-    narrations: z.array(textSchema).min(1),
-    mapToAccount: accountNameSchema,
-  })
-  .strict();
-
-export const containsRuleSchema = z
-  .object({
-    statement: statementScopeSchema,
-    money: moneySchema,
-    contains: z.array(textSchema).min(1),
-    amount: amountRangeSchema.optional(),
-    mapToAccount: accountNameSchema,
-  })
-  .strict();
-
-export type ExactRule = z.output<typeof exactRuleSchema>;
-export type ContainsRule = z.output<typeof containsRuleSchema>;
-
-/**
- * Shape of the `mappings` export in the user's `transaction_mappings.mjs`.
- * User-authored, so it is parsed rather than trusted.
- */
-export const mappingRulesSchema = z
-  .object({
-    exact: z.array(exactRuleSchema),
-    contains: z.array(containsRuleSchema),
-  })
-  .strict();
-
-// The rules, parsed: what the engine and the rules page read.
-export type MappingRules = z.output<typeof mappingRulesSchema>;
-// The rules as the file writes them.
-export type MappingRulesFile = z.input<typeof mappingRulesSchema>;
-
-// One rule as `/api/categorization-rules/preview` takes it: either kind, in
-// the file's shape.
-export const oneRuleSchema = z.union([exactRuleSchema, containsRuleSchema]);
-export type OneRule = z.output<typeof oneRuleSchema>;
 
 interface CompiledExact {
   text: string;
@@ -148,7 +61,8 @@ function containsVpa(narration: string, vpa: string): boolean {
   }
 }
 
-// A rule the file may not hold: one that sends a statement's rows to that
+// A rule the file may not hold: one that reads the statement of an account
+// the books don't have, one that sends a statement's rows to that
 // statement's own account, or two exact rules that could answer one row
 // with different accounts.
 export class MappingRuleError extends Error {
@@ -164,19 +78,36 @@ function describeRule(
   return `${kind} rule ${index + 1} (→ ${JSON.stringify(rule.mapToAccount)})`;
 }
 
-/** The statement scope as the file writes it, for a message. */
-export function describeScope(scope: StatementScope): string {
-  if (scope.every) return JSON.stringify(EVERY_STATEMENT);
-  return scope.accounts.map((name) => JSON.stringify(name)).join(", ");
-}
-
 function scopesOverlap(a: StatementScope, b: StatementScope): boolean {
   if (a.every || b.every) return true;
   return a.accounts.some((name) => b.accounts.includes(name));
 }
 
-function moneyOverlaps(a: Money, b: Money): boolean {
+function moneyOverlaps(a: RuleMoney, b: RuleMoney): boolean {
   return a === "either" || b === "either" || a === b;
+}
+
+// A statement the books don't have would leave the rule reading nothing,
+// silently, so it is refused. Its answer may still be an account the books
+// don't have yet: that leaves rows uncategorized, and the example rules name
+// accounts a new project hasn't made.
+function refuseStatementNotInBooks(
+  kind: "exact" | "contains",
+  index: number,
+  rule: ExactRule | ContainsRule,
+  accountNames: ReadonlySet<string>,
+): void {
+  if (rule.statement.every) return;
+  for (const name of rule.statement.accounts) {
+    if (!accountNames.has(name)) {
+      throw new MappingRuleError(
+        `${describeRule(kind, index, rule)} reads the statement of ` +
+          `${JSON.stringify(name)}, which is not an account in the books. A ` +
+          `rule's statement is an account's exact name in Accounts: rename ` +
+          `it in the rule, or remove it.`,
+      );
+    }
+  }
 }
 
 function refuseSelfMapping(
@@ -198,18 +129,23 @@ function refuseSelfMapping(
 }
 
 /**
- * The rules, ready for `classifyWith`. Refuses a rule that sends a
- * statement's rows to that statement's own account, and two exact rules that
- * could both answer one row with different accounts, so there is never more
- * than one exact answer.
+ * The rules, ready for `classifyWith`, against the books' account names.
+ * Refuses a rule that reads the statement of an account the books don't
+ * have, one that sends a statement's rows to that statement's own account,
+ * and two exact rules that could both answer one row with different
+ * accounts, so there is never more than one exact answer.
  */
-export function compileMappings(rules: MappingRules): CompiledMappings {
+export function compileMappings(
+  rules: MappingRules,
+  accountNames: ReadonlySet<string>,
+): CompiledMappings {
   const exact = new Map<string, ExactRule[]>();
   const vpa: CompiledExact[] = [];
   // The rule each exact rule came from, for its place in an error.
   const indexOf = new Map<ExactRule, number>();
 
   rules.exact.forEach((rule, index) => {
+    refuseStatementNotInBooks("exact", index, rule, accountNames);
     refuseSelfMapping("exact", index, rule);
     indexOf.set(rule, index);
     for (const narration of rule.narrations) {
@@ -237,9 +173,10 @@ export function compileMappings(rules: MappingRules): CompiledMappings {
     }
   });
 
-  rules.contains.forEach((rule, index) =>
-    refuseSelfMapping("contains", index, rule),
-  );
+  rules.contains.forEach((rule, index) => {
+    refuseStatementNotInBooks("contains", index, rule, accountNames);
+    refuseSelfMapping("contains", index, rule);
+  });
   // Flatten to one entry per text so lookup is a single ordered scan.
   const contains = rules.contains.flatMap((rule) =>
     rule.contains.map((text) => ({ text: normalize(text), rule })),
@@ -313,11 +250,4 @@ function inRange(value: number, range: AmountRange): boolean {
     (range.min === undefined || value >= range.min) &&
     (range.max === undefined || value <= range.max)
   );
-}
-
-/** The rules of one rule, for running it alone through `classifyWith`. */
-export function rulesOfOne(rule: OneRule): MappingRules {
-  return "narrations" in rule
-    ? { exact: [rule], contains: [] }
-    : { exact: [], contains: [rule] };
 }
