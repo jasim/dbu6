@@ -71,11 +71,11 @@ identity no longer depends on the narration text at all.
 ## Narration is verbatim; VPA matching lives in the mapping layer
 
 The retired TypeScript parser (deleted) reduced `UPIOUT` withdrawals to the bare payee VPA, which is why
-`user-config/transaction_mappings.mjs` has many `exact` keys that are
-bare VPAs. This parser emits `Particulars` untouched. Those keys keep
-working because `exact` keys containing `@` are matched against any UPI VPA
-embedded in the narration (see `categorization/mapping-rules.ts`), for every
-bank, not only Federal.
+`user-config/transaction_mappings.mjs` has many `exact` narrations that
+are bare VPAs. This parser emits `Particulars` untouched. Those rules keep
+working because an `exact` narration that is a VPA is matched against any
+UPI VPA embedded in the narration (see `categorization/mapping-rules.ts`),
+on every statement the rule names, not only Federal's.
 
 Consequence for anything imported through the old path: those drafts and
 journal rows carry narration-hashed `semantic:` keys built from the shortened

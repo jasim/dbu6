@@ -3,8 +3,8 @@
 // account those drafts go to, with a note for next time. They wait in the
 // books as rule requests (categorization_rule_requests) until the user hands
 // them to their coding agent, which proposes how each is encoded, a rule in
-// transaction_mappings.mjs, a line of guidance, or both, or says why it
-// shouldn't be; encodes what the user agrees to; and deletes it from the
+// transaction_mappings.mjs for its account's statement, a line of guidance,
+// or both, or says why it shouldn't be; encodes what the user agrees to; and deletes it from the
 // list. The drafts get their account when the user next runs the
 // categorizer.
 

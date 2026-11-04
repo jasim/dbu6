@@ -556,7 +556,7 @@ Accounts I'll create
   5  Household help  under Household   (for 3b, if you pick it)
 
 Rules for next time, only the ones you say yes to
-  6  out, contains "SAMPLEFOOD", 100–1,000   → Eating out   42 on Sample card, none elsewhere
+  6  On Sample card: money out, contains "SAMPLEFOOD", 100–1,000   → Eating out   42 here, none elsewhere
 ```
 
 - Counts and totals in aligned columns, amounts with Indian digit grouping;
@@ -565,7 +565,8 @@ Rules for next time, only the ones you say yes to
 - New accounts with their parent and what needs them, so the same reply
   approves them.
 - Each rule or prompt line you'd add is its own numbered line under "Rules
-  for next time", with what else in the books it would catch. An answer to
+  for next time", in the books guide's one-line form, statement first, with
+  what the preview found. An answer to
   a group, or `ok`, sets those drafts and adds no rule ("A rule needs its
   own yes" in the books guide).
 - Ordered by total, largest first, so the user can answer the top and skip
@@ -610,7 +611,7 @@ Sample wallet       waits on Sample current (a transfer ties them)
 
 What I changed
   New categories      Household help (under Household)
-  New rules           contains "SAMPLEFOOD" → Eating out (42)
+  New rules           On Sample card: contains "SAMPLEFOOD" → Eating out (42)
   Formats learned     Sample Bank savings CSV
   Duplicates removed  2 on Sample savings
   Opening balances    Cash in hand 5,000 · Car loan, you owe 2,50,000

@@ -36,9 +36,9 @@ time.
    the user's accounts as numbered options, likeliest first, plus "something
    else" and "skip". If none fits, propose a new account's name and parent.
 5. Below both, under "Rules for next time", number each rule or prompt line
-   you'd add: its text, its account (or "what you pick for <question>"), and
-   what it catches, per statement, as "Always put this under X" in the books
-   guide counts it. Each needs its own yes ("A rule
+   you'd add, in the one-line form of "Always put this under X" in the books
+   guide: its statement, its text, its account (or "what you pick for
+   <question>"), and what the preview found. Each needs its own yes ("A rule
    needs its own yes" in the books guide): an account answer, or a yes to
    the list in 3, is not one. A rule request is already that yes.
 6. Create each new account the user approved, with its name, type and
@@ -51,7 +51,7 @@ time.
 
 What the categorizer sees decides what a rule can do:
 
-- A draft's description, direction and amount, never its date.
+- A draft's statement, description, direction and amount, never its date.
 - How it was paid (UPI, NEFT, card) is not something drafts share.
 - Round an amount range out (60–480 becomes 50–500).
 - The user's `user-config/` files may name payees and amounts; that is
@@ -65,6 +65,7 @@ What the categorizer sees decides what a rule can do:
 - Write a rule for the side of a transfer whose description doesn't name
   the other account.
 - Write a rule for each side of the same transfer.
+- Write a rule on `"*"` to one of the person's own bank or card accounts.
 
 ## Report
 

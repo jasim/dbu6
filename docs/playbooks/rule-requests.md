@@ -22,14 +22,14 @@ the user agrees to.
 
 What the categorizer sees decides what a rule can do:
 
-- A draft's description, direction and amount, never its date.
+- A draft's statement, description, direction and amount, never its date.
 - How it was paid (UPI, NEFT, card) is not something drafts share.
 - Round an amount range out (60–480 becomes 50–500).
 - The user's `user-config/` files may name payees and amounts.
 
-A rule request comes from one statement's drafts. Its rule should read only
-that statement's rows as well as it can. Say so when the text would catch
-rows on other statements.
+A rule request comes from one statement's drafts. Its rule names that
+statement. Widen it to more statements, or `"*"`, only as the books guide
+allows, and say so in the proposal.
 
 Delete a rule request once it's encoded, or when the user drops it, which
 takes it off their list:

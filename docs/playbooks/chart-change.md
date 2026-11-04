@@ -18,8 +18,9 @@ account at a time.
   date), drafts categorized to it, drafts from its own statements, its
   sub-accounts, and whether an import preset lists it
   (`npx sapporta api get /api/import-presets`).
-- Where it is named by name: `user-config/transaction_mappings.mjs` and the
-  `custom_mappings_*.prompt` files.
+- Where it is named by name: `user-config/transaction_mappings.mjs`, as a
+  rule's `mapToAccount` or in its `statement`, and the
+  `custom_mappings_*.prompt` files. A rename or merge changes both fields.
 - "Rename or move an account" and "Add an account" in
   `npx dbu6 docs books`.
 
@@ -36,7 +37,8 @@ Delete  Snacks (empty after the merge)
 ```
 
 The yes covers what the plan lists, and nothing else. Rules counts the
-existing rules and prompt lines repointed or renamed; new rules for a split
+existing rules and prompt lines repointed or renamed, a rule's
+`mapToAccount` and its `statement` both; new rules for a split
 are asked after, one at a time. For a split, list
 each group with a few descriptions, so the user agrees to where each goes.
 

@@ -212,31 +212,53 @@ The most frequent request. Two files, and the choice is whether a literal
 string in the narration settles it. Both read the bank's text, a draft's
 `source_narration`, never its comment:
 
-- **Yes** → a rule in `user-config/transaction_mappings.mjs`; the file's
-  comments have the shape. A rule reads every statement dbu6 imports, not
-  only the one its drafts came from. Write one only when the description
-  alone decides the account, on any statement it can appear on, in later
-  months too. The person's habits don't decide it, such as which bank paid a
-  card bill this month. An `account` that is not a name in Accounts silently leaves the row
-  uncategorised. A contains rule can be limited to one direction and to an
-  amount range (`amount: { min, max }`, either end open), for a phrase that
-  alone would also catch other payments.
+- **Yes** → a rule in `user-config/transaction_mappings.mjs`. A rule is
+  one sentence about one statement's rows:
+
+  > On Sample card's statement, money out, a description containing
+  > `SAMPLEFOOD` goes to Eating out.
+
+  ```js
+  { statement: "Sample card", money: "out", contains: ["SAMPLEFOOD"], amount: { min: 100, max: 1000 }, mapToAccount: "Eating out" }
+  ```
+
+  - `statement` is the account whose statement prints the row: the draft's
+    `base_account_id`. It is never the account the money went to or came
+    from. A list names several statements; `"*"` names every one.
+  - `money` is `"in"` or `"out"` of that statement's account, or
+    `"either"`. On a card's statement, a bill payment is money in.
+  - `narrations` (an exact rule, in `exact`: the whole description) or
+    `contains` (a contains rule, in `contains`: a phrase inside it) is the
+    text. A contains rule may add `amount: { min, max }`, either end open.
+  - `mapToAccount` is where the money went or came from, by its exact name
+    in Accounts. A name that isn't there leaves the row uncategorized.
+
+  Write a rule only when the description alone decides the account, for
+  every row it will match on the statements it names, in later months too.
+  The person's habits don't decide it, such as which bank paid a card bill
+  this month. Name the statements its drafts came from. Use `"*"` only for
+  a payee's own name or UPI address that means the same account on any
+  statement (a merchant, `payee@psp`). Never use `"*"` when `mapToAccount`
+  has statements of its own: `npx dbu6 check` fails on it. A rule never
+  answers with the row's own statement account; the next rule or the AI
+  gets that row.
 - **No** → a line in a `custom_mappings_*.prompt` file in `user-config/`,
   read by the AI after the rules miss. It applies only to the accounts whose
   import preset lists that file (`custom_mappings_filenames`; see
   [Import presets](#import-presets)). The AI sees each transaction's
   direction and amount beside its narration, so a line may give an amount
   range too.
+  A file several accounts list, such as `custom_mappings_default.prompt`,
+  is read for every one of their statements. A line about one statement's
+  rows goes in that account's own file.
 
 **A rule needs its own yes.** Where a draft goes and whether to add a rule
 are two questions. (Keeping existing rules in step with an account the user
 renamed or merged is part of that change, not a new rule.) The user naming
 an account, or saying "ok" to a group, settles those drafts only: set them
-by hand
-(`/api/draft-transactions/set-account`). Propose each rule or prompt line
-separately, as "Rule for next time?": its text, direction and amount range,
-its account, and what it would catch. Write it only on a yes to that rule;
-no answer is no. Say when a payee covers varied things (a bill-splitting
+by hand (`/api/draft-transactions/set-account`). Propose each rule or
+prompt line separately, as "Rule for next time?", in the one-line form
+below. Write it only on a yes to that rule; no answer is no. Say when a payee covers varied things (a bill-splitting
 app, a marketplace, a payment wallet, a person), where one account rarely
 fits every payment, and lean to no rule. A rule the user asked for in their
 own words ("always put these under X", a rule request) is that yes.
@@ -256,23 +278,18 @@ Neither sees the date. A string shared only by how the money moved (`UPI`,
 payment. Give a range from the amounts seen, rounded out to round figures,
 not the exact amounts.
 
-Before proposing a rule, count what it would catch, per statement, in the
-drafts and in the books, and where those rows sit now. A rule that catches
-rows sitting in another account is too broad. Narrow it with a longer
-phrase, a direction or an amount range, or don't write it.
+**Preview before you propose.**
+`npx sapporta api post /api/categorization-rules/preview --body '{"rule":{…}}'`,
+with the rule as the file would hold it, runs it through the categorizer's
+own matching over the drafts and the books. It answers, per statement, how
+many rows it catches (`drafts`, `posted`), their amounts (`least`, `most`),
+and where they sit now (`now_in`). A rule that catches rows sitting in
+another account is too broad: narrow it (a longer phrase, `money`, an
+amount range, fewer statements) or don't write it.
 
-```sql
-SELECT b.name AS statement, a.name AS now_in, COUNT(*) AS n,
-       MIN(d.withdrawal + d.deposit) AS least, MAX(d.withdrawal + d.deposit) AS most
-FROM draft_transactions d
-JOIN accounts b ON b.id = d.base_account_id
-LEFT JOIN accounts a ON a.id = d.account_id
-WHERE upper(d.source_narration) LIKE '%<TEXT>%'
-GROUP BY 1, 2 ORDER BY n DESC;
-```
-
-For the books, the categorized line carries `source_narration`, and its
-statement is the other line of the same journal.
+**Propose it as one line:** the statement, then the rest, then what the
+preview found:
+`On Sample card: money out, contains "SAMPLEFOOD", 100–1,000 → Eating out · 42 here, none elsewhere`.
 
 Neither is retroactive: re-run the categoriser over the drafts with no
 account ("Categorise these" above), and restart a server started with
@@ -522,7 +539,8 @@ Leave a rule request you couldn't encode.
   parent in the one update: a trigger refuses a cell saved alone when it
   disagrees with the rest of the tree. Rules and prompt files name accounts by
   name, so make the same rename in `user-config/`: `transaction_mappings.mjs`
-  and the `custom_mappings_*.prompt` files. The import presets name the
+  (a rule's `mapToAccount` and its `statement`) and the
+  `custom_mappings_*.prompt` files. The import presets name the
   account by its id and need no change.
 
   Changing the type of an account that has sub-accounts is
