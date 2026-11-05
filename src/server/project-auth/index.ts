@@ -185,6 +185,7 @@ export {
 export {
   createAuthToken,
   listAuthTokens,
+  liveTokenPrincipal,
   requestMayManageTokens,
   resolveBearerTokenPrincipal,
   revokeAuthToken,

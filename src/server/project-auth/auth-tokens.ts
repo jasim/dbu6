@@ -131,6 +131,27 @@ export function resolveBearerTokenPrincipal(
 }
 
 /**
+ * Whom `rawToken` acts for, when this database would accept it now; null
+ * otherwise. Nothing is written, not even its `lastUsedAt`, so it works on a
+ * database opened read-only.
+ */
+export function liveTokenPrincipal(
+  conn: ProjectDbConnection,
+  rawToken: string,
+): AppPrincipal | null {
+  try {
+    const { user, membership } = acceptedToken(conn, rawToken);
+    return userPrincipal({
+      user: userFromRow(user),
+      membership: membershipFromRow(membership),
+    });
+  } catch (err) {
+    if (err instanceof TokenAuthError) return null;
+    throw err;
+  }
+}
+
+/**
  * Whether this database would accept `rawToken` now: the checks a request
  * with it passes, without the request. Its `lastUsedAt` is left as it is,
  * since nothing used it.

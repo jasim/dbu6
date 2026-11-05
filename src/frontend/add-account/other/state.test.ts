@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type {
-  OpeningBalanceAccount,
-  OpeningBalances,
-} from "../../../shared/index";
+import type { OpeningBalanceAccount } from "../../../shared/index";
+import { balancesOf } from "../../opening-balances.testing";
 import {
   afterRecording,
+  emptyGroupNames,
   nothingLeftTitle,
   otherCard,
   otherHref,
@@ -35,6 +34,8 @@ function account(
     default_date: "2025-12-31",
     implied_opening: null,
     opening: null,
+    removable: false,
+    activity: [],
     ...over,
   };
 }
@@ -96,61 +97,76 @@ describe("afterRecording", () => {
 
 describe("unrecorded", () => {
   it("offers own then owe accounts with no opening, in tree order, and no bank or card", () => {
-    const data: OpeningBalances = {
-      equity_account: null,
-      accounts: [
-        account({
-          account_id: 4,
-          name: "Sample Car Loan",
-          path: "Liabilities:Loans:Sample Car Loan",
-          account_type: "Liability",
-          section: "owe",
-        }),
-        account({ account_id: 3, name: "PPF", path: "Assets:Investments:PPF" }),
-        account({ account_id: 2, name: "Cash", path: "Assets:Cash" }),
+    const loan = account({
+      account_id: 4,
+      name: "Sample Car Loan",
+      path: "Liabilities:Loans:Sample Car Loan",
+      account_type: "Liability",
+      section: "owe",
+    });
+    const ppf = account({
+      account_id: 3,
+      name: "PPF",
+      path: "Assets:Investments:PPF",
+    });
+    const cash = account({ account_id: 2, name: "Cash", path: "Assets:Cash" });
+    const savings = account({
+      account_id: 6,
+      name: "Sample Savings",
+      path: "Assets:Bank Accounts:Sample Savings",
+      section: "statement",
+    });
+    // An empty group banks, cards and loans go under: off the check.
+    const cards = account({
+      account_id: 8,
+      name: "Credit Cards",
+      path: "Liabilities:Credit Cards",
+      account_type: "Liability",
+      section: "owe",
+    });
+    const data = balancesOf(
+      [
+        loan,
+        ppf,
+        cash,
         account({ account_id: 5, name: "EPF", opening: OPENING }),
-        account({
-          account_id: 6,
-          name: "Sample Savings",
-          path: "Assets:Bank Accounts:Sample Savings",
-          section: "statement",
-        }),
+        savings,
         // A group with accounts under it and no opening.
         account({ account_id: 7, name: "Investments", section: null }),
+        cards,
       ],
-    };
+      { unanswered: [ppf, cash, savings, loan] },
+    );
     expect(unrecorded(data).map((one) => one.name)).toEqual([
       "Cash",
       "PPF",
       "Sample Car Loan",
     ]);
+    expect(emptyGroupNames(data)).toEqual(["Credit Cards"]);
   });
 });
 
 describe("recordedNames", () => {
   it("names the own and owe accounts with an opening, from the books", () => {
-    const data: OpeningBalances = {
-      equity_account: null,
-      accounts: [
-        account({
-          account_id: 4,
-          name: "Sample Car Loan",
-          path: "Liabilities:Loans:Sample Car Loan",
-          account_type: "Liability",
-          section: "owe",
-          opening: OPENING,
-        }),
-        account({ account_id: 2, name: "Cash", path: "Assets:Cash" }),
-        account({ account_id: 5, name: "EPF", opening: OPENING }),
-        account({
-          account_id: 6,
-          name: "Sample Savings",
-          path: "Assets:Bank Accounts:Sample Savings",
-          section: "statement",
-          opening: OPENING,
-        }),
-      ],
-    };
+    const data = balancesOf([
+      account({
+        account_id: 4,
+        name: "Sample Car Loan",
+        path: "Liabilities:Loans:Sample Car Loan",
+        account_type: "Liability",
+        section: "owe",
+        opening: OPENING,
+      }),
+      account({ account_id: 2, name: "Cash", path: "Assets:Cash" }),
+      account({ account_id: 5, name: "EPF", opening: OPENING }),
+      account({
+        account_id: 6,
+        name: "Sample Savings",
+        path: "Assets:Bank Accounts:Sample Savings",
+        section: "statement",
+        opening: OPENING,
+      }),
+    ]);
     expect(recordedNames(data)).toEqual(["EPF", "Sample Car Loan"]);
   });
 });
@@ -168,11 +184,11 @@ describe("the words", () => {
 
   it("says why nothing is offered", () => {
     const recorded = account({ name: "Cash", opening: OPENING });
-    expect(
-      nothingLeftTitle({ equity_account: null, accounts: [recorded] }),
-    ).toBe("Every account in your chart has its balance");
+    expect(nothingLeftTitle(balancesOf([recorded]))).toBe(
+      "Every account in your chart has its balance",
+    );
     const bank = account({ name: "Sample Savings", section: "statement" });
-    expect(nothingLeftTitle({ equity_account: null, accounts: [bank] })).toBe(
+    expect(nothingLeftTitle(balancesOf([bank]))).toBe(
       "Your chart has no cash, deposit or loan accounts",
     );
   });

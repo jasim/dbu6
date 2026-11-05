@@ -19,16 +19,22 @@
  * it. It is gitignored.
  */
 import {
+  createAuthContext,
+  createTableCatalog,
   readProjectApiToken,
   writeProjectApiToken,
   type ProjectDbConnection,
 } from "@sapporta/server";
+import { buildAbility } from "../../authz/ability.js";
+import { dataAuthorityFor } from "../../authz/request-data-authority.js";
 import type { AppPrincipal } from "../../authz/types.js";
 import {
   createAuthToken,
+  liveTokenPrincipal,
   revokeAuthTokensWithPurpose,
   tokenIsLive,
 } from "../../project-auth/index.js";
+import { LEDGER_TABLES, type Ledger } from "../ledger-sql/index.js";
 
 /**
  * The `purpose` of every token dbu6 mints for the coding agent: the token
@@ -117,6 +123,30 @@ export function workingAgentToken(
 ): string | undefined {
   const stored = readProjectApiToken(root);
   return stored !== undefined && tokenIsLive(conn, stored) ? stored : undefined;
+}
+
+/**
+ * The books as the project's agent reads them: the ledger with the auth a
+ * request with its working token gets, its owner's rows in its workspace.
+ * Undefined with no working token. What `dbu6 check` reads the workflows
+ * through, so the CLI never carries its own copy of a rule.
+ */
+export function agentLedger(
+  conn: ProjectDbConnection,
+  root: string,
+): Ledger | undefined {
+  const stored = readProjectApiToken(root);
+  if (stored === undefined) return undefined;
+  const principal = liveTokenPrincipal(conn, stored);
+  if (principal === null) return undefined;
+  const dataAuthority = dataAuthorityFor(principal);
+  const auth = createAuthContext({
+    principal,
+    dataAuthority,
+    ability: buildAbility({ principal, dataAuthority }),
+    catalog: createTableCatalog(LEDGER_TABLES),
+  });
+  return { db: conn.db, sqlite: conn.sqlite, auth } as Ledger;
 }
 
 /**

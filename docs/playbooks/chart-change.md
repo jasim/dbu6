@@ -67,6 +67,13 @@ What the API does for each:
   payments are in the wrong account" in the books guide; move each group as
   for a merge; propose rules so future imports follow, each on its own
   yes. Keep A for what is left, or delete it once it is empty.
+- **A new asset or liability**, from a split or on its own, needs its
+  opening, asked in the same plan: create it, move its entries and drafts,
+  then record its opening, as the run guide's "Order of operations" says
+  (`npx dbu6 docs run`). A 0 records "started here", only where its first
+  event is in the books; a loan with only repayments is the
+  `off-statement-transaction` playbook's. Until it has one,
+  `GET /api/opening-balances` lists it under `unanswered`.
 
 A bank or card (an import preset lists it) is never merged or split: its
 entries carry its statements' balances. Rename or move it like any account;

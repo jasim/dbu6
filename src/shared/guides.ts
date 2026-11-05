@@ -107,6 +107,7 @@ export const PLAYBOOKS = [
   "double-counted-transfers",
   "posted-balance-check",
   "chart-change",
+  "off-statement-transaction",
 ] as const;
 
 export type PlaybookName = (typeof PLAYBOOKS)[number];

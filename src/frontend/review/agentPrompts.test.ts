@@ -61,6 +61,7 @@ function detail(overrides: Partial<ReviewAccountDetail>): ReviewAccountDetail {
     },
     checkpoint: { date: "2026-08-31", balance: 250000 },
     has_opening_entry: true,
+    no_starting_balance: [],
     closing: { date: "2026-09-13", balance: 330000 },
     failing: [],
     duplicates: [],

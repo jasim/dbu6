@@ -18,8 +18,10 @@ import {
   countDraftsByBaseAccount,
   countCategorizationRuleRequests,
   draftCounts,
+  loadAccountsDraftsLandOn,
   type DraftAccountStatus,
 } from "../modules/drafts/index.js";
+import { loadOpeningBalances } from "../workflows/opening-balances.js";
 import { loadOpeningEntries } from "../modules/journals/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { decidePress, reliesOnAlone } from "../workflows/posting.js";
@@ -91,6 +93,23 @@ export function listReviewAccounts(
   return { accounts, add_all: adds };
 }
 
+/**
+ * The accounts the account's drafts land on that the opening-balances check
+ * lists, so Review says so where the person categorizes to them.
+ */
+function noStartingBalance(ledger: Ledger, accountId: number) {
+  const landOn = loadAccountsDraftsLandOn(
+    ledger.sqlite,
+    ledger.auth,
+    accountId,
+  );
+  return loadOpeningBalances(ledger).unanswered.flatMap((account) =>
+    landOn.has(account.accountId)
+      ? [{ account_id: account.accountId, name: account.name }]
+      : [],
+  );
+}
+
 /** One account's review, or null when the account isn't in scope. */
 export function loadReviewAccount(
   ledger: Ledger,
@@ -120,6 +139,7 @@ export function loadReviewAccount(
     has_opening_entry: loadOpeningEntries(sqlite, auth, { accountId }).has(
       accountId,
     ),
+    no_starting_balance: noStartingBalance(ledger, accountId),
     closing: drafts?.closing ?? null,
     failing: (drafts?.failing ?? []).map(
       ({ date, draft_id, running_balance, assertion, diff }) => ({

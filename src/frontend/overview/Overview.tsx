@@ -13,10 +13,22 @@ import { apiErrorMessage, overviewApi } from "../api";
 import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
 import { buttonVariants } from "../components/ui/button";
-import { formatDate, formatMonth, formatWholeMoney, plural } from "../format";
+import {
+  formatDate,
+  formatMonth,
+  formatWholeMoney,
+  joinNames,
+  plural,
+} from "../format";
 import { typingIn } from "../keys";
 import { formatWholeAmount } from "../report-kit";
-import { FRESH_QUERY, homeSummaryQuery } from "../queries";
+import {
+  FRESH_QUERY,
+  homeSummaryQuery,
+  openingBalancesQuery,
+} from "../queries";
+import { wrongSideFigure } from "../opening-balances";
+import { BALANCES_SETTINGS_ROUTE } from "../views/settings/routes";
 import { CELL_LINK, ROW_PAD, SheetHead, Td, Th } from "../sheet";
 import { figures, signedAmount } from "../reports/income-expenses/figures";
 import { shadeColor, shades } from "../reports/income-expenses/shade";
@@ -553,6 +565,11 @@ function spent(amount: number): string {
  */
 function NetWorth({ overview }: { overview: PostedOverview }) {
   const { net_worth: worth } = overview;
+  // Which accounts have no starting balance, and which sit on the wrong
+  // side: the opening-balances check, read as it is today.
+  const balances = useQuery(openingBalancesQuery).data;
+  const unanswered = balances?.unanswered ?? [];
+  const wrongSide = balances?.wrong_side ?? [];
   const other = otherWorthChange(overview);
   const asOf = monthDates(overview.month).last_date;
   const ledger = (group: OverviewWorthGroup) =>
@@ -589,7 +606,7 @@ function NetWorth({ overview }: { overview: PostedOverview }) {
           />
         ))}
         <WorthRow
-          label="Net worth"
+          label={unanswered.length > 0 ? "Net worth (incomplete)" : "Net worth"}
           value={formatWholeMoney(worth.net)}
           strong
         />
@@ -601,6 +618,49 @@ function NetWorth({ overview }: { overview: PostedOverview }) {
           />
         )}
       </tbody>
+      {(unanswered.length > 0 || wrongSide.length > 0) && (
+        <tbody>
+          {unanswered.length > 0 && (
+            <tr>
+              <td
+                colSpan={2}
+                className={cn(ROW_PAD, "text-body text-ink-soft")}
+              >
+                No starting balance:{" "}
+                {joinNames(unanswered.map((one) => one.name))}.{" "}
+                <Link
+                  to={BALANCES_SETTINGS_ROUTE}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  Opening balances
+                </Link>
+              </td>
+            </tr>
+          )}
+          {wrongSide.length > 0 && (
+            <tr>
+              <td
+                colSpan={2}
+                className={cn(
+                  ROW_PAD,
+                  "pt-3 text-label uppercase text-ink-meta",
+                )}
+              >
+                Worth a look
+              </td>
+            </tr>
+          )}
+          {wrongSide.map((one) => (
+            <WorthRow
+              key={one.account_id}
+              label={one.name}
+              value={wrongSideFigure(one)}
+              href={accountLedgerHref(one.account_id)}
+              group
+            />
+          ))}
+        </tbody>
+      )}
     </table>
   );
 }

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { balancesOf } from "../../opening-balances.testing";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -68,6 +69,8 @@ function account(
     default_date: "2026-03-31",
     implied_opening: null,
     opening: null,
+    removable: false,
+    activity: [],
     ...more,
   };
 }
@@ -204,6 +207,10 @@ beforeEach(() => {
                 : { removed_journal_id: 21 },
             );
       }
+      if (method === "DELETE" && path.startsWith("/accounts/")) {
+        sent.push({ method, path, body: null });
+        return new Response(null, { status: 204 });
+      }
       if (method === "GET" && path === "/tables/accounts") {
         return Response.json(accountsTablePage(ACCOUNT_ROWS));
       }
@@ -244,16 +251,13 @@ async function renderPage(
       ),
     );
   } else {
-    balances = { equity_account: null, accounts };
+    balances = balancesOf(accounts);
   }
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   if (cached) {
-    client.setQueryData(openingBalancesQuery.queryKey, {
-      equity_account: null,
-      accounts: cached,
-    });
+    client.setQueryData(openingBalancesQuery.queryKey, balancesOf(cached));
   }
   await act(async () => {
     root.render(
@@ -400,7 +404,8 @@ describe("OpeningBalances", () => {
     expect(text()).toContain("Opening balances");
     // One table: each type's group row names its amounts, then each row's
     // name, As of, figure and source. Banks and cards sit with their type.
-    const groups = [...host.querySelectorAll("table tbody")].map((group) => {
+    const recordedTable = [...host.querySelectorAll("table")].at(-1)!;
+    const groups = [...recordedTable.querySelectorAll("tbody")].map((group) => {
       const [head, ...rows] = [...group.querySelectorAll("tr")];
       return [
         head.querySelector("th")?.textContent,
@@ -412,7 +417,8 @@ describe("OpeningBalances", () => {
         ),
       ];
     });
-    // Cash, the car loan and the gold card have none: recording one is C1's.
+    // Cash, the car loan and the gold card have none: they are listed under
+    // No starting balance instead.
     expect(groups).toEqual([
       [
         "Assets",
@@ -747,7 +753,83 @@ describe("OpeningBalances", () => {
     expect(button("Record a balance by hand").getAttribute("href")).toBe(
       "/add/other",
     );
-    expect(document.querySelector("table")).toBeNull();
+    // Only the accounts with no starting balance are in a table.
+    expect(document.querySelectorAll("table")).toHaveLength(1);
+  });
+
+  it("lists the accounts with no starting balance first, with their answers", async () => {
+    const gone = account(12, "Sample Gold", "Assets:Sample Gold", {
+      removable: true,
+    });
+    await renderPage([...ALL, gone]);
+
+    const section = host.querySelector(
+      'section[aria-labelledby="no-starting-balance"]',
+    )!;
+    expect(section.textContent).toContain(
+      "Net worth is incomplete until each of these has one.",
+    );
+    const rows = [...section.querySelectorAll("tbody tr")].map((row) => [
+      ...[...row.querySelectorAll("td")].map((td) => td.textContent),
+    ]);
+    // The check's order is the server's; this list is the accounts the
+    // tables list with no opening. "It started here" needs a first
+    // transaction; "I don't have this", nothing on the account.
+    expect(rows).toEqual([
+      ["Cash", "—", "It had a balance"],
+      ["Sample Car Loan", "5 Apr 2026", "It had a balanceIt started here"],
+      ["Sample Card Gold", "1 Apr 2026", "It had a balanceIt started here"],
+      ["Sample Gold", "—", "It had a balanceI don't have this"],
+    ]);
+  });
+
+  it("records an opening of 0 the day before the first transaction for It started here", async () => {
+    await renderPage(ALL);
+
+    await act(async () =>
+      (
+        host.querySelector(
+          'button[aria-label="Sample Car Loan: it started here"]',
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    await settle();
+
+    expect(sent).toEqual([
+      {
+        method: "POST",
+        path: "/opening-balances",
+        body: {
+          account_id: 7,
+          date: "2026-04-04",
+          amount: 0,
+          description: "Started here",
+        },
+      },
+    ]);
+  });
+
+  it("deletes an account the person doesn't have, after asking", async () => {
+    const gone = account(12, "Sample Gold", "Assets:Sample Gold", {
+      removable: true,
+    });
+    await renderPage([...ALL, gone]);
+
+    await act(async () =>
+      (
+        host.querySelector(
+          `button[aria-label="Sample Gold: I don't have this"]`,
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    await settle();
+    expect(document.body.textContent).toContain("Delete Sample Gold?");
+    await act(async () => button("Delete account").click());
+    await settle();
+
+    expect(sent).toEqual([
+      { method: "DELETE", path: "/accounts/12", body: null },
+    ]);
   });
 
   it("hands the accounts with no statements to the agent, with C1 beside it", async () => {

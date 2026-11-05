@@ -30,9 +30,6 @@ const TREE: Record<LedgerAccountType, Tree> = {
       Cash: {},
       Receivables: {},
       Investments: {
-        EPF: {},
-        PPF: {},
-        NPS: {},
         "Mutual Funds": {},
         Stocks: {},
         Gold: {},
@@ -48,13 +45,8 @@ const TREE: Record<LedgerAccountType, Tree> = {
   },
   Revenue: {
     Income: {
-      Salary: { "Gross Pay": {}, "Employer PF": {}, "Performance Bonus": {} },
-      Interest: {
-        "Savings Interest": {},
-        "Fixed Deposit Interest": {},
-        "EPF Interest": {},
-        "PPF Interest": {},
-      },
+      Salary: { "Gross Pay": {}, "Performance Bonus": {} },
+      Interest: { "Savings Interest": {}, "Fixed Deposit Interest": {} },
       Dividends: { "Stock Dividends": {} },
       Rewards: { "Card Cashback": {} },
     },
@@ -128,7 +120,6 @@ const NOTES: Record<string, string> = {
   "Mutual Funds": "Mutual fund purchases and regular investment plan debits.",
   "Opening Balances":
     "What each account held when you started; needed for balance checks.",
-  "Employer PF": "Your employer's share of EPF, from the payslip.",
   "Savings Interest": "Interest a savings account credits.",
   "Card Cashback": "Cashback and reward credits on a card.",
   Groceries: "Supermarkets, grocery stores and grocery delivery apps.",
@@ -172,7 +163,6 @@ export const STARTER_CHART: readonly ChartAccount[] = Object.entries(
  */
 export const STARTER_UNTICKED: readonly string[] = [
   "Receivables",
-  "NPS",
   "Stocks",
   "Gold",
   "Dividends",

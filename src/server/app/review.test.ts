@@ -35,6 +35,10 @@ function ledger(): Ledger {
       withdrawal REAL, deposit REAL, account_id INTEGER, base_account_id INTEGER,
       balance_assertion_base_account REAL, source_reference TEXT, source_transaction_key TEXT, comment TEXT
     );
+    CREATE TABLE import_presets (
+      id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, name TEXT,
+      parsers TEXT, accounts TEXT, updated_at TEXT
+    );
     CREATE TABLE categorization_rule_requests (
       id INTEGER, workspace_id TEXT, scoped_to_user_id TEXT, base_account_id INTEGER,
       account_id INTEGER, transactions TEXT, note TEXT, created_at TEXT
@@ -164,6 +168,7 @@ describe("loadReviewAccount", () => {
       checkpoint: { date: "2026-02-10", balance: 1500 },
       // Journal 10 opens it against Groceries, not Equity.
       has_opening_entry: false,
+      no_starting_balance: [{ account_id: 2, name: "Sample Savings" }],
       closing: { date: "2026-03-02", balance: 1460 },
       failing: [
         {
@@ -220,6 +225,7 @@ describe("loadReviewAccount", () => {
       },
       checkpoint: null,
       has_opening_entry: false,
+      no_starting_balance: [{ account_id: 6, name: "Cash" }],
       closing: null,
       failing: [],
       duplicates: [],

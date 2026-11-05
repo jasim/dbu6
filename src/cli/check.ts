@@ -18,6 +18,10 @@
  *               a project parser that shadows a bundled one is named
  *   Config      user-config/ read by the same code the app reads it with,
  *               and the import presets in the database
+ *   Books       the accounts with no starting balance, and the balances on
+ *               the wrong side for their type, read through the
+ *               opening-balances workflow as the agent token's owner; as
+ *               information, never a failure
  *
  * The output is written for a coding agent: one line per check, and a
  * failure's tool output indented under it, so the fix can start from the
@@ -53,9 +57,11 @@ import {
   TRANSACTION_MAPPINGS_FILENAME,
 } from "../server/modules/categorization/index.js";
 import {
+  agentLedger,
   chosenCodingAgent,
   workingAgentToken,
 } from "../server/modules/coding-agent/index.js";
+import { loadOpeningBalances } from "../server/workflows/opening-balances.js";
 import { readEveryImportPreset } from "../server/modules/import-presets/index.js";
 import { parserDirectory } from "../server/modules/statement-sources/index.js";
 import {
@@ -707,6 +713,65 @@ export async function checkParsers(): Promise<CheckLine[]> {
   return lines;
 }
 
+// --- Books ---
+
+/**
+ * What the books say about how each account starts: one line for each
+ * account with no starting balance and each balance on the wrong side for
+ * its type, from `loadOpeningBalances`, the rule the app and the run's
+ * report read. It is read as the agent token's owner, since the books are
+ * a user's; with no working token, or before the database is migrated,
+ * nothing is read. Every line is information: an account nobody has
+ * answered for doesn't break an upgrade.
+ */
+export async function checkBooks(root: string): Promise<CheckLine[]> {
+  const file = databaseFile(root);
+  if (!existsSync(file)) {
+    return [info("Books", "no database yet")];
+  }
+  const { default: Database } = await import("better-sqlite3");
+  const sqlite = new Database(file, { readonly: true });
+  try {
+    if (pendingMigrations(sqlite, dbu6MigrationsDir()).length > 0) {
+      return [info("Books", "not read until `dbu6 migrate` has run")];
+    }
+    const ledger = agentLedger({ sqlite, db: drizzle(sqlite) }, root);
+    if (ledger === undefined) {
+      return [
+        info(
+          "Books",
+          `not read: no token in ${PROJECT_API_TOKEN_FILE} the app accepts; run \`dbu6 agent env\``,
+        ),
+      ];
+    }
+    const { unanswered, wrongSide } = loadOpeningBalances(ledger);
+    const lines = [
+      ...unanswered.map((account) =>
+        info(
+          "No starting balance",
+          `${account.name} (${account.accountType === "Asset" ? "held" : "owed"})`,
+        ),
+      ),
+      ...wrongSide.map(({ account, balance }) =>
+        info(
+          "Worth a look",
+          `${account.name}: ${Math.abs(balance).toFixed(2)} ${account.accountType === "Asset" ? "in credit" : "in debit"}`,
+        ),
+      ),
+    ];
+    return lines.length > 0
+      ? lines
+      : [
+          ok(
+            "Starting balances",
+            "every asset and liability account has one, and none is on the wrong side",
+          ),
+        ];
+  } finally {
+    sqlite.close();
+  }
+}
+
 // --- Config ---
 
 export async function checkConfig(root: string): Promise<CheckLine[]> {
@@ -903,6 +968,7 @@ export const SECTIONS: { title: string; check: SectionCheck }[] = [
   { title: "Reports", check: checkReports },
   { title: "Parsers", check: checkParsers },
   { title: "Config", check: checkConfig },
+  { title: "Books", check: checkBooks },
 ];
 
 /** Runs every section against `root`. Nothing is printed. */

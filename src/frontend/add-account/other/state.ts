@@ -2,7 +2,7 @@ import type {
   OpeningBalanceAccount,
   OpeningBalances,
 } from "../../../shared/index";
-import { balanceSections } from "../../opening-balances";
+import { balanceSections, emptyGroups } from "../../opening-balances";
 import { BALANCES_SETTINGS_ROUTE } from "../../views/settings/routes";
 import { ADD_OTHER_ROUTE } from "../state";
 
@@ -56,14 +56,21 @@ export function afterRecording(url: OtherUrl): string {
 }
 
 /**
- * The accounts C1 offers: what the user owns or owes outside the banks and
- * cards (whose first statements set their balance), with no opening yet,
- * in tree order, what they own first.
+ * The accounts C1 offers: the check's (`unanswered`) outside the banks and
+ * cards, whose first statements set their balance, in tree order, what the
+ * user owns first. The empty groups banks, cards and loans are added under
+ * are not on the check; card 6 asks about them (`emptyGroupNames`).
  */
 export function unrecorded(data: OpeningBalances): OpeningBalanceAccount[] {
-  // An empty group such as "Credit Cards" is listed too: nothing in the
-  // books tells a group waiting for accounts from one that holds money.
-  return otherAccounts(data).filter((account) => account.opening === null);
+  const unanswered = new Set(data.unanswered.map((one) => one.account_id));
+  return otherAccounts(data).filter((account) =>
+    unanswered.has(account.account_id),
+  );
+}
+
+/** The empty groups card 6 asks "anything under it?" about. */
+export function emptyGroupNames(data: OpeningBalances): string[] {
+  return emptyGroups(data).map((account) => account.name);
 }
 
 /**

@@ -46,8 +46,19 @@ describe("opening balances routes", () => {
           default_date: "2026-02-02",
           implied_opening: 1000,
           opening: null,
+          removable: false,
+          activity: [{ date: "2026-02-03", amount: 500 }],
         },
       ],
+      unanswered: [
+        {
+          account_id: 1,
+          name: "Sample Savings",
+          path: "Sample Savings",
+          account_type: "Asset",
+        },
+      ],
+      wrong_side: [],
     });
   });
 

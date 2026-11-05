@@ -4,13 +4,14 @@ import type {
   OpeningBalanceAccount,
   OpeningBalances,
 } from "../../../shared/index";
-import { openingBalancesApi } from "../../api";
+import { openingBalancesApi, removeAccount } from "../../api";
 import { openingBalancesQuery, refreshSetup } from "../../queries";
 import type { BalanceEntry } from "./OpeningBalanceDialog";
 
 /*
- * Opening balances' one read and three writes: the balances the page lists,
- * and recording, changing and removing one.
+ * Opening balances' one read and four writes: the balances the page lists,
+ * recording, changing and removing one, and removing an account the user
+ * doesn't have.
  */
 
 /**
@@ -54,7 +55,14 @@ export function useOpeningBalances() {
     await refreshSetup(client);
   };
 
-  return { query, save, remove };
+  // "I don't have this": the account goes, through the Accounts page's
+  // delete, which refuses one anything is on.
+  const removeUnheld = async (account: OpeningBalanceAccount) => {
+    await removeAccount(account.account_id).catch(afterFailure);
+    await refreshSetup(client);
+  };
+
+  return { query, save, remove, removeUnheld };
 }
 
 /**

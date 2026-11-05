@@ -6,6 +6,7 @@ import {
   type OpeningEntry,
   type OpeningLock,
   type OpeningSection,
+  type WrongSideBalance,
 } from "../shared/index";
 import { formatBalance, formatDate, formatMoney } from "./format";
 import { ACCOUNT_TYPE_TERMS } from "./account-type-terms";
@@ -256,12 +257,67 @@ export type BalanceReading =
   | { ok: true; date: string; amount: number; description?: string }
   | { ok: false; problem: string };
 
+type ReadAccount = Pick<
+  OpeningBalanceAccount,
+  "account_type" | "first_activity_date"
+> &
+  Partial<Pick<OpeningBalanceAccount, "opening" | "activity" | "default_date">>;
+
 /**
- * The fields as the books take them. The server refuses a date on or after
- * the first transaction too, and says so in the same words.
+ * The opening a balance known on a later day comes to: that balance less
+ * the account's movement up to and including the day, dated the day before
+ * its first activity. Null when the day is before the first activity, or
+ * the account has an opening entry or no movement to work back through.
+ */
+export function workedBack(
+  account: ReadAccount,
+  date: string,
+  balance: number,
+): { date: string; amount: number } | null {
+  const first = account.first_activity_date;
+  const activity = account.activity ?? [];
+  if (
+    first === null ||
+    date < first ||
+    (account.opening ?? null) !== null ||
+    activity.length === 0 ||
+    !account.default_date
+  ) {
+    return null;
+  }
+  const moved = activity
+    .filter((day) => day.date <= date)
+    .reduce((sum, day) => sum + day.amount, 0);
+  const amount = Math.round((balance - moved) * 100) / 100;
+  return { date: account.default_date, amount: amount === 0 ? 0 : amount };
+}
+
+/**
+ * Under the date, when the day is on or after the first activity: the
+ * opening the balance comes to, the user's way up. Null otherwise.
+ */
+export function workedBackReadback(
+  account: ReadAccount,
+  fields: BalanceFields,
+): string | null {
+  const typed = ledgerAmount(account.account_type, fields.amount);
+  if (typed === null) return null;
+  const opening = workedBack(account, fields.date.trim(), typed);
+  if (opening === null) return null;
+  const figure = formatMoney(
+    account.account_type === "Liability" ? -opening.amount : opening.amount,
+  );
+  return `Opening balance on ${formatDate(opening.date)}: ${figure}, less what moved by ${formatDate(fields.date.trim())}.`;
+}
+
+/**
+ * The fields as the books take them. A day on or after the first
+ * transaction is a balance known later, worked back to the opening
+ * (`workedBack`) while the account has none; otherwise the server refuses
+ * it too, and says so in the same words.
  */
 export function readBalance(
-  account: Pick<OpeningBalanceAccount, "account_type" | "first_activity_date">,
+  account: ReadAccount,
   fields: BalanceFields,
 ): BalanceReading {
   const type = account.account_type;
@@ -279,13 +335,24 @@ export function readBalance(
   const date = fields.date.trim();
   if (date === "") return { ok: false, problem: "Pick a date." };
   const first = account.first_activity_date;
+  const note = fields.note.trim();
+  const later = workedBack(account, date, amount);
+  if (later !== null) {
+    const figure = formatMoney(
+      account.account_type === "Liability" ? -amount : amount,
+    );
+    const said =
+      account.account_type === "Liability"
+        ? `Owed ${figure} on ${formatDate(date)}`
+        : `Held ${figure} on ${formatDate(date)}`;
+    return { ok: true, ...later, description: note === "" ? said : note };
+  }
   if (first !== null && date >= first) {
     return {
       ok: false,
       problem: `Pick a day before ${formatDate(first)}, its first transaction.`,
     };
   }
-  const note = fields.note.trim();
   return note === ""
     ? { ok: true, date, amount }
     : { ok: true, date, amount, description: note };
@@ -314,12 +381,79 @@ export function signReadback(type: BalanceType, typed: string): string | null {
 
 /** Under the date: the day it must come before, or where the default is from. */
 export function dateHint(
-  account: Pick<OpeningBalanceAccount, "first_activity_date" | "default_date">,
+  account: Pick<OpeningBalanceAccount, "first_activity_date" | "default_date"> &
+    Partial<Pick<OpeningBalanceAccount, "activity">>,
   adding: boolean,
 ): string {
   if (account.first_activity_date !== null) {
-    return `Before its first transaction on ${formatDate(account.first_activity_date)}.`;
+    const first = formatDate(account.first_activity_date);
+    return adding && (account.activity ?? []).length > 0
+      ? `Before its first transaction on ${first}, or a later day you know the balance of.`
+      : `Before its first transaction on ${first}.`;
   }
   if (adding && account.default_date !== null) return "When your books start.";
   return "The day your balance is from.";
+}
+
+/**
+ * The check: the accounts whose start nobody has answered for, from the
+ * server's `unanswered`, in its order.
+ */
+export function unansweredAccounts(
+  data: OpeningBalances,
+): OpeningBalanceAccount[] {
+  const byId = new Map(data.accounts.map((one) => [one.account_id, one]));
+  return data.unanswered.flatMap((ref) => {
+    const account = byId.get(ref.account_id);
+    return account ? [account] : [];
+  });
+}
+
+/** What "It started here" records: nothing held or owed the day before. */
+export const STARTED_HERE_DESCRIPTION = "Started here";
+
+/**
+ * "It started here" as the books take it: an opening of 0 the day before
+ * the account's first activity. Null while nothing is on the account, since
+ * nothing in the books says when it started.
+ */
+export function startedHereEntry(
+  account: Pick<OpeningBalanceAccount, "first_activity_date" | "default_date">,
+): { date: string; amount: number; description: string } | null {
+  if (account.first_activity_date === null || account.default_date === null) {
+    return null;
+  }
+  return {
+    date: account.default_date,
+    amount: 0,
+    description: STARTED_HERE_DESCRIPTION,
+  };
+}
+
+/**
+ * The groups banks, cards and loans are added under while nothing is under
+ * them: an account Opening balances lists to own or owe, with no opening,
+ * that the check leaves out. Card 6 asks whether anything goes under them.
+ */
+export function emptyGroups(data: OpeningBalances): OpeningBalanceAccount[] {
+  const unanswered = new Set(data.unanswered.map((one) => one.account_id));
+  return data.accounts.filter(
+    (account) =>
+      (account.section === "own" || account.section === "owe") &&
+      account.opening === null &&
+      !unanswered.has(account.account_id),
+  );
+}
+
+/**
+ * A balance on the wrong side as the user reads it: an asset in credit, a
+ * liability in debit, by how much.
+ */
+export function wrongSideFigure(
+  balance: Pick<WrongSideBalance, "account_type" | "balance">,
+): string {
+  const amount = formatMoney(Math.abs(balance.balance));
+  return balance.account_type === "Asset"
+    ? `${amount} in credit`
+    : `${amount} in debit`;
 }

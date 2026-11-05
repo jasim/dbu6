@@ -43,6 +43,8 @@ const OPENING_BALANCES = {
       default_date: null,
       implied_opening: null,
       opening: null,
+      removable: false,
+      activity: [],
     },
     {
       account_id: 4,
@@ -61,8 +63,19 @@ const OPENING_BALANCES = {
         locked: null,
         source: "manual",
       },
+      removable: false,
+      activity: [],
     },
   ],
+  unanswered: [
+    {
+      account_id: 3,
+      name: "Sample Savings",
+      path: "Assets > Bank Accounts > Sample Savings",
+      account_type: "Asset",
+    },
+  ],
+  wrong_side: [],
 };
 
 const CHART: AccountRow[] = [

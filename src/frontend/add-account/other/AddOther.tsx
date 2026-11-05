@@ -20,6 +20,7 @@ import { accountsInBooks, setupFrame } from "../words";
 import { RecordBalance } from "./RecordBalance";
 import {
   afterRecording,
+  emptyGroupNames,
   nothingLeftTitle,
   otherCard,
   otherHref,
@@ -99,18 +100,44 @@ function AnythingElse({
   data: OpeningBalances | undefined;
 }) {
   const recorded = data ? recordedNames(data) : [];
+  const open = data ? unrecorded(data).map((account) => account.name) : [];
+  const groups = data ? emptyGroupNames(data) : [];
   return (
     <FocusCard
       {...frame}
       title="Cash, a deposit, a loan?"
       lead={
-        recorded.length === 0 ? (
-          "Record what each held when your books start."
-        ) : (
-          <span className="text-primary">
-            <span aria-hidden="true">✓</span> {joinNames(recorded)} recorded
-          </span>
-        )
+        <span className="block space-y-1">
+          {recorded.length === 0 ? (
+            <span className="block">
+              Record what each held when your books start, and anything else you
+              own or owe.
+            </span>
+          ) : (
+            <span className="block text-primary">
+              <span aria-hidden="true">✓</span> {joinNames(recorded)} recorded
+            </span>
+          )}
+          {open.length > 0 && (
+            <span className="block">
+              No starting balance: {joinNames(open)}
+            </span>
+          )}
+          {groups.length > 0 && (
+            <span className="block">
+              Nothing under {joinNames(groups)} yet. Add each one on the{" "}
+              <Link
+                to="/accounts"
+                target="_blank"
+                rel="noopener"
+                className="underline underline-offset-4"
+              >
+                Accounts page
+              </Link>
+              .
+            </span>
+          )}
+        </span>
       }
       actions={
         <>

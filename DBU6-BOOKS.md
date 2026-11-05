@@ -331,7 +331,10 @@ Leave a rule request you couldn't encode.
   account's balance checks. Check `balance-assertions` afterwards.
 - **"Add a transaction by hand."**
   `npx sapporta rows create journals --values '{"date":"…","description":"…","$details":{"table":"journal_entries","fk":"journal_id","rows":[{"account_id":<a>,"debit":500,"comment":"…"},{"account_id":<b>,"credit":500}]}}'`.
-  Debits must equal credits.
+  Debits must equal credits. A run uses it for an off-statement
+  transaction the user described, such as a loan's disbursement to a
+  dealer (`npx dbu6 docs playbook off-statement-transaction`), and for
+  nothing else.
 - **"Undo that."**
   There is no undo. An imported journal holds one statement transaction;
   journals imported before 2026-09-24 hold a day's same-direction
@@ -500,7 +503,7 @@ Leave a rule request you couldn't encode.
   "Opening balance".
   - `section` is where the Opening balances page lists the account: `own`
     (an asset) or `owe` (a liability), in account order, which `/add/other`
-    offers while they have no opening, then `statement` (a bank or card an
+    offers while they are on `unanswered` (below), then `statement` (a bank or card an
     import preset lists, whose first statement set its balance). A group
     account with no opening entry is `null` and not listed.
   - The screens ask for what the account held, or what was owed on it, as a
@@ -531,6 +534,34 @@ Leave a rule request you couldn't encode.
     that journal instead, which moves every later balance check.
 
   Without an opening balance, every balance check fails by the same amount.
+
+  - **How each account starts.** The opening entry is the one record of it,
+    and the list's `unanswered` is the check: every leaf asset or liability
+    account with no opening entry, whether or not anything is on it, by
+    path, leaving out a group with accounts under it and the empty groups
+    banks, cards and loans are added under. The screens, `dbu6 check`, net
+    worth's "incomplete" and a run's report all read it; never filter
+    `accounts` yourself. `wrong_side` beside it lists the balances, drafts
+    included, on the wrong side for their type (an asset in credit, a
+    liability in debit): worth a look, never an error.
+  - **An opening of 0 records "started here":** the account began inside
+    the books, so it held or owed nothing the day before its first event (a
+    loan paid out on 12 Mar owed 0 on 11 Mar). Use it only when that first
+    event is in the books, a statement row or an off-statement transaction
+    the user described; a loan with only its instalments and a 0 opening is
+    a liability in debit.
+  - **A balance known on a later date:** the opening is that balance less
+    the account's movement up to and including the date
+    (`/api/accounts/<id>/activity`, drafts included), dated the day before
+    its first activity, with the user's sentence as `description`. Record
+    it after the account's drafts are categorized to it.
+  - **Not held:** an account the user never had, with nothing on it (its
+    `removable`, and no rule naming it), is deleted instead
+    (`npx sapporta api delete /api/accounts/<id>`), and its line dropped from
+    `custom_mappings_default.prompt` if it has one. There is then nothing to
+    answer.
+  - A transaction no statement shows, such as a loan paid straight to a
+    dealer, is `npx dbu6 docs playbook off-statement-transaction`.
 
 - **"Add an account."**
   `npx sapporta rows create accounts --values '{"name":"…","account_type":"…","parent_id":<id>}'`,

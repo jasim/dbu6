@@ -20,18 +20,28 @@ export async function resolveRequestDataAuthority(input: {
   principal: AppPrincipal;
   c: Context;
 }): Promise<RequestDataAuthority> {
-  if (input.principal.kind !== "user") {
+  return dataAuthorityFor(input.principal);
+}
+
+/**
+ * The ownership facts a principal's requests get, with no request: what
+ * `dbu6 check` reads the books with, as the agent token's owner.
+ */
+export function dataAuthorityFor(
+  principal: AppPrincipal,
+): RequestDataAuthority {
+  if (principal.kind !== "user") {
     return requestDataAuthority({
       systemGlobalOnly: systemGlobalOnlyAuthority(),
     });
   }
-  const workspace = input.principal.membership.workspace;
+  const workspace = principal.membership.workspace;
   return requestDataAuthority({
     systemGlobalOnly: systemGlobalOnlyAuthority(),
     workspaceGlobalOnly: workspaceGlobalOnlyAuthority(workspace),
     workspaceUserScoped: workspaceUserScopedAuthority({
       workspace,
-      user: input.principal.user,
+      user: principal.user,
     }),
   });
 }

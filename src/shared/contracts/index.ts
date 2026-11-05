@@ -251,6 +251,8 @@ export {
   type OpeningLock,
   type OpeningSection,
   type OpeningSource,
+  type BalanceAccountRef,
+  type WrongSideBalance,
 } from "./opening-balances.js";
 export {
   setupContract,

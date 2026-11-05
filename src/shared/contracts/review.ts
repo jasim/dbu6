@@ -84,6 +84,11 @@ export const reviewAccountDetailSchema = z.object({
   // Whether the books hold the account's opening entry (a line in a journal
   // with a line on Equity). Without one every balance check is off by it.
   has_opening_entry: z.boolean(),
+  // The accounts this account's drafts land on, itself included, that have
+  // no starting balance: the opening-balances check's, by path.
+  no_starting_balance: z.array(
+    z.object({ account_id: z.number(), name: z.string() }),
+  ),
   // The last balance the drafts carry from a statement; null when none does.
   closing: datedBalanceSchema.nullable(),
   failing: z.array(reviewFailingCheckSchema),

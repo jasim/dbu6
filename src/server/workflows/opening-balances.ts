@@ -12,13 +12,19 @@ import {
   loadLedgerAccounts,
   type NamedAccount,
 } from "../modules/accounts/index.js";
+import { BANK_CARD_LOAN_GROUPS } from "../modules/chart-of-accounts/index.js";
 import {
+  countDraftsByAccount,
+  loadBalancesWithDrafts,
+  loadDailyAmountsWithDrafts,
   loadFirstCategorizedDraftDates,
+  type DayAmount,
   loadFirstDrafts,
 } from "../modules/drafts/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import type { JournalPlan } from "../modules/journal-plan/index.js";
 import {
+  countEntriesByAccount,
   deleteOpeningEntry,
   insertJournalPlan,
   loadEntriesBesideOpening,
@@ -46,6 +52,14 @@ import { sameAmount } from "../modules/values/index.js";
  *
  * Amounts are signed like a balance assertion: positive when held, negative
  * when owed.
+ *
+ * How each account starts is recorded once, as its opening entry: an amount
+ * carried in, or 0 dated the day before its first event when it started
+ * inside the books ("started here": a loan paid out on 12 Mar owed 0 on
+ * 11 Mar). An account nobody has answered for has no opening entry, and
+ * `unanswered` lists it: the one rule the screens, the agent, `dbu6 check`
+ * and the run's report read. An account the user never held is removed
+ * instead (`removable`), so there is nothing to answer.
  */
 
 export type OpeningAccountType = "Asset" | "Liability";
@@ -89,12 +103,45 @@ export interface OpeningBalanceAccount {
   /** `loadImpliedOpenings`' figure; null with no balance check. */
   impliedOpening: number | null;
   opening: OpeningBalance | null;
+  /**
+   * Whether "I don't have this" may delete it: a leaf no import preset
+   * lists, with no posted entry and no draft on either side.
+   */
+  removable: boolean;
+  /**
+   * Each day's movement, posted entries plus drafts, signed like `opening`,
+   * while the account has no opening entry: what a balance the user knows
+   * on a later day is worked back through to its opening. Empty once it has
+   * one.
+   */
+  activity: DayAmount[];
+}
+
+/** An account whose balance sits on the wrong side for its type. */
+export interface WrongSideBalance {
+  account: OpeningBalanceAccount;
+  /** Posted entries plus drafts, signed like `opening.amount`. */
+  balance: number;
 }
 
 export interface OpeningBalances {
   /** Null until the first opening entry creates it. */
   equityAccount: NamedAccount | null;
   accounts: OpeningBalanceAccount[];
+  /**
+   * The check: every leaf asset or liability account with no opening entry,
+   * by path, whether or not anything is on it. Left out are a group with
+   * accounts under it, which takes no opening, and the groups banks, cards
+   * and loans are added under (`BANK_CARD_LOAN_GROUPS`) while empty.
+   */
+  unanswered: OpeningBalanceAccount[];
+  /**
+   * Accounts whose balance, drafts included, sits on the wrong side for
+   * their type: an asset in credit, a liability in debit. Some are ordinary
+   * (a card paid in excess, an overdrawn account), so it is worth a look,
+   * never an error.
+   */
+  wrongSide: WrongSideBalance[];
 }
 
 /** Every asset and liability account and its opening entry, by path. */
@@ -110,6 +157,9 @@ export function loadOpeningBalances({
   const impliedOpenings = loadImpliedOpenings(sqlite, auth);
   const firstDrafts = loadFirstDrafts(sqlite, auth);
   const firstCategorized = loadFirstCategorizedDraftDates(sqlite, auth);
+  const entryCounts = countEntriesByAccount(sqlite, auth);
+  const draftCounts = countDraftsByAccount(sqlite, auth);
+  const dailyAmounts = loadDailyAmountsWithDrafts(sqlite, auth);
   const equity = findOpeningBalancesAccount(db, auth);
   const parents = new Set(chart.map((account) => account.parent_id));
   const statementAccounts = new Set(
@@ -135,6 +185,8 @@ export function loadOpeningBalances({
       const drafts = firstDrafts.get(account.id) ?? null;
       const opening = openings.get(account.id) ?? null;
       const impliedOpening = impliedOpenings.get(account.id) ?? null;
+      const leaf = !parents.has(account.id);
+      const fromStatements = statementAccounts.has(account.id);
       const firstActivityDate = [
         beside?.first_date ?? null,
         drafts?.first_date ?? null,
@@ -146,8 +198,8 @@ export function loadOpeningBalances({
         path: paths.get(account.name) ?? account.name,
         accountType: account.account_type,
         section: sectionOf(account.account_type, {
-          fromStatements: statementAccounts.has(account.id),
-          leaf: !parents.has(account.id),
+          fromStatements,
+          leaf,
           opened: opening !== null,
         }),
         firstActivityDate,
@@ -164,17 +216,42 @@ export function loadOpeningBalances({
               ? "statement"
               : "manual",
         },
+        removable:
+          leaf &&
+          !fromStatements &&
+          !entryCounts.has(account.id) &&
+          !draftCounts.has(account.id),
+        activity: opening === null ? (dailyAmounts.get(account.id) ?? []) : [],
       };
     })
     .sort((a, b) => a.path.localeCompare(b.path));
 
+  const balances = loadBalancesWithDrafts(sqlite, auth);
   return {
     equityAccount:
       equity && equity.account_type === "Equity"
         ? { id: equity.id, name: equity.name }
         : null,
     accounts,
+    unanswered: accounts.filter(
+      (account) =>
+        account.opening === null &&
+        !parents.has(account.accountId) &&
+        !BANK_CARD_LOAN_GROUPS.includes(account.name),
+    ),
+    wrongSide: accounts.flatMap((account) => {
+      const balance = balances.get(account.accountId) ?? 0;
+      return onWrongSide(account.accountType, balance)
+        ? [{ account, balance }]
+        : [];
+    }),
   };
+}
+
+// An asset in credit, or a liability in debit, by more than rounding.
+function onWrongSide(type: OpeningAccountType, balance: number): boolean {
+  if (sameAmount(balance, 0)) return false;
+  return type === "Asset" ? balance < 0 : balance > 0;
 }
 
 /*

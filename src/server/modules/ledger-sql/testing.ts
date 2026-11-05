@@ -1,10 +1,6 @@
 import type { SapportaAuthContext } from "@sapporta/server";
 import { createTestAuthContext } from "@sapporta/server/testing";
-import { accounts } from "../../schema/accounts.js";
-import { categorizationRuleRequests } from "../../schema/categorization-rule-requests.js";
-import { draftTransactions } from "../../schema/draft-journals.js";
-import { importPresets } from "../../schema/import-presets.js";
-import { journalEntries, journals } from "../../schema/journals.js";
+import { LEDGER_TABLES } from "./index.js";
 
 /**
  * A test request's auth over the ledger's tables: one user in one workspace,
@@ -15,14 +11,7 @@ export function testLedgerAuth(
   workspaceId = "workspace",
 ): SapportaAuthContext {
   return createTestAuthContext({
-    tables: [
-      accounts,
-      draftTransactions,
-      journals,
-      journalEntries,
-      importPresets,
-      categorizationRuleRequests,
-    ],
+    tables: LEDGER_TABLES,
     workspaceId,
     userId,
   });

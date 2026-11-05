@@ -15,6 +15,7 @@ import {
   loadOpeningBalances,
   recordOpeningBalance,
   removeOpeningBalance,
+  type OpeningBalanceAccount,
   type OpeningBalanceRequest,
 } from "../workflows/opening-balances.js";
 import { requireWorkflowLedger } from "./workflow-auth.js";
@@ -62,9 +63,21 @@ export default api;
 
 /** The accounts and their opening entries, in the contract's terms. */
 export function listOpeningBalances(ledger: Ledger): OpeningBalancesBody {
-  const { equityAccount, accounts } = loadOpeningBalances(ledger);
+  const { equityAccount, accounts, unanswered, wrongSide } =
+    loadOpeningBalances(ledger);
+  const ref = (account: OpeningBalanceAccount) => ({
+    account_id: account.accountId,
+    name: account.name,
+    path: account.path,
+    account_type: account.accountType,
+  });
   return {
     equity_account: equityAccount,
+    unanswered: unanswered.map(ref),
+    wrong_side: wrongSide.map(({ account, balance }) => ({
+      ...ref(account),
+      balance,
+    })),
     accounts: accounts.map((account) => ({
       account_id: account.accountId,
       name: account.name,
@@ -82,6 +95,8 @@ export function listOpeningBalances(ledger: Ledger): OpeningBalancesBody {
         locked: account.opening.locked,
         source: account.opening.source,
       },
+      removable: account.removable,
+      activity: account.activity,
     })),
   };
 }

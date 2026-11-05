@@ -63,15 +63,47 @@ export const openingBalanceAccountSchema = z.object({
   implied_opening: z.number().nullable(),
   // Null until the account has an opening entry.
   opening: openingEntrySchema.nullable(),
+  // Whether "I don't have this" may delete the account: a leaf no import
+  // preset lists, with no posted entry and no draft.
+  removable: z.boolean(),
+  // Each day's movement, posted entries plus drafts, signed like the
+  // opening, while the account has no opening entry; empty once it has one.
+  // A balance known on a later day, less the movement up to it, is the
+  // opening.
+  activity: z.array(z.object({ date: z.string(), amount: z.number() })),
 });
 export type OpeningBalanceAccount = z.infer<typeof openingBalanceAccountSchema>;
 
 const namedAccountSchema = z.object({ id: z.number(), name: z.string() });
 
+// An account as the check and the wrong-side list name it.
+export const balanceAccountRefSchema = z.object({
+  account_id: z.number(),
+  name: z.string(),
+  path: z.string(),
+  account_type: z.enum(["Asset", "Liability"]),
+});
+export type BalanceAccountRef = z.infer<typeof balanceAccountRefSchema>;
+
+export const wrongSideBalanceSchema = balanceAccountRefSchema.extend({
+  // Posted entries plus drafts; positive when held, negative when owed.
+  balance: z.number(),
+});
+export type WrongSideBalance = z.infer<typeof wrongSideBalanceSchema>;
+
 export const openingBalancesSchema = z.object({
   // Null until the first opening entry creates it.
   equity_account: namedAccountSchema.nullable(),
   accounts: z.array(openingBalanceAccountSchema),
+  // The accounts whose start nobody has answered for: every leaf asset or
+  // liability account with no opening entry, by path. Not a group with
+  // accounts under it, nor the empty groups banks, cards and loans are
+  // added under. An opening of 0 answers "it started here".
+  unanswered: z.array(balanceAccountRefSchema),
+  // Accounts whose balance, drafts included, is on the wrong side for their
+  // type: an asset in credit, a liability in debit. Worth a look, not an
+  // error: a card paid in excess or an overdrawn account is ordinary.
+  wrong_side: z.array(wrongSideBalanceSchema),
 });
 export type OpeningBalances = z.infer<typeof openingBalancesSchema>;
 
@@ -111,7 +143,8 @@ export const openingBalancesContract = c.router({
   list: c.query({
     method: "GET",
     path: "/opening-balances",
-    summary: "Every asset and liability account with its opening entry",
+    summary:
+      "Every asset and liability account with its opening entry, the accounts with no starting balance, and balances on the wrong side",
     query: z.object({}),
     responses: {
       200: openingBalancesSchema,

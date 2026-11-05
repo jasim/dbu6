@@ -1,3 +1,4 @@
+import { balancesOf } from "../../opening-balances.testing";
 import { describe, expect, it } from "vitest";
 import type {
   OpeningBalanceAccount,
@@ -27,6 +28,8 @@ function account(
           amount: 1000,
         } as OpeningBalanceAccount["opening"])
       : null,
+    removable: false,
+    activity: [],
   };
 }
 
@@ -44,15 +47,12 @@ describe("banksValue", () => {
 
 describe("balancesValue", () => {
   it("counts the accounts that have a balance", () => {
-    const data: OpeningBalances = {
-      equity_account: null,
-      accounts: [
-        account(1, "own", true),
-        account(2, "statement", false),
-        account(3, "owe", true),
-        account(4, null, false),
-      ],
-    };
+    const data: OpeningBalances = balancesOf([
+      account(1, "own", true),
+      account(2, "statement", false),
+      account(3, "owe", true),
+      account(4, null, false),
+    ]);
     expect(balancesValue(data)).toEqual({
       tone: "plain",
       text: "2 recorded",
@@ -60,7 +60,7 @@ describe("balancesValue", () => {
   });
 
   it("says when none is recorded", () => {
-    expect(balancesValue({ equity_account: null, accounts: [] })).toEqual({
+    expect(balancesValue(balancesOf([]))).toEqual({
       tone: "quiet",
       text: "None yet",
     });

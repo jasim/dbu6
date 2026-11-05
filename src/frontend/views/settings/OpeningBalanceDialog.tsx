@@ -26,6 +26,7 @@ import {
   lockedJournal,
   readBalance,
   signReadback,
+  workedBackReadback,
   type BalanceFields,
 } from "../../opening-balances";
 
@@ -128,6 +129,7 @@ function DialogBody({
     account.implied_opening !== null &&
     fields.amount === opened.amount;
   const readback = signReadback(type, fields.amount);
+  const workedBack = workedBackReadback(account, fields);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -202,6 +204,11 @@ function DialogBody({
             onChange={(event) => set({ date: event.target.value })}
             className="tnum h-sap-ctl w-[190px] rounded-control font-mono"
           />
+          {workedBack && (
+            <span className="mt-1 block text-meta text-ink-meta">
+              {workedBack}
+            </span>
+          )}
         </Field>
 
         <Disclosure summary="More options">

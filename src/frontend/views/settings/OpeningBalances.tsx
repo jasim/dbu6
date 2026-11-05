@@ -35,6 +35,8 @@ import {
   openingSource,
   recordedGroups,
   sectionOf,
+  startedHereEntry,
+  unansweredAccounts,
   type BalanceGroup,
 } from "../../opening-balances";
 import {
@@ -68,10 +70,11 @@ export function OpeningBalances() {
   usePageTitle("Opening balances");
   const navigate = useNavigate();
   const { search } = useLocation();
-  const { query, save, remove } = useOpeningBalances();
+  const { query, save, remove, removeUnheld } = useOpeningBalances();
   const [params] = useSearchParams();
   const focus = params.get("account");
   const [removing, setRemoving] = useState<OpeningBalanceAccount | null>(null);
+  const [unheld, setUnheld] = useState<OpeningBalanceAccount | null>(null);
 
   /**
    * Opens an account's balance form in front of this list. It keeps this
@@ -104,6 +107,7 @@ export function OpeningBalances() {
   }, [data, fetching, focus, pathname]);
 
   const groups = data ? recordedGroups(data, focus) : [];
+  const unanswered = data ? unansweredAccounts(data) : [];
 
   // The form's Remove: back to the list, which asks before removing.
   const askRemove = (account: OpeningBalanceAccount) => {
@@ -150,6 +154,14 @@ export function OpeningBalances() {
         )}
         {data && (
           <>
+            {unanswered.length > 0 && (
+              <UnansweredTable
+                accounts={unanswered}
+                onOpen={openForm}
+                save={save}
+                onRemove={setUnheld}
+              />
+            )}
             {groups.length === 0 ? (
               <EmptyState
                 title="No opening balances yet"
@@ -167,6 +179,11 @@ export function OpeningBalances() {
               remove={remove}
               onClose={() => setRemoving(null)}
             />
+            <UnheldDialog
+              account={unheld}
+              remove={removeUnheld}
+              onClose={() => setUnheld(null)}
+            />
             {/* The open form, as `/settings/balances/:accountId/edit`: it
                 reads the list above through the Outlet, so opening it reads
                 nothing again. */}
@@ -175,6 +192,209 @@ export function OpeningBalances() {
         )}
       </div>
     </Screen>
+  );
+}
+
+/**
+ * The check: each account nobody has said how it starts, with its three
+ * answers. "It started here" records an opening of 0 the day before its
+ * first transaction, so it needs one; "I don't have this" deletes the
+ * account, while nothing is on it.
+ */
+function UnansweredTable({
+  accounts,
+  onOpen,
+  save,
+  onRemove,
+}: {
+  accounts: OpeningBalanceAccount[];
+  onOpen: (account: OpeningBalanceAccount) => void;
+  save: (
+    account: OpeningBalanceAccount,
+    entry: { date: string; amount: number; description?: string },
+  ) => Promise<void>;
+  onRemove: (account: OpeningBalanceAccount) => void;
+}) {
+  const [busy, setBusy] = useState<number | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function startedHere(account: OpeningBalanceAccount) {
+    const entry = startedHereEntry(account);
+    if (entry === null) return;
+    setBusy(account.account_id);
+    setProblem(null);
+    try {
+      await save(account, entry);
+    } catch (error) {
+      setProblem(apiErrorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section aria-labelledby="no-starting-balance" className="mb-8">
+      <h2
+        id="no-starting-balance"
+        className="text-label uppercase text-ink-meta"
+      >
+        No starting balance
+      </h2>
+      <p className="mt-1 text-body text-foreground">
+        Net worth is incomplete until each of these has one.
+      </p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-row">
+          <thead className="border-b border-sap-border text-left text-meta text-ink-meta">
+            <tr>
+              <th scope="col" className="py-2.5 pr-3 font-medium">
+                Account
+              </th>
+              <th
+                scope="col"
+                className="hidden w-36 px-3 py-2.5 font-medium sm:table-cell"
+              >
+                First transaction
+              </th>
+              <th scope="col" className="py-2.5 pl-3">
+                <span className="sr-only">Answers</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map((account) => {
+              const canStart = startedHereEntry(account) !== null;
+              return (
+                <tr
+                  key={account.account_id}
+                  className="border-b border-line-inner"
+                >
+                  <td className="py-2.5 pr-3 align-middle font-semibold text-foreground">
+                    {account.name}
+                  </td>
+                  <td className="hidden whitespace-nowrap px-3 py-2.5 sm:table-cell">
+                    {account.first_activity_date ? (
+                      <span className="tnum">
+                        {formatDate(account.first_activity_date)}
+                      </span>
+                    ) : (
+                      <span className="text-ink-meta">—</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 pl-3">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label={`${account.name}: it had a balance`}
+                        onClick={() => onOpen(account)}
+                      >
+                        It had a balance
+                      </Button>
+                      {canStart && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`${account.name}: it started here`}
+                          disabled={busy !== null}
+                          onClick={() => void startedHere(account)}
+                        >
+                          {busy === account.account_id
+                            ? "Recording…"
+                            : "It started here"}
+                        </Button>
+                      )}
+                      {account.removable && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`${account.name}: I don't have this`}
+                          onClick={() => onRemove(account)}
+                        >
+                          I don't have this
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {problem && (
+        <p role="alert" className="mt-3 text-body text-destructive">
+          {problem}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** "I don't have this": asks before the account is deleted. */
+function UnheldDialog({
+  account,
+  remove,
+  onClose,
+}: {
+  account: OpeningBalanceAccount | null;
+  remove: (account: OpeningBalanceAccount) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const close = () => {
+    setProblem(null);
+    onClose();
+  };
+
+  async function confirm() {
+    if (account === null) return;
+    setSaving(true);
+    setProblem(null);
+    try {
+      await remove(account);
+      close();
+    } catch (error) {
+      setProblem(apiErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={account !== null} onOpenChange={(open) => !open && close()}>
+      <DialogContent className="max-w-md">
+        {account && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Delete {account.name}?</DialogTitle>
+              <DialogDescription>
+                Nothing is on it. It leaves your chart of accounts.
+              </DialogDescription>
+            </DialogHeader>
+            {problem && (
+              <p role="alert" className="mt-4 text-body text-destructive">
+                {problem}
+              </p>
+            )}
+            <DialogFooter className="mt-6">
+              <Button variant="outline" onClick={close}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={saving}
+                onClick={() => void confirm()}
+              >
+                {saving ? "Deleting…" : "Delete account"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -157,6 +157,7 @@ function detail(uncategorised: number): ReviewAccountDetail {
     },
     checkpoint: null,
     has_opening_entry: true,
+    no_starting_balance: [],
     closing: null,
     failing: [],
     duplicates: [],

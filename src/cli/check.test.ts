@@ -18,6 +18,7 @@ import {
   membershipFromRow,
 } from "../server/project-auth/index.js";
 import {
+  checkBooks,
   checkConfig,
   checkMigrations,
   checkParsers,
@@ -305,6 +306,68 @@ describe("checkTools", () => {
 
     expect(line).toMatchObject({ status: "info" });
     expect(line!.detail).toContain("not yet checked");
+  }, 30_000);
+
+  it("names the accounts with no starting balance and the balances on the wrong side, as information", async () => {
+    write(".env.agent", `SAPPORTA_API_TOKEN=${booksWithToken()}\n`);
+    // Sample Gold has nothing on it; Sample Car Loan has one instalment
+    // paid in and no opening, so it sits in debit.
+    const sqlite = new Database(join(root, "data", "sqlite.db"));
+    const stamp = "'2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'";
+    const owned = "'05050500-org', '05050500-owner'";
+    sqlite.exec(`
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES
+        (1, ${owned}, 'Assets', NULL, 'Asset', ${stamp}),
+        (2, ${owned}, 'Sample Gold', 1, 'Asset', ${stamp}),
+        (3, ${owned}, 'Liabilities', NULL, 'Liability', ${stamp}),
+        (4, ${owned}, 'Sample Car Loan', 3, 'Liability', ${stamp}),
+        (5, ${owned}, 'Sample Savings', 1, 'Asset', ${stamp});
+      INSERT INTO draft_transactions
+        (id, workspace_id, scoped_to_user_id, date, source_narration, withdrawal, deposit,
+         account_id, base_account_id, created_at, updated_at)
+      VALUES (11, ${owned}, '2026-02-05', 'NOPII EMI', 1000, 0, 4, 5, ${stamp});
+    `);
+    sqlite.close();
+
+    const lines = await checkBooks(root);
+
+    expect(lines).toEqual([
+      {
+        name: "No starting balance",
+        status: "info",
+        detail: "Sample Gold (held)",
+      },
+      {
+        name: "No starting balance",
+        status: "info",
+        detail: "Sample Savings (held)",
+      },
+      {
+        name: "No starting balance",
+        status: "info",
+        detail: "Sample Car Loan (owed)",
+      },
+      {
+        name: "Worth a look",
+        status: "info",
+        detail: "Sample Savings: 1000.00 in credit",
+      },
+      {
+        name: "Worth a look",
+        status: "info",
+        detail: "Sample Car Loan: 1000.00 in debit",
+      },
+    ]);
+  }, 30_000);
+
+  it("reads no books without a token the app accepts", async () => {
+    booksWithToken();
+
+    expect(await checkBooks(root)).toEqual([
+      expect.objectContaining({ name: "Books", status: "info" }),
+    ]);
   }, 30_000);
 });
 

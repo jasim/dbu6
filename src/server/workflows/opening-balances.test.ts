@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { describe, expect, it } from "vitest";
 import { findFailingChecks } from "../modules/drafts/index.js";
+import { countPostedAssertionFailures } from "../modules/reconciliation/index.js";
 import { lookupLastReconciled } from "../modules/journals/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
 import { testLedgerAuth } from "../modules/ledger-sql/testing.js";
@@ -13,6 +14,7 @@ import {
   recordOpeningBalance,
   removeOpeningBalance,
 } from "./opening-balances.js";
+import { postPress } from "./posting.js";
 
 /*
  * Sample Savings (2, under Assets 1) has two drafts from its statement: 500 in
@@ -78,6 +80,8 @@ describe("loadOpeningBalances", () => {
           defaultDate: null,
           impliedOpening: null,
           opening: null,
+          removable: false,
+          activity: [],
         },
         {
           accountId: 2,
@@ -89,6 +93,11 @@ describe("loadOpeningBalances", () => {
           defaultDate: "2026-02-02",
           impliedOpening: 1000,
           opening: null,
+          removable: false,
+          activity: [
+            { date: "2026-02-03", amount: 500 },
+            { date: "2026-02-05", amount: -200 },
+          ],
         },
         {
           accountId: 3,
@@ -100,6 +109,8 @@ describe("loadOpeningBalances", () => {
           defaultDate: null,
           impliedOpening: null,
           opening: null,
+          removable: false,
+          activity: [],
         },
         {
           accountId: 4,
@@ -111,8 +122,15 @@ describe("loadOpeningBalances", () => {
           defaultDate: null,
           impliedOpening: null,
           opening: null,
+          removable: true,
+          activity: [],
         },
       ],
+      unanswered: [
+        expect.objectContaining({ accountId: 2 }),
+        expect.objectContaining({ accountId: 4 }),
+      ],
+      wrongSide: [],
     });
   });
 
@@ -790,5 +808,160 @@ describe("removeOpeningBalance", () => {
       accountName: "Groceries",
     });
     expect(remove(ledger, 99)).toEqual({ kind: "account-not-found" });
+  });
+});
+
+describe("the accounts whose start is unanswered", () => {
+  const names = (ledger: Ledger) =>
+    loadOpeningBalances(ledger).unanswered.map((one) => one.name);
+
+  it("lists every leaf asset or liability with no opening entry, touched or not", () => {
+    // Sample Gold has nothing on it; Sample Loans is a group with a loan
+    // under it; Loans and Credit Cards are the empty groups banks, cards
+    // and loans are added under.
+    const ledger = books(`
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES
+        (8, 'workspace', 'user', 'Sample Gold', 1, 'Asset', '', ''),
+        (10, 'workspace', 'user', 'Sample Loans', 3, 'Liability', '', ''),
+        (11, 'workspace', 'user', 'Sample Car Loan', 10, 'Liability', '', ''),
+        (12, 'workspace', 'user', 'Loans', 3, 'Liability', '', ''),
+        (13, 'workspace', 'user', 'Credit Cards', 3, 'Liability', '', '');
+    `);
+
+    expect(names(ledger)).toEqual([
+      "Sample Gold",
+      "Sample Savings",
+      "Sample Card",
+      "Sample Car Loan",
+    ]);
+  });
+
+  it("drops an account once its opening is recorded, an opening of 0 included", () => {
+    const ledger = books();
+    recorded(ledger, 2, "2026-02-02", 1000);
+    expect(names(ledger)).toEqual(["Sample Card"]);
+
+    recorded(ledger, 4, "2026-01-31", 0);
+    expect(names(ledger)).toEqual([]);
+  });
+
+  it("offers removal only while nothing touches the account", () => {
+    const ledger = books(CARD_PAYMENT);
+    expect(account(ledger, 4)?.removable).toBe(false);
+    expect(account(books(), 4)?.removable).toBe(true);
+    // A statement's own account, and a group, never.
+    expect(account(books(), 2)?.removable).toBe(false);
+    expect(account(books(), 1)?.removable).toBe(false);
+
+    const opened = books();
+    recorded(opened, 4, "2026-01-31", -2500);
+    expect(account(opened, 4)?.removable).toBe(false);
+  });
+});
+
+describe("balances on the wrong side", () => {
+  it("lists a liability in debit and an asset in credit, drafts included", () => {
+    // Sample Card is paid 300 from Sample Savings with nothing owed on it.
+    const ledger = books(CARD_PAYMENT);
+
+    // Sample Savings comes to 0: 500 in, 200 and 300 out.
+    expect(loadOpeningBalances(ledger).wrongSide).toEqual([
+      { account: expect.objectContaining({ accountId: 4 }), balance: 300 },
+    ]);
+  });
+
+  it("leaves a liability whose opening covers its repayments off", () => {
+    const ledger = books(CARD_PAYMENT);
+    recorded(ledger, 4, "2026-02-03", -1000);
+
+    expect(loadOpeningBalances(ledger).wrongSide).toEqual([]);
+  });
+
+  it("lists an asset paid out of with nothing put in", () => {
+    const ledger = books(SPENT("2026-02-01", 2000));
+
+    expect(loadOpeningBalances(ledger).wrongSide).toEqual([
+      // -2000 posted, then 500 in and 200 out in drafts.
+      { account: expect.objectContaining({ accountId: 2 }), balance: -1700 },
+    ]);
+  });
+});
+
+describe("an opening of 0: the account started here", () => {
+  it("posts a 0 entry with a 0 assertion against Opening Balances, and its checks pass", () => {
+    // A loan paid out on 4 February, the card payment standing in for it:
+    // nothing was owed the day before.
+    const ledger = books(CARD_PAYMENT);
+    const journalId = recorded(ledger, 4, "2026-02-03", 0);
+
+    expect(entries(ledger, journalId)).toEqual([
+      {
+        account_id: 4,
+        debit: 0,
+        credit: 0,
+        assertion: 0,
+        comment: "Opening balance",
+      },
+      {
+        account_id: expect.any(Number),
+        debit: 0,
+        credit: 0,
+        assertion: null,
+        comment: "Opening balance",
+      },
+    ]);
+    expect(account(ledger, 4)?.opening).toMatchObject({
+      journal_id: journalId,
+      date: "2026-02-03",
+      amount: 0,
+      locked: null,
+    });
+    expect(
+      findFailingChecks(ledger.sqlite, ledger.auth).filter(
+        (check) => check.account_id === 4,
+      ),
+    ).toEqual([]);
+    expect(
+      countPostedAssertionFailures(ledger.sqlite, ledger.auth).get(4),
+    ).toBeUndefined();
+  });
+
+  it("refuses to post an older statement that disagrees with it, though its own drafts pass", () => {
+    // Sample Card started here on 31 January, then its statement for
+    // earlier in January comes in: 500 spent on 10 January, owing 500.
+    const ledger = books();
+    recorded(ledger, 4, "2026-01-31", 0);
+    ledger.sqlite.exec(`
+      INSERT INTO draft_transactions
+        (id, workspace_id, scoped_to_user_id, date, source_narration, withdrawal, deposit,
+         account_id, base_account_id, balance_assertion_base_account, created_at, updated_at)
+      VALUES (21, 'workspace', 'user', '2026-01-10', 'NOPII groceries', 500, 0, 5, 4, -500, '', '');
+      UPDATE draft_transactions SET created_at = '2026-03-01T00:00:00Z', updated_at = '2026-03-01T00:00:00Z';
+      UPDATE accounts SET created_at = '2026-03-01T00:00:00Z', updated_at = '2026-03-01T00:00:00Z';
+    `);
+
+    // The draft-side check reads the statement against itself, and passes.
+    expect(
+      findFailingChecks(ledger.sqlite, ledger.auth).filter(
+        (check) => check.account_id === 4,
+      ),
+    ).toEqual([]);
+    // Posting would leave the opening's 0 assertion failing, so it is
+    // refused and nothing is written.
+    const outcome = postPress(
+      ledger,
+      [4],
+      new Map([
+        [2, "Sample Savings"],
+        [4, "Sample Card"],
+        [5, "Groceries"],
+      ]),
+    );
+    expect(outcome).toMatchObject({
+      kind: "breaks-posted-checks",
+      broken: [{ accountId: 4, name: "Sample Card", failures: 1 }],
+    });
   });
 });

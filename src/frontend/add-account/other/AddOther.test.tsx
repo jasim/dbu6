@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { balancesOf } from "../../opening-balances.testing";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -127,13 +128,14 @@ function account(
     default_date: "2025-12-31",
     implied_opening: null,
     opening: null,
+    removable: false,
+    activity: [],
     ...over,
   };
 }
 
-const BALANCES: OpeningBalances = {
-  equity_account: { id: 9, name: "Opening Balances" },
-  accounts: [
+const BALANCES: OpeningBalances = balancesOf(
+  [
     account({ account_id: 2, name: "Cash" }),
     account({
       account_id: 3,
@@ -159,7 +161,8 @@ const BALANCES: OpeningBalances = {
       },
     }),
   ],
-};
+  { equity_account: { id: 9, name: "Opening Balances" } },
+);
 
 // The books' accounts, which the choices' parent paths come from.
 const ACCOUNT_ROWS = [
@@ -459,6 +462,7 @@ describe("C1", () => {
         source: "manual",
       };
     }
+    balances.unanswered = [];
     await render("/add/other");
     expect(title()).toBe("Every account in your chart has its balance");
     expect(button("Done").getAttribute("href")).toBe("/settings/balances");

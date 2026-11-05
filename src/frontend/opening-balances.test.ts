@@ -16,8 +16,14 @@ import {
   openingSource,
   recordedGroups,
   signReadback,
+  startedHereEntry,
   typedAmount,
+  unansweredAccounts,
+  workedBack,
+  workedBackReadback,
+  wrongSideFigure,
 } from "./opening-balances";
+import { balancesOf } from "./opening-balances.testing";
 
 /*
  * Opening balances' rules without a screen: which table an
@@ -40,6 +46,8 @@ function account(
     default_date: null,
     implied_opening: null,
     opening: null,
+    removable: false,
+    activity: [],
     ...more,
   };
 }
@@ -54,10 +62,8 @@ const opening = (amount: number, more = {}) => ({
   ...more,
 });
 
-const books = (...accounts: OpeningBalanceAccount[]): OpeningBalances => ({
-  equity_account: null,
-  accounts,
-});
+const books = (...accounts: OpeningBalanceAccount[]): OpeningBalances =>
+  balancesOf(accounts);
 
 describe("the sign rule", () => {
   it("takes what an asset held as is, and what a liability owes below zero", () => {
@@ -304,6 +310,88 @@ describe("the dialog's fields", () => {
     expect(dateHint(cash, true)).toBe("The day your balance is from.");
     expect(dateHint({ ...cash, default_date: "2026-03-31" }, false)).toBe(
       "The day your balance is from.",
+    );
+  });
+});
+
+describe("a balance known on a later day", () => {
+  // Two instalments of 18,000 paid into the loan, from 5 May.
+  const loan = account("Sample Car Loan", "Liabilities:Loans:Sample Car Loan", {
+    first_activity_date: "2026-05-05",
+    default_date: "2026-05-04",
+    activity: [
+      { date: "2026-05-05", amount: 18000 },
+      { date: "2026-06-05", amount: 18000 },
+    ],
+  });
+
+  it("works it back through the movement up to that day, to the day before the first", () => {
+    // Owed 3,00,000 on 30 May: one instalment had gone in by then.
+    expect(workedBack(loan, "2026-05-30", -300000)).toEqual({
+      date: "2026-05-04",
+      amount: -318000,
+    });
+    expect(workedBack(loan, "2026-06-05", -282000)).toEqual({
+      date: "2026-05-04",
+      amount: -318000,
+    });
+    // Before the first activity, it is the opening itself.
+    expect(workedBack(loan, "2026-05-01", -300000)).toBeNull();
+    // Not once it has an opening.
+    expect(
+      workedBack({ ...loan, opening: opening(-1000) }, "2026-05-30", -1),
+    ).toBeNull();
+  });
+
+  it("records the worked-back opening, with the person's balance as its description", () => {
+    expect(
+      readBalance(loan, { amount: "3,00,000", date: "2026-05-30", note: "" }),
+    ).toEqual({
+      ok: true,
+      date: "2026-05-04",
+      amount: -318000,
+      description: "Owed 3,00,000.00 on 30 May 2026",
+    });
+    expect(
+      workedBackReadback(loan, {
+        amount: "3,00,000",
+        date: "2026-05-30",
+        note: "",
+      }),
+    ).toBe(
+      "Opening balance on 4 May 2026: 3,18,000.00, less what moved by 30 May 2026.",
+    );
+    expect(dateHint(loan, true)).toBe(
+      "Before its first transaction on 5 May 2026, or a later day you know the balance of.",
+    );
+  });
+});
+
+describe("the accounts with no starting balance", () => {
+  it("lists the server's check, and records It started here as 0 the day before the first", () => {
+    const cash = account("Cash", "Assets:Cash");
+    const loan = account("Sample Car Loan", "Liabilities:Sample Car Loan", {
+      first_activity_date: "2026-05-05",
+      default_date: "2026-05-04",
+    });
+    expect(
+      unansweredAccounts(balancesOf([cash, loan], { unanswered: [loan] })),
+    ).toEqual([loan]);
+    expect(startedHereEntry(loan)).toEqual({
+      date: "2026-05-04",
+      amount: 0,
+      description: "Started here",
+    });
+    // Nothing on it, so nothing says when it started.
+    expect(startedHereEntry(cash)).toBeNull();
+  });
+
+  it("words a balance on the wrong side", () => {
+    expect(
+      wrongSideFigure({ account_type: "Liability", balance: 162000 }),
+    ).toBe("1,62,000.00 in debit");
+    expect(wrongSideFigure({ account_type: "Asset", balance: -500 })).toBe(
+      "500.00 in credit",
     );
   });
 });

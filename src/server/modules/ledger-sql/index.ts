@@ -5,6 +5,8 @@ import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { treePathRelation, type SapportaAuthContext } from "@sapporta/server";
 import { ACCOUNT_PATH_SEPARATOR } from "../../../shared/index.js";
 import { accounts, accountsTable } from "../../schema/accounts.js";
+import { categorizationRuleRequests } from "../../schema/categorization-rule-requests.js";
+import { importPresets } from "../../schema/import-presets.js";
 import {
   draftTransactions,
   draftTransactionsTable,
@@ -15,6 +17,19 @@ import {
   journals,
   journalsTable,
 } from "../../schema/journals.js";
+
+/**
+ * The tables a ledger auth's row security covers: what the ledger's raw SQL
+ * and its stores read and write.
+ */
+export const LEDGER_TABLES = [
+  accounts,
+  draftTransactions,
+  journals,
+  journalEntries,
+  importPresets,
+  categorizationRuleRequests,
+];
 
 // Row scoping for the ledger. Drizzle queries scope their rows through the
 // auth every store takes. Raw SQL reads the ledger only through the

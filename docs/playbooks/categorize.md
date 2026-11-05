@@ -28,7 +28,13 @@ time.
    spending, a regular payment. Not by exact narration: reference numbers
    make nearly every narration unique.
 2. Find each group's likely account, from where ones like it sit in the
-   books, and whether a rule could catch ones like it next time.
+   books, and whether a rule could catch ones like it next time. Read each
+   asset and liability the groups go to as an accountant would, for its
+   missing counter-leg: a liability that only receives repayments has its
+   disbursement elsewhere (a financed purchase, the principal paid straight
+   to the seller); an asset that is only paid out of was held before the
+   books start, or funded off-statement. Note it, with the rows, for the
+   opening question (`npx dbu6 docs playbook off-statement-transaction`).
 3. Show every group you're sure of in one list, a line each: a few
    descriptions and how many, and the account. The user says yes or names
    the ones to change.
@@ -45,7 +51,13 @@ time.
    parent in one call (`npx sapporta rows create accounts`). Set the drafts
    of every group the user settled (`/api/draft-transactions/set-account`).
    Write only the rules and prompt lines the user said yes to, as the books
-   guide says.
+   guide says. An asset or liability created here follows the run guide's
+   order of operations (`npx dbu6 docs run`, "Order of operations"):
+   create it, categorize its drafts to it, record its opening, then post
+   any off-statement transaction the user described. Its opening is asked
+   in the same reply as the account, as the run guide's "Accounts with no
+   statements" block says; a 0 ("started here") only where its first event
+   is in the books or the answer.
 7. A rule request whose drafts are now encoded is done: delete it, as the
    `rule-requests` playbook says.
 

@@ -7,10 +7,13 @@ categorize, settle duplicates and balance checks, and stop with every
 account ready to add. The user's only real input is their answers to what
 you couldn't settle, in one round.
 
-**The only entries you write to the books are opening balances:** those
-the statements give, as you add their accounts, and those the user gives
-you for [accounts with no statements](#accounts-with-no-statements). The
-drafts are the user's to add, as AGENTS.md says.
+**The only entries you write to the books are opening balances, and an
+off-statement transaction the user described, on their yes:** the
+openings the statements give, as you add their accounts, those the user
+gives you for [accounts with no statements](#accounts-with-no-statements),
+and a transaction no statement shows, such as a loan paid out straight to
+a dealer (the `off-statement-transaction` playbook). The drafts are the
+user's to add, as AGENTS.md says.
 
 Read `npx dbu6 docs books` first: how to reach the app, the words to use
 ("Talking to the user"), the endpoints. This guide orders the work, says
@@ -72,6 +75,7 @@ user's own words fits one of them.
 | a balance check in the books that stopped matching  | `npx dbu6 docs playbook posted-balance-check`               |
 | a change to the chart: rename, move, merge or split | `npx dbu6 docs playbook chart-change`                       |
 | cash, deposits, investments or loans: no statements | [Accounts with no statements](#accounts-with-no-statements) |
+| a transaction no statement shows, such as a loan paid to a dealer | `npx dbu6 docs playbook off-statement-transaction` |
 
 Each one waits for the user's yes before it writes anything. A section of
 this guide starts with the preflight (phase 0) and shows its plan; the two
@@ -106,7 +110,10 @@ Phases 0–2 only read; nothing is written before the user's go-ahead.
 ### 0. Preflight
 
 - `npx sapporta api get /api/auth-context` names the user the token acts as.
-- `npx dbu6 check` reports the project's health.
+- `npx dbu6 check` reports the project's health. Its "Books" section
+  lists the accounts with no starting balance and the balances on the
+  wrong side, the same lists `GET /api/opening-balances` returns as
+  `unanswered` and `wrong_side`.
 - If the app is down or the token fails, say so in one plain sentence, as
   "If you are blocked" in the books guide says, and stop.
 
@@ -123,8 +130,11 @@ Phases 0–2 only read; nothing is written before the user's go-ahead.
 - `npx sapporta rows count accounts`: whether the books have a chart.
 - `npx sapporta api get /api/overview`: `{"posted": false}` means nothing
   beyond opening balances is in the books yet. That, or books with no
-  chart, makes this a first run, whose question round also asks about the
-  [accounts with no statements](#accounts-with-no-statements).
+  chart, makes this a first run.
+- `npx sapporta api get /api/opening-balances`: `unanswered`, the accounts
+  with no starting balance, which every run's question round asks about
+  ([accounts with no statements](#accounts-with-no-statements)), and
+  `wrong_side`.
 
 Build one table for yourself, a row per account, the files no parser reads
 on a row of their own. The user sees it in their words, in Message 1:
@@ -189,7 +199,9 @@ leave it running. Go ahead?
   books; a file holding two accounts.
 - **"How this works"** only on a first run. On a later run, one line on
   what is already in the books instead: "Sample savings is in your books
-  up to Sep 2025."
+  up to Sep 2025." When the check lists any account, one more line names
+  them, so the user knows they are still open: "No starting balance yet:
+  Car loan, Mutual Funds."
 - **"On your yes I'll"** is what the go-ahead covers, in their words, a
   line per kind of work. When the books have no chart, say you start
   them on a standard set and fit it once you have read their
@@ -306,6 +318,13 @@ The import already ran the rules and the AI. What is left has no account.
    On books whose chart the user already had, only add. Renaming,
    merging or moving their accounts is the `chart-change` playbook, on
    their word.
+5. Note every asset or liability, in the chart or under "Accounts I'll
+   create", whose history matches a pattern in the
+   `off-statement-transaction` playbook, with the rows that show it: a
+   loan that only receives repayments has its disbursement elsewhere; an
+   asset that is only paid out of was held before the books start, or
+   bought with money no statement shows. The note feeds the opening block
+   of Message 2; it changes nothing in the books.
 
 Count and group with SQL (`sqlite3 -readonly`, as "Reading the database" in
 the books guide allows); never list every draft into your context. Read rows
@@ -355,11 +374,15 @@ the categories, then the questions, the clean-up's among them. Then:
 - each answer sets its drafts by hand (`/api/draft-transactions/set-account`);
 - each rule or prompt line the user said yes to is written ("Always put this
   under X" in the books guide); one with no yes is not;
-- each new account the user approved is created with its name, type and
-  parent in one call:
-  `npx sapporta rows create accounts --values '{"name":"…","account_type":"…","parent_id":<id>}'`;
-- each opening balance the user gave is posted, as [Accounts with no
-  statements](#accounts-with-no-statements) says;
+- each new account the user approved goes through the [order of
+  operations](#order-of-operations): created with its name, type and
+  parent in one call
+  (`npx sapporta rows create accounts --values '{"name":"…","account_type":"…","parent_id":<id>}'`),
+  its drafts categorized to it, then its opening recorded, then any
+  off-statement transaction the user described posted;
+- each opening the user gave for an account already in the chart is
+  recorded, and each "none" removes its untouched account, as [Accounts
+  with no statements](#accounts-with-no-statements) says;
 - then, when you wrote a rule, `classify` again over what is still blank;
   and the clean-up again
   over the accounts the answers touched.
@@ -369,8 +392,14 @@ under "Still open".
 
 ### 9. Report: Message 3, what to do now
 
-[The report](#the-report), then stop. Files still in the inbox go under
-"Still open", each with why it didn't go in.
+Before writing it, always, whatever the run found: after the last write,
+read the check, `npx sapporta api get /api/opening-balances`. Every account
+in `unanswered` goes under "Still open" as "No starting balance: Car loan,
+Mutual Funds", and "What to do now" gets an item naming Settings ›
+Opening balances. Every account in `wrong_side` goes under "Worth a look".
+
+Then [the report](#the-report), and stop. Files still in the inbox go
+under "Still open", each with why it didn't go in.
 
 ## Starting from the drafts
 
@@ -430,66 +459,137 @@ still blank, judged across all accounts.
 
 ### 4. Clean-up, question round, report
 
-Phases 7, 8 and 9, as for a pile. A rule request you couldn't encode goes
+Phases 7, 8 and 9, as for a pile, the opening block of Message 2 and the
+check before the report included. A rule request you couldn't encode goes
 in the report under "Still open"; it stays on the user's list.
 
 ## Accounts with no statements
 
 Cash, fixed deposits, investments, loans given and loans taken have no
-statement, so no import sets their balance. An opening balance on the day
-the books start does. Without one, the balance sheet leaves them out.
+statement, so no import sets their balance. Their opening entry does, and
+it is the one record of how each account starts: an amount carried in, or
+0 when the account started inside the books. Without one, the account is
+on the check, and net worth says it is incomplete.
 
-**When.** On a first run (see the survey), the question round asks about
-them, as one more block. Outside a first run, only when the user asks, or
-the prompt names this section: then, after the preflight, the block below is
-the whole plan, and you post on the user's answer.
+**The check.** `npx sapporta api get /api/opening-balances` returns
+`unanswered`: every leaf asset or liability account with no opening entry,
+whether or not anything is on it, by path. It leaves out a group with
+accounts under it, which takes no opening, and the empty groups banks,
+cards and loans are added under. A bank or card is on it only until its
+first statement sets its opening. Read this list; never filter `accounts`
+yourself. Beside it, `wrong_side` lists the balances, drafts included, on
+the wrong side for their type: an asset in credit, a liability in debit.
+Some are ordinary (a card paid in excess, an overdrawn account), so word
+them as "worth a look", never as errors.
 
-**Read.** `npx sapporta api get /api/opening-balances`: the accounts in
-`section` `own` (assets) and `owe` (liabilities) with `opening` `null` are
-the ones to ask about. A bank or card (`statement`) is not: its first
-statement set its balance. `default_date` is the date to use: the day
-before the account's first activity, else the day the books start. When
-it is `null` (no opening entry in the books at all), use the day before the
-earliest statement in the run.
+**When.** In every run's question round, whenever the check lists any
+account outside the banks and cards, or the run creates an asset or
+liability: one more block, in Message 2, so no second round is needed.
+Starting from the drafts reuses phases 7 to 9, so it asks too. Outside a
+run, when the user asks, or the prompt names this section: then, after the
+preflight, the block below is the whole plan, and you record on the user's
+answer.
 
-**Ask,** in the question round, after the other blocks:
+**Ask,** in the question round, after the other blocks, one row per
+account on the check outside the banks and cards, and one per asset or
+liability under "Accounts I'll create", in the order the chart lists them,
+what is held first:
 
 ```
-Cash, deposits and loans have no statement, so their balance is
-what you held or owed on 2025-03-31, the day your books start
-  6  Cash in hand                held   amount?
-  7  Fixed deposits              held   amount?
-  8  Car loan                    owed   amount?
-  9  Anything else you hold or owe: its name, held or owed, and the amount
+What each account started with, on 2025-03-31, the day your books start
+  6  Cash in hand          held   amount?
+  7  Car loan (new)        owed   9 instalments of 18,000 to SAMPLE BANK
+                                  from 5 May, but no statement shows the
+                                  loan paid out: probably disbursed to
+                                  the dealer. When, how much, and what
+                                  did it buy? Or what you owed on
+                                  2025-03-31 if it was paid out before.
+  8  Fixed deposits        held   amount?
+  9  Gold                  held   amount, or "none" if you hold none
+ 10  Anything else you hold or owe that no statement shows
 ```
 
-- One row per account, in the order the chart lists them, what is held
-  first. A group with nothing under it is asked as "anything under it?".
+- `default_date` is the date to name: the day before the account's first
+  activity, else the day the books start. When it is `null` (no opening
+  entry in the books at all), use the day before the earliest statement
+  in the run. A new account's date is the day before its first draft.
+- An account whose history matches an off-statement pattern (phase 6) is
+  asked with what you saw and what you need, as the
+  `off-statement-transaction` playbook says.
+- Propose "started here" (an opening of 0) only where the account's first
+  event is in the books, such as an FD booked from a savings account, or
+  is described in the answer, such as a loan's payout, and name the row
+  ("started here: opened from Sample savings on 12 Mar"). A loan whose
+  instalments are in the books but whose payout isn't is never "started
+  here" on its own: that is a debit balance on a liability.
+- "none" is offered only for an account nothing touches: no posted
+  entry, no draft, no rule naming it (`removable` in the list). It means
+  the user never held it.
 - Amounts are given as positive numbers: what was held, or what was owed.
-- `6 5000 8 250000` answers rows; `skip` or no answer leaves a row out.
-- A new one (row 9) is an account to create, with its type and a parent
+- `6 5000 8 250000` answers rows; `skip` or no answer leaves a row on the
+  check.
+- A new one (row 10) is an account to create, with its type and a parent
   you propose from the chart: put it under "Accounts I'll create".
+- An empty group banks, cards and loans go under (Loans with nothing
+  under it) is asked as "anything under it?".
 
-**On a yes:**
+**On a yes,** in the [order of operations](#order-of-operations):
 
 1. An account the chart lacks:
    `npx sapporta rows create accounts --values '{"name":"…","account_type":"Asset","parent_id":<id>}'`
    (`Liability` for one owed), the parent an Asset or Liability account
-   the user agreed to.
-2. Its opening balance:
+   the user agreed to. Categorize its drafts to it before the next step.
+2. Its opening:
    `npx sapporta api post /api/opening-balances --body '{"account_id":<id>,"date":"YYYY-MM-DD","amount":<signed>}'`,
-   positive when held, negative when owed. The date must be before the
-   account's first activity; a refusal (`date_not_before_first_activity`)
-   names that date.
+   positive when held, negative when owed, and `0` for "started here",
+   dated the day before its first event (`default_date` once its drafts
+   are categorized). The date must be before the account's first
+   activity; a refusal (`date_not_before_first_activity`) names that
+   date.
+   - **A balance the user knows on a later date** ("I owed 3,00,000 on
+     30 Sep"): the opening is that balance less the account's activity
+     up to and including that date, posted entries and drafts, signed as
+     the opening is; date it the day before its first activity, and put
+     the user's sentence in `description`.
+3. "none": `npx sapporta api delete /api/accounts/<id>`, the Accounts
+   page's delete, which refuses an account anything is on; then drop its
+   line from `custom_mappings_default.prompt` if it has one.
+4. An off-statement transaction the user described: as the
+   `off-statement-transaction` playbook says.
 
-The amount is the user's. Never guess one, or take it from a description.
+The amount, the date and any counter-account are the user's. Never guess
+one, or take it from a description.
 
-**Report.** In a run, the "Opening balances" and "Skipped" lines of [the
-report](#the-report). Started from this section, those two lines are the
-whole report.
+**Report.** In a run, the "Opening balances" line of [the
+report](#the-report), and the check read before it ("Still open", "Worth a
+look"). Started from this section, those lines are the whole report.
 Changing an opening balance already recorded is asked on its own
 (`PUT /api/opening-balances/<account id>`, the books guide's "Opening
 balance").
+
+### Order of operations
+
+Wherever an account is created for statement rows (phase 8's reply, the
+`categorize` playbook's step 6, the `chart-change` playbook):
+
+1. Create the account, and the asset an off-statement loan bought.
+2. Categorize its drafts to it.
+3. Record its opening: an amount on the day before its first activity, a
+   later known balance worked back from the activity now in the books, or
+   0 dated the day before its first event.
+4. Post any off-statement transaction the user described.
+
+Recording first would date the opening by the books' start, not the
+account's first activity, and leave nothing to work a later balance back
+from.
+
+**Why this holds.** An older statement imported later puts rows before the
+opening. Its own drafts may pass their draft-side balance checks, which
+read the statement against itself; adding them to the books is then
+refused, since the opening's assertion, a 0 or an amount alike, would stop
+matching (`breaks-posted-checks`, the `posted-balance-check` playbook).
+Change the opening by hand then, under the usual locks; nothing re-derives
+it.
 
 ## Questions
 
@@ -537,8 +637,9 @@ Your categories
 - On a later run, or [Starting from the drafts](#starting-from-the-drafts),
   skip both blocks: the user knows their books.
 
-Then three blocks, numbered across the whole message, and on a first run a
-fourth: what the user held or owed ([Accounts with no
+Then three blocks, numbered across the whole message, and a fourth
+whenever the check lists an account or the run creates an asset or
+liability: what each account started with ([Accounts with no
 statements](#accounts-with-no-statements)).
 
 ```
@@ -614,9 +715,11 @@ What I changed
   New rules           On Sample card: contains "SAMPLEFOOD" → Eating out (42)
   Formats learned     Sample Bank savings CSV
   Duplicates removed  2 on Sample savings
-  Opening balances    Cash in hand 5,000 · Car loan, you owe 2,50,000
+  Opening balances    Cash in hand 5,000 · Car loan started here (paid
+                      out 12 Mar, 3,00,000 for the Vehicle)
 Still open            Sample current: June 2025 missing
-Skipped               Fixed deposits: no balance given
+                      No starting balance: Fixed deposits, Mutual Funds
+Worth a look          Sample card: 1,200 in debit
 ```
 
 - "What to do now" is numbered, the user's next steps in the order they
@@ -636,8 +739,13 @@ Skipped               Fixed deposits: no balance given
   deleted, balance checks blanked. A transfer no balance confirms yet goes
   under "Still open", with the statement that will.
 - Opening balances you posted for [accounts with no
-  statements](#accounts-with-no-statements) have their own line; those the
-  user skipped go under "Skipped".
+  statements](#accounts-with-no-statements) have their own line, with any
+  off-statement transaction you posted.
+- "No starting balance" under "Still open", and "Worth a look", come from
+  the check read in phase 9, never from what you remember asking. When the
+  check lists any account, "What to do now" has an item: "Give Fixed
+  deposits and Mutual Funds a starting balance in Settings › Opening
+  balances."
 
 ## Permissions inside a run
 
@@ -645,7 +753,7 @@ This replaces "Before changing anything" in the books guide for the run.
 
 | Covered by the plan's go-ahead | Asked in the question round | Asked on its own | Never |
 | --- | --- | --- | --- |
-| the starter chart, on books with none; parsers and their tests; preset changes for accounts in the plan; adding the accounts in the plan and importing; opening balances the statements give; categorizing drafts; rules and prompt lines for the rule requests the plan lists; deleting a draft that duplicates the same statement row; deleting a transfer's second copy and blanking the balance checks the `double-counted-transfers` playbook allows | new accounts; renaming, merging or dropping a category the user names; every other rule and prompt line, each on its own yes; anything "needs your call"; opening balances of accounts with no statements | any change to a posted entry; deleting a draft for any other reason; changing an opening balance already recorded; a change to dbu6 itself (`statement_disagreement`) | changing a statement balance; deleting to pass a check; editing `node_modules/@dbu6/app`; writing SQLite |
+| the starter chart, on books with none; parsers and their tests; preset changes for accounts in the plan; adding the accounts in the plan and importing; opening balances the statements give; categorizing drafts; rules and prompt lines for the rule requests the plan lists; deleting a draft that duplicates the same statement row; deleting a transfer's second copy and blanking the balance checks the `double-counted-transfers` playbook allows | new accounts; renaming, merging or dropping a category the user names; every other rule and prompt line, each on its own yes; anything "needs your call"; opening balances of accounts with no statements, a 0 for "started here" among them; removing an untouched account the user says they don't hold; an off-statement transaction the user described | any change to a posted entry; deleting a draft for any other reason; changing an opening balance already recorded; a change to dbu6 itself (`statement_disagreement`) | changing a statement balance; deleting to pass a check; editing `node_modules/@dbu6/app`; writing SQLite |
 
 The rest of the books guide's rules hold, deleting a draft that carries a
 statement balance among them, and nothing from the user's data goes into a
