@@ -58,10 +58,6 @@ describe("overviewView", () => {
       ],
     ]);
     expect(view.fix).toBeUndefined();
-    expect(view.facts).toEqual([
-      { label: "Dates", value: "1–13 Sep" },
-      { label: "Balance on 13 Sep", value: "3,30,000.00" },
-    ]);
   });
 
   it("puts what blocks the add first, with the screen that fixes it", () => {
@@ -155,7 +151,6 @@ describe("overviewView", () => {
         "No balance assertions in these drafts, so no balance checks run",
       ],
     ]);
-    expect(view.facts).toEqual([{ label: "Dates", value: "13 Sep" }]);
   });
 
   it("notes what the import categorized, only after one", () => {
@@ -188,10 +183,6 @@ describe("postedView", () => {
     ]);
 
     expect(view.status).toBe("21 transactions added to your books");
-    expect(view.facts).toEqual([
-      { label: "Dates", value: "1–13 Sep" },
-      { label: "Balance on 13 Sep", value: "3,30,000.00" },
-    ]);
     expect(view.next).toEqual({ label: "Review Sample Card", to: "/review/1" });
     expect(view.also).toEqual({ label: "All accounts", to: "/review" });
   });

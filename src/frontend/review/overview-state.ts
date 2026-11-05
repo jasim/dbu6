@@ -8,12 +8,7 @@ import {
   type ReviewAccountDetail,
 } from "../../shared/index";
 import type { StatusTone } from "../components/status-chip";
-import {
-  formatBalance,
-  formatDaySpan,
-  formatShortDate,
-  plural,
-} from "../format";
+import { formatShortDate, plural } from "../format";
 import { UPDATE_ROUTE } from "../update/routes";
 import { accountsText, checkText } from "./posting-checks";
 import {
@@ -27,10 +22,10 @@ import {
 
 /*
  * What an account's Overview says, as a pure function of its summary
- * (PLAN.md §11 P3): a status line, the drafts' dates and closing balance,
- * what must be fixed before the drafts can be added, each with the screen
- * that fixes it, then the checks that passed. The rows are the posting
- * gate's own checks (`postingChecks`), so the ticks and a refusal agree.
+ * (PLAN.md §11 P3): a status line, what must be fixed before the drafts can
+ * be added, each with the screen that fixes it, then the checks that passed.
+ * The rows are the posting gate's own checks (`postingChecks`), so the
+ * ticks and a refusal agree.
  * Drafts whose checks pass counting another account's drafts (`relies_on`)
  * wait on that account: Review's Add all adds them together once it is
  * ready, and their own button waits.
@@ -39,12 +34,6 @@ import {
 export interface OverviewLink {
   label: string;
   to: string;
-}
-
-/** A labelled value: "Dates", "1–13 Sep". */
-export interface OverviewFact {
-  label: string;
-  value: string;
 }
 
 /** What the drafts' relying on another account's drafts is called here. */
@@ -70,7 +59,6 @@ export interface PassedRow {
 
 export interface OverviewView {
   status: string;
-  facts: readonly OverviewFact[];
   problems: readonly ProblemRow[];
   passed: readonly PassedRow[];
   /** Whether Add to my books can run. */
@@ -85,7 +73,6 @@ export interface OverviewView {
 
 export interface PostedView {
   status: string;
-  facts: readonly OverviewFact[];
   /**
    * The primary action: Review's Add all while other accounts are ready to
    * add, else the next account to review, else Overview.
@@ -139,7 +126,6 @@ export function overviewView(
     status: ready
       ? `${plural(account.drafts, "transaction")} ready to add`
       : `${plural(account.drafts, "transaction")} in drafts`,
-    facts: draftFacts(detail),
     problems,
     passed,
     ready,
@@ -239,12 +225,10 @@ export function postedView(
 ): PostedView {
   const next = others[0];
   const added = plural(draftsPosted, "transaction");
-  const facts = draftFacts(before);
   const status = `${added} added to your books`;
   if (next && readyOthers > 0) {
     return {
       status,
-      facts,
       next: {
         label: `Add ${plural(readyOthers, "ready account")}`,
         to: withReviewRun(REVIEW_ROUTE, { setup }),
@@ -258,7 +242,6 @@ export function postedView(
   if (next) {
     return {
       status,
-      facts,
       next: {
         label: `Review ${next.name}`,
         to: withReviewRun(reviewHref(next.account_id), { setup }),
@@ -272,12 +255,10 @@ export function postedView(
   return setup
     ? {
         status: `${added} added. ${BOOKS_SET_UP}`,
-        facts,
         next: BOOKS_SET_UP_NEXT,
       }
     : {
         status,
-        facts,
         next: BOOKS_SET_UP_NEXT,
         also: { label: "Update your books", to: UPDATE_ROUTE },
       };
@@ -364,23 +345,4 @@ function passedRow(check: Exclude<PostingCheck, { state: "blocks" }>): PassedRow
             text: "Balance checks: statement balance and our computed balance match",
           };
   }
-}
-
-// The drafts' dates, and the balance their last assertion leaves the
-// account at, when they carry one.
-function draftFacts(detail: ReviewAccountDetail): OverviewFact[] {
-  const { account, closing } = detail;
-  return [
-    ...(account.draft_span
-      ? [{ label: "Dates", value: formatDaySpan(account.draft_span) }]
-      : []),
-    ...(closing
-      ? [
-          {
-            label: `Balance on ${formatShortDate(closing.date)}`,
-            value: formatBalance(closing.balance, account.kind),
-          },
-        ]
-      : []),
-  ];
 }

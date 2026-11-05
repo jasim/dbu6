@@ -25,7 +25,6 @@ import {
   overviewView,
   postedView,
   type ArrivalNotice,
-  type OverviewFact,
   type PassedRow,
   type ProblemRow,
 } from "./overview-state";
@@ -68,7 +67,7 @@ export function Overview() {
       },
     );
     return (
-      <OverviewColumn name={name} status={view.status} facts={view.facts}>
+      <OverviewColumn name={name} status={view.status}>
         <div className="mt-10 flex flex-wrap items-center gap-3">
           <Button
             render={<Link to={view.next.to} />}
@@ -124,7 +123,7 @@ export function Overview() {
   }
 
   return (
-    <OverviewColumn name={name} status={view.status} facts={view.facts}>
+    <OverviewColumn name={name} status={view.status}>
       {imported && (
         <ImportedNotice
           notice={arrivalNotice(detail, imported)}
@@ -200,18 +199,15 @@ function readyOthers(
 }
 
 /**
- * The account, its drafts in a line, and their dates and closing balance in
- * a labelled column, then what the drafts need.
+ * The account, its drafts in a line, then what the drafts need.
  */
 function OverviewColumn({
   name,
   status,
-  facts,
   children,
 }: {
   name: string;
   status: string;
-  facts: readonly OverviewFact[];
   children: React.ReactNode;
 }) {
   return (
@@ -221,16 +217,6 @@ function OverviewColumn({
         <p className="mt-1 text-heading font-normal text-foreground">
           {status}
         </p>
-        {facts.length > 0 && (
-          <dl className="mt-4 grid w-fit grid-cols-[auto_auto] gap-x-8 gap-y-1 text-body">
-            {facts.map((fact) => (
-              <div key={fact.label} className="contents">
-                <dt className="text-ink-meta">{fact.label}</dt>
-                <dd className="tnum font-mono text-foreground">{fact.value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
         {children}
       </div>
     </div>
