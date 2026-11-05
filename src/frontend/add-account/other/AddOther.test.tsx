@@ -82,6 +82,8 @@ beforeEach(() => {
           journal_id: 50509,
           equity_account: { id: 9, name: "Opening Balances" },
           equity_account_created: false,
+          date,
+          amount,
         },
       };
     },
@@ -128,24 +130,24 @@ function account(
     default_date: "2025-12-31",
     implied_opening: null,
     opening: null,
-    removable: false,
-    activity: [],
     ...over,
   };
 }
 
+const CASH = account({ account_id: 2, name: "Cash" });
+const CAR_LOAN = account({
+  account_id: 3,
+  name: "Sample Car Loan",
+  path: "Liabilities:Loans:Sample Car Loan",
+  account_type: "Liability",
+  section: "owe",
+  first_activity_date: "2026-04-10",
+  default_date: "2026-04-09",
+});
 const BALANCES: OpeningBalances = balancesOf(
   [
-    account({ account_id: 2, name: "Cash" }),
-    account({
-      account_id: 3,
-      name: "Sample Car Loan",
-      path: "Liabilities:Loans:Sample Car Loan",
-      account_type: "Liability",
-      section: "owe",
-      first_activity_date: "2026-04-10",
-      default_date: "2026-04-09",
-    }),
+    CASH,
+    CAR_LOAN,
     account({
       account_id: 4,
       name: "Sample Savings",
@@ -161,7 +163,10 @@ const BALANCES: OpeningBalances = balancesOf(
       },
     }),
   ],
-  { equity_account: { id: 9, name: "Opening Balances" } },
+  {
+    equity_account: { id: 9, name: "Opening Balances" },
+    unanswered: [CASH, CAR_LOAN],
+  },
 );
 
 // The books' accounts, which the choices' parent paths come from.

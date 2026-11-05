@@ -4,6 +4,10 @@ import {
   type SapportaAuthContext,
   type SapportaEnv,
 } from "@sapporta/server";
+import {
+  ledgerAuthAllows,
+  mayRunOwnerWorkflows,
+} from "../authz/ledger-access.js";
 import type { Ledger, LedgerAuth } from "../modules/ledger-sql/index.js";
 
 /**
@@ -16,17 +20,13 @@ export function requireLedgerAuth(
   may: (ability: SapportaAuthContext["ability"]) => boolean,
 ): LedgerAuth {
   const auth = c.get("auth");
-  forbidUnless(
-    c,
-    may(auth.ability) &&
-      auth.dataAuthority.rowAuthorities.workspaceUserScoped != null,
-  );
+  forbidUnless(c, ledgerAuthAllows(auth, may));
   return auth;
 }
 
 /** The ledger's auth for the owner's workflows: imports, review, posting. */
 export function requireWorkflowAuth(c: Context<SapportaEnv>): LedgerAuth {
-  return requireLedgerAuth(c, (ability) => ability.can("manage", "all"));
+  return requireLedgerAuth(c, mayRunOwnerWorkflows);
 }
 
 /** The ledger an owner's workflow runs on, once the request may run it. */
@@ -37,5 +37,5 @@ export function requireWorkflowLedger(c: Context<SapportaEnv>): Ledger {
 
 /** Forbidden unless the request is the owner's; for routes off the ledger. */
 export function requireOwner(c: Context<SapportaEnv>): void {
-  forbidUnless(c, c.get("auth").ability.can("manage", "all"));
+  forbidUnless(c, mayRunOwnerWorkflows(c.get("auth").ability));
 }

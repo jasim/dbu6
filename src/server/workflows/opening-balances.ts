@@ -14,17 +14,13 @@ import {
 } from "../modules/accounts/index.js";
 import { BANK_CARD_LOAN_GROUPS } from "../modules/chart-of-accounts/index.js";
 import {
-  countDraftsByAccount,
-  loadBalancesWithDrafts,
-  loadDailyAmountsWithDrafts,
   loadFirstCategorizedDraftDates,
-  type DayAmount,
   loadFirstDrafts,
 } from "../modules/drafts/index.js";
 import { loadImportPresets } from "../modules/import-presets/index.js";
 import type { JournalPlan } from "../modules/journal-plan/index.js";
 import {
-  countEntriesByAccount,
+  cents,
   deleteOpeningEntry,
   insertJournalPlan,
   loadEntriesBesideOpening,
@@ -33,7 +29,11 @@ import {
   type OpeningEntry,
 } from "../modules/journals/index.js";
 import type { Ledger } from "../modules/ledger-sql/index.js";
-import { loadImpliedOpenings } from "../modules/reconciliation/index.js";
+import {
+  loadBalancesWithDrafts,
+  loadImpliedOpenings,
+  loadMovementThrough,
+} from "../modules/reconciliation/index.js";
 import { sameAmount } from "../modules/values/index.js";
 
 /*
@@ -58,8 +58,14 @@ import { sameAmount } from "../modules/values/index.js";
  * inside the books ("started here": a loan paid out on 12 Mar owed 0 on
  * 11 Mar). An account nobody has answered for has no opening entry, and
  * `unanswered` lists it: the one rule the screens, the agent, `dbu6 check`
- * and the run's report read. An account the user never held is removed
- * instead (`removable`), so there is nothing to answer.
+ * and the run's report read. An account the user never held is deleted
+ * instead, through the Accounts page's delete, which refuses one anything
+ * is on; then there is nothing to answer.
+ *
+ * A balance the user knows on a later day is recorded as it is said: the
+ * workflow takes the account's movement up to and including that day from
+ * the running balance (`loadMovementThrough`) and posts what is left as the
+ * opening, dated the day before its first activity.
  */
 
 export type OpeningAccountType = "Asset" | "Liability";
@@ -103,18 +109,6 @@ export interface OpeningBalanceAccount {
   /** `loadImpliedOpenings`' figure; null with no balance check. */
   impliedOpening: number | null;
   opening: OpeningBalance | null;
-  /**
-   * Whether "I don't have this" may delete it: a leaf no import preset
-   * lists, with no posted entry and no draft on either side.
-   */
-  removable: boolean;
-  /**
-   * Each day's movement, posted entries plus drafts, signed like `opening`,
-   * while the account has no opening entry: what a balance the user knows
-   * on a later day is worked back through to its opening. Empty once it has
-   * one.
-   */
-  activity: DayAmount[];
 }
 
 /** An account whose balance sits on the wrong side for its type. */
@@ -131,10 +125,17 @@ export interface OpeningBalances {
   /**
    * The check: every leaf asset or liability account with no opening entry,
    * by path, whether or not anything is on it. Left out are a group with
-   * accounts under it, which takes no opening, and the groups banks, cards
-   * and loans are added under (`BANK_CARD_LOAN_GROUPS`) while empty.
+   * accounts under it, which takes no opening, and `emptyGroups`.
    */
   unanswered: OpeningBalanceAccount[];
+  /**
+   * The groups banks, cards and loans are added under
+   * (`BANK_CARD_LOAN_GROUPS`) while nothing is on them and nothing is under
+   * them: a leaf the check leaves out, since nothing in the books says
+   * whether it waits for accounts or is one. Once anything is on it, it is
+   * on `unanswered` like any other account.
+   */
+  emptyGroups: OpeningBalanceAccount[];
   /**
    * Accounts whose balance, drafts included, sits on the wrong side for
    * their type: an asset in credit, a liability in debit. Some are ordinary
@@ -157,9 +158,6 @@ export function loadOpeningBalances({
   const impliedOpenings = loadImpliedOpenings(sqlite, auth);
   const firstDrafts = loadFirstDrafts(sqlite, auth);
   const firstCategorized = loadFirstCategorizedDraftDates(sqlite, auth);
-  const entryCounts = countEntriesByAccount(sqlite, auth);
-  const draftCounts = countDraftsByAccount(sqlite, auth);
-  const dailyAmounts = loadDailyAmountsWithDrafts(sqlite, auth);
   const equity = findOpeningBalancesAccount(db, auth);
   const parents = new Set(chart.map((account) => account.parent_id));
   const statementAccounts = new Set(
@@ -216,29 +214,25 @@ export function loadOpeningBalances({
               ? "statement"
               : "manual",
         },
-        removable:
-          leaf &&
-          !fromStatements &&
-          !entryCounts.has(account.id) &&
-          !draftCounts.has(account.id),
-        activity: opening === null ? (dailyAmounts.get(account.id) ?? []) : [],
       };
     })
     .sort((a, b) => a.path.localeCompare(b.path));
 
   const balances = loadBalancesWithDrafts(sqlite, auth);
+  const unopenedLeaves = accounts.filter(
+    (account) => account.opening === null && !parents.has(account.accountId),
+  );
+  const emptyGroup = (account: OpeningBalanceAccount) =>
+    account.firstActivityDate === null &&
+    BANK_CARD_LOAN_GROUPS.includes(account.name);
   return {
     equityAccount:
       equity && equity.account_type === "Equity"
         ? { id: equity.id, name: equity.name }
         : null,
     accounts,
-    unanswered: accounts.filter(
-      (account) =>
-        account.opening === null &&
-        !parents.has(account.accountId) &&
-        !BANK_CARD_LOAN_GROUPS.includes(account.name),
-    ),
+    unanswered: unopenedLeaves.filter((account) => !emptyGroup(account)),
+    emptyGroups: unopenedLeaves.filter(emptyGroup),
     wrongSide: accounts.flatMap((account) => {
       const balance = balances.get(account.accountId) ?? 0;
       return onWrongSide(account.accountType, balance)
@@ -284,8 +278,13 @@ function lockOf(
 
 export interface OpeningBalanceRequest {
   accountId: number;
-  /** An ISO date, before the account's first posted entry or draft. */
+  /**
+   * An ISO date. Changing an opening takes one before the account's first
+   * posted entry or draft; recording one also takes a later day, a balance
+   * known then (`recordOpeningBalance`).
+   */
   date: string;
+  /** The balance at the end of `date`, signed like an assertion. */
   amount: number;
   /** What the user says it came from; the journal's description. */
   description?: string;
@@ -295,26 +294,27 @@ export type OpeningBalanceOutcome =
   | { kind: "account-not-found" }
   | { kind: "not-asset-or-liability"; accountName: string }
   | { kind: "already-recorded"; accountName: string; opening: OpeningEntry }
-  | {
-      kind: "date-not-before-first-activity";
-      accountName: string;
-      firstActivityDate: string;
-    }
   // An account named Opening Balances exists, but not as Equity.
   | { kind: "opening-balances-not-equity" }
   | {
       kind: "recorded";
       accountName: string;
       journalId: number;
+      /** The opening as posted: the request's, or worked back to it. */
+      date: string;
+      amount: number;
       equityAccount: NamedAccount;
       equityAccountCreated: boolean;
     };
 
 /**
  * Posts one account's opening entry, creating Opening Balances on the first.
- * Refuses an account that isn't an asset or a liability, one that already has
- * an opening entry, and a date on or after the account's first activity,
- * where the entry would land in the middle of its history.
+ * Refuses an account that isn't an asset or a liability, and one that
+ * already has an opening entry. The request's amount is the balance at the
+ * end of its date: before the account's first activity it is the opening as
+ * it stands; on or after it, it is a balance known later, and the opening is
+ * that balance less the movement through the day, dated the day before the
+ * first activity, so the entry never lands in the middle of its history.
  */
 export function recordOpeningBalance(
   ledger: Ledger,
@@ -344,16 +344,23 @@ export function recordOpeningBalance(
         opening: account.opening,
       };
     }
-    if (
-      account.firstActivityDate !== null &&
-      Temporal.PlainDate.compare(request.date, account.firstActivityDate) >= 0
-    ) {
-      return {
-        kind: "date-not-before-first-activity",
-        accountName: account.name,
-        firstActivityDate: account.firstActivityDate,
-      };
-    }
+    const first = account.firstActivityDate;
+    const entry =
+      first !== null && Temporal.PlainDate.compare(request.date, first) >= 0
+        ? {
+            ...request,
+            date: dayBefore(first),
+            amount: cents(
+              request.amount -
+                loadMovementThrough(
+                  ledger.sqlite,
+                  auth,
+                  account.accountId,
+                  request.date,
+                ),
+            ),
+          }
+        : request;
 
     const existing = findOpeningBalancesAccount(tx, auth);
     if (existing !== null && existing.account_type !== "Equity") {
@@ -363,7 +370,7 @@ export function recordOpeningBalance(
 
     const [journalId] = insertJournalPlan(
       tx,
-      openingPlan(account.accountId, equityAccount.id, request),
+      openingPlan(account.accountId, equityAccount.id, entry),
       auth,
     ).journalIds;
     return {
@@ -372,6 +379,8 @@ export function recordOpeningBalance(
       journalId,
       equityAccount: { id: equityAccount.id, name: equityAccount.name },
       equityAccountCreated: existing === null,
+      date: entry.date,
+      amount: entry.amount,
     };
   });
 }

@@ -46,8 +46,6 @@ describe("opening balances routes", () => {
           default_date: "2026-02-02",
           implied_opening: 1000,
           opening: null,
-          removable: false,
-          activity: [{ date: "2026-02-03", amount: 500 }],
         },
       ],
       unanswered: [
@@ -58,6 +56,7 @@ describe("opening balances routes", () => {
           account_type: "Asset",
         },
       ],
+      empty_groups: [],
       wrong_side: [],
     });
   });
@@ -77,6 +76,8 @@ describe("opening balances routes", () => {
         journal_id: expect.any(Number),
         equity_account: { id: 3, name: "Opening Balances" },
         equity_account_created: true,
+        date: "2026-02-02",
+        amount: 1000,
       },
     });
     expect(listOpeningBalances(ledger).accounts[0].opening).toEqual({
@@ -107,19 +108,6 @@ describe("opening balances routes", () => {
         amount: 1000,
       }),
     ).toMatchObject({ status: 422, body: { code: "not_asset_or_liability" } });
-    expect(
-      recordOpeningBalanceResponse(ledger, {
-        accountId: 1,
-        date: "2026-02-10",
-        amount: 1000,
-      }),
-    ).toMatchObject({
-      status: 422,
-      body: {
-        code: "date_not_before_first_activity",
-        first_activity_date: "2026-02-03",
-      },
-    });
     recordOpeningBalanceResponse(ledger, {
       accountId: 1,
       date: "2026-02-02",

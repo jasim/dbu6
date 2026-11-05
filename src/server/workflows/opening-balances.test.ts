@@ -80,8 +80,6 @@ describe("loadOpeningBalances", () => {
           defaultDate: null,
           impliedOpening: null,
           opening: null,
-          removable: false,
-          activity: [],
         },
         {
           accountId: 2,
@@ -93,11 +91,6 @@ describe("loadOpeningBalances", () => {
           defaultDate: "2026-02-02",
           impliedOpening: 1000,
           opening: null,
-          removable: false,
-          activity: [
-            { date: "2026-02-03", amount: 500 },
-            { date: "2026-02-05", amount: -200 },
-          ],
         },
         {
           accountId: 3,
@@ -109,8 +102,6 @@ describe("loadOpeningBalances", () => {
           defaultDate: null,
           impliedOpening: null,
           opening: null,
-          removable: false,
-          activity: [],
         },
         {
           accountId: 4,
@@ -122,14 +113,13 @@ describe("loadOpeningBalances", () => {
           defaultDate: null,
           impliedOpening: null,
           opening: null,
-          removable: true,
-          activity: [],
         },
       ],
       unanswered: [
         expect.objectContaining({ accountId: 2 }),
         expect.objectContaining({ accountId: 4 }),
       ],
+      emptyGroups: [],
       wrongSide: [],
     });
   });
@@ -391,23 +381,47 @@ describe("recordOpeningBalance", () => {
     });
   });
 
-  it("refuses a date on or after the account's first activity, writing nothing", () => {
+  it("works a balance known on or after the first activity back to the opening", () => {
+    // 1,300 at the end of 5 February, after 500 in and 200 out: 1,000
+    // before them, the day before the first.
     const ledger = books();
+    const outcome = recordOpeningBalance(ledger, {
+      accountId: 2,
+      date: "2026-02-05",
+      amount: 1300,
+      description: "Held 1,300.00 on 5 Feb 2026",
+    });
+    expect(outcome).toMatchObject({
+      kind: "recorded",
+      date: "2026-02-02",
+      amount: 1000,
+    });
+    expect(account(ledger, 2)?.opening).toMatchObject({
+      date: "2026-02-02",
+      amount: 1000,
+      description: "Held 1,300.00 on 5 Feb 2026",
+    });
 
+    // On the first day itself, that day's movement is counted.
+    const first = books();
+    expect(
+      recordOpeningBalance(first, {
+        accountId: 2,
+        date: "2026-02-03",
+        amount: 1500,
+      }),
+    ).toMatchObject({ kind: "recorded", date: "2026-02-02", amount: 1000 });
+  });
+
+  it("records a balance from before the first activity as it stands", () => {
+    const ledger = books();
     expect(
       recordOpeningBalance(ledger, {
         accountId: 2,
-        date: "2026-02-03",
+        date: "2026-01-15",
         amount: 1000,
       }),
-    ).toEqual({
-      kind: "date-not-before-first-activity",
-      accountName: "Sample Savings",
-      firstActivityDate: "2026-02-03",
-    });
-    expect(
-      ledger.sqlite.prepare("SELECT COUNT(*) AS n FROM journals").get(),
-    ).toEqual({ n: 0 });
+    ).toMatchObject({ kind: "recorded", date: "2026-01-15", amount: 1000 });
   });
 
   it("refuses an account that isn't an asset or liability, and one not in the books", () => {
@@ -596,9 +610,9 @@ describe("first activity and the default date", () => {
 });
 
 describe("a draft categorized to the account", () => {
-  it("refuses an opening on or after it, writing nothing", () => {
+  it("counts it in working a later balance back, on the side it will post to", () => {
+    // Owing 2,500 on 10 February after the 300 payment: 2,800 before it.
     const ledger = books(CARD_PAYMENT);
-    const before = posted(ledger);
 
     expect(
       recordOpeningBalance(ledger, {
@@ -606,12 +620,7 @@ describe("a draft categorized to the account", () => {
         date: "2026-02-10",
         amount: -2500,
       }),
-    ).toEqual({
-      kind: "date-not-before-first-activity",
-      accountName: "Sample Card",
-      firstActivityDate: "2026-02-04",
-    });
-    expect(posted(ledger)).toEqual(before);
+    ).toMatchObject({ kind: "recorded", date: "2026-02-03", amount: -2800 });
   });
 
   it("refuses to move an opening on or after it, writing nothing", () => {
@@ -847,17 +856,29 @@ describe("the accounts whose start is unanswered", () => {
     expect(names(ledger)).toEqual([]);
   });
 
-  it("offers removal only while nothing touches the account", () => {
-    const ledger = books(CARD_PAYMENT);
-    expect(account(ledger, 4)?.removable).toBe(false);
-    expect(account(books(), 4)?.removable).toBe(true);
-    // A statement's own account, and a group, never.
-    expect(account(books(), 2)?.removable).toBe(false);
-    expect(account(books(), 1)?.removable).toBe(false);
+  it("leaves a group's name off only while nothing is on it", () => {
+    const empty = books(`
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES (12, 'workspace', 'user', 'Loans', 3, 'Liability', '', '');
+    `);
+    expect(names(empty)).not.toContain("Loans");
+    expect(
+      loadOpeningBalances(empty).emptyGroups.map((one) => one.name),
+    ).toEqual(["Loans"]);
 
-    const opened = books();
-    recorded(opened, 4, "2026-01-31", -2500);
-    expect(account(opened, 4)?.removable).toBe(false);
+    // A draft categorized to it: it carries money, so it is on the check.
+    const used = books(`
+      INSERT INTO accounts
+        (id, workspace_id, scoped_to_user_id, name, parent_id, account_type, created_at, updated_at)
+      VALUES (12, 'workspace', 'user', 'Loans', 3, 'Liability', '', '');
+      INSERT INTO draft_transactions
+        (id, workspace_id, scoped_to_user_id, date, source_narration, withdrawal, deposit,
+         account_id, base_account_id, created_at, updated_at)
+      VALUES (14, 'workspace', 'user', '2026-02-06', 'NOPII instalment', 1000, 0, 12, 2, '', '');
+    `);
+    expect(names(used)).toContain("Loans");
+    expect(loadOpeningBalances(used).emptyGroups).toEqual([]);
   });
 });
 

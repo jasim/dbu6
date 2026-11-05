@@ -199,7 +199,9 @@ export function OpeningBalances() {
  * The check: each account nobody has said how it starts, with its three
  * answers. "It started here" records an opening of 0 the day before its
  * first transaction, so it needs one; "I don't have this" deletes the
- * account, while nothing is on it.
+ * account through the Accounts page's delete, which refuses one anything is
+ * on and says why. A bank or card is removed in Settings › Banks & cards
+ * instead, so it isn't offered there.
  */
 function UnansweredTable({
   accounts,
@@ -304,7 +306,7 @@ function UnansweredTable({
                             : "It started here"}
                         </Button>
                       )}
-                      {account.removable && (
+                      {account.section !== "statement" && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -371,7 +373,8 @@ function UnheldDialog({
             <DialogHeader>
               <DialogTitle>Delete {account.name}?</DialogTitle>
               <DialogDescription>
-                Nothing is on it. It leaves your chart of accounts.
+                It leaves your chart of accounts. An account anything is on
+                can't be deleted.
               </DialogDescription>
             </DialogHeader>
             {problem && (

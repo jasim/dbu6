@@ -120,6 +120,48 @@ function otherDraftsCondition(otherDrafts: OtherDrafts): string {
 }
 
 /**
+ * Each account's balance once its drafts are posted, by id, for every
+ * account with a posted entry or a draft: the running balance's activity
+ * added up, other statements' drafts on the side they will post to.
+ */
+export function loadBalancesWithDrafts(
+  sqlite: Database.Database,
+  auth: LedgerAuth,
+): Map<number, number> {
+  return new Map(
+    allRows<{ account_id: number; balance: number }>(
+      sqlite,
+      auth,
+      `${baseAccountRunningBalanceCtes}
+       SELECT account_id, SUM(delta) AS balance FROM base_account_activity
+       GROUP BY account_id`,
+    ).map((row) => [row.account_id, cents(row.balance)]),
+  );
+}
+
+/**
+ * What moved on one account up to and including `date`, posted entries and
+ * drafts, as its running balance adds them up: a balance known at the end
+ * of that day, less this, is what the account held before it all.
+ */
+export function loadMovementThrough(
+  sqlite: Database.Database,
+  auth: LedgerAuth,
+  accountId: number,
+  date: string,
+): number {
+  const [row] = allRows<{ moved: number | null }>(
+    sqlite,
+    auth,
+    `${baseAccountRunningBalanceCtes}
+     SELECT SUM(delta) AS moved FROM base_account_activity
+     WHERE account_id = @accountId AND activity_date <= @date`,
+    { accountId, date },
+  );
+  return cents(row?.moved ?? 0);
+}
+
+/**
  * The opening balance each account's first balance check implies, by id: the
  * check's balance less everything added up to and including its row, posted
  * entries and drafts in `BASE_ACCOUNT_ACTIVITY_ORDER`. The account's opening

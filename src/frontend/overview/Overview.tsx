@@ -27,7 +27,6 @@ import {
   homeSummaryQuery,
   openingBalancesQuery,
 } from "../queries";
-import { wrongSideFigure } from "../opening-balances";
 import { BALANCES_SETTINGS_ROUTE } from "../views/settings/routes";
 import { CELL_LINK, ROW_PAD, SheetHead, Td, Th } from "../sheet";
 import { figures, signedAmount } from "../reports/income-expenses/figures";
@@ -565,11 +564,9 @@ function spent(amount: number): string {
  */
 function NetWorth({ overview }: { overview: PostedOverview }) {
   const { net_worth: worth } = overview;
-  // Which accounts have no starting balance, and which sit on the wrong
-  // side: the opening-balances check, read as it is today.
-  const balances = useQuery(openingBalancesQuery).data;
-  const unanswered = balances?.unanswered ?? [];
-  const wrongSide = balances?.wrong_side ?? [];
+  // Which accounts have no starting balance: the opening-balances check,
+  // read as it is today.
+  const unanswered = useQuery(openingBalancesQuery).data?.unanswered ?? [];
   const other = otherWorthChange(overview);
   const asOf = monthDates(overview.month).last_date;
   const ledger = (group: OverviewWorthGroup) =>
@@ -618,47 +615,20 @@ function NetWorth({ overview }: { overview: PostedOverview }) {
           />
         )}
       </tbody>
-      {(unanswered.length > 0 || wrongSide.length > 0) && (
+      {unanswered.length > 0 && (
         <tbody>
-          {unanswered.length > 0 && (
-            <tr>
-              <td
-                colSpan={2}
-                className={cn(ROW_PAD, "text-body text-ink-soft")}
+          <tr>
+            <td colSpan={2} className={cn(ROW_PAD, "text-body text-ink-soft")}>
+              No starting balance:{" "}
+              {joinNames(unanswered.map((one) => one.name))}.{" "}
+              <Link
+                to={BALANCES_SETTINGS_ROUTE}
+                className="text-primary underline-offset-4 hover:underline"
               >
-                No starting balance:{" "}
-                {joinNames(unanswered.map((one) => one.name))}.{" "}
-                <Link
-                  to={BALANCES_SETTINGS_ROUTE}
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  Opening balances
-                </Link>
-              </td>
-            </tr>
-          )}
-          {wrongSide.length > 0 && (
-            <tr>
-              <td
-                colSpan={2}
-                className={cn(
-                  ROW_PAD,
-                  "pt-3 text-label uppercase text-ink-meta",
-                )}
-              >
-                Worth a look
-              </td>
-            </tr>
-          )}
-          {wrongSide.map((one) => (
-            <WorthRow
-              key={one.account_id}
-              label={one.name}
-              value={wrongSideFigure(one)}
-              href={accountLedgerHref(one.account_id)}
-              group
-            />
-          ))}
+                Opening balances
+              </Link>
+            </td>
+          </tr>
         </tbody>
       )}
     </table>

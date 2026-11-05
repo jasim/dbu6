@@ -52,8 +52,8 @@ operations" (`npx dbu6 docs run`) are the frame; this is the method.
    open, then this):
    - **Before the books start:** the opening is the principal outstanding
      on the day the books start, from the loan's statement or amortisation
-     schedule, or worked back from an outstanding the user knows on a
-     later date (the balance less the account's movement up to that date).
+     schedule, or an outstanding the user knows on a later date, posted
+     as that date and balance; the app works it back to the opening.
      No disbursement entry.
    - **Inside the period:** an opening of 0 dated the day before the
      disbursement ("started here"), then the disbursement as a journal on

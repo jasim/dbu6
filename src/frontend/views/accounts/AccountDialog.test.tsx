@@ -43,8 +43,6 @@ const OPENING_BALANCES = {
       default_date: null,
       implied_opening: null,
       opening: null,
-      removable: false,
-      activity: [],
     },
     {
       account_id: 4,
@@ -63,8 +61,6 @@ const OPENING_BALANCES = {
         locked: null,
         source: "manual",
       },
-      removable: false,
-      activity: [],
     },
   ],
   unanswered: [
@@ -75,6 +71,7 @@ const OPENING_BALANCES = {
       account_type: "Asset",
     },
   ],
+  empty_groups: [],
   wrong_side: [],
 };
 

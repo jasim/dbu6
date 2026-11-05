@@ -69,8 +69,6 @@ function account(
     default_date: "2026-03-31",
     implied_opening: null,
     opening: null,
-    removable: false,
-    activity: [],
     ...more,
   };
 }
@@ -189,7 +187,8 @@ beforeEach(() => {
           return Response.json(balances);
         }
         const text = request ? await request.text() : String(init?.body ?? "");
-        sent.push({ method, path, body: text ? JSON.parse(text) : null });
+        const body = text ? JSON.parse(text) : null;
+        sent.push({ method, path, body });
         if (refusal)
           return Response.json(refusal.body, { status: refusal.status });
         return method === "POST"
@@ -198,6 +197,8 @@ beforeEach(() => {
                 journal_id: 30,
                 equity_account: { id: 1, name: "Opening Balances" },
                 equity_account_created: false,
+                date: body.date,
+                amount: body.amount,
               },
               { status: 201 },
             )
@@ -239,6 +240,8 @@ async function renderPage(
   url = "/settings/balances",
   /** An older list, already in the cache when the page opens. */
   cached?: OpeningBalanceAccount[],
+  /** The server's check over `accounts`. */
+  unanswered: OpeningBalanceAccount[] = [],
 ) {
   if (accounts === "refused") {
     vi.stubGlobal(
@@ -251,7 +254,7 @@ async function renderPage(
       ),
     );
   } else {
-    balances = balancesOf(accounts);
+    balances = balancesOf(accounts, { unanswered });
   }
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -558,7 +561,9 @@ describe("OpeningBalances", () => {
 
   it("records a liability's balance as owed, and reads a minus as in credit", async () => {
     await renderPage(ALL, linked("Sample Car Loan"));
-    expect(hint("As of")).toBe("Before its first transaction on 5 Apr 2026.");
+    expect(hint("As of")).toBe(
+      "Before its first transaction on 5 Apr 2026, or a later day you know the balance of.",
+    );
     expect(field("As of").value).toBe("2026-04-04");
 
     await type(field("Amount owed"), "3000");
@@ -571,19 +576,27 @@ describe("OpeningBalances", () => {
     ]);
   });
 
-  it("sends what is owed below zero, on a day before the first transaction", async () => {
+  it("sends what is owed below zero, on its day or a later one", async () => {
+    await renderPage(ALL, linked("Sample Car Loan"));
+    await type(field("Amount owed"), "3000");
+    await type(field("As of"), "2026-04-04");
+    await click("Add balance");
+    expect(sent.map((one) => one.body)).toMatchObject([{ amount: -3000 }]);
+  });
+
+  it("sends a balance known on a later day as typed, for the server to work back", async () => {
     await renderPage(ALL, linked("Sample Car Loan"));
     await type(field("Amount owed"), "3000");
     await type(field("As of"), "2026-04-05");
     await click("Add balance");
-    expect(alert()).toBe(
-      "Pick a day before 5 Apr 2026, its first transaction.",
-    );
-    expect(sent).toEqual([]);
-
-    await type(field("As of"), "2026-04-04");
-    await click("Add balance");
-    expect(sent.map((one) => one.body)).toMatchObject([{ amount: -3000 }]);
+    expect(sent.map((one) => one.body)).toEqual([
+      {
+        account_id: 7,
+        date: "2026-04-05",
+        amount: -3000,
+        description: "Owed 3,000.00 on 5 Apr 2026",
+      },
+    ]);
   });
 
   it("opens on the first statement's suggestion, and says where it is from", async () => {
@@ -746,7 +759,11 @@ describe("OpeningBalances", () => {
   });
 
   it("points to the agent and to C1 when no balance is recorded", async () => {
-    await renderPage([cash, loan, gold]);
+    await renderPage([cash, loan, gold], undefined, undefined, [
+      cash,
+      loan,
+      gold,
+    ]);
 
     expect(text()).toContain("No opening balances yet");
     expect(agentButton()).toBeDefined();
@@ -758,10 +775,13 @@ describe("OpeningBalances", () => {
   });
 
   it("lists the accounts with no starting balance first, with their answers", async () => {
-    const gone = account(12, "Sample Gold", "Assets:Sample Gold", {
-      removable: true,
-    });
-    await renderPage([...ALL, gone]);
+    const gone = account(12, "Sample Gold", "Assets:Sample Gold", {});
+    await renderPage([...ALL, gone], undefined, undefined, [
+      cash,
+      loan,
+      gold,
+      gone,
+    ]);
 
     const section = host.querySelector(
       'section[aria-labelledby="no-starting-balance"]',
@@ -772,19 +792,23 @@ describe("OpeningBalances", () => {
     const rows = [...section.querySelectorAll("tbody tr")].map((row) => [
       ...[...row.querySelectorAll("td")].map((td) => td.textContent),
     ]);
-    // The check's order is the server's; this list is the accounts the
-    // tables list with no opening. "It started here" needs a first
-    // transaction; "I don't have this", nothing on the account.
+    // The check's order is the server's. "It started here" needs a first
+    // transaction; "I don't have this" is on all but a bank or card, and
+    // the delete refuses one anything is on.
     expect(rows).toEqual([
-      ["Cash", "—", "It had a balance"],
-      ["Sample Car Loan", "5 Apr 2026", "It had a balanceIt started here"],
+      ["Cash", "—", "It had a balanceI don't have this"],
+      [
+        "Sample Car Loan",
+        "5 Apr 2026",
+        "It had a balanceIt started hereI don't have this",
+      ],
       ["Sample Card Gold", "1 Apr 2026", "It had a balanceIt started here"],
       ["Sample Gold", "—", "It had a balanceI don't have this"],
     ]);
   });
 
   it("records an opening of 0 the day before the first transaction for It started here", async () => {
-    await renderPage(ALL);
+    await renderPage(ALL, undefined, undefined, [loan]);
 
     await act(async () =>
       (
@@ -810,10 +834,8 @@ describe("OpeningBalances", () => {
   });
 
   it("deletes an account the person doesn't have, after asking", async () => {
-    const gone = account(12, "Sample Gold", "Assets:Sample Gold", {
-      removable: true,
-    });
-    await renderPage([...ALL, gone]);
+    const gone = account(12, "Sample Gold", "Assets:Sample Gold", {});
+    await renderPage([...ALL, gone], undefined, undefined, [gone]);
 
     await act(async () =>
       (

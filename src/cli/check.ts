@@ -46,6 +46,8 @@ import {
 } from "node:path";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import {
+  createAuthContext,
+  createTableCatalog,
   pendingMigrations,
   PROJECT_API_TOKEN_FILE,
   readProjectApiToken,
@@ -57,11 +59,21 @@ import {
   TRANSACTION_MAPPINGS_FILENAME,
 } from "../server/modules/categorization/index.js";
 import {
-  agentLedger,
   chosenCodingAgent,
   workingAgentToken,
 } from "../server/modules/coding-agent/index.js";
 import { loadOpeningBalances } from "../server/workflows/opening-balances.js";
+import { buildAbility } from "../server/authz/ability.js";
+import {
+  ledgerAuthAllows,
+  mayRunOwnerWorkflows,
+} from "../server/authz/ledger-access.js";
+import { dataAuthorityFor } from "../server/authz/request-data-authority.js";
+import {
+  LEDGER_TABLES,
+  type Ledger,
+} from "../server/modules/ledger-sql/index.js";
+import { liveTokenPrincipal } from "../server/project-auth/index.js";
 import { readEveryImportPreset } from "../server/modules/import-presets/index.js";
 import { parserDirectory } from "../server/modules/statement-sources/index.js";
 import {
@@ -735,12 +747,12 @@ export async function checkBooks(root: string): Promise<CheckLine[]> {
     if (pendingMigrations(sqlite, dbu6MigrationsDir()).length > 0) {
       return [info("Books", "not read until `dbu6 migrate` has run")];
     }
-    const ledger = agentLedger({ sqlite, db: drizzle(sqlite) }, root);
+    const ledger = agentLedger(sqlite, root);
     if (ledger === undefined) {
       return [
         info(
           "Books",
-          `not read: no token in ${PROJECT_API_TOKEN_FILE} the app accepts; run \`dbu6 agent env\``,
+          `not read: no token in ${PROJECT_API_TOKEN_FILE} the app accepts for the owner's books; run \`dbu6 agent env\``,
         ),
       ];
     }
@@ -770,6 +782,32 @@ export async function checkBooks(root: string): Promise<CheckLine[]> {
   } finally {
     sqlite.close();
   }
+}
+
+/**
+ * The books as a request with the project's token would read them: the
+ * auth its principal gets, when that auth may run the owner's workflows
+ * (`ledgerAuthAllows`, the routes' guard). Undefined otherwise. The token is
+ * only read, so a read-only database will do.
+ */
+function agentLedger(
+  sqlite: import("better-sqlite3").Database,
+  root: string,
+): Ledger | undefined {
+  const stored = readProjectApiToken(root);
+  if (stored === undefined) return undefined;
+  const db = drizzle(sqlite);
+  const principal = liveTokenPrincipal({ sqlite, db }, stored);
+  if (principal === null) return undefined;
+  const dataAuthority = dataAuthorityFor(principal);
+  const auth = createAuthContext({
+    principal,
+    dataAuthority,
+    ability: buildAbility({ principal, dataAuthority }),
+    catalog: createTableCatalog(LEDGER_TABLES),
+  });
+  if (!ledgerAuthAllows(auth, mayRunOwnerWorkflows)) return undefined;
+  return { db, sqlite, auth };
 }
 
 // --- Config ---

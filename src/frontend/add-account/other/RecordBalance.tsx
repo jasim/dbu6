@@ -12,7 +12,6 @@ import {
   fieldsFor,
   readBalance,
   signReadback,
-  workedBackReadback,
   type BalanceFields,
 } from "../../opening-balances";
 import { Field, FocusCard, type FocusFrame } from "../../components/focus-card";
@@ -183,11 +182,6 @@ export function RecordBalance({
                 }
                 className="tnum h-sap-ctl w-[200px] rounded-control font-mono"
               />
-              {workedBackReadback(account, fields) && (
-                <p className="text-meta text-ink-meta">
-                  {workedBackReadback(account, fields)}
-                </p>
-              )}
             </Field>
           </>
         )}

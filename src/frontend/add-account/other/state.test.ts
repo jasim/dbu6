@@ -34,8 +34,6 @@ function account(
     default_date: "2025-12-31",
     implied_opening: null,
     opening: null,
-    removable: false,
-    activity: [],
     ...over,
   };
 }
@@ -135,7 +133,7 @@ describe("unrecorded", () => {
         account({ account_id: 7, name: "Investments", section: null }),
         cards,
       ],
-      { unanswered: [ppf, cash, savings, loan] },
+      { unanswered: [ppf, cash, savings, loan], empty_groups: [cards] },
     );
     expect(unrecorded(data).map((one) => one.name)).toEqual([
       "Cash",

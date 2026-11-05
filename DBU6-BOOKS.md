@@ -538,8 +538,9 @@ Leave a rule request you couldn't encode.
   - **How each account starts.** The opening entry is the one record of it,
     and the list's `unanswered` is the check: every leaf asset or liability
     account with no opening entry, whether or not anything is on it, by
-    path, leaving out a group with accounts under it and the empty groups
-    banks, cards and loans are added under. The screens, `dbu6 check`, net
+    path, leaving out a group with accounts under it and `empty_groups`,
+    the groups banks, cards and loans are added under while nothing is on
+    them (once anything is, such a group is on `unanswered`). The screens, `dbu6 check`, net
     worth's "incomplete" and a run's report all read it; never filter
     `accounts` yourself. `wrong_side` beside it lists the balances, drafts
     included, on the wrong side for their type (an asset in credit, a
@@ -550,14 +551,17 @@ Leave a rule request you couldn't encode.
     event is in the books, a statement row or an off-statement transaction
     the user described; a loan with only its instalments and a 0 opening is
     a liability in debit.
-  - **A balance known on a later date:** the opening is that balance less
-    the account's movement up to and including the date
-    (`/api/accounts/<id>/activity`, drafts included), dated the day before
-    its first activity, with the user's sentence as `description`. Record
-    it after the account's drafts are categorized to it.
-  - **Not held:** an account the user never had, with nothing on it (its
-    `removable`, and no rule naming it), is deleted instead
-    (`npx sapporta api delete /api/accounts/<id>`), and its line dropped from
+  - **A balance known on a later date:** post it as the user gave it, that
+    date and that balance, with the user's sentence as `description`. The
+    app takes the account's movement through the day, posted entries and
+    drafts, and posts what is left as the opening, dated the day before
+    its first activity; the answer's `date` and `amount` are what it
+    posted. Record it after the account's drafts are categorized to it. A
+    draft dated on or before that day that comes in later leaves the
+    opening as it was, and nothing checks the balance on that day again.
+  - **Not held:** an account the user never had is deleted instead
+    (`npx sapporta api delete /api/accounts/<id>`), which refuses one
+    anything is on and says what is, and its line dropped from
     `custom_mappings_default.prompt` if it has one. There is then nothing to
     answer.
   - A transaction no statement shows, such as a loan paid straight to a

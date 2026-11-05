@@ -63,7 +63,7 @@ export default api;
 
 /** The accounts and their opening entries, in the contract's terms. */
 export function listOpeningBalances(ledger: Ledger): OpeningBalancesBody {
-  const { equityAccount, accounts, unanswered, wrongSide } =
+  const { equityAccount, accounts, unanswered, emptyGroups, wrongSide } =
     loadOpeningBalances(ledger);
   const ref = (account: OpeningBalanceAccount) => ({
     account_id: account.accountId,
@@ -74,6 +74,7 @@ export function listOpeningBalances(ledger: Ledger): OpeningBalancesBody {
   return {
     equity_account: equityAccount,
     unanswered: unanswered.map(ref),
+    empty_groups: emptyGroups.map(ref),
     wrong_side: wrongSide.map(({ account, balance }) => ({
       ...ref(account),
       balance,
@@ -95,8 +96,6 @@ export function listOpeningBalances(ledger: Ledger): OpeningBalancesBody {
         locked: account.opening.locked,
         source: account.opening.source,
       },
-      removable: account.removable,
-      activity: account.activity,
     })),
   };
 }
@@ -125,8 +124,6 @@ export function recordOpeningBalanceResponse(
           error: `${outcome.accountName} already has an opening balance, from ${outcome.opening.date}.`,
         },
       };
-    case "date-not-before-first-activity":
-      return { status: 422, body: dateNotBeforeFirstActivity(outcome) };
     case "opening-balances-not-equity":
       return {
         status: 422,
@@ -142,6 +139,8 @@ export function recordOpeningBalanceResponse(
           journal_id: outcome.journalId,
           equity_account: outcome.equityAccount,
           equity_account_created: outcome.equityAccountCreated,
+          date: outcome.date,
+          amount: outcome.amount,
         },
       };
   }

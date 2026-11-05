@@ -28,8 +28,6 @@ function account(
           amount: 1000,
         } as OpeningBalanceAccount["opening"])
       : null,
-    removable: false,
-    activity: [],
   };
 }
 

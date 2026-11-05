@@ -474,8 +474,8 @@ on the check, and net worth says it is incomplete.
 **The check.** `npx sapporta api get /api/opening-balances` returns
 `unanswered`: every leaf asset or liability account with no opening entry,
 whether or not anything is on it, by path. It leaves out a group with
-accounts under it, which takes no opening, and the empty groups banks,
-cards and loans are added under. A bank or card is on it only until its
+accounts under it, which takes no opening, and `empty_groups`, the groups
+banks, cards and loans are added under while nothing is on them. A bank or card is on it only until its
 first statement sets its opening. Read this list; never filter `accounts`
 yourself. Beside it, `wrong_side` lists the balances, drafts included, on
 the wrong side for their type: an asset in credit, a liability in debit.
@@ -522,16 +522,16 @@ What each account started with, on 2025-03-31, the day your books start
   ("started here: opened from Sample savings on 12 Mar"). A loan whose
   instalments are in the books but whose payout isn't is never "started
   here" on its own: that is a debit balance on a liability.
-- "none" is offered only for an account nothing touches: no posted
-  entry, no draft, no rule naming it (`removable` in the list). It means
-  the user never held it.
+- "none" is offered where the user may never have held the account. It
+  means deleting it, which refuses an account anything is on and says
+  what is.
 - Amounts are given as positive numbers: what was held, or what was owed.
 - `6 5000 8 250000` answers rows; `skip` or no answer leaves a row on the
   check.
 - A new one (row 10) is an account to create, with its type and a parent
   you propose from the chart: put it under "Accounts I'll create".
-- An empty group banks, cards and loans go under (Loans with nothing
-  under it) is asked as "anything under it?".
+- An account in `empty_groups` (Loans with nothing on it or under it) is
+  asked as "anything under it?".
 
 **On a yes,** in the [order of operations](#order-of-operations):
 
@@ -543,14 +543,12 @@ What each account started with, on 2025-03-31, the day your books start
    `npx sapporta api post /api/opening-balances --body '{"account_id":<id>,"date":"YYYY-MM-DD","amount":<signed>}'`,
    positive when held, negative when owed, and `0` for "started here",
    dated the day before its first event (`default_date` once its drafts
-   are categorized). The date must be before the account's first
-   activity; a refusal (`date_not_before_first_activity`) names that
-   date.
+   are categorized).
    - **A balance the user knows on a later date** ("I owed 3,00,000 on
-     30 Sep"): the opening is that balance less the account's activity
-     up to and including that date, posted entries and drafts, signed as
-     the opening is; date it the day before its first activity, and put
-     the user's sentence in `description`.
+     30 Sep"): post that date and that balance, with the user's sentence
+     in `description`. The app works it back through the account's
+     activity to the opening, dated the day before its first activity,
+     and answers with the `date` and `amount` it posted.
 3. "none": `npx sapporta api delete /api/accounts/<id>`, the Accounts
    page's delete, which refuses an account anything is on; then drop its
    line from `custom_mappings_default.prompt` if it has one.
@@ -575,13 +573,13 @@ Wherever an account is created for statement rows (phase 8's reply, the
 1. Create the account, and the asset an off-statement loan bought.
 2. Categorize its drafts to it.
 3. Record its opening: an amount on the day before its first activity, a
-   later known balance worked back from the activity now in the books, or
-   0 dated the day before its first event.
+   later known balance as the user gave it, or 0 dated the day before its
+   first event.
 4. Post any off-statement transaction the user described.
 
 Recording first would date the opening by the books' start, not the
-account's first activity, and leave nothing to work a later balance back
-from.
+account's first activity, and work a later balance back through activity
+not yet on the account.
 
 **Why this holds.** An older statement imported later puts rows before the
 opening. Its own drafts may pass their draft-side balance checks, which

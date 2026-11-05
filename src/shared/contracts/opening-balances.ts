@@ -63,14 +63,6 @@ export const openingBalanceAccountSchema = z.object({
   implied_opening: z.number().nullable(),
   // Null until the account has an opening entry.
   opening: openingEntrySchema.nullable(),
-  // Whether "I don't have this" may delete the account: a leaf no import
-  // preset lists, with no posted entry and no draft.
-  removable: z.boolean(),
-  // Each day's movement, posted entries plus drafts, signed like the
-  // opening, while the account has no opening entry; empty once it has one.
-  // A balance known on a later day, less the movement up to it, is the
-  // opening.
-  activity: z.array(z.object({ date: z.string(), amount: z.number() })),
 });
 export type OpeningBalanceAccount = z.infer<typeof openingBalanceAccountSchema>;
 
@@ -97,9 +89,13 @@ export const openingBalancesSchema = z.object({
   accounts: z.array(openingBalanceAccountSchema),
   // The accounts whose start nobody has answered for: every leaf asset or
   // liability account with no opening entry, by path. Not a group with
-  // accounts under it, nor the empty groups banks, cards and loans are
-  // added under. An opening of 0 answers "it started here".
+  // accounts under it, nor `empty_groups`. An opening of 0 answers "it
+  // started here".
   unanswered: z.array(balanceAccountRefSchema),
+  // The groups banks, cards and loans are added under, while nothing is on
+  // them and nothing under them: off the check, since nothing in the books
+  // says whether one waits for accounts or is one.
+  empty_groups: z.array(balanceAccountRefSchema),
   // Accounts whose balance, drafts included, is on the wrong side for their
   // type: an asset in credit, a liability in debit. Worth a look, not an
   // error: a card paid in excess or an overdrawn account is ordinary.
@@ -126,9 +122,11 @@ export const openingBalanceRefusalSchema = z.object({
 export type OpeningBalanceRefusal = z.infer<typeof openingBalanceRefusalSchema>;
 
 const openingBalanceBody = z.object({
-  // Before the account's first posted entry or draft.
+  // The day the balance is from. Changing an opening takes a day before the
+  // account's first posted entry or draft.
   date: isoDate,
-  // Positive when held, negative when owed; also the balance assertion.
+  // The balance at the end of that day: positive when held, negative when
+  // owed.
   amount: z.number().finite(),
   // Where the balance came from, in the user's words; it becomes the
   // journal's description. Left out, the journal is "Opening balance".
@@ -155,7 +153,7 @@ export const openingBalancesContract = c.router({
     method: "POST",
     path: "/opening-balances",
     summary:
-      "Post an account's opening entry against Opening Balances (Equity)",
+      "Post an account's opening entry against Opening Balances (Equity). A date on or after the account's first activity is a balance known then: the opening posted is that balance less the account's movement through the day (posted entries and drafts, as its running balance adds them up), dated the day before its first activity. The answer gives the date and amount posted",
     body: openingBalanceBody.extend({
       account_id: z.number().int().positive(),
     }),
@@ -164,6 +162,9 @@ export const openingBalancesContract = c.router({
         journal_id: z.number(),
         equity_account: namedAccountSchema,
         equity_account_created: z.boolean(),
+        // The opening as posted, worked back when the date was later.
+        date: isoDate,
+        amount: z.number(),
       }),
       403: errorBodySchema,
       404: errorBodySchema,

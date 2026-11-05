@@ -19,9 +19,6 @@ import {
   startedHereEntry,
   typedAmount,
   unansweredAccounts,
-  workedBack,
-  workedBackReadback,
-  wrongSideFigure,
 } from "./opening-balances";
 import { balancesOf } from "./opening-balances.testing";
 
@@ -46,8 +43,6 @@ function account(
     default_date: null,
     implied_opening: null,
     opening: null,
-    removable: false,
-    activity: [],
     ...more,
   };
 }
@@ -283,9 +278,12 @@ describe("the dialog's fields", () => {
       problem: "Enter the amount as a number.",
     });
     expect(read("10", "")).toEqual({ ok: false, problem: "Pick a date." });
+    // A later day is a balance known then, worked back by the server.
     expect(read("10", "2026-04-05")).toEqual({
-      ok: false,
-      problem: "Pick a day before 5 Apr 2026, its first transaction.",
+      ok: true,
+      date: "2026-04-05",
+      amount: -10,
+      description: "Owed 10.00 on 5 Apr 2026",
     });
     expect(
       readBalance(account("Cash", "Assets:Cash"), {
@@ -301,9 +299,9 @@ describe("the dialog's fields", () => {
     expect(amountHint(true)).toBe("From its first statement's balances.");
 
     const cash = account("Cash", "Assets:Cash");
-    expect(dateHint({ ...cash, first_activity_date: "2026-04-05" }, true)).toBe(
-      "Before its first transaction on 5 Apr 2026.",
-    );
+    expect(
+      dateHint({ ...cash, first_activity_date: "2026-04-05" }, false),
+    ).toBe("Before its first transaction on 5 Apr 2026.");
     expect(dateHint({ ...cash, default_date: "2026-03-31" }, true)).toBe(
       "When your books start.",
     );
@@ -315,55 +313,35 @@ describe("the dialog's fields", () => {
 });
 
 describe("a balance known on a later day", () => {
-  // Two instalments of 18,000 paid into the loan, from 5 May.
   const loan = account("Sample Car Loan", "Liabilities:Loans:Sample Car Loan", {
     first_activity_date: "2026-05-05",
     default_date: "2026-05-04",
-    activity: [
-      { date: "2026-05-05", amount: 18000 },
-      { date: "2026-06-05", amount: 18000 },
-    ],
   });
 
-  it("works it back through the movement up to that day, to the day before the first", () => {
-    // Owed 3,00,000 on 30 May: one instalment had gone in by then.
-    expect(workedBack(loan, "2026-05-30", -300000)).toEqual({
-      date: "2026-05-04",
-      amount: -318000,
-    });
-    expect(workedBack(loan, "2026-06-05", -282000)).toEqual({
-      date: "2026-05-04",
-      amount: -318000,
-    });
-    // Before the first activity, it is the opening itself.
-    expect(workedBack(loan, "2026-05-01", -300000)).toBeNull();
-    // Not once it has an opening.
-    expect(
-      workedBack({ ...loan, opening: opening(-1000) }, "2026-05-30", -1),
-    ).toBeNull();
-  });
-
-  it("records the worked-back opening, with the person's balance as its description", () => {
+  it("sends it as typed, with the person's balance as its description", () => {
     expect(
       readBalance(loan, { amount: "3,00,000", date: "2026-05-30", note: "" }),
     ).toEqual({
       ok: true,
-      date: "2026-05-04",
-      amount: -318000,
+      date: "2026-05-30",
+      amount: -300000,
       description: "Owed 3,00,000.00 on 30 May 2026",
     });
-    expect(
-      workedBackReadback(loan, {
-        amount: "3,00,000",
-        date: "2026-05-30",
-        note: "",
-      }),
-    ).toBe(
-      "Opening balance on 4 May 2026: 3,18,000.00, less what moved by 30 May 2026.",
-    );
     expect(dateHint(loan, true)).toBe(
       "Before its first transaction on 5 May 2026, or a later day you know the balance of.",
     );
+  });
+
+  it("refuses it when changing an opening already recorded", () => {
+    expect(
+      readBalance(
+        { ...loan, opening: opening(-1000) },
+        { amount: "3,00,000", date: "2026-05-30", note: "" },
+      ),
+    ).toEqual({
+      ok: false,
+      problem: "Pick a day before 5 May 2026, its first transaction.",
+    });
   });
 });
 
@@ -384,14 +362,5 @@ describe("the accounts with no starting balance", () => {
     });
     // Nothing on it, so nothing says when it started.
     expect(startedHereEntry(cash)).toBeNull();
-  });
-
-  it("words a balance on the wrong side", () => {
-    expect(
-      wrongSideFigure({ account_type: "Liability", balance: 162000 }),
-    ).toBe("1,62,000.00 in debit");
-    expect(wrongSideFigure({ account_type: "Asset", balance: -500 })).toBe(
-      "500.00 in credit",
-    );
   });
 });

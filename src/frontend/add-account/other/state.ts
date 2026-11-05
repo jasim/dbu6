@@ -2,7 +2,7 @@ import type {
   OpeningBalanceAccount,
   OpeningBalances,
 } from "../../../shared/index";
-import { balanceSections, emptyGroups } from "../../opening-balances";
+import { balanceSections } from "../../opening-balances";
 import { BALANCES_SETTINGS_ROUTE } from "../../views/settings/routes";
 import { ADD_OTHER_ROUTE } from "../state";
 
@@ -70,7 +70,7 @@ export function unrecorded(data: OpeningBalances): OpeningBalanceAccount[] {
 
 /** The empty groups card 6 asks "anything under it?" about. */
 export function emptyGroupNames(data: OpeningBalances): string[] {
-  return emptyGroups(data).map((account) => account.name);
+  return data.empty_groups.map((account) => account.name);
 }
 
 /**
