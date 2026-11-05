@@ -2,24 +2,20 @@ import {
   isBlock,
   postingBlocks,
   postingChecks,
-  type PostingBlock,
   type PostingCheck,
   type PostingCheckKind,
   type ReviewAccount,
   type ReviewAccountDetail,
 } from "../../shared/index";
-import type { Fact } from "../components/fact-table";
-import type { Step } from "../components/progress-steps";
 import type { StatusTone } from "../components/status-chip";
 import {
-  agree,
   formatBalance,
   formatDaySpan,
   formatShortDate,
   plural,
 } from "../format";
 import { UPDATE_ROUTE } from "../update/routes";
-import { accountsText, checkText, waitsOnText } from "./posting-checks";
+import { accountsText, checkText } from "./posting-checks";
 import {
   checkTab,
   needsAccountHref,
@@ -31,56 +27,65 @@ import {
 
 /*
  * What an account's Overview says, as a pure function of its summary
- * (PLAN.md §11 P3): the verdict, one row per check in tab order, why the
- * post button waits, whether the coding agent has something to fix, and
- * what posting will do. The rows are the posting gate's own checks
- * (`postingChecks`), so the ticks and a refusal agree. Drafts whose checks
- * pass counting another account's drafts (`relies_on`) wait on that
- * account: Review's Add all adds them together once it is ready; their own
- * button waits.
+ * (PLAN.md §11 P3): a status line, the drafts' dates and closing balance,
+ * what must be fixed before the drafts can be added, each with the screen
+ * that fixes it, then the checks that passed. The rows are the posting
+ * gate's own checks (`postingChecks`), so the ticks and a refusal agree.
+ * Drafts whose checks pass counting another account's drafts (`relies_on`)
+ * wait on that account: Review's Add all adds them together once it is
+ * ready, and their own button waits.
  */
-
-/** A figure inside a sentence, set in mono. */
-export interface Figure {
-  figure: string;
-}
-
-/** A sentence whose figures are marked, so the page can set them in mono. */
-export type Phrase = readonly (string | Figure)[];
 
 export interface OverviewLink {
   label: string;
   to: string;
 }
 
-export interface CheckRow {
-  check: PostingCheckKind;
-  tone: StatusTone;
+/** A labelled value: "Dates", "1–13 Sep". */
+export interface OverviewFact {
+  label: string;
+  value: string;
+}
+
+/** What the drafts' relying on another account's drafts is called here. */
+export type OverviewRowKind = PostingCheckKind | "relies-on";
+
+/** Something to fix before the drafts can be added, and where. */
+export interface ProblemRow {
+  check: OverviewRowKind;
+  tone: Extract<StatusTone, "attention" | "problem">;
   text: string;
   /** A quiet second line: what the import already categorized. */
   note?: string;
-  /** The tab that fixes it; absent when there is nothing to fix. */
-  link?: OverviewLink;
+  link: OverviewLink;
+}
+
+/** A check that passed, or had nothing to check. */
+export interface PassedRow {
+  check: PostingCheckKind;
+  tone: Extract<StatusTone, "ok" | "waiting">;
+  text: string;
+  note?: string;
 }
 
 export interface OverviewView {
-  /** The drafts' way into the books, and where they are on it. */
-  journey: Step[];
-  verdict: string;
-  checks: readonly CheckRow[];
-  /** The unmet checks, for under the waiting button; absent when ready. */
-  waiting?: string;
-  /** What posting adds, as labelled facts; only when nothing blocks it. */
-  posting?: readonly Fact[];
-  button: string;
-  /** Whether Fix these has something to hand the coding agent. */
-  fix: boolean;
+  status: string;
+  facts: readonly OverviewFact[];
+  problems: readonly ProblemRow[];
+  passed: readonly PassedRow[];
+  /** Whether Add to my books can run. */
+  ready: boolean;
+  /**
+   * Where Fix these goes: under the problems it fixes, or beside the add
+   * when it has only rule requests for the agent; absent when it has
+   * nothing to fix.
+   */
+  fix?: "problems" | "actions";
 }
 
 export interface PostedView {
-  journey: Step[];
-  verdict: string;
-  outcome: Phrase;
+  status: string;
+  facts: readonly OverviewFact[];
   /**
    * The primary action: Review's Add all while other accounts are ready to
    * add, else the next account to review, else Overview.
@@ -111,27 +116,39 @@ export function overviewView(
 ): OverviewView {
   const { account } = detail;
   const blocks = postingBlocks(account);
-  const clear = blocks.length === 0;
-  const together = clear && account.relies_on.length > 0;
+  const relies = blocks.length === 0 && account.relies_on.length > 0;
+  const ready = blocks.length === 0 && !relies;
+
+  const problems: ProblemRow[] = [];
+  const passed: PassedRow[] = [];
+  for (const check of postingChecks(account)) {
+    const note =
+      check.kind === "categorization" && imported !== null
+        ? `${imported.categorized} of ${imported.drafts} categorized automatically`
+        : undefined;
+    if (isBlock(check)) {
+      problems.push({ ...problemRow(check, detail), ...(note && { note }) });
+    } else if (check.kind === "balance-checks" && relies) {
+      problems.push(reliesOnRow(account));
+    } else {
+      passed.push({ ...passedRow(check), ...(note && { note }) });
+    }
+  }
 
   return {
-    journey: journey(detail, clear ? "add" : "review"),
-    verdict: together
-      ? waitsOnText(account.relies_on)
-      : clear
-        ? "Ready to add to your books"
-        : "Not ready to add yet",
-    checks: postingChecks(account).map((check) =>
-      checkRow(check, detail, imported),
-    ),
-    waiting: together
-      ? `${waitsOnText(account.relies_on)}: Review's Add all adds them together once ${account.relies_on.length === 1 ? "it is" : "they are"} ready`
-      : clear
-        ? undefined
-        : blocks.map(waitingReason).join(" · "),
-    posting: clear ? postingFacts(detail) : undefined,
-    button: "Add to my books",
-    fix: agentFixes(account),
+    status: ready
+      ? `${plural(account.drafts, "transaction")} ready to add`
+      : `${plural(account.drafts, "transaction")} in drafts`,
+    facts: draftFacts(detail),
+    problems,
+    passed,
+    ready,
+    fix:
+      blocks.length > 0
+        ? "problems"
+        : account.rule_requests > 0
+          ? "actions"
+          : undefined,
   };
 }
 
@@ -142,43 +159,6 @@ export function overviewView(
  */
 export function agentFixes(account: ReviewAccount): boolean {
   return account.rule_requests > 0 || postingBlocks(account).length > 0;
-}
-
-/**
- * A draft's way into the books: import, review, add. `at` is the
- * step the drafts wait on, or "posted" once they are in.
- */
-function journey(
-  detail: ReviewAccountDetail,
-  at: "review" | "add" | "posted",
-): Step[] {
-  const { account } = detail;
-  const span = account.draft_span
-    ? ` · ${formatDaySpan(account.draft_span)}`
-    : "";
-  const reviewed = at !== "review";
-  return [
-    {
-      title: "Import as drafts",
-      status: "done",
-      detail: `${plural(account.drafts, "transaction")}${span}`,
-    },
-    {
-      title: "Review",
-      status: reviewed ? "done" : "current",
-      detail: reviewed
-        ? "Every check passes"
-        : "Categorization, duplicates and balances",
-    },
-    {
-      title: "Add to your books",
-      status: at === "posted" ? "done" : at === "add" ? "current" : "waiting",
-      detail:
-        at === "posted"
-          ? "They show in your reports"
-          : "Then they show in your reports",
-    },
-  ];
 }
 
 /** What the notice an import's Overview opens with says. */
@@ -242,13 +222,6 @@ export function arrivalNotice(
   };
 }
 
-/** One unmet check, as the waiting button lists it: "12 still need an account". */
-function waitingReason(block: PostingBlock): string {
-  return block.kind === "categorization"
-    ? `${block.count} still ${agree(block.count, "needs", "need")} an account`
-    : checkText(block);
-}
-
 /**
  * The Overview once the drafts are in the books. `before` is the summary the
  * post was made from; `others` the accounts that still have drafts, of which
@@ -265,16 +238,13 @@ export function postedView(
   }: { setup?: boolean; readyOthers?: number } = {},
 ): PostedView {
   const next = others[0];
-  const posted = journey(before, "posted");
-  const outcome: Phrase = [
-    `${plural(draftsPosted, "transaction")} added.`,
-    ...lastAssertion(before, "is now"),
-  ];
+  const added = plural(draftsPosted, "transaction");
+  const facts = draftFacts(before);
+  const status = `${added} added to your books`;
   if (next && readyOthers > 0) {
     return {
-      journey: posted,
-      verdict: "Added to your books",
-      outcome,
+      status,
+      facts,
       next: {
         label: `Add ${plural(readyOthers, "ready account")}`,
         to: withReviewRun(REVIEW_ROUTE, { setup }),
@@ -287,9 +257,8 @@ export function postedView(
   }
   if (next) {
     return {
-      journey: posted,
-      verdict: "Added to your books",
-      outcome,
+      status,
+      facts,
       next: {
         label: `Review ${next.name}`,
         to: withReviewRun(reviewHref(next.account_id), { setup }),
@@ -302,37 +271,23 @@ export function postedView(
   }
   return setup
     ? {
-        journey: posted,
-        verdict: BOOKS_SET_UP,
-        outcome,
+        status: `${added} added. ${BOOKS_SET_UP}`,
+        facts,
         next: BOOKS_SET_UP_NEXT,
       }
     : {
-        journey: posted,
-        verdict: "Added to your books",
-        outcome,
+        status,
+        facts,
         next: BOOKS_SET_UP_NEXT,
         also: { label: "Update your books", to: UPDATE_ROUTE },
       };
 }
 
-function checkRow(
-  check: PostingCheck,
+// A check that blocks, said as a problem, with the tab that fixes it.
+function problemRow(
+  check: Extract<PostingCheck, { state: "blocks" }>,
   detail: ReviewAccountDetail,
-  imported: ImportCounts | null,
-): CheckRow {
-  const note =
-    check.kind === "categorization" && imported !== null
-      ? `${imported.categorized} of ${imported.drafts} categorized automatically`
-      : undefined;
-  if (!isBlock(check)) {
-    return {
-      check: check.kind,
-      tone: check.state === "none" ? "waiting" : "ok",
-      text: checkText(check),
-      note,
-    };
-  }
+): ProblemRow {
   const accountId = detail.account.account_id;
   const tab = reviewHref(accountId, checkTab(check.kind));
   switch (check.kind) {
@@ -341,9 +296,8 @@ function checkRow(
         check: check.kind,
         tone: check.severity,
         text: checkText(check),
-        note,
         link: {
-          label: check.count === 1 ? "See it in Drafts" : "See them in Drafts",
+          label: "Categorize in Drafts",
           to: needsAccountHref(accountId),
         },
       };
@@ -352,7 +306,7 @@ function checkRow(
         check: check.kind,
         tone: check.severity,
         text: checkText(check),
-        link: { label: "See the duplicates", to: tab },
+        link: { label: "Compare duplicates", to: tab },
       };
     case "balance-checks": {
       // A failing check is one of the detail's failing rows, in date order.
@@ -361,18 +315,62 @@ function checkRow(
         check: check.kind,
         tone: check.severity,
         text: `${checkText(check)}, ${check.count === 1 ? "on" : "the first on"} ${day}`,
-        link: { label: "See the balance checks", to: tab },
+        link: { label: "Open balance checks", to: tab },
       };
     }
   }
 }
 
-// What posting adds: how many, over which days, and the balance the drafts'
-// last assertion leaves the account at, when they carry one.
-function postingFacts(detail: ReviewAccountDetail): Fact[] {
+// Balance checks that pass only counting other accounts' drafts: those
+// drafts are already imported, so the two go in together, on Review.
+function reliesOnRow(account: ReviewAccount): ProblemRow {
+  const others = account.relies_on;
+  return {
+    check: "relies-on",
+    tone: "attention",
+    text: `These balance checks count ${accountsText(others)}'s drafts. Add ${others.length === 1 ? "both" : "them all"} together on Review.`,
+    link: { label: "Go to Review", to: REVIEW_ROUTE },
+  };
+}
+
+// A check that passed, or had nothing to check, in the Overview's words.
+function passedRow(check: Exclude<PostingCheck, { state: "blocks" }>): PassedRow {
+  switch (check.kind) {
+    case "categorization":
+      return {
+        check: check.kind,
+        tone: "ok",
+        text:
+          check.drafts === 1
+            ? "Accounts: the transaction is categorized"
+            : `Accounts: all ${check.drafts} transactions are categorized`,
+      };
+    case "duplicates":
+      return {
+        check: check.kind,
+        tone: "ok",
+        text: "No duplicate entries found",
+      };
+    case "balance-checks":
+      return check.state === "none"
+        ? {
+            check: check.kind,
+            tone: "waiting",
+            text: "No balance assertions in these drafts, so no balance checks run",
+          }
+        : {
+            check: check.kind,
+            tone: "ok",
+            text: "Balance checks: statement balance and our computed balance match",
+          };
+  }
+}
+
+// The drafts' dates, and the balance their last assertion leaves the
+// account at, when they carry one.
+function draftFacts(detail: ReviewAccountDetail): OverviewFact[] {
   const { account, closing } = detail;
   return [
-    { label: "Transactions", value: String(account.drafts) },
     ...(account.draft_span
       ? [{ label: "Dates", value: formatDaySpan(account.draft_span) }]
       : []),
@@ -385,24 +383,4 @@ function postingFacts(detail: ReviewAccountDetail): Fact[] {
         ]
       : []),
   ];
-}
-
-// " The last balance assertion for HDFC Savings is now 3,30,000.00 on
-// 13 Sep.", from the last balance the drafts carry; nothing when they carry
-// none.
-function lastAssertion(detail: ReviewAccountDetail, verb: string): Phrase {
-  const { account, closing } = detail;
-  if (closing === null) return [];
-  return [
-    ` The last balance assertion for ${account.name} ${verb} `,
-    { figure: formatBalance(closing.balance, account.kind) },
-    ` on ${formatShortDate(closing.date)}.`,
-  ];
-}
-
-/** A phrase as plain text: for titles, labels and tests. */
-export function phraseText(phrase: Phrase): string {
-  return phrase
-    .map((part) => (typeof part === "string" ? part : part.figure))
-    .join("");
 }

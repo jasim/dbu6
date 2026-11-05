@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReviewAccount, ReviewAccountDetail } from "../../shared/index";
-import {
-  arrivalNotice,
-  overviewView,
-  phraseText,
-  postedView,
-} from "./overview-state";
+import { arrivalNotice, overviewView, postedView } from "./overview-state";
 
 function detail(
   account: Partial<ReviewAccount> = {},
@@ -30,6 +25,7 @@ function detail(
     },
     checkpoint: { date: "2026-08-31", balance: 250000 },
     has_opening_entry: true,
+    no_starting_balance: [],
     closing: { date: "2026-09-13", balance: 330000 },
     failing: [],
     duplicates: [],
@@ -47,45 +43,51 @@ const failing = (date: string, draft_id: number) => ({
 });
 
 describe("overviewView", () => {
-  it("is ready when every check passes, and says what posting does", () => {
+  it("is ready when every check passes, and lists them as passed", () => {
     const view = overviewView(detail());
 
-    expect(view.verdict).toBe("Ready to add to your books");
-    expect(view.waiting).toBeUndefined();
-    expect(view.button).toBe("Add to my books");
-    expect(view.checks.map((row) => [row.tone, row.text])).toEqual([
-      ["ok", "All 21 transactions go to an account"],
-      ["ok", "No possible duplicates"],
-      ["ok", "Your books agree with the bank"],
+    expect(view.status).toBe("21 transactions ready to add");
+    expect(view.ready).toBe(true);
+    expect(view.problems).toEqual([]);
+    expect(view.passed.map((row) => [row.tone, row.text])).toEqual([
+      ["ok", "Accounts: all 21 transactions are categorized"],
+      ["ok", "No duplicate entries found"],
+      [
+        "ok",
+        "Balance checks: statement balance and our computed balance match",
+      ],
     ]);
-    expect(view.checks.every((row) => row.link === undefined)).toBe(true);
-    expect(view.fix).toBe(false);
-    expect(view.posting).toEqual([
-      { label: "Transactions", value: "21" },
+    expect(view.fix).toBeUndefined();
+    expect(view.facts).toEqual([
       { label: "Dates", value: "1–13 Sep" },
       { label: "Balance on 13 Sep", value: "3,30,000.00" },
     ]);
   });
 
-  it("is not ready while a check fails, and waits for the one reason", () => {
+  it("puts what blocks the add first, with the screen that fixes it", () => {
     const view = overviewView(detail({ uncategorised: 12 }));
 
-    expect(view.verdict).toBe("Not ready to add yet");
-    expect(view.posting).toBeUndefined();
-    expect(view.waiting).toBe("12 still need an account");
-    expect(view.fix).toBe(true);
-    expect(view.checks[0]).toEqual({
-      check: "categorization",
-      tone: "attention",
-      text: "12 transactions need an account",
-      link: {
-        label: "See them in Drafts",
-        to: "/review/2/drafts?filter%5Baccount_id%5D%5Bis%5D=null",
+    expect(view.status).toBe("21 transactions in drafts");
+    expect(view.ready).toBe(false);
+    expect(view.fix).toBe("problems");
+    expect(view.problems).toEqual([
+      {
+        check: "categorization",
+        tone: "attention",
+        text: "12 transactions need an account",
+        link: {
+          label: "Categorize in Drafts",
+          to: "/review/2/drafts?filter%5Baccount_id%5D%5Bis%5D=null",
+        },
       },
-    });
+    ]);
+    expect(view.passed.map((row) => row.check)).toEqual([
+      "duplicates",
+      "balance-checks",
+    ]);
   });
 
-  it("joins several reasons in tab order", () => {
+  it("lists several problems in tab order", () => {
     const view = overviewView(
       detail(
         { uncategorised: 1, duplicates: 2, failing_checks: 3 },
@@ -99,24 +101,18 @@ describe("overviewView", () => {
       ),
     );
 
-    expect(view.waiting).toBe(
-      "1 still needs an account · 2 possible duplicates · 3 balance checks fail",
-    );
     expect(
-      view.checks.map((row) => [row.tone, row.text, row.link?.to]),
+      view.problems.map((row) => [row.tone, row.text, row.link.label]),
     ).toEqual([
-      [
-        "attention",
-        "1 transaction needs an account",
-        "/review/2/drafts?filter%5Baccount_id%5D%5Bis%5D=null",
-      ],
-      ["problem", "2 possible duplicates", "/review/2/duplicates"],
+      ["attention", "1 transaction needs an account", "Categorize in Drafts"],
+      ["problem", "2 possible duplicates", "Compare duplicates"],
       [
         "problem",
         "3 balance checks fail, the first on 5 Sep",
-        "/review/2/balance-checks",
+        "Open balance checks",
       ],
     ]);
+    expect(view.passed).toEqual([]);
   });
 
   it("goes in with the account whose drafts the balance checks count, on Add all", () => {
@@ -124,18 +120,18 @@ describe("overviewView", () => {
       detail({ relies_on: [{ account_id: 7, name: "Sample Bank" }] }),
     );
 
-    expect(view.verdict).toBe("Waits on Sample Bank");
-    expect(view.waiting).toBe(
-      "Waits on Sample Bank: Review's Add all adds them together once it is ready",
-    );
+    expect(view.status).toBe("21 transactions in drafts");
+    expect(view.ready).toBe(false);
     // Adding them together is the person's; the agent has nothing to fix.
-    expect(view.fix).toBe(false);
-    expect(view.checks[2]).toEqual({
-      check: "balance-checks",
-      tone: "ok",
-      text: "Your books agree with the bank",
-    });
-    expect(view.posting).toBeDefined();
+    expect(view.fix).toBeUndefined();
+    expect(view.problems).toEqual([
+      {
+        check: "relies-on",
+        tone: "attention",
+        text: "These balance checks count Sample Bank's drafts. Add both together on Review.",
+        link: { label: "Go to Review", to: "/review" },
+      },
+    ]);
   });
 
   it("doesn't block drafts that carry no balance checks", () => {
@@ -150,22 +146,37 @@ describe("overviewView", () => {
       ),
     );
 
-    expect(view.verdict).toBe("Ready to add to your books");
-    expect(view.checks.map((row) => [row.tone, row.text])).toEqual([
-      ["ok", "The transaction goes to an account"],
-      ["ok", "No possible duplicates"],
-      ["waiting", "These drafts have no balance checks"],
+    expect(view.status).toBe("1 transaction ready to add");
+    expect(view.passed.map((row) => [row.tone, row.text])).toEqual([
+      ["ok", "Accounts: the transaction is categorized"],
+      ["ok", "No duplicate entries found"],
+      [
+        "waiting",
+        "No balance assertions in these drafts, so no balance checks run",
+      ],
     ]);
-    expect(view.posting).toEqual([
-      { label: "Transactions", value: "1" },
-      { label: "Dates", value: "13 Sep" },
-    ]);
+    expect(view.facts).toEqual([{ label: "Dates", value: "13 Sep" }]);
+  });
+
+  it("notes what the import categorized, only after one", () => {
+    const counts = { drafts: 21, categorized: 9 };
+    expect(
+      overviewView(detail({ uncategorised: 12 }), counts).problems[0].note,
+    ).toBe("9 of 21 categorized automatically");
+    expect(overviewView(detail(), counts).passed[0].note).toBe(
+      "9 of 21 categorized automatically",
+    );
+    expect(
+      overviewView(detail({ uncategorised: 12 })).problems[0].note,
+    ).toBeUndefined();
   });
 });
 
 describe("Fix these on the Overview", () => {
-  it("has the agent fix rule requests too, which don't block the add", () => {
-    expect(overviewView(detail({ rule_requests: 2 })).fix).toBe(true);
+  it("has the agent fix rule requests too, beside the add, which they don't block", () => {
+    const view = overviewView(detail({ rule_requests: 2 }));
+    expect(view.fix).toBe("actions");
+    expect(view.ready).toBe(true);
   });
 });
 
@@ -176,10 +187,11 @@ describe("postedView", () => {
       { account_id: 3, name: "Sample Wallet", drafts: 2 },
     ]);
 
-    expect(view.verdict).toBe("Added to your books");
-    expect(phraseText(view.outcome)).toBe(
-      "21 transactions added. The last balance assertion for Sample Savings is now 3,30,000.00 on 13 Sep.",
-    );
+    expect(view.status).toBe("21 transactions added to your books");
+    expect(view.facts).toEqual([
+      { label: "Dates", value: "1–13 Sep" },
+      { label: "Balance on 13 Sep", value: "3,30,000.00" },
+    ]);
     expect(view.next).toEqual({ label: "Review Sample Card", to: "/review/1" });
     expect(view.also).toEqual({ label: "All accounts", to: "/review" });
   });
@@ -187,7 +199,7 @@ describe("postedView", () => {
   it("sends the user to Overview when no account has drafts left", () => {
     const view = postedView(detail({}, { closing: null }), 1, []);
 
-    expect(phraseText(view.outcome)).toBe("1 transaction added.");
+    expect(view.status).toBe("1 transaction added to your books");
     expect(view.next).toEqual({ label: "See your money", to: "/" });
     expect(view.also).toEqual({
       label: "Update your books",
@@ -218,7 +230,6 @@ describe("postedView", () => {
       { setup: true },
     );
 
-    expect(view.verdict).toBe("Added to your books");
     expect(view.next).toEqual({
       label: "Review Sample Card",
       to: "/review/1?run=setup",
@@ -232,46 +243,9 @@ describe("postedView", () => {
   it("ends the first run once nothing is left to post, with no net worth", () => {
     const view = postedView(detail(), 21, [], { setup: true });
 
-    expect(view.verdict).toBe("Your books are set up.");
-    expect(phraseText(view.outcome)).toBe(
-      "21 transactions added. The last balance assertion for Sample Savings is now 3,30,000.00 on 13 Sep.",
-    );
+    expect(view.status).toBe("21 transactions added. Your books are set up.");
     expect(view.next).toEqual({ label: "See your money", to: "/" });
     expect(view.also).toBeUndefined();
-  });
-});
-
-describe("the drafts' way into the books", () => {
-  const journey = (view: {
-    journey: { title: string; status: string; detail: string }[];
-  }) => view.journey.map((step) => [step.title, step.status, step.detail]);
-
-  it("waits on review while a check blocks", () => {
-    expect(journey(overviewView(detail({ uncategorised: 12 })))).toEqual([
-      ["Import as drafts", "done", "21 transactions · 1–13 Sep"],
-      ["Review", "current", "Categorization, duplicates and balances"],
-      ["Add to your books", "waiting", "Then they show in your reports"],
-    ]);
-  });
-
-  it("waits on the add once every check passes, and is done after it", () => {
-    expect(journey(overviewView(detail())).slice(1)).toEqual([
-      ["Review", "done", "Every check passes"],
-      ["Add to your books", "current", "Then they show in your reports"],
-    ]);
-    expect(journey(postedView(detail(), 21, [])).slice(2)).toEqual([
-      ["Add to your books", "done", "They show in your reports"],
-    ]);
-  });
-
-  it("notes what the import categorized, only after one", () => {
-    const counts = { drafts: 21, categorized: 9 };
-    expect(
-      overviewView(detail({ uncategorised: 12 }), counts).checks[0].note,
-    ).toBe("9 of 21 categorized automatically");
-    expect(
-      overviewView(detail({ uncategorised: 12 })).checks[0].note,
-    ).toBeUndefined();
   });
 });
 

@@ -77,10 +77,11 @@ export function AgentButton({
    */
   primary?: boolean;
   /**
-   * A row's own step, in the blue of the row's status: overrides `primary`
-   * for a list where each row has one.
+   * Overrides `primary`. "attention" is a row's own step, in the blue of
+   * the row's status, for a list where each row has one. "setup" is a
+   * screen's one step while something blocks it, filled blue.
    */
-  tone?: "attention";
+  tone?: "attention" | "setup";
   /** The region's last step: the button takes its whole width. */
   wide?: boolean;
 }) {
@@ -184,7 +185,7 @@ export function AgentButton({
                   aria-label="More ways to give this to your agent"
                   className={cn(
                     "h-auto rounded-l-none border-l px-2",
-                    variant === "default"
+                    variant === "default" || variant === "setup"
                       ? "border-l-primary-foreground/30"
                       : "-ml-px",
                   )}

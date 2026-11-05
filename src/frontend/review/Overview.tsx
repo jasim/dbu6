@@ -14,26 +14,29 @@ import {
 } from "@sapporta/ui/dialog";
 import { AgentButton } from "../components/agent-prompt";
 import { FactTable } from "../components/fact-table";
-import { ProgressSteps, type Step } from "../components/progress-steps";
 import type { StatusTone } from "../components/status-chip";
-import { Button } from "../components/ui/button";
+import { Button, waitingClassName } from "../components/ui/button";
+import { joinNames } from "../format";
 import { reviewAccountsQuery } from "../queries";
+import { BALANCES_SETTINGS_ROUTE } from "../views/settings/routes";
 import { fixAccountPrompt } from "./agentPrompts";
 import {
   arrivalNotice,
   overviewView,
   postedView,
   type ArrivalNotice,
-  type CheckRow,
-  type Phrase,
+  type OverviewFact,
+  type PassedRow,
+  type ProblemRow,
 } from "./overview-state";
 import { useReviewAccount } from "./ReviewAccount";
 
 /**
- * An account's Overview (PLAN.md §11 P3): where its drafts are on their way
- * into the books, whether they can be added, what blocks them, the one
- * button that adds them, and Fix these, which hands what is left to the
- * coding agent. After an add, a notice says what it imported and what to do
+ * An account's Overview (PLAN.md §11 P3): the account, how many of its
+ * transactions are in drafts, what must be fixed before they can be added,
+ * each with the screen that fixes it and Fix these, which hands them all to
+ * the coding agent, then the checks that passed, and the one button that
+ * adds them. After an add, a notice says what it imported and what to do
  * next. A post from books that held nothing but opening balances starts the
  * first run, whose links on carry it until nothing is left to post.
  */
@@ -52,6 +55,7 @@ export function Overview() {
   const [error, setError] = useState<string | null>(null);
   // After a post, the other accounts ready to add, for the way on.
   const others = useQuery({ ...reviewAccountsQuery, enabled: posted !== null });
+  const name = detail.account.name;
 
   if (posted) {
     const view = postedView(
@@ -64,22 +68,21 @@ export function Overview() {
       },
     );
     return (
-      <OverviewColumn journey={view.journey} verdict={view.verdict}>
-        <div className="mt-4 flex items-start gap-3.5 rounded-card border border-sap-border bg-card px-4 py-3 shadow-card">
-          <Marker tone="ok" />
-          <p className="text-row font-semibold text-foreground">
-            <PhraseText phrase={view.outcome} />
-          </p>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
-          <Button render={<Link to={view.next.to} />} nativeButton={false}>
+      <OverviewColumn name={name} status={view.status} facts={view.facts}>
+        <div className="mt-10 flex flex-wrap items-center gap-3">
+          <Button
+            render={<Link to={view.next.to} />}
+            nativeButton={false}
+            size="lg"
+          >
             {view.next.label}
           </Button>
           {view.also && (
             <Button
               render={<Link to={view.also.to} />}
               nativeButton={false}
-              variant="ghost"
+              variant="outline"
+              size="lg"
             >
               {view.also.label}
             </Button>
@@ -90,6 +93,14 @@ export function Overview() {
   }
 
   const view = overviewView(detail, imported);
+  const fix = (
+    <AgentButton
+      label="Fix these"
+      prompt={fixAccountPrompt(detail.account)}
+      tone={view.fix === "problems" ? "setup" : undefined}
+      primary={false}
+    />
+  );
 
   async function post() {
     setPosting(true);
@@ -113,7 +124,7 @@ export function Overview() {
   }
 
   return (
-    <OverviewColumn journey={view.journey} verdict={view.verdict}>
+    <OverviewColumn name={name} status={view.status} facts={view.facts}>
       {imported && (
         <ImportedNotice
           notice={arrivalNotice(detail, imported)}
@@ -122,15 +133,34 @@ export function Overview() {
           onClose={closeNotice}
         />
       )}
-      <ul className="mt-7 space-y-4">
-        {view.checks.map((row) => (
-          <Check key={row.check} row={row} />
-        ))}
-      </ul>
-      {view.posting && (
-        <div className="mt-8 max-w-sm">
-          <FactTable heading="Adding to your books" rows={view.posting} />
+      {view.problems.length > 0 && (
+        <div className="mt-7 w-fit max-w-full rounded-card bg-attention-bg px-5 pb-5 pt-2">
+          <ul className="grid grid-cols-[auto_minmax(0,auto)_auto] items-center gap-x-4">
+            {view.problems.map((row) => (
+              <Problem key={row.check} row={row} />
+            ))}
+          </ul>
+          {view.fix === "problems" && <div className="mt-4">{fix}</div>}
         </div>
+      )}
+      {view.passed.length > 0 && (
+        <ul className="mt-5 space-y-2">
+          {view.passed.map((row) => (
+            <Passed key={row.check} row={row} />
+          ))}
+        </ul>
+      )}
+      {detail.no_starting_balance.length > 0 && (
+        <p className="mt-5 text-body text-foreground">
+          No starting balance:{" "}
+          {joinNames(detail.no_starting_balance.map((one) => one.name))}.{" "}
+          <Link
+            to={BALANCES_SETTINGS_ROUTE}
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            Opening balances
+          </Link>
+        </p>
       )}
       {error && (
         <p
@@ -140,22 +170,18 @@ export function Overview() {
           {error}
         </p>
       )}
-      <div className="mt-10 flex flex-wrap items-start gap-3">
+      <div className="mt-8 flex flex-wrap items-start gap-3">
         <Button
           onClick={post}
-          waiting={view.waiting}
-          disabled={posting}
+          disabled={!view.ready || posting}
+          aria-disabled={!view.ready || undefined}
+          className={cn(!view.ready && waitingClassName)}
           size="lg"
         >
           {posting && <Loader2 className="animate-spin" />}
-          {posting ? "Adding…" : view.button}
+          {posting ? "Adding…" : "Add to my books"}
         </Button>
-        {view.fix && (
-          <AgentButton
-            label="Fix these"
-            prompt={fixAccountPrompt(detail.account)}
-          />
-        )}
+        {view.fix === "actions" && fix}
       </div>
     </OverviewColumn>
   );
@@ -174,26 +200,38 @@ function readyOthers(
 }
 
 /**
- * The drafts' way into the books over the page, then the verdict on the
- * step they wait on, and what it holds.
+ * The account, its drafts in a line, and their dates and closing balance in
+ * a labelled column, then what the drafts need.
  */
 function OverviewColumn({
-  journey,
-  verdict,
+  name,
+  status,
+  facts,
   children,
 }: {
-  journey: readonly Step[];
-  verdict: string;
+  name: string;
+  status: string;
+  facts: readonly OverviewFact[];
   children: React.ReactNode;
 }) {
   return (
     <div className="px-4 pb-6 pt-6 sm:px-6 lg:px-8">
       <div className="max-w-[760px]">
-        <ProgressSteps steps={journey} label="From statement to books" />
-        <section className="mt-12">
-          <h2 className="text-heading text-foreground">{verdict}</h2>
-          {children}
-        </section>
+        <h2 className="text-title text-foreground">{name}</h2>
+        <p className="mt-1 text-heading font-normal text-foreground">
+          {status}
+        </p>
+        {facts.length > 0 && (
+          <dl className="mt-4 grid w-fit grid-cols-[auto_auto] gap-x-8 gap-y-1 text-body">
+            {facts.map((fact) => (
+              <div key={fact.label} className="contents">
+                <dt className="text-ink-meta">{fact.label}</dt>
+                <dd className="tnum font-mono text-foreground">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {children}
       </div>
     </div>
   );
@@ -248,38 +286,41 @@ function ImportedNotice({
 }
 
 /**
- * One check, as a note in the list: a small mark, the state in words, and
- * the tab that fixes it, in the same line, so the note and its way on read
- * together rather than as a row with a column of actions beside it. A check
- * the user must act on keeps the plain ink and a medium weight; one that
- * passes, or has nothing to check, steps back to the meta ink, so what is
- * left to do is what stands out.
+ * Something to fix, as a row of the tinted block: a mark, what is wrong in
+ * a sentence, and the screen that fixes it. The block is only as wide as
+ * its longest sentence, so each button sits close to its text.
  */
-function Check({ row }: { row: CheckRow }) {
-  const toFix = row.tone === "attention" || row.tone === "problem";
+function Problem({ row }: { row: ProblemRow }) {
+  return (
+    <li className="contents">
+      <Marker tone={row.tone} />
+      <span className="py-3 text-subheading font-medium text-foreground">
+        {row.text}
+        {row.note && (
+          <span className="mt-0.5 block text-meta font-normal text-ink-soft">
+            {row.note}
+          </span>
+        )}
+      </span>
+      <Button
+        render={<Link to={row.link.to} />}
+        nativeButton={false}
+        variant="attention"
+        size="sm"
+      >
+        {row.link.label}
+      </Button>
+    </li>
+  );
+}
+
+/** A check that passed, or had nothing to check: quiet, under the fixes. */
+function Passed({ row }: { row: PassedRow }) {
   return (
     <li className="flex items-start gap-x-3.5">
-      <Marker tone={row.tone} className="mt-1" />
-      <span className="min-w-0 flex-1">
-        <span
-          className={cn(
-            "text-body",
-            toFix ? "font-medium text-foreground" : "text-ink-meta",
-          )}
-        >
-          {row.text}
-        </span>
-        {row.link && (
-          <Button
-            className="ml-3"
-            render={<Link to={row.link.to} />}
-            nativeButton={false}
-            variant="ghost"
-            size="sm"
-          >
-            {row.link.label}
-          </Button>
-        )}
+      <Marker tone={row.tone} className="mt-0.5" />
+      <span className="text-body text-ink-soft">
+        {row.text}
         {row.note && (
           <span className="mt-0.5 block text-meta text-ink-meta">
             {row.note}
@@ -320,22 +361,5 @@ function Marker({ tone, className }: { tone: StatusTone; className?: string }) {
     >
       {marker.glyph}
     </span>
-  );
-}
-
-/** A phrase with its figures set in mono. */
-export function PhraseText({ phrase }: { phrase: Phrase }) {
-  return (
-    <>
-      {phrase.map((part, index) =>
-        typeof part === "string" ? (
-          part
-        ) : (
-          <span key={index} className="tnum font-mono">
-            {part.figure}
-          </span>
-        ),
-      )}
-    </>
   );
 }

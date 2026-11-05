@@ -60,9 +60,9 @@ export const buttonVariants = cva(
 /**
  * The waiting state: an action that can't run yet ("Add to my books"
  * before the review is finished). Not dimmed, which fails contrast; a quiet
- * fill, and always a reason underneath.
+ * fill, and a reason underneath, unless the screen says it already.
  */
-const waitingClassName =
+export const waitingClassName =
   "cursor-not-allowed bg-waiting-button-bg text-waiting-button-fg shadow-none hover:bg-waiting-button-bg data-disabled:opacity-100";
 
 export interface ButtonProps
