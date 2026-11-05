@@ -39,6 +39,9 @@ importers:
       '@casl/ability':
         specifier: 7.0.0
         version: 7.0.0
+      '@fontsource/schibsted-grotesk':
+        specifier: 5.3.0
+        version: 5.3.0
       '@hono/node-server':
         specifier: 2.0.6
         version: 2.0.6(hono@4.12.29)
@@ -840,6 +843,9 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@fontsource/schibsted-grotesk@5.3.0':
+    resolution: {integrity: sha512-9k+Fd2eg7umKxI2JV2HtDcOkXEM0iJx0u4Iu1b+QHikVU8Sl/MtozJ/mtZfsltR6xnVGSQjpcxXQeJPW0KGpIA==}
 
   '@hono/node-server@2.0.6':
     resolution: {integrity: sha512-7DeRlKG57JDBNZ5Qj2jwVdgwQy4b0tLubRLl3zCf91/rCf9i7p1V5FtW/yWibm1uUHE493ts9ZXH/7g/LQWl+g==}
@@ -2982,6 +2988,8 @@ snapshots:
       react-dom: 19.2.7(react@19.2.7)
 
   '@floating-ui/utils@0.2.12': {}
+
+  '@fontsource/schibsted-grotesk@5.3.0': {}
 
   '@hono/node-server@2.0.6(hono@4.12.29)':
     dependencies:
