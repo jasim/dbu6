@@ -1,17 +1,14 @@
 import { Temporal } from "@sapporta/shared/temporal";
 import {
-  isProblem,
-  postingBlocks,
   type HomeAccount,
   type HomeLedgerAccount,
   type HomeSummary,
 } from "../../shared/index";
 import type { StatusTone } from "../components/status-chip";
-import { RECONCILIATION_DIFFERENCES_HREF } from "../reports/links";
 import { addHref } from "../add-account/state";
 import { reviewHref, REVIEW_ROUTE } from "../review/routes";
 import { SETUP_ROUTE } from "../setup/routes";
-import { joinNames, plural } from "../format";
+import { joinNames } from "../format";
 import { UPDATE_DROP_HREF } from "./routes";
 
 /*
@@ -28,8 +25,10 @@ import { UPDATE_DROP_HREF } from "./routes";
  * (`posted`), since /import can't add
  * the bank or card a first run may still be missing. An account that needs
  * its first statement leads to the drop on the page, `/update#drop`, since a
- * run sets up a format it hasn't read. Update only says that drafts are
- * waiting; what they still need is Review's to say. An empty Review doesn't
+ * run sets up a format it hasn't read. Update's own page lists what waits on
+ * the books, each account's drafts, in a section of its own above the
+ * statements to upload (`draftsToReview`); which drafts need what is Review's
+ * to say. An empty Review doesn't
  * mean the books are up to date: a statement may not have been imported
  * yet, so Update never says so.
  */
@@ -189,37 +188,19 @@ export function statementsNeededFrom(
 }
 
 /**
- * What waits on the account, and where to see it; nothing when nothing does.
- * Problems in its drafts come first, since Review shows them; then books that
- * miss a statement balance, as an entry changed after its statement was
- * added; then drafts waiting; then an institution with no parser, whose
- * statements can't be imported until a run reads one: the drop on Update.
+ * What the download list says beside an account; nothing when its
+ * statements import as usual. An account deleted from the ledger first;
+ * then an institution with no parser, whose statements can't be imported
+ * until a run reads one: the drop on Update. What waits in its drafts or
+ * its posted books is the drafts section's (`booksWaiting`).
  */
-export function accountStatus(account: HomeAccount): {
+export function statementStatus(account: HomeAccount): {
   tone: StatusTone;
   label: string;
   to?: string;
 } | null {
   if (!account.in_ledger) {
     return { tone: "problem", label: "Account deleted" };
-  }
-  const review = reviewHref(account.account_id);
-  if (postingBlocks(account).some(isProblem)) {
-    return { tone: "problem", label: "Problems in drafts", to: review };
-  }
-  if (account.statement_differences > 0) {
-    return {
-      tone: "problem",
-      label: "Doesn't match statement",
-      to: RECONCILIATION_DIFFERENCES_HREF,
-    };
-  }
-  if (account.drafts > 0) {
-    return {
-      tone: "attention",
-      label: `${plural(account.drafts, "draft")} waiting`,
-      to: review,
-    };
   }
   if (!account.has_parser) {
     return {
@@ -232,13 +213,72 @@ export function accountStatus(account: HomeAccount): {
 }
 
 /**
- * How many accounts Update shows something waiting on, by the rule its rows
- * follow: the count on its sidebar item and Overview's status line. Zero
- * when none.
+ * One account in "Drafts to review": its drafts, and the posted statement
+ * balances its books miss, as an entry changed after its statement was
+ * added. Which drafts are in a problem is Review's to say.
+ */
+export interface BooksWaiting {
+  account_id: number;
+  name: string;
+  /** The account's own Review. */
+  review: string;
+  drafts: number;
+  differences: number;
+}
+
+/** What waits on the account's books; null when nothing does. */
+export function booksWaiting(account: HomeAccount): BooksWaiting | null {
+  if (!account.in_ledger) return null;
+  if (account.drafts === 0 && account.statement_differences === 0) {
+    return null;
+  }
+  return {
+    account_id: account.account_id,
+    name: account.name,
+    review: reviewHref(account.account_id),
+    drafts: account.drafts,
+    differences: account.statement_differences,
+  };
+}
+
+/**
+ * Update's "Drafts to review": the listed accounts something waits on in
+ * the books, and where to review the drafts while there are any, unlisted
+ * accounts' too. Null when nothing waits.
+ */
+export interface DraftsToReview {
+  accounts: BooksWaiting[];
+  /** Absent when only posted balances miss their statements. */
+  review?: UpdateLink;
+  /** Whether any account's books miss a statement balance. */
+  differences: boolean;
+}
+
+export function draftsToReview(summary: HomeSummary): DraftsToReview | null {
+  const accounts = summary.accounts
+    .map(booksWaiting)
+    .filter((waiting): waiting is BooksWaiting => waiting !== null);
+  if (accounts.length === 0 && summary.totals.drafts === 0) return null;
+  return {
+    accounts,
+    review:
+      summary.totals.drafts > 0
+        ? { label: "Review drafts", to: reviewTarget(summary) }
+        : undefined,
+    differences: accounts.some((waiting) => waiting.differences > 0),
+  };
+}
+
+/**
+ * How many accounts Update shows something waiting on, in the drafts
+ * section or beside the download list: the count on its sidebar item and
+ * Overview's status line. Zero when none.
  */
 export function waitingInUpdate(summary: HomeSummary): number {
-  return summary.accounts.filter((account) => accountStatus(account) !== null)
-    .length;
+  return summary.accounts.filter(
+    (account) =>
+      statementStatus(account) !== null || booksWaiting(account) !== null,
+  ).length;
 }
 
 /**

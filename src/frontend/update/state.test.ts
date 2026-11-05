@@ -6,7 +6,9 @@ import type {
   HomeSummary,
 } from "../../shared/index";
 import {
-  accountStatus,
+  booksWaiting,
+  draftsToReview,
+  statementStatus,
   updateState,
   statementsNeededFrom,
   waitingInUpdate,
@@ -238,26 +240,102 @@ describe("updateState", () => {
   });
 });
 
-describe("accountStatus", () => {
+describe("statementStatus", () => {
   it("sends an account that needs its first statement to the drop", () => {
     // Whether or not anything is imported yet: the run reads its format.
-    expect(accountStatus(account({ has_parser: false }))).toEqual({
+    expect(statementStatus(account({ has_parser: false }))).toEqual({
       tone: "attention",
       label: "Needs a first statement",
       to: "/update#drop",
     });
   });
 
-  it("puts drafts waiting before a first statement", () => {
-    expect(accountStatus(account({ has_parser: false, drafts: 3 }))).toEqual({
-      tone: "attention",
-      label: "3 drafts waiting",
-      to: "/review/2",
-    });
+  it("keeps a first statement beside the list while drafts wait", () => {
+    expect(
+      statementStatus(account({ has_parser: false, drafts: 3 }))?.label,
+    ).toBe("Needs a first statement");
+  });
+
+  it("leaves drafts and statement differences to the drafts section", () => {
+    expect(
+      statementStatus(
+        account({ drafts: 3, duplicates: 1, statement_differences: 1 }),
+      ),
+    ).toBeNull();
   });
 
   it("says nothing of an account nothing waits on", () => {
-    expect(accountStatus(account())).toBeNull();
+    expect(statementStatus(account())).toBeNull();
+  });
+});
+
+describe("booksWaiting", () => {
+  it("counts the account's drafts", () => {
+    expect(
+      booksWaiting(
+        account({ drafts: 5, uncategorised: 2, duplicates: 1, failing_checks: 2 }),
+      ),
+    ).toEqual({
+      account_id: 2,
+      name: "Sample Savings",
+      review: "/review/2",
+      drafts: 5,
+      differences: 0,
+    });
+  });
+
+  it("lists posted balances that miss their statement without drafts", () => {
+    expect(booksWaiting(account({ statement_differences: 1 }))).toMatchObject({
+      drafts: 0,
+      differences: 1,
+    });
+  });
+
+  it("says nothing of an account with nothing in its books to review", () => {
+    expect(booksWaiting(account({ has_parser: false }))).toBeNull();
+    expect(booksWaiting(deleted)).toBeNull();
+  });
+});
+
+describe("draftsToReview", () => {
+  it("is absent when nothing waits on the books", () => {
+    expect(draftsToReview(summary([account(), deleted]))).toBeNull();
+  });
+
+  it("reviews the drafts where Update's card did", () => {
+    const drafts = draftsToReview(
+      summary([account({ drafts: 3 }), account({ account_id: 3 })]),
+    );
+    expect(drafts?.review).toEqual({ label: "Review drafts", to: "/review/2" });
+    expect(drafts?.accounts.map((a) => a.account_id)).toEqual([2]);
+    expect(drafts?.differences).toBe(false);
+  });
+
+  it("has no review button when only posted balances miss their statements", () => {
+    const drafts = draftsToReview(
+      summary([account({ statement_differences: 2 })]),
+    );
+    expect(drafts?.review).toBeUndefined();
+    expect(drafts?.differences).toBe(true);
+  });
+
+  it("reviews drafts on unlisted accounts with no rows", () => {
+    const drafts = draftsToReview(
+      summary([account()], {
+        totals: {
+          drafts: 3,
+          uncategorised: 0,
+          duplicates: 0,
+          balance_checks: 0,
+          failing_checks: 0,
+        },
+      }),
+    );
+    expect(drafts).toEqual({
+      accounts: [],
+      review: { label: "Review drafts", to: "/review" },
+      differences: false,
+    });
   });
 });
 

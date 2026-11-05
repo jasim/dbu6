@@ -1,28 +1,31 @@
 import { Link } from "react-router-dom";
+import { cn } from "@sapporta/ui/cn";
 import { CreditCard, Landmark } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  dayLabel,
   type HomeAccount,
   type HomeSummary,
 } from "../../shared/index";
-import { useAuthStore } from "@sapporta/frontend/auth";
 import { usePageTitle } from "@sapporta/frontend/shell";
 import { apiErrorMessage } from "../api";
 import { Button } from "../components/ui/button";
 import { LoadError } from "../components/load-error";
 import { Screen } from "../components/screen";
 import { NextStepCard } from "../components/next-step-card";
-import { StatusChip } from "../components/status-chip";
+import { StatusChip, statusTextClass } from "../components/status-chip";
 import { homeSummaryQuery } from "../queries";
-import { accountLedgerHref } from "../reports/links";
-import { today } from "../reports/shared";
+import {
+  accountLedgerHref,
+  RECONCILIATION_DIFFERENCES_HREF,
+} from "../reports/links";
 import { BANKS_SETTINGS_ROUTE } from "../views/settings/routes";
 import { formatDate, formatMonth } from "../format";
 import { DoMyBooks } from "../run/DoMyBooks";
 import {
-  accountStatus,
+  draftsToReview,
+  statementStatus,
   statementsNeededFrom,
+  type DraftsToReview,
   updateState,
   type UpdateCard,
   type UpdateView,
@@ -41,15 +44,13 @@ export function Update() {
   const summary = query.data ?? null;
   const error = query.isError ? apiErrorMessage(query.error) : null;
   const view = summary ? updateState(summary) : null;
+  const drafts = summary ? draftsToReview(summary) : null;
 
   return (
     <Screen
       width="narrow"
       header={
-        <UpdateHeader
-          greeting={view?.greeting ?? null}
-          firstRun={view?.firstRun}
-        />
+<UpdateHeader greeting={view?.greeting ?? null} />
       }
     >
       {error ? (
@@ -60,35 +61,44 @@ export function Update() {
             retry={() => void query.refetch()}
           />
         </div>
-      ) : view ? (
-        <>
-          {!("kind" in view.card) && (
-            <div className="mt-5">
-              <StepCard card={view.card} />
-            </div>
-          )}
-          {view.listsAccounts && summary && (
-            <div className={"kind" in view.card ? "mt-8" : "mt-10"}>
+      ) : view && summary ? (
+        view.firstRun ? (
+          <>
+            {view.listsAccounts && (
+              <div className="mt-8">
+                <StatementsNeeded summary={summary} />
+              </div>
+            )}
+            {"kind" in view.card && (
+              <div className="mt-6">
+                <DoMyBooks
+                  body={view.card.body}
+                  byHand={view.card.byHand}
+                  afterList={view.listsAccounts}
+                  firstRun
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {drafts && (
+              <div className="mt-8">
+                <DraftsSection drafts={drafts} />
+              </div>
+            )}
+            <div className={drafts ? "mt-12" : "mt-8"}>
               <StatementsNeeded summary={summary} />
             </div>
-          )}
-          <div className="mt-6">
-            {"kind" in view.card ? (
-              <DoMyBooks
-                body={view.card.body}
-                byHand={view.card.byHand}
-                afterList={view.listsAccounts}
-                firstRun={view.firstRun}
-              />
-            ) : (
+            <div className="mt-6">
               <DoMyBooks
                 byHand={view.card.byHand}
-                afterList={view.listsAccounts}
-                choosePrimary={false}
+                afterList
+                choosePrimary={drafts?.review === undefined}
               />
-            )}
-          </div>
-        </>
+            </div>
+          </>
+        )
       ) : (
         <div
           aria-hidden="true"
@@ -100,44 +110,24 @@ export function Update() {
 }
 
 /**
- * Update's heading: today, the greeting (a placeholder until it loads), and
- * the workspace, both left out on the first run. Overview's first run shows
- * it too, so the two first-run screens read the same.
+ * Update's heading: the greeting alone, a placeholder until it loads.
+ * Overview's first run shows it too, so the two first-run screens read the
+ * same.
  */
 export function UpdateHeader({
   greeting,
-  firstRun = false,
 }: {
   greeting: string | null;
-  /** The first run shows the greeting alone. */
+  /** Overview's first run still passes it; the heading is the same. */
   firstRun?: boolean;
 }) {
-  const workspaceName = useAuthStore((s) =>
-    s.session.kind === "authenticated"
-      ? s.session.context.workspace.name
-      : null,
-  );
-  return (
-    <>
-      {!firstRun && (
-        <p className="mb-2 text-label uppercase text-ink-meta">
-          {dayLabel(today())}
-        </p>
-      )}
-      {greeting ? (
-        <h1 className="text-title text-foreground sm:text-display">
-          {greeting}
-        </h1>
-      ) : (
-        <div
-          aria-hidden="true"
-          className="mt-1 h-sap-ctl w-[min(420px,100%)] rounded-control bg-sap-nested"
-        />
-      )}
-      {workspaceName && !firstRun && (
-        <p className="mt-2 text-body text-ink-meta">{workspaceName}</p>
-      )}
-    </>
+  return greeting ? (
+    <h1 className="text-title text-foreground sm:text-display">{greeting}</h1>
+  ) : (
+    <div
+      aria-hidden="true"
+      className="mt-1 h-sap-ctl w-[min(420px,100%)] rounded-control bg-sap-nested"
+    />
   );
 }
 
@@ -188,10 +178,90 @@ function StepCard({ card }: { card: UpdateCard }) {
 }
 
 /**
+ * What waits on the books before more statements: each account with drafts
+ * on a line of its own, with its count, and the posted statement balances
+ * its books miss when any. One button reviews them all; an account's name
+ * opens its own Review.
+ */
+function DraftsSection({ drafts }: { drafts: DraftsToReview }) {
+  return (
+    <section aria-label="Drafts to review">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <h2 className="text-heading text-foreground">Drafts to review</h2>
+        {drafts.review && (
+          <Button
+            render={<Link to={drafts.review.to} />}
+            nativeButton={false}
+          >
+            {drafts.review.label}
+          </Button>
+        )}
+      </div>
+      {drafts.accounts.length > 0 && (
+        <ul
+          className={cn(
+            "mt-3 grid w-fit items-baseline gap-x-10 gap-y-1.5 text-row",
+            drafts.differences
+              ? "grid-cols-[auto_auto_auto]"
+              : "grid-cols-[auto_auto]",
+          )}
+        >
+          {drafts.accounts.map((account) => (
+            <li key={account.account_id} className="col-span-full grid grid-cols-subgrid">
+              {account.drafts > 0 ? (
+                <Link
+                  to={account.review}
+                  className="font-medium text-foreground no-underline hover:underline hover:underline-offset-4"
+                >
+                  {account.name}
+                </Link>
+              ) : (
+                <span className="font-medium text-foreground">
+                  {account.name}
+                </span>
+              )}
+              <span className="tnum text-right text-foreground">
+                {account.drafts > 0 && (
+                  <>
+                    <span className="font-semibold">{account.drafts}</span>{" "}
+                    {account.drafts === 1 ? "draft" : "drafts"}
+                  </>
+                )}
+              </span>
+              {drafts.differences && (
+                <span className="tnum">
+                  {account.differences > 0 && (
+                    <Link
+                      to={RECONCILIATION_DIFFERENCES_HREF}
+                      className={cn(
+                        statusTextClass("problem"),
+                        "no-underline hover:underline hover:underline-offset-4",
+                      )}
+                    >
+                      <span className="font-semibold">
+                        {account.differences}
+                      </span>{" "}
+                      {account.differences === 1
+                        ? "statement difference"
+                        : "statement differences"}
+                    </Link>
+                  )}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
  * Which statements to download: each bank and card, the month its next
  * statements start, and the last day its statements reached. A
  * compact list above the drop, read before downloading: one line per
- * account, so the drop under it keeps the page's weight. Its heading leads
+ * account, with no rules between them, so the drop under it keeps the
+ * page's weight. Its heading leads
  * into the drop's "Drop them here", which takes a new bank or card's
  * statements too, so the list has no link to adding one. The account's
  * status, when something waits on it, follows its name.
@@ -199,9 +269,7 @@ function StepCard({ card }: { card: UpdateCard }) {
 function StatementsNeeded({ summary }: { summary: HomeSummary }) {
   return (
     <section aria-label="Statements to download">
-      <h2 className="text-subheading text-foreground">
-        Download these statements
-      </h2>
+      <h2 className="text-heading text-foreground">Statements to download</h2>
       <table className="mt-2 w-full border-collapse">
         <thead>
           <tr className="border-b border-line-inner text-left text-meta text-ink-meta">
@@ -231,13 +299,13 @@ function StatementsNeeded({ summary }: { summary: HomeSummary }) {
  * up.
  */
 function AccountRow({ account }: { account: HomeAccount }) {
-  const status = accountStatus(account);
+  const status = statementStatus(account);
   const ledger = account.in_ledger
     ? accountLedgerHref(account.account_id)
     : null;
   const Icon = account.kind === "card" ? CreditCard : Landmark;
   return (
-    <tr className="border-b border-line-inner align-baseline">
+    <tr className="align-baseline">
       <td className="px-2 py-1.5">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="min-w-0 break-words text-row font-medium">
