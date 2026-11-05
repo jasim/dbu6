@@ -9,9 +9,12 @@
      2. @import "@sapporta/ui/..."    — Sapporta tokens, @theme, and base rules.
      3. @import "@sapporta/grid/..."  — Sapporta grid and column preset CSS.
      4. @import "@sapporta/frontend/..." — scan Sapporta admin shell utilities.
-     5. @source "./"                  — scan the code beside this file: the
+     5. @import "@fontsource/..."     — the app's face, Schibsted Grotesk,
+        in the four weights the theme uses. Its files ship with the
+        package, so the app loads no font from another site.
+     6. @source "./"                  — scan the code beside this file: the
         sources in src/frontend, the compiled JS in dist/frontend.
-     6. Our own CSS below             — has the last word.
+     7. Our own CSS below             — has the last word.
 
    Sapporta ships its CSS as raw theme data (no `@import "tailwindcss"`
    inside), so the host's Tailwind pipeline is the only one in play. */
@@ -23,6 +26,10 @@
 @import "@sapporta/ui/index.css";
 @import "@sapporta/grid/index.css";
 @import "@sapporta/frontend/index.css";
+@import "@fontsource/schibsted-grotesk/400.css";
+@import "@fontsource/schibsted-grotesk/500.css";
+@import "@fontsource/schibsted-grotesk/600.css";
+@import "@fontsource/schibsted-grotesk/700.css";
 @source "./";
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -231,7 +238,11 @@
    so its values win. */
 @theme inline {
   --font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* The computer's own monospace font: SF Mono on a Mac, usually DejaVu Sans
+     Mono on Linux. Chrome doesn't know ui-monospace, so the stack names them. */
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", "DejaVu Sans Mono", monospace;
 
   /* Sapporta's type tiers, remapped onto the design's scale. Row text
      (grid rows, buttons, inputs) and data text follow the density; 11px is
