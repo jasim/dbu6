@@ -66,6 +66,7 @@ function detail(account: Partial<ReviewAccountDetail["account"]> = {}) {
       kind: "bank",
       drafts: 23,
       uncategorised: 3,
+      on_own_account: 0,
       duplicates: 0,
       balance_checks: 13,
       failing_checks: 0,

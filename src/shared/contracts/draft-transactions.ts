@@ -20,6 +20,9 @@ const errorSchema = z
     hint: z.string().optional(),
     code: z.string().optional(),
     uncategorized_count: z.number().optional(),
+    // DRAFTS_ON_OWN_ACCOUNT: those of uncategorized_count categorized to
+    // their own statement's account.
+    on_own_account_count: z.number().optional(),
     failing_count: z.number().optional(),
     duplicate_count: z.number().optional(),
     // FAILING_ASSERTIONS: the accounts not being added whose drafts the

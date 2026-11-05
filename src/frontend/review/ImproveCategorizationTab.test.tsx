@@ -148,6 +148,7 @@ function detail(uncategorised: number): ReviewAccountDetail {
       kind: "bank",
       drafts: 4,
       uncategorised,
+      on_own_account: 0,
       duplicates: 0,
       balance_checks: 0,
       failing_checks: 0,

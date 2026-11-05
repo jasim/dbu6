@@ -81,6 +81,7 @@ describe("loadDraftStatus", () => {
       account_id: 2,
       drafts: 4,
       uncategorised: 1,
+      on_own_account: 0,
       draft_span: { first_date: "2026-03-01", last_date: "2026-03-05" },
       balance_checks: 3,
       closing: { date: "2026-03-05", balance: 1540 },
@@ -108,11 +109,22 @@ describe("loadDraftStatus", () => {
       account_id: 4,
       drafts: 1,
       uncategorised: 1,
+      on_own_account: 0,
       draft_span: { first_date: "2026-03-03", last_date: "2026-03-03" },
       balance_checks: 0,
       closing: null,
       failing: [],
       duplicates: [],
+    });
+  });
+
+  it("counts a draft categorized to its own statement's account apart from one with none", () => {
+    const sqlite = ledger();
+    sqlite.exec(`UPDATE draft_transactions SET account_id = 2 WHERE id = 204`);
+    expect(loadDraftStatus(sqlite, auth).get(2)).toMatchObject({
+      drafts: 4,
+      uncategorised: 1,
+      on_own_account: 1,
     });
   });
 
@@ -202,11 +214,27 @@ describe("postingChecks", () => {
     expect(postingBlocks(counts)).toEqual([]);
   });
 
+  it("blocks on a draft on its own statement's account, counted among those that need an account", () => {
+    expect(
+      postingCheck(
+        { ...NO_DRAFTS, drafts: 5, uncategorised: 2, on_own_account: 1 },
+        "categorization",
+      ),
+    ).toEqual({
+      kind: "categorization",
+      state: "blocks",
+      severity: "attention",
+      count: 3,
+      on_own_account: 1,
+    });
+  });
+
   it("lists every block in tab order, problems marked apart from categorization", () => {
     expect(
       postingBlocks({
         drafts: 21,
         uncategorised: 12,
+        on_own_account: 0,
         duplicates: 2,
         balance_checks: 13,
         failing_checks: 3,
@@ -217,6 +245,7 @@ describe("postingChecks", () => {
         state: "blocks",
         severity: "attention",
         count: 12,
+        on_own_account: 0,
       },
       { kind: "duplicates", state: "blocks", severity: "problem", count: 2 },
       {

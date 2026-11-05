@@ -46,6 +46,8 @@ export interface DraftAccountStatus {
   drafts: number;
   /** Drafts with no account (`account_id` is null). */
   uncategorised: number;
+  /** Drafts categorized to their own statement's account. */
+  on_own_account: number;
   /** The drafts' first and last dates. */
   draft_span: DateSpan;
   /** Drafts carrying a balance the statement printed. */
@@ -73,6 +75,7 @@ type DraftCountRow = {
   account_id: number;
   drafts: number;
   uncategorised: number;
+  on_own_account: number;
   first_date: string;
   last_date: string;
   balance_checks: number;
@@ -95,6 +98,8 @@ export function loadDraftStatus(
       base_account_id AS account_id,
       COUNT(*) AS drafts,
       SUM(CASE WHEN account_id IS NULL THEN 1 ELSE 0 END) AS uncategorised,
+      SUM(CASE WHEN account_id = base_account_id THEN 1 ELSE 0 END)
+        AS on_own_account,
       MIN(date) AS first_date,
       MAX(date) AS last_date,
       SUM(CASE WHEN balance_assertion_base_account IS NOT NULL THEN 1 ELSE 0 END)
@@ -143,6 +148,7 @@ export function loadDraftStatus(
           account_id: row.account_id,
           drafts: row.drafts,
           uncategorised: row.uncategorised,
+          on_own_account: row.on_own_account,
           draft_span: { first_date: row.first_date, last_date: row.last_date },
           balance_checks: row.balance_checks,
           closing: closing
@@ -164,6 +170,7 @@ export function draftCounts(
   return {
     drafts: status.drafts,
     uncategorised: status.uncategorised,
+    on_own_account: status.on_own_account,
     duplicates: status.duplicates.length,
     balance_checks: status.balance_checks,
     failing_checks: status.failing.length,

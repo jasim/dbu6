@@ -142,6 +142,7 @@ function addCounts(a: DraftCounts, b: DraftCounts): DraftCounts {
   return {
     drafts: a.drafts + b.drafts,
     uncategorised: a.uncategorised + b.uncategorised,
+    on_own_account: a.on_own_account + b.on_own_account,
     duplicates: a.duplicates + b.duplicates,
     balance_checks: a.balance_checks + b.balance_checks,
     failing_checks: a.failing_checks + b.failing_checks,

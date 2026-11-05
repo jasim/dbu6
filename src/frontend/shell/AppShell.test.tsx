@@ -105,6 +105,7 @@ function homeSummary(waiting: number) {
       statement_differences: 0,
       drafts: 1,
       uncategorised: 0,
+      on_own_account: 0,
       duplicates: 0,
       balance_checks: 0,
       failing_checks: 0,
@@ -112,6 +113,7 @@ function homeSummary(waiting: number) {
     totals: {
       drafts: waiting,
       uncategorised: 0,
+      on_own_account: 0,
       duplicates: 0,
       balance_checks: 0,
       failing_checks: 0,

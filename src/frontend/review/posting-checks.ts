@@ -15,6 +15,14 @@ export function uncategorisedText(count: number): string {
   return `${plural(count, "transaction")} ${agree(count, "needs", "need")} an account`;
 }
 
+/**
+ * "1 transaction goes to the account it came from": a draft categorized to
+ * its own statement's account, which needs the other side instead.
+ */
+export function onOwnAccountText(count: number): string {
+  return `${plural(count, "transaction")} ${agree(count, "goes", "go")} to the account it came from`;
+}
+
 /** "2 possible duplicates" */
 export function duplicatesText(count: number): string {
   return plural(count, "possible duplicate");
@@ -45,7 +53,11 @@ export function accountsText(accounts: readonly NamedAccount[]): string {
 export function checkText(check: PostingCheck): string {
   switch (check.kind) {
     case "categorization":
-      if (check.state === "blocks") return uncategorisedText(check.count);
+      if (check.state === "blocks") {
+        return check.on_own_account > 0
+          ? onOwnAccountText(check.on_own_account)
+          : uncategorisedText(check.count);
+      }
       return check.drafts === 1
         ? "The transaction goes to an account"
         : `All ${check.drafts} transactions go to an account`;

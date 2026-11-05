@@ -169,6 +169,7 @@ function respond(url: URL): unknown {
           kind: "bank",
           drafts: 3,
           uncategorised: 1,
+          on_own_account: 0,
           duplicates: 0,
           balance_checks: 0,
           failing_checks: 0,

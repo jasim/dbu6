@@ -216,6 +216,7 @@ const DETAIL = {
     kind: "bank",
     drafts: 4,
     uncategorised: 4,
+    on_own_account: 0,
     duplicates: 0,
     balance_checks: 0,
     failing_checks: 0,

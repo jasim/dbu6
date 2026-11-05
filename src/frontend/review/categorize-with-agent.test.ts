@@ -19,6 +19,7 @@ const detail: ReviewAccountDetail = {
     kind: "card",
     drafts: 21,
     uncategorised: 4,
+    on_own_account: 0,
     duplicates: 0,
     balance_checks: 0,
     failing_checks: 0,

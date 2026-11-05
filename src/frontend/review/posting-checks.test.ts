@@ -54,6 +54,22 @@ describe("checkText", () => {
       "2 balance checks fail",
     ]);
   });
+
+  it("names drafts on their own statement's account rather than calling them uncategorized", () => {
+    const [one, two] = [1, 2].map(
+      (onOwn) =>
+        postingChecks({
+          ...NO_DRAFTS,
+          drafts: 3,
+          uncategorised: 1,
+          on_own_account: onOwn,
+        }).map(checkText)[0],
+    );
+    expect([one, two]).toEqual([
+      "1 transaction goes to the account it came from",
+      "2 transactions go to the account it came from",
+    ]);
+  });
 });
 
 describe("balance checks that count another account's drafts", () => {

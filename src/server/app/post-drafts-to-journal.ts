@@ -155,6 +155,19 @@ function brokenChecksRefusal(broken: readonly BrokenCheck[]) {
 function refusal(block: PostingBlock, account: string): PostingResponse {
   switch (block.kind) {
     case "categorization":
+      // A draft on its own statement's account has an account_id, so it is
+      // named apart: posting it would write both its lines on that account.
+      if (block.on_own_account > 0) {
+        return {
+          status: 422,
+          body: {
+            error: `${block.on_own_account} draft transaction(s) under ${account} have ${account} itself as their account_id; give them the other side of the transaction`,
+            code: "DRAFTS_ON_OWN_ACCOUNT",
+            uncategorized_count: block.count,
+            on_own_account_count: block.on_own_account,
+          },
+        };
+      }
       return {
         status: 422,
         body: {

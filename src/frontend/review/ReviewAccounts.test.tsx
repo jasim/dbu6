@@ -113,6 +113,7 @@ function account(
     kind: "bank",
     drafts: 20,
     uncategorised: 5,
+    on_own_account: 0,
     duplicates: 0,
     balance_checks: 0,
     failing_checks: 0,
@@ -259,12 +260,14 @@ describe("what is left across the accounts", () => {
       account(5, "Sample Savings", { uncategorised: 0, drafts: 20 }),
       account(6, "Sample Card", {
         uncategorised: 0,
+        on_own_account: 0,
         drafts: 7,
         relies_on: [{ account_id: 5, name: "Sample Savings" }],
       }),
       account(7, "Sample Wallet", { uncategorised: 3, rule_requests: 2 }),
       account(8, "Sample Loan", {
         uncategorised: 0,
+        on_own_account: 0,
         relies_on: [{ account_id: 7, name: "Sample Wallet" }],
       }),
     ];
@@ -320,6 +323,7 @@ describe("what is left across the accounts", () => {
               state: "blocks" as const,
               severity: "attention" as const,
               count: 3,
+              on_own_account: 0,
             },
           })),
       ],
@@ -454,6 +458,7 @@ describe("what is left across the accounts", () => {
       account(5, "Sample Savings", { uncategorised: 3 }),
       account(6, "Sample Card", {
         uncategorised: 0,
+        on_own_account: 0,
         failing_checks: 2,
       }),
     ];

@@ -89,6 +89,21 @@ describe("postDraftsToJournal", () => {
     expect([count("journals"), count("draft_transactions")]).toEqual([1, 2]);
   });
 
+  it("refuses, naming it apart, while a draft is on its own statement's account", () => {
+    const { sqlite, posting, count } = ledger();
+    sqlite.exec(`UPDATE draft_transactions SET account_id = 1 WHERE id = 202`);
+
+    expect(postDraftsToJournal(posting, 1, [])).toMatchObject({
+      status: 422,
+      body: {
+        code: "DRAFTS_ON_OWN_ACCOUNT",
+        uncategorized_count: 1,
+        on_own_account_count: 1,
+      },
+    });
+    expect([count("journals"), count("draft_transactions")]).toEqual([1, 2]);
+  });
+
   it("refuses while a draft looks like another", () => {
     const { sqlite, posting, count } = ledger();
     sqlite.exec(`
@@ -204,6 +219,7 @@ describe("postDraftsToJournal", () => {
                 state: "blocks",
                 severity: "attention",
                 count: 1,
+                on_own_account: 0,
               },
             },
             {

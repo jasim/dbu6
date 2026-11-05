@@ -24,6 +24,12 @@ export const draftCountsSchema = z.object({
   drafts: z.number(),
   /** Drafts with no account. */
   uncategorised: z.number(),
+  /**
+   * Drafts whose account is their own statement's account. Posting one would
+   * write both lines on that account, netting to nothing, while its balance
+   * checks count only the statement's side, so it needs another account too.
+   */
+  on_own_account: z.number(),
   duplicates: z.number(),
   /** Drafts carrying a balance the statement printed. */
   balance_checks: z.number(),
@@ -42,6 +48,7 @@ export type NamedAccount = z.infer<typeof namedAccountSchema>;
 export const NO_DRAFTS: DraftCounts = {
   drafts: 0,
   uncategorised: 0,
+  on_own_account: 0,
   duplicates: 0,
   balance_checks: 0,
   failing_checks: 0,
@@ -64,6 +71,9 @@ export type PostingCheckKind = (typeof POSTING_CHECK_KINDS)[number];
  * drafts only need an account. A schema, since Add all answers with the
  * block that kept each account out.
  *
+ * The categorization block's `count` is every draft that needs an account:
+ * those with none, and `on_own_account`, those on their own statement's.
+ *
  * The posting gate's own balance-checks block names `relies_on`: the
  * accounts not being added whose drafts the failing checks count, other
  * statements' drafts categorized to this account on or before its last
@@ -75,6 +85,7 @@ export const postingBlockSchema = z.union([
     state: z.literal("blocks"),
     severity: z.literal("attention"),
     count: z.number(),
+    on_own_account: z.number(),
   }),
   z.object({
     kind: z.literal("duplicates"),
@@ -110,15 +121,18 @@ const CHECKS: {
     counts: DraftCounts,
   ) => Extract<PostingCheck, { kind: Kind }>;
 } = {
-  categorization: (counts) =>
-    counts.uncategorised > 0
+  categorization: (counts) => {
+    const count = counts.uncategorised + counts.on_own_account;
+    return count > 0
       ? {
           kind: "categorization",
           state: "blocks",
           severity: "attention",
-          count: counts.uncategorised,
+          count,
+          on_own_account: counts.on_own_account,
         }
-      : { kind: "categorization", state: "passes", drafts: counts.drafts },
+      : { kind: "categorization", state: "passes", drafts: counts.drafts };
+  },
   duplicates: (counts) =>
     counts.duplicates > 0
       ? {

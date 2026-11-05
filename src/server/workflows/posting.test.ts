@@ -149,10 +149,31 @@ describe("decidePress", () => {
             state: "blocks",
             severity: "attention",
             count: 1,
+            on_own_account: 0,
           },
         ],
         [2, reliesOn(1)],
         [3, reliesOn(2)],
+      ]),
+    });
+  });
+
+  it("leaves out an account with a draft on its own statement's account", () => {
+    const { sqlite, press } = ledger();
+    sqlite.exec(`UPDATE draft_transactions SET account_id = 4 WHERE id = 401`);
+    expect(press([4])).toEqual({
+      adds: [],
+      left: new Map([
+        [
+          4,
+          {
+            kind: "categorization",
+            state: "blocks",
+            severity: "attention",
+            count: 1,
+            on_own_account: 1,
+          },
+        ],
       ]),
     });
   });
@@ -215,6 +236,33 @@ describe("postPress", () => {
     expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM journals`).get()).toEqual({
       n: 0,
     });
+  });
+
+  it("posts nothing of an account with a draft on its own statement's account, and the rest", () => {
+    // Its balance check passes on the statement's side alone, but posting it
+    // would write both lines on Other Bank, netting to nothing.
+    const { sqlite, ledger: books } = ledger();
+    sqlite.exec(`UPDATE draft_transactions SET account_id = 4 WHERE id = 401`);
+    expect(postPress(books, [3, 2, 1, 4], NAMES)).toMatchObject({
+      kind: "done",
+      posted: [{ accountId: 3 }, { accountId: 2 }, { accountId: 1 }],
+      left: [
+        {
+          accountId: 4,
+          block: { kind: "categorization", count: 1, on_own_account: 1 },
+        },
+      ],
+    });
+    expect(
+      sqlite
+        .prepare(
+          `SELECT COUNT(*) AS n FROM journal_entries WHERE account_id = 4`,
+        )
+        .get(),
+    ).toEqual({ n: 0 });
+    expect(sqlite.prepare(`SELECT id FROM draft_transactions`).all()).toEqual([
+      { id: 401 },
+    ]);
   });
 
   it("adds nothing when no order of the journals holds the books' balance checks", () => {

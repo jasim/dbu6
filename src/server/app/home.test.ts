@@ -118,6 +118,7 @@ describe("Home summary", () => {
         statement_differences: 0,
         drafts: 3,
         uncategorised: 1,
+        on_own_account: 0,
         duplicates: 1,
         balance_checks: 1,
         failing_checks: 1,
@@ -135,6 +136,7 @@ describe("Home summary", () => {
         statement_differences: 1,
         drafts: 0,
         uncategorised: 0,
+        on_own_account: 0,
         duplicates: 0,
         balance_checks: 0,
         failing_checks: 0,
@@ -144,6 +146,7 @@ describe("Home summary", () => {
     expect(summary.totals).toEqual({
       drafts: 4,
       uncategorised: 2,
+      on_own_account: 0,
       duplicates: 1,
       balance_checks: 1,
       failing_checks: 1,

@@ -52,6 +52,7 @@ function detail(overrides: Partial<ReviewAccountDetail>): ReviewAccountDetail {
       kind: "bank",
       drafts: 21,
       uncategorised: 0,
+      on_own_account: 0,
       duplicates: 0,
       balance_checks: 13,
       failing_checks: 0,

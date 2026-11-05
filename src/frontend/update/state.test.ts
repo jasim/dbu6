@@ -33,6 +33,7 @@ function account(
     statement_differences: 0,
     drafts: 0,
     uncategorised: 0,
+    on_own_account: 0,
     duplicates: 0,
     balance_checks: 0,
     failing_checks: 0,
@@ -60,6 +61,7 @@ function summary(
     totals: {
       drafts: sum(listed, "drafts"),
       uncategorised: sum(listed, "uncategorised"),
+      on_own_account: sum(listed, "on_own_account"),
       duplicates: sum(listed, "duplicates"),
       balance_checks: sum(listed, "balance_checks"),
       failing_checks: sum(listed, "failing_checks"),
@@ -212,6 +214,7 @@ describe("updateState", () => {
         totals: {
           drafts: 3,
           uncategorised: 0,
+          on_own_account: 0,
           duplicates: 0,
           balance_checks: 0,
           failing_checks: 0,
@@ -325,6 +328,7 @@ describe("draftsToReview", () => {
         totals: {
           drafts: 3,
           uncategorised: 0,
+          on_own_account: 0,
           duplicates: 0,
           balance_checks: 0,
           failing_checks: 0,

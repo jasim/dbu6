@@ -188,13 +188,18 @@ export function postPress(
   const { adds, left } = decidePress(sqlite, auth, press, statuses, names);
 
   // The drafts and the statuses are read in one synchronous pass, so every
-  // draft loaded here has an account.
+  // draft loaded here has an account, and none its own statement's: the
+  // categorization check refused those, which `planJournals` would write as
+  // two lines on one account.
   const plans = adds.map((accountId) => {
     const loaded = loadCategorizedDrafts(db, accountId, auth)!;
     const { categorized, uncategorized } = partitionByCategorization([
       ...loaded.categorized,
     ]);
-    if (uncategorized.length > 0) {
+    if (
+      uncategorized.length > 0 ||
+      categorized.some((draft) => draft.accountId === accountId)
+    ) {
       throw new Error("Drafts changed while they were being posted.");
     }
     const plan = planJournals(
