@@ -37,7 +37,8 @@ time.
    opening question (`npx dbu6 docs playbook off-statement-transaction`).
 3. Show every group you're sure of in one list, a line each: a few
    descriptions and how many, and the account. The user says yes or names
-   the ones to change.
+   the ones to change. In a run, skip this list: Message 2 leaves it out,
+   as the run guide's "Questions" says.
 4. Ask about the rest: a few descriptions with dates and amounts, and 2–4 of
    the user's accounts as numbered options, likeliest first, plus "something
    else" and "skip". If none fits, propose a new account's name and parent.
@@ -46,7 +47,8 @@ time.
    guide: its statement, its text, its account (or "what you pick for
    <question>"), and what the preview found. Each needs its own yes ("A rule
    needs its own yes" in the books guide): an account answer, or a yes to
-   the list in 3, is not one. A rule request is already that yes.
+   the list in 3, is not one. A rule request is already that yes. In a run,
+   offer only the rules the run guide's "Questions" allows, in its form.
 6. Create each new account the user approved, with its name, type and
    parent in one call (`npx sapporta rows create accounts`). Set the drafts
    of every group the user settled (`/api/draft-transactions/set-account`).

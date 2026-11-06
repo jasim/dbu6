@@ -33,18 +33,14 @@ operations" (`npx dbu6 docs run`) are the frame; this is the method.
 
 ## Change
 
-1. **Ask,** as one row of the opening block in Message 2, naming the
-   account, the evidence (the rows you saw, with dates and amounts), the
-   nature you suspect, and exactly what you need:
+1. **Ask,** as one row of the opening block in Message 2, with a line under
+   the table naming the account, what you saw, and exactly what you need:
 
    ```
-     7  Car loan (new)   owed   9 instalments of 18,000 to SAMPLE BANK from
-                                5 May, but no statement shows the loan paid
-                                out: it was probably disbursed straight to
-                                the dealer. When was it paid out, how much,
-                                and what did it buy (the car, or something
-                                else)? Or, if it was paid out before
-                                2025-04-01, what you still owed then.
+     7  Car loan   Liability   4 May 2025   ?   5 May 2025   instalment 18,000
+
+   Car loan: no statement shows the loan paid out. A payout after 4 May needs
+   its date, its amount and what it bought.
    ```
 
 2. **Record the answer,** on the user's yes, by when the originating entry

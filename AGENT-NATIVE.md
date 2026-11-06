@@ -24,7 +24,7 @@ We still keep the app screens so the user can open them whenever they want to in
 2. When they click "Add N files to my books", the app opens their coding agent in a terminal.
 3. The user reads Message 1, which lists the files they provided, what the agent will do, and the few details it needs before starting. They reply with their answers and tell the agent to go.
 4. They can leave the agent running while it works.
-5. They read Message 2, which summarizes their finances and batches all the questions the agent could not resolve on its own into a single round. They can reply using shorthand (for example, `ok`, `3b 4a`, or `rest skip`).
+5. They read Message 2, which holds only what they have to decide: rules for recurring expenses, the questions the agent could not resolve on its own, and opening balances. They can reply using shorthand (for example, `1 yes`, `3b 4a`, or `rest skip`).
 6. They read Message 3, which explains what to do next. From there, they can open Review to post the ready accounts, or ask the agent to post them.
 
 When the user adds statements in a later month, they follow the same flow starting at step 1. Because the agent saved the previous answers they agreed to as rules, Message 2 is shorter.
@@ -55,7 +55,7 @@ When starting from a pile of statements, the agent runs through these phases:
 * **5. Accounts and imports.** For each account, the agent imports the oldest statement first.
 * **6. Categorize, across all accounts at once.** After categorizing the transactions across all accounts, the agent tailors the chart of accounts to the imported data.
 * **7. Clean-up.** The agent resolves duplicate rows and failing balance checks. Next, it resolves double-counted transfers as a separate, bounded task.
-* **8. Question round: Message 2.** When the user answers the questions in Message 2, the agent saves those answers as rules, new accounts, one-off settings, and opening balances.
+* **8. Question round: Message 2.** When the user answers the questions in Message 2, the agent saves those answers as rules, one-off settings, and opening balances.
 * **9. Report: Message 3.** The agent lists the next steps first, followed by a summary of what it changed.
 
 Between these three messages, the agent prints only brief progress lines using plain, everyday terms. The messages do not mention internal concepts like parsers, presets, phases, playbooks, refusal codes, or API endpoints. When the user needs to understand a bookkeeping concept, the agent explains it once, the first time it comes up, using examples from the user's own data.
@@ -66,8 +66,8 @@ dbu6 does not store separate state for a run. Instead, the agent reads the curre
 
 The "Permissions inside a run" table in the run guide defines what the agent is allowed to do during a run:
 
-* **Covered by "go" in Message 1:** Setting up the starter chart, writing parsers, creating presets for the planned accounts, adding and importing those accounts, recording opening balances printed on the statements, categorizing rows, writing rules for the rule requests the plan lists, deleting exact duplicates, and resolving double-counted transfers according to the playbook.
-* **Asked in Message 2:** Creating new accounts, making chart changes requested by the user, categorizing the "needs your call" groups, each new rule or prompt line (one yes per rule), and setting opening balances for accounts that do not have statements.
+* **Covered by "go" in Message 1:** Setting up the starter chart, writing parsers, creating presets for the planned accounts, adding and importing those accounts, recording opening balances printed on the statements, categorizing rows, creating new accounts for the groups the agent is sure of, writing rules for the rule requests the plan lists, deleting exact duplicates, and resolving double-counted transfers according to the playbook.
+* **Asked in Message 2:** A new account offered as an option, making chart changes requested by the user, categorizing the "needs your call" groups, each new rule or prompt line (one yes per rule), and setting opening balances for accounts that do not have statements.
 * **Asked individually:** Modifying a posted journal entry, deleting any row that is not an exact duplicate or a double-counted transfer, changing an existing opening balance, and changing dbu6 itself (`statement_disagreement`).
 * **Never allowed:** Changing a statement balance, deleting transactions just to make a balance check pass, editing files inside `node_modules/@dbu6/app`, or writing to the SQLite database directly.
 
