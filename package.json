@@ -99,6 +99,7 @@
     "release:publish": "node scripts/release.mjs",
     "release:pin": "node scripts/release-pin.mjs",
     "release:link": "node scripts/package-source-switch.mjs use:local && pnpm install",
+    "patch:antigravity": "node scripts/patch-antigravity.mjs",
     "prepublishOnly": "node scripts/release.mjs --refuse-direct-publish",
     "package-sources": "node scripts/package-source-switch.mjs",
     "package-sources:status": "node scripts/package-source-switch.mjs status",
