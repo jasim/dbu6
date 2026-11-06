@@ -78,9 +78,8 @@ user's own words fits one of them.
 | a transaction no statement shows, such as a loan paid to a dealer | `npx dbu6 docs playbook off-statement-transaction` |
 
 Each one waits for the user's yes before it writes anything. A section of
-this guide starts with the preflight (phase 0) and shows its plan; the two
-playbooks keep their own plan and permissions: every change they make is to
-entries in the books.
+this guide starts with the preflight (phase 0) and shows its plan; the
+playbooks keep their own plan and permissions.
 
 ## Where the statements are
 
@@ -135,6 +134,9 @@ Phases 0–2 only read; nothing is written before the user's go-ahead.
   with no starting balance, which every run's question round asks about
   ([accounts with no statements](#accounts-with-no-statements)), and
   `wrong_side`.
+- `npx sapporta api get /api/review/accounts`: for each account with
+  `rule_requests` above 0,
+  `npx sapporta api get /api/categorization-rule-requests --query '{"base_account_id":<id>}'`.
 
 Build one table for yourself, a row per account, the files no parser reads
 on a row of their own. The user sees it in their words, in Message 1:
@@ -207,7 +209,9 @@ leave it running. Go ahead?
   them on a standard set and fit it once you have read their
   transactions. Don't show the chart: a tree of categories means nothing
   before they have seen their own transactions. The report names what
-  you added to it.
+  you added to it. Each rule request gets a line here, with the rule or
+  prompt line you propose, as the `rule-requests` playbook says, or why it
+  can't be one.
 - **"Before I start"** holds only what blocks an import, numbered, each
   with where the answer is and what skipping does: a bank's name when a
   file doesn't say; a card's opening balance when the read says
@@ -286,18 +290,16 @@ parser for it; import it freeform, as `npx dbu6 docs freeform-guide` says:
 
 The import already ran the rules and the AI. What is left has no account.
 
-1. For each account, after the rule requests you encoded: `classify` over its drafts
-   with no account, with its own `custom_mappings_filenames` ("Categorise
-   these" in the books guide).
+1. Encode the rule requests the plan lists first, as the `rule-requests`
+   playbook says: they are the user's answers, given in Review. One you
+   couldn't encode goes in the report under "Still open"; it stays on the
+   user's list. Then, for each account: `classify` over its drafts with no
+   account, with its own `custom_mappings_filenames` ("Categorise these" in
+   the books guide).
 2. Read what is still blank across *all* accounts together, with the
    accounts already used, as the `categorize` playbook says, and:
    - categorize a transfer between the person's own accounts, or a card
-     payment, to the other account like any other row, by hand from what
-     both statements show. Propose a rule only for the side whose
-     description names the other account ("A transfer gets a rule on one
-     side only" in the books guide). Nothing is settled here. A row going to an account whose statement is in the same upload
-     is that statement's row too, so expect it to fail a balance check in
-     clean-up, and look for it there;
+     payment, as that playbook says; clean-up settles it;
    - group the rest by what they are, by judgment;
    - sort each group into "sure" and "needs your call".
 3. Fit the chart, when this run created it (phase 3):
@@ -317,11 +319,9 @@ The import already ran the rules and the AI. What is left has no account.
    merging or moving their accounts is the `chart-change` playbook, on
    their word.
 4. Note every asset or liability whose history matches a pattern in the
-   `off-statement-transaction` playbook, with the rows that show it: a
-   loan that only receives repayments has its disbursement elsewhere; an
-   asset that is only paid out of was held before the books start, or
-   bought with money no statement shows. The note feeds the opening block
-   of Message 2; it changes nothing in the books.
+   `off-statement-transaction` playbook, as the `categorize` playbook says.
+   The note feeds the opening block of Message 2; it changes nothing in the
+   books.
 
 Count and group with SQL (`sqlite3 -readonly`, as "Reading the database" in
 the books guide allows); never list every draft into your context. Read rows
@@ -439,17 +439,15 @@ Your first reply is the plan, and you wait for go:
 
 ### 3. Categorize
 
-Skip the chart, parsers and imports (phases 3 to 5). Encode the rule
-requests first, as the `rule-requests` playbook says: they are the user's
-answers, given in Review. Then phase 6 over every account in the plan:
-`classify` over what is blank, which now meets the new rules, then what is
-still blank, judged across all accounts.
+Skip the chart, parsers and imports (phases 3 to 5). Then phase 6 over every
+account in the plan.
 
 ### 4. Clean-up, question round, report
 
 Phases 7, 8 and 9, as for a pile, the opening block of Message 2 and the
-check before the report included. A rule request you couldn't encode goes
-in the report under "Still open"; it stays on the user's list.
+check before the report included. When the prompt names accounts, the
+opening block asks only about accounts their drafts go to; the check before
+the report still names the rest.
 
 ## Accounts with no statements
 
@@ -472,7 +470,8 @@ them as "worth a look", never as errors.
 
 **When.** In every run's question round, whenever the check lists any
 account outside the banks and cards: one more block, in Message 2, so no second round is needed.
-Starting from the drafts reuses phases 7 to 9, so it asks too. Outside a
+Starting from the drafts reuses phases 7 to 9, so it asks too, for the
+accounts their drafts go to when the prompt names accounts. Outside a
 run, when the user asks, or the prompt names this section: then, after the
 preflight, the block below is the whole plan, and you record on the user's
 answer.

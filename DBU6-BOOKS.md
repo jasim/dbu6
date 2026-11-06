@@ -278,8 +278,9 @@ row, or leave it for clean-up.
 
 Neither sees the date. A string shared only by how the money moved (`UPI`,
 `NEFT`, `IMPS`, `POS`, `ATM`) settles nothing: a rule on it catches every such
-payment. Give a range from the amounts seen, rounded out to round figures,
-not the exact amounts.
+payment. Give a range from the amounts seen, rounded out to round figures
+(60–480 becomes 50–500), not the exact amounts. The user's `user-config/`
+files may name payees and amounts; that is theirs, and fine.
 
 **Preview before you propose.**
 `npx sapporta api post /api/categorization-rules/preview --body '{"rule":{…}}'`,
@@ -301,17 +302,8 @@ Neither is retroactive: re-run the categoriser over the drafts with no
 account ("Categorise these" above), and restart a server started with
 `dbu6 start`.
 
-**Rule requests from Review.** The Improve categorization tab keeps the rule
-requests the user made there, each with its drafts (date, source narration,
-direction and amount), the account they go to and a note:
-`npx sapporta api get /api/categorization-rule-requests --query '{"base_account_id":<id>}'`.
-Their drafts have no account yet; the user runs the categorizer once the
-rules are in. The user picked the drafts, so they may share nothing the
-categorizer can see; propose each change, and say so when they don't, before
-writing anything. Once a rule request is a rule or guidance, delete it, which
-takes it off the user's list:
-`npx sapporta api delete /api/categorization-rule-requests/<rule request id>`.
-Leave a rule request you couldn't encode.
+**Rule requests from Review.** The rules the user asked for on the Improve
+categorization tab: `npx dbu6 docs playbook rule-requests`.
 
 ### Fixing the books
 
@@ -645,10 +637,15 @@ the statement's balance.
 Usual causes:
 
 - **The same difference from the very first check:** no opening balance is in
-  the books. `npx sapporta api get /api/opening-balances` suggests the
-  amount from that first check (`implied_opening`, with `default_date`).
-  Propose it to the user, and post it on a yes ("Opening balance" above).
-  By hand, it is Settings › Opening balances
+  the books, or the parser lost rows from the top of the statement, whether
+  or not an opening is recorded. `npx sapporta api get /api/opening-balances`
+  suggests the amount from that first check (`implied_opening`, with
+  `default_date`). Compare it with the opening printed on the statement or,
+  when none is printed, ask the user for the balance at the bank before the
+  statement's first row. If they differ, rows are missing: post no opening,
+  and fix the parser (`npx dbu6 docs parsers`). If they agree, propose the
+  amount to the user, and post it on a yes ("Opening balance" above). By
+  hand, it is Settings › Opening balances
   (`/settings/balances?account=<name>`).
 - **A difference that starts on one day:** a transfer or card payment is
   already in the books, or in the drafts, from the other account's statement,

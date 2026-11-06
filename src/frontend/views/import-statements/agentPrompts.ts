@@ -20,7 +20,7 @@ import {
   type AgentPrompt,
   type ReportSection,
 } from "../../agent-prompt-rules";
-import { PRESETS_SECTION, triedParsers } from "../../parser-prompts";
+import { triedParsers } from "../../parser-prompts";
 import type { AccountRefusal, RefusalOf } from "./outcome";
 
 type PlanFile<Status extends AutoImportPlanFile["status"]> = Extract<
@@ -94,22 +94,12 @@ export function noAccountPrompt(file: PlanFile<"unresolved">): AgentPrompt {
     institution === null
       ? `no institution lists ${file.parser_path}`
       : `"${institution}" lists ${file.parser_path} but has no accounts`;
-  const add =
-    institution === null
-      ? `add_parser to the institution that covers this bank, or add_institution
-with parsers ["${file.parser_path}"]; then add_account to it`
-      : `add_account to "${institution}"`;
-  const identifiers =
-    file.account === null
-      ? "leave account_identifiers empty unless the statement prints one the parser should emit"
-      : `with account_identifiers ["${file.account.identifier}"]`;
   return agentPrompt({
     outcome: `Import ${file.file_name} by setting up the account it's for in the import presets.`,
     facts: `${unresolvedFacts(file)}
 Import presets: ${presets}`,
     playbook: "unresolved-account",
-    how: `In the import presets (${PRESETS_SECTION}): ${add}, ${identifiers}.
-${REIMPORT}`,
+    how: REIMPORT,
     next: REIMPORT_NEXT,
   });
 }

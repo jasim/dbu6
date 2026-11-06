@@ -249,12 +249,9 @@ describe("plan rejections", () => {
     const prompt = problem.agent?.prompt;
     expect(prompt).toContain("050505XXXXXX0505");
     expect(prompt).toContain(staged("card-aug.xls"));
-    // No institution lists the parser: the agent adds it to one, and the
-    // account to that.
+    // No institution lists the parser: the playbook has what to do about it.
     expect(prompt).toContain(parser);
-    expect(prompt).toContain("add_institution");
-    expect(prompt).toContain("add_account");
-    expect(prompt).toContain('"Import presets"');
+    expect(prompt).toContain("playbook unresolved-account");
   });
 
   it("asks for an account on the institution that lists the parser but has none", () => {
@@ -286,8 +283,7 @@ describe("plan rejections", () => {
     });
     const prompt = problem.agent?.prompt;
     expect(prompt).toContain('"Sample Bank"');
-    expect(prompt).toContain("add_account");
-    expect(prompt).not.toContain("add_institution");
+    expect(prompt).toContain("has no accounts");
     expect(prompt).toContain("05050505050505");
   });
 

@@ -28,6 +28,8 @@ A difference that a transfer or card payment between two of the user's
 accounts could explain goes to the `double-counted-transfers` playbook,
 whether its other side is a draft or already in the books. In a run, that
 is its own task, after every statement is imported and categorized.
+Outside a run, propose its changes like any other, and report them under
+that playbook's headings.
 
 ## Never
 

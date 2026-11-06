@@ -26,7 +26,12 @@ time.
 
 1. Group the drafts by what they are, by judgment: a payee, a kind of
    spending, a regular payment. Not by exact narration: reference numbers
-   make nearly every narration unique.
+   make nearly every narration unique. A transfer between the person's own
+   accounts, or a card payment, goes to the other account like any other
+   row, by hand from what both statements show. Nothing is settled here: a
+   row going to an account whose statement is imported too is that
+   statement's row as well, so expect it to fail a balance check, which the
+   `double-counted-transfers` playbook settles.
 2. Find each group's likely account, from where ones like it sit in the
    books, and whether a rule could catch ones like it next time. Read each
    asset and liability the groups go to as an accountant would, for its
@@ -62,14 +67,6 @@ time.
    is in the books or the answer.
 7. A rule request whose drafts are now encoded is done: delete it, as the
    `rule-requests` playbook says.
-
-What the categorizer sees decides what a rule can do:
-
-- A draft's statement, description, direction and amount, never its date.
-- How it was paid (UPI, NEFT, card) is not something drafts share.
-- Round an amount range out (60–480 becomes 50–500).
-- The user's `user-config/` files may name payees and amounts; that is
-  theirs, and fine.
 
 ## Never
 

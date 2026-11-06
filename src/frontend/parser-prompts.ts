@@ -4,10 +4,6 @@
 // parser is written, fixed or parted from another is in the playbooks
 // (`unrecognized-statement`, `ambiguous-parsers`) and the parser guides; how
 // the presets change is in the books guide.
-import { guideCommand } from "../shared/index";
-
-/** Where a prompt sends the agent to change the import presets. */
-export const PRESETS_SECTION = `"Import presets" in \`${guideCommand("books")}\``;
 
 /** Which saved parsers turned a file down, as a fact line. */
 export function triedParsers(candidateParserPaths: readonly string[]): string {

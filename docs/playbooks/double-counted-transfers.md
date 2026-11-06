@@ -2,10 +2,10 @@
 
 ## When
 
-Every statement in the upload is imported and categorized, and an account's
-balance check fails by an amount that a transfer or card payment between two
-of the user's accounts could explain. The failing check is the only way in:
-nothing here starts from a guess that two rows match.
+An account's balance check fails by an amount that a transfer or card
+payment between two of the user's accounts could explain. In a run, this
+waits until every statement is imported and categorized. The failing check
+is the only way in: nothing here starts from a guess that two rows match.
 
 ## Read
 

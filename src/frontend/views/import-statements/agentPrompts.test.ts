@@ -141,23 +141,27 @@ describe("a file several parsers claim", () => {
 });
 
 describe("a statement whose account isn't set up", () => {
-  it("adds the institution and the account with the printed identifier", () => {
+  it("says no institution lists the parser, and leaves the steps to the playbook", () => {
     const prompt = noAccountPrompt(UNRESOLVED);
     expect(prompt).toContain(
       "Import presets: no institution lists sample-bank-pdf",
     );
-    expect(prompt).toContain("add_institution");
-    expect(prompt).toContain('account_identifiers ["050505000012"]');
+    expect(prompt).toContain(
+      "Account identifier on the statement: 050505000012",
+    );
+    expect(prompt).toContain("playbook unresolved-account");
+    expect(prompt).not.toContain("add_institution");
   });
 
-  it("adds only the account to an institution that has none", () => {
+  it("says when the institution has no accounts", () => {
     const prompt = noAccountPrompt({
       ...UNRESOLVED,
       reason: "institution_has_no_accounts",
       institution_name: "Sample Bank",
     });
-    expect(prompt).toContain('add_account to "Sample Bank"');
-    expect(prompt).not.toContain("add_institution");
+    expect(prompt).toContain(
+      '"Sample Bank" lists sample-bank-pdf but has no accounts',
+    );
   });
 
   it("lets the agent upload the file again by the books guide", () => {

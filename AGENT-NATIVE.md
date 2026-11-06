@@ -4,7 +4,7 @@ This file explains the goals of dbu6, its current progress, and the internals th
 
 ## Sync
 
-This file describes the repository through commit `ce1629c4f3584b0c333f7fb65b19c05bfdaebc10` (`2026-11-03 List an account's running balance as its checks add it up`).
+This file describes the repository through commit `0ba9fcc28f462560d9602a94113b74636c322ab6` (`2026-11-06 Keep the run's question message to what the person decides`).
 
 To update this file, run `git log <marker>..HEAD`, update the sections affected by those commits, and move the marker. If a commit does not change a workflow, prompt, playbook, or screen, you do not need to update this file.
 
@@ -42,13 +42,14 @@ The run guide (`docs/run-guide.md`, printed by `npx dbu6 docs run`) is the one h
 | cash, deposits, investments, loans | Settings › Opening balances: Fill in what you own and owe | "Accounts with no statements" |
 | a posted balance check that stopped matching | Reconciliation Differences: Find why this stopped matching | playbook `posted-balance-check` |
 | a change to the chart | Accounts: Reorganize my chart | playbook `chart-change` |
+| a transaction no statement shows, such as a loan paid to a dealer | no button: the user's words, or a run's opening balances | playbook `off-statement-transaction` |
 
 The user can also skip the app and ask their agent directly. When a user says "do my books" or "here are my statements", `template/AGENTS.md` directs the agent to the run guide.
 
 When starting from a pile of statements, the agent runs through these phases:
 
 * **0. Preflight.** The agent checks the token, runs `npx dbu6 check`, and checks whether the app is running.
-* **1. Survey.** The agent makes a single call to `/add-account/read` across all files to group them by account and identify any files that no parser reads. It also reads Home, the presets, the chart, and Overview, and decides whether this is the user's first run.
+* **1. Survey.** The agent makes a single call to `/add-account/read` across all files to group them by account and identify any files that no parser reads. It also reads Home, the presets, the chart, Overview, the accounts with no starting balance, and the rule requests left in Review, and decides whether this is the user's first run.
 * **2. Plan gate: Message 1.** The agent does not write any data before the user says go.
 * **3. Chart.** If the books have no chart of accounts, the agent creates one from the starter chart, excluding any accounts the user unchecked. The agent tailors this chart to the user's transactions in Phase 6.
 * **4. Parsers.** Before importing any rows, the agent writes one parser for each statement format that no parser reads, or that several parsers read. A text file no parser reads is imported freeform instead, with no parser.
@@ -56,7 +57,7 @@ When starting from a pile of statements, the agent runs through these phases:
 * **6. Categorize, across all accounts at once.** After categorizing the transactions across all accounts, the agent tailors the chart of accounts to the imported data.
 * **7. Clean-up.** The agent resolves duplicate rows and failing balance checks. Next, it resolves double-counted transfers as a separate, bounded task.
 * **8. Question round: Message 2.** When the user answers the questions in Message 2, the agent saves those answers as rules, one-off settings, and opening balances.
-* **9. Report: Message 3.** The agent lists the next steps first, followed by a summary of what it changed.
+* **9. Report: Message 3.** The agent reads the opening-balance check again, then lists the next steps first, followed by a summary of what it changed.
 
 Between these three messages, the agent prints only brief progress lines using plain, everyday terms. The messages do not mention internal concepts like parsers, presets, phases, playbooks, refusal codes, or API endpoints. When the user needs to understand a bookkeeping concept, the agent explains it once, the first time it comes up, using examples from the user's own data.
 
@@ -67,7 +68,7 @@ dbu6 does not store separate state for a run. Instead, the agent reads the curre
 The "Permissions inside a run" table in the run guide defines what the agent is allowed to do during a run:
 
 * **Covered by "go" in Message 1:** Setting up the starter chart, writing parsers, creating presets for the planned accounts, adding and importing those accounts, recording opening balances printed on the statements, categorizing rows, creating new accounts for the groups the agent is sure of, writing rules for the rule requests the plan lists, deleting exact duplicates, and resolving double-counted transfers according to the playbook.
-* **Asked in Message 2:** A new account offered as an option, making chart changes requested by the user, categorizing the "needs your call" groups, each new rule or prompt line (one yes per rule), and setting opening balances for accounts that do not have statements.
+* **Asked in Message 2:** A new account offered as an option, making chart changes requested by the user, categorizing the "needs your call" groups, each new rule or prompt line (one yes per rule), setting opening balances for accounts that do not have statements, removing an untouched account the user does not hold, and an off-statement transaction the user described.
 * **Asked individually:** Modifying a posted journal entry, deleting any row that is not an exact duplicate or a double-counted transfer, changing an existing opening balance, and changing dbu6 itself (`statement_disagreement`).
 * **Never allowed:** Changing a statement balance, deleting transactions just to make a balance check pass, editing files inside `node_modules/@dbu6/app`, or writing to the SQLite database directly.
 
@@ -106,7 +107,7 @@ The code in `src/frontend` builds every prompt that an agent button sends to the
 * Because the calculation includes other accounts' drafts that post to this account, a transfer that appears on two bank statements will cause a balance check to fail while both copies exist in the drafts. To fix this, the agent follows the `double-counted-transfers` playbook to delete the second copy and blank only the balance checks that fail by the transfer's amount on the dates between the two sides of the transfer. We do not use a separate API endpoint or a special duplicate type for transfers.
 * Calling `GET /api/accounts/:id/activity` returns the running balance row by row, matching how the balance checks add it up. Guides and playbooks always call this endpoint rather than duplicating its SQL query.
 * If the agent or user deletes the draft row that holds a day's statement balance, a SQLite trigger (added in migration 0015) moves that statement balance to the new last draft row for that date.
-* **Posting is a press** (`workflows/posting.ts`, using `decidePress` and `postPress`). When checking whether an account's balances match before posting, the app only counts other accounts' drafts if those other accounts are in the same press. Therefore, accounts that rely on each other must be posted together, in a single database transaction, or not at all; a press can still post some accounts and leave others. Calling `GET /api/review/accounts` returns `add_all` along with a `relies_on` list for each account so the caller knows which accounts must be posted together. If a press would cause any already-posted balance check to fail, the endpoint rejects the request with `POSTED_CHECKS_WOULD_FAIL` and posts nothing.
+* **Posting is a press** (`workflows/posting.ts`, using `decidePress` and `postPress`). When checking whether an account's balances match before posting, the app only counts other accounts' drafts if those other accounts are in the same press. Therefore, accounts that rely on each other must be posted together, in a single database transaction, or not at all; a press can still post some accounts and leave others. Calling `GET /api/review/accounts` returns `add_all` along with a `relies_on` list for each account so the caller knows which accounts must be posted together. If a press would cause any already-posted balance check to fail, the endpoint rejects the request with `POSTED_CHECKS_WOULD_FAIL` and posts nothing. A draft set to its own statement's account blocks posting (`DRAFTS_ON_OWN_ACCOUNT`).
 
 ### Prompts, guides and playbooks
 
@@ -155,5 +156,5 @@ The screens and buttons below still offer a way to advance the workflow by hand,
 
 * `/import` (Import statements, guided) and the cards on `/add`. These provide a manual import path alongside the Update drop zone, with separate agent buttons for each type of file error.
 * The per-tab agent buttons on Review (for duplicates, balance checks, categorizing, and rule requests), which sit alongside the main "Fix these" button that handles all of those tasks in a single run.
-* Review › Run categorizer and Improve categorization. If a user leaves pending rule requests on these tabs, the agent converts them into rules during the next run from the drafts.
+* Review › Run categorizer and Improve categorization. If a user leaves pending rule requests on these tabs, the agent converts them into rules during the next run.
 * Tools › Import freeform transactions. The run already imports plain-text transaction files freeform on its own.

@@ -5,7 +5,9 @@
 The user made rule requests on Review's Improve categorization tab: drafts
 they picked, each with its date, direction and amount, the account those
 drafts go to, and a note for next time. They wait in the books
-(`categorization_rule_requests`) until a coding agent encodes them.
+(`categorization_rule_requests`) until a coding agent encodes them. Their
+drafts have no account until the categorizer runs over them, with the rules
+in.
 
 ## Read
 
@@ -19,13 +21,6 @@ For each rule request, propose how it is encoded: a rule in
 file, both, or why it shouldn't be. The user picked the drafts, so they may
 share nothing the categorizer can see; say so when they don't. Encode what
 the user agrees to.
-
-What the categorizer sees decides what a rule can do:
-
-- A draft's statement, description, direction and amount, never its date.
-- How it was paid (UPI, NEFT, card) is not something drafts share.
-- Round an amount range out (60–480 becomes 50–500).
-- The user's `user-config/` files may name payees and amounts.
 
 A rule request comes from one statement's drafts. Its rule names that
 statement. Widen it to more statements, or `"*"`, only as the books guide
