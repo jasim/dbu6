@@ -1,6 +1,6 @@
 {
   "name": "@dbu6/app",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Self-hosted double-entry bookkeeping for personal finances: your coding agent (Claude Code, Codex or Pi) turns bank and credit card statements into balanced, categorized journal entries.",
   "keywords": [
     "bookkeeping",
