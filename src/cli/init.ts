@@ -136,7 +136,7 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
       "",
       `Your books are in ${root}.`,
       `  cd ${basename(root)}`,
-      "  npx dbu6 dev",
+      "  npx dbu6 start",
       "then open http://localhost:2345 and sign up. AGENTS.md tells a coding",
       "agent how to work in this folder.",
     ].join("\n"),

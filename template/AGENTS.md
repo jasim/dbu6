@@ -35,6 +35,9 @@ theirs: `user-config/`, `custom-built-parsers/`, `reports/`, and the ledger in
   the user and workspace the token acts as. Use `npx sapporta rows …` and
   `npx sapporta api …` as the guides say.
 
+- If dbu6 cannot load `better-sqlite3`'s native binding, the usual cause is an
+  npm configured with `ignore-scripts`, which skips building it on install.
+
 - Read `npx dbu6 docs books` before you read or change the ledger. It maps each
   common job to its endpoint. `npx dbu6 docs` lists every guide; each is the
   one written for the installed version.

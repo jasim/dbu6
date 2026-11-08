@@ -52,11 +52,11 @@ confirm that it is configured.
 ```sh
 npm init @dbu6 my-books
 cd my-books
-npx dbu6 dev
+npx dbu6 start
 ```
 
 `npm init @dbu6` creates the folder, installs dbu6, and initializes the
-database. `npx dbu6 dev` starts the local web server so you can open
+database. `npx dbu6 start` starts the local web server so you can open
 <http://localhost:2345> and sign up.
 
 To import your statements with an agent, drop your statement files from any
