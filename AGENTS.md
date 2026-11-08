@@ -27,6 +27,13 @@ the project's `.env.development`, the same rule dbu6 binds by, and its token
 from `--api-token`, `SAPPORTA_API_TOKEN`, or else the project's `.env.agent`;
 the wrapper adds nothing.
 
+The Sapporta documentation lists the variables that the server, the frontend
+build and the CLI read, in
+[Environment variables](https://sapporta.com/docs/reference/project/environment-variables).
+[DEPLOYMENT.md](DEPLOYMENT.md) describes how dbu6 uses them. Some defaults are
+different in dbu6, for example `SAPPORTA_DATA_DIR` has no default in Sapporta
+and defaults to `data/` in dbu6.
+
 The project's own token is in the gitignored `.env.agent`, written by
 `dbu6 agent env` (`src/cli/agent.ts`) and, when the folder has no working
 token, by the app as it hands a prompt to the coding agent
