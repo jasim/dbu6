@@ -57,6 +57,17 @@ function fingerprintOf(file: string, migrationsDir?: string) {
   }
 }
 
+const MIGRATED_DATA = ["previous-versions", "sqlite.db"];
+const STORED_PATH =
+  /previous-versions\/sqlite-\d{4}-\d{2}-\d{2}-[0-9a-f]{6}\.db$/;
+
+/** The stored databases, without SQLite's own files beside them. */
+function storedVersions(): string[] {
+  return readdirSync(join(dataDir, "previous-versions"))
+    .filter((name) => name.endsWith(".db"))
+    .sort();
+}
+
 /** Everything in data/ except SQLite's own -wal and -shm of the database. */
 function dataFiles(): string[] {
   return readdirSync(dataDir)
@@ -76,12 +87,65 @@ describe("migrateSafely", () => {
       status: "migrated",
       applied: tags.slice(tags.indexOf(FIRST_LEDGER_MIGRATION) + 1),
       notes: [],
+      previousDatabase: expect.stringMatching(STORED_PATH),
     });
     expect(fingerprintOf(dbFile)).toEqual(before);
-    expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
+    expect(readdirSync(dataDir)).toEqual(MIGRATED_DATA);
 
     expect(await migrateSafely(root)).toEqual({ status: "up-to-date" });
-    expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
+    expect(readdirSync(dataDir)).toEqual(MIGRATED_DATA);
+    expect(storedVersions()).toHaveLength(1);
+  });
+
+  it("stores the database as it was, rows still in its WAL included", async () => {
+    seedProject();
+    const writer = new Database(dbFile);
+    writer.pragma("wal_autocheckpoint = 0");
+    writer.exec(
+      "UPDATE draft_transactions SET narration = 'sample, written late' WHERE id = 1",
+    );
+    const walHeld = new Database(dbFile, { readonly: true });
+    walHeld.prepare("SELECT 1").get();
+    writer.close();
+    expect(existsSync(`${dbFile}-wal`)).toBe(true);
+    walHeld.close();
+    const before = fingerprintOf(dbFile);
+
+    const result = await migrateSafely(root);
+
+    if (result.status !== "migrated") throw new Error("unreachable");
+    expect(result.previousDatabase).toMatch(STORED_PATH);
+    expect(fingerprintOf(result.previousDatabase!)).toEqual(before);
+    const stored = new Database(result.previousDatabase!, { readonly: true });
+    expect(
+      stored
+        .prepare("SELECT narration FROM draft_transactions WHERE id = 1")
+        .get(),
+    ).toEqual({ narration: "sample, written late" });
+    expect(
+      pendingMigrations(stored, dbu6MigrationsDir()).length,
+    ).toBeGreaterThan(0);
+    stored.close();
+  });
+
+  it("stores a separate file for a second migration on the same day and keeps the first", async () => {
+    seedProject();
+    await migrateSafely(root);
+    const [firstName] = storedVersions();
+    const first = readFileSync(join(dataDir, "previous-versions", firstName));
+
+    const result = await migrateSafely(root, {
+      migrationsDir: migrationsDirWith(
+        "9000_sample_table",
+        "CREATE TABLE sample_later (id integer);",
+      ),
+    });
+
+    expect(result.status).toBe("migrated");
+    expect(storedVersions()).toHaveLength(2);
+    expect(
+      readFileSync(join(dataDir, "previous-versions", firstName)).equals(first),
+    ).toBe(true);
   });
 
   it("creates the database of a project that has none", async () => {
@@ -91,6 +155,7 @@ describe("migrateSafely", () => {
       status: "migrated",
       applied: journalTags(dbu6MigrationsDir()),
       notes: [],
+      previousDatabase: null,
     });
     expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
     const sqlite = new Database(dbFile, { readonly: true });
@@ -237,7 +302,7 @@ describe("migrateSafely", () => {
       // Put back, then migrated normally from the original.
       expect(result.status).toBe("migrated");
       expect(fingerprintOf(dbFile)).toEqual(before);
-      expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
+      expect(readdirSync(dataDir)).toEqual(MIGRATED_DATA);
     });
 
     it("deletes the replaced original when the new database is already in place", async () => {
@@ -248,13 +313,14 @@ describe("migrateSafely", () => {
       const result = await migrateSafely(root);
 
       expect(result.status).toBe("migrated");
-      expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
+      expect(readdirSync(dataDir)).toEqual(MIGRATED_DATA);
     });
 
     it("deletes a leftover copy even when nothing is pending", async () => {
       await migrateSafely(root);
       writeFileSync(`${dbFile}.migrating`, "a copy from a crashed run");
       writeFileSync(`${dbFile}.migrating-journal`, "its journal");
+      writeFileSync(`${dbFile}.previous`, "an original from a crashed run");
 
       expect(await migrateSafely(root)).toEqual({ status: "up-to-date" });
       expect(dataFiles()).toEqual(["sqlite.db"]);
@@ -269,7 +335,7 @@ describe("migrateSafely", () => {
       const result = await migrateSafely(root);
 
       expect(result.status).toBe("migrated");
-      expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
+      expect(readdirSync(dataDir)).toEqual(MIGRATED_DATA);
     });
 
     it("refuses while a running process holds the lock, and touches nothing", async () => {
@@ -366,7 +432,7 @@ describe("migrateSafely and user-config/import-presets.json", () => {
       },
     ]);
     expect(existsSync(presetsFile())).toBe(false);
-    expect(readdirSync(dataDir)).toEqual(["sqlite.db"]);
+    expect(readdirSync(dataDir)).toEqual(MIGRATED_DATA);
   });
 
   it("keeps the file, and says why, when it names an account the books lack", async () => {

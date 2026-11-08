@@ -69,8 +69,8 @@ export async function upgradeProject(
   }
   if (to === from && pin === to) return { status: "unchanged", version: to };
   // A database the newer version migrated may hold migrations the older one
-  // does not have, and the older one refuses to serve it. dbu6 keeps no copy
-  // of the books to go back to, so it does not downgrade.
+  // does not have, and the older one refuses to serve it, so dbu6 does not
+  // downgrade. Going back to a stored previous version is done by hand.
   if (compareVersions(to, from) < 0) {
     throw new Error(
       `dbu6 ${to} is older than ${from}, the version installed. dbu6 does not downgrade: ` +

@@ -171,6 +171,11 @@ function reportMigration(result: MigrateSafelyResult): boolean {
           .map((tag) => `  ${tag}`)
           .join("\n")}`,
       );
+      if (result.previousDatabase !== null) {
+        console.log(
+          `The previous version is stored at ${result.previousDatabase}`,
+        );
+      }
       for (const note of result.notes) console.log(note);
       return true;
     case "rejected":

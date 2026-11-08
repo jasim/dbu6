@@ -753,10 +753,10 @@ This repository holds none of it, and still gitignores `data/` and
 project only `data/` is gitignored. The template's Dockerfile copies the project into the image and
 declares `/app/data` as its volume.
 
-dbu6 keeps no copy of the books beyond `data/sqlite.db`: `migrateSafely`'s
-copy lives beside it and is gone when the command returns, whichever way it
-went, and there is no backup retention, no backup outside the project and no
-`restore` command. Backing up `data/` is the user's job, and the docs say so.
+`migrateSafely` works on copies beside `data/sqlite.db`, and they are gone when
+the command returns. After a migration succeeds, the database as it was stays
+in `data/previous-versions/`, named by date, and nothing deletes those files.
+There is no `restore` command and no backup outside the project.
 
 ### Moving the books out of an older clone
 

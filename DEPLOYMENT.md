@@ -68,14 +68,13 @@ The books are `data/sqlite.db` under the project folder (or under
 `SAPPORTA_DATA_DIR`, absolute or relative to the folder, if set). It must be
 on a persistent filesystem: not `/tmp`, not a container's own filesystem.
 
-**dbu6 keeps no backups.** There is one `sqlite.db` and no other copy,
-anywhere: no backup retention, no copy outside the project, no `restore`
-command. The one copy dbu6 ever makes is `migrateSafely`'s, beside the
-database while a migration runs (`data/sqlite.db.migrating`), and it is gone
-when the command returns, whichever way it went: the verified copy takes the
-original's place, or the copy is deleted and the original is untouched.
+Each migration stores the database as it was in `data/previous-versions/`,
+named by date, for example `sqlite-2026-11-08-a1b2c3.db`. dbu6 never
+deletes those files, and they are on the same disk as the books. If a
+migration is rejected, the original is untouched and nothing is stored. There
+is no `restore` command and no scheduled backup.
 
-Copying `data/` somewhere safe is therefore your job. SQLite gives a
+To keep copies somewhere else, copy `data/` off the machine. SQLite gives a
 consistent snapshot even while dbu6 is writing:
 
 ```bash
@@ -101,8 +100,8 @@ reports something, `upgrade` exits non-zero and the report says what to fix:
 a report or `dbu6.config.ts` that no longer typechecks, a parser test that
 fails. A coding agent is the intended reader of both.
 
-Back up `data/` before an upgrade all the same: the migration is verified
-against the ledger's figures, and a backup is what covers everything else.
+The migration is verified against the ledger's figures. The stored previous
+version in `data/previous-versions/` covers everything else.
 
 Restart `dbu6 start` afterwards; the running process is the old version.
 

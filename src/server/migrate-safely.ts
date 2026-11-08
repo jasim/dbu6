@@ -1,12 +1,13 @@
 /**
  * `migrateSafely(root)`: the only code that changes a database's schema.
  *
- * There is one `sqlite.db` when it begins and one when it ends, and dbu6 keeps
- * no other copy of a person's books, anywhere. The migrations run on a copy
- * beside the database; the copy's ledger fingerprint is compared with the
- * original's after every migration; and only a copy that still says the same
- * thing about the books takes the original's place. Whatever happens, the
- * copy is gone when this returns or throws.
+ * There is one `sqlite.db` when it begins and one when it ends. The migrations
+ * run on a copy beside the database; the copy's ledger fingerprint is compared
+ * with the original's after every migration; and only a copy that still says
+ * the same thing about the books takes the original's place. The database as
+ * it was then stays in `previous-versions/`, named by date, and is never
+ * deleted. Whatever happens, the working copies are gone when this returns or
+ * throws, and a rejected migration stores nothing.
  *
  * A migration with a data step (data-migrations/) runs it on the copy right
  * after its SQL, before the fingerprint is compared. What a step removes from
@@ -15,7 +16,9 @@
  *
  *   sqlite.db            the database
  *   sqlite.db.migrating  the copy being migrated
+ *   sqlite.db.previous   the original as one file, until the copy is verified
  *   sqlite.db.replaced   the original, for the instant between the two renames
+ *   previous-versions/sqlite-2026-11-08-a1b2c3.db   what the original is stored as
  *   dbu6.lock            see data-lock.ts
  */
 import {
@@ -31,6 +34,7 @@ import {
   writeFileSync,
   readFileSync,
 } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import Database from "better-sqlite3";
@@ -44,7 +48,11 @@ import {
   ledgerFingerprint,
   type FigureKind,
 } from "./ledger-fingerprint.js";
-import { databaseFile, dbu6MigrationsDir } from "./paths.js";
+import {
+  databaseFile,
+  dbu6MigrationsDir,
+  previousDatabasesDir,
+} from "./paths.js";
 
 export type MigrateSafelyResult =
   | { status: "up-to-date" }
@@ -53,6 +61,8 @@ export type MigrateSafelyResult =
       applied: string[];
       /** What the data steps said, for the person running the migration. */
       notes: string[];
+      /** Where the database as it was is stored; null when there was none. */
+      previousDatabase: string | null;
     }
   | {
       status: "rejected";
@@ -109,6 +119,7 @@ export async function migrateSafely(
 
 const copyOf = (file: string) => `${file}.migrating`;
 const replacedOf = (file: string) => `${file}.replaced`;
+const previousOf = (file: string) => `${file}.previous`;
 /** A database file and the files SQLite keeps beside it. */
 const withSidecars = (file: string) => [
   file,
@@ -126,6 +137,8 @@ const withSidecars = (file: string) => [
  * - `.replaced` beside `sqlite.db`: the verified copy is already in place and
  *   only the delete was missed.
  * - `.migrating`: an unverified copy. Deleted.
+ * - `.previous`: the original of a run that never finished, and the original
+ *   is still `sqlite.db`. Deleted.
  */
 function settleLeftovers(file: string): void {
   const replaced = replacedOf(file);
@@ -138,6 +151,7 @@ function settleLeftovers(file: string): void {
   for (const path of [
     ...withSidecars(replaced),
     ...withSidecars(copyOf(file)),
+    previousOf(file),
   ]) {
     rmSync(path, { force: true });
   }
@@ -162,6 +176,9 @@ async function migrateCopy(
       }
       // SQLite's backup API: a consistent copy, WAL contents included.
       await original.backup(copyPath);
+      // A second one, because the first is about to be migrated, and renaming
+      // the original instead would leave its WAL contents behind.
+      await original.backup(previousOf(file));
       before = ledgerFingerprint(original, migrationsDir);
     } finally {
       original.close();
@@ -230,6 +247,10 @@ async function migrateCopy(
     copy.close();
   }
 
+  // Stored first, so that nothing is deleted until the old database is safe.
+  const previousDatabase = existsSync(previousOf(file))
+    ? storePreviousDatabase(root, previousOf(file))
+    : null;
   putCopyInPlace(file);
   for (const step of afterCommit) {
     try {
@@ -239,7 +260,28 @@ async function migrateCopy(
       notes.push(`Could not finish after migrating: ${errorMessage(err)}`);
     }
   }
-  return { status: "migrated", applied, notes };
+  return { status: "migrated", applied, notes, previousDatabase };
+}
+
+/**
+ * Moves `held` into `previous-versions/`, named by today's date. The random
+ * part keeps two migrations on the same day from sharing a name.
+ */
+function storePreviousDatabase(root: string, held: string): string {
+  const dir = previousDatabasesDir(root);
+  mkdirSync(dir, { recursive: true });
+  const suffix = randomBytes(3).toString("hex");
+  const stored = join(dir, `sqlite-${localDate(new Date())}-${suffix}.db`);
+  fsyncPath(held);
+  renameSync(held, stored);
+  fsyncPath(dir);
+  return stored;
+}
+
+function localDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 /**

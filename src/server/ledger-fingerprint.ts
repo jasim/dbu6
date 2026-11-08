@@ -1,7 +1,7 @@
 /**
  * The ledger fingerprint: the figures of a person's books that no schema
  * migration may change. `migrateSafely` takes it before and after every
- * migration, and dbu6 keeps no backup, so this module is the whole safety net.
+ * migration, and rejects the migration when a figure differs.
  *
  * A fingerprint is a flat map from a figure's name to its value, so two of
  * them are compared figure by figure and a difference can be named.

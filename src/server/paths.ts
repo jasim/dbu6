@@ -62,6 +62,11 @@ export function databaseFile(root: string): string {
   return join(dir, "sqlite.db");
 }
 
+/** Beside `sqlite.db`: the database as it was before each migration. */
+export function previousDatabasesDir(root: string): string {
+  return join(dirname(databaseFile(root)), "previous-versions");
+}
+
 /** Our Drizzle migrations, which ship in the package. */
 export function dbu6MigrationsDir(): string {
   return packageDir("migrations");

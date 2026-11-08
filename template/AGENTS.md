@@ -58,12 +58,13 @@ theirs: `user-config/`, `custom-built-parsers/`, `reports/`, and the ledger in
 - Never edit anything under `node_modules/@dbu6/app`. An install or an upgrade
   replaces it.
 - Never copy, move or delete `data/sqlite.db`, and never open it with a tool
-  that writes. It is the only copy of the books, and dbu6 makes no backup.
-  Change the books through the HTTP API.
+  that writes. Change the books through the HTTP API.
 - Never commit `data/` or any `.env*` file.
 - Upgrade with `npx dbu6 upgrade`, then fix everything `npx dbu6 check`
   reports. Only dbu6 migrates the database (`upgrade`, `start` and `migrate`
-  do it, on a verified copy); never run SQL that changes its schema.
+  do it, on a verified copy); never run SQL that changes its schema. Each time
+  these commands migrate the database, they put a backup copy of it in
+  `data/previous-versions/`.
 
 ## Changing what dbu6 does
 
