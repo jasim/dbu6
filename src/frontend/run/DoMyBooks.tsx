@@ -199,7 +199,14 @@ export function DoMyBooks({
         />
       )}
       {(files > 0 || byHand || agentBesideRun) && (
-        <div className="mt-5 flex flex-wrap items-start gap-x-5 gap-y-2">
+        <div
+          className={cn(
+            "mt-5 flex flex-wrap items-start gap-x-5 gap-y-2",
+            // A long list ends the page here: room to scroll the run's
+            // button up from the bottom edge of the screen.
+            files > 0 && "pb-40",
+          )}
+        >
           {files > 0 && (
             <AgentButton
               label={runLabel(files)}
