@@ -3,6 +3,7 @@ import {
   codingAgentInUse,
   noAgentModelMessage,
   noCodingAgentMessage,
+  WHY_A_CODING_AGENT,
   type CodingAgentSettings,
   type CodingAgentStatus,
 } from "../../../shared/index";
@@ -14,6 +15,8 @@ export interface CodingAgentState {
   tone: "ok" | "attention";
   /** Null when the table says it all. */
   text: string | null;
+  /** A subtler line under the text, saying why it matters. */
+  caption?: string;
   /** A command to run in a terminal, shown after the text. */
   command?: string;
   /** Lines under the text: the models that didn't answer, and why. */
@@ -64,16 +67,22 @@ export function describeCodingAgent(
   const inUse = codingAgentInUse(settings.agents, settings.chosen);
   if (inUse.agent === null) {
     const { why } = inUse;
+    if (why.kind === "none_works") {
+      return {
+        tone: "attention",
+        text: noCodingAgentMessage(why),
+        caption: WHY_A_CODING_AGENT,
+        details: settings.agents.flatMap((status) => {
+          const reason = status.installed ? whyNotUsable(status) : null;
+          return reason === null ? [] : [reason];
+        }),
+        checkAgain: true,
+      };
+    }
     return {
       tone: "attention",
       text: `${noCodingAgentMessage(why)} Until then, dbu6 can't ${AGENT_JOBS}.`,
-      details:
-        why.kind === "none_works"
-          ? settings.agents.flatMap((status) => {
-              const reason = status.installed ? whyNotUsable(status) : null;
-              return reason === null ? [] : [reason];
-            })
-          : [],
+      details: [],
       checkAgain: true,
     };
   }
@@ -152,7 +161,7 @@ export function summarizeCodingAgent(
       case "none_installed":
         return { tone: "attention", text: "None installed" };
       case "none_works":
-        return { tone: "attention", text: "None works" };
+        return { tone: "attention", text: "Not configured" };
       case "chosen_missing":
         return {
           tone: "attention",

@@ -187,7 +187,9 @@ describe("describeCodingAgent", () => {
       }),
     ).toEqual({
       tone: "attention",
-      text: "None of the installed coding agents works yet. Sign one in, then check again in Settings. Until then, dbu6 can't categorize transactions, read new bank statements, or fix import problems.",
+      text: "Currently none of the installed coding agents work yet. Install and sign-in into at least one of them. Then check again in Settings.",
+      caption:
+        "Why? A CLI coding agent like Claude Code, Codex, or Pi is necessary for creating bank statement parsers, and to automatically categorize transactions.",
       details: [
         "Claude Code didn't answer on Claude Opus or Claude Sonnet, and dbu6 doesn't use less capable models.",
         "Codex isn't signed in: run codex login in a terminal.",
@@ -276,6 +278,13 @@ describe("summarizeCodingAgent", () => {
         picking: false,
       }),
     ).toEqual({ tone: "attention", text: "None installed" });
+    expect(
+      summarizeCodingAgent({
+        agents: [SIGNED_OUT_CODEX],
+        chosen: null,
+        picking: false,
+      }),
+    ).toEqual({ tone: "attention", text: "Not configured" });
     expect(
       summarizeCodingAgent({
         agents: [CLAUDE, NO_CODEX],

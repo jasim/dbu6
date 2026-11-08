@@ -261,6 +261,9 @@ function AgentMessage({
           )}
         </p>
       )}
+      {state.caption && (
+        <p className="text-meta text-ink-meta">{state.caption}</p>
+      )}
       {state.details.map((line) => (
         <p
           key={line}

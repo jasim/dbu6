@@ -4,6 +4,7 @@ import {
   ANY_CODING_AGENT,
   codingAgentInUse,
   noCodingAgentMessage,
+  WHY_A_CODING_AGENT,
   type CodingAgentSettings,
   type NoCodingAgent,
   type StatementInboxBatch,
@@ -290,12 +291,21 @@ function AgentSetup({ missing }: { missing: NoCodingAgent | null }) {
   }
   return (
     <div className="mb-5">
-      <p className="text-body text-ink-soft">
-        Your coding agent reads your statements and drafts the entries.{" "}
-        {missing.kind === "none_installed"
-          ? `Install ${ANY_CODING_AGENT} on the computer running dbu6.`
-          : noCodingAgentMessage(missing)}
-      </p>
+      {missing.kind === "none_works" ? (
+        <>
+          <p className="text-body text-ink-soft">
+            {noCodingAgentMessage(missing)}
+          </p>
+          <p className="mt-1 text-meta text-ink-meta">{WHY_A_CODING_AGENT}</p>
+        </>
+      ) : (
+        <p className="text-body text-ink-soft">
+          Your coding agent reads your statements and drafts the entries.{" "}
+          {missing.kind === "none_installed"
+            ? `Install ${ANY_CODING_AGENT} on the computer running dbu6.`
+            : noCodingAgentMessage(missing)}
+        </p>
+      )}
       <Button variant="setup" className="mt-3" onClick={() => setOpen(true)}>
         Set up a coding agent
       </Button>

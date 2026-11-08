@@ -161,6 +161,7 @@ export {
   ANY_CODING_AGENT,
   CODING_AGENTS,
   NO_CODING_AGENT_MESSAGE,
+  WHY_A_CODING_AGENT,
   codingAgentInUse,
   noCodingAgentMessage,
   unavailableAgentModelSchema,

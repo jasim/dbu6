@@ -322,7 +322,7 @@ describe("handOffPrompt", () => {
       handoff.handOffPrompt(PROMPT, "darwin", root, null),
     ).rejects.toMatchObject({
       error: "no_coding_agent",
-      message: expect.stringContaining("None of the installed coding agents"),
+      message: expect.stringContaining("none of the installed coding agents"),
     });
   });
 

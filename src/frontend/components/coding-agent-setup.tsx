@@ -178,7 +178,7 @@ function Guide({ guide }: { guide: CodingAgentSetupGuide }) {
                     href={setup.docsUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="font-semibold text-foreground underline-offset-4 hover:underline"
+                    className="font-semibold text-foreground underline underline-offset-4"
                   >
                     {setup.name}
                   </a>

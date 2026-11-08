@@ -33,6 +33,10 @@ export const ANY_CODING_AGENT = codingAgentSchema.options
 
 export const NO_CODING_AGENT_MESSAGE = `No coding agent found. Install ${ANY_CODING_AGENT} on the machine running dbu6.`;
 
+/** The caption under the message that no installed agent works. */
+export const WHY_A_CODING_AGENT =
+  "Why? A CLI coding agent like Claude Code, Codex, or Pi is necessary for creating bank statement parsers, and to automatically categorize transactions.";
+
 /** Why dbu6 has no coding agent to use. */
 export type NoCodingAgent =
   /** None is installed, so there is nothing to pick. */
@@ -75,7 +79,7 @@ export function noCodingAgentMessage(why: NoCodingAgent): string {
     case "none_installed":
       return NO_CODING_AGENT_MESSAGE;
     case "none_works":
-      return "None of the installed coding agents works yet. Sign one in, then check again in Settings.";
+      return "Currently none of the installed coding agents work yet. Install and sign-in into at least one of them. Then check again in Settings.";
     case "chosen_missing":
       return `${CODING_AGENTS[why.chosen].label}, chosen in Settings, isn't installed. Install it, or choose another agent in Settings.`;
   }
