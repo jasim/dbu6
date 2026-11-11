@@ -6,7 +6,9 @@
     "dev": "dbu6 dev",
     "start": "dbu6 start",
     "check": "dbu6 check",
-    "upgrade": "dbu6 upgrade"
+    "upgrade": "dbu6 upgrade",
+    "patch:antigravity": "node scripts/patch-antigravity.mjs",
+    "postinstall": "node scripts/patch-antigravity.mjs"
   },
   "dependencies": {
     "@dbu6/app": "%%SAPPORTA:DBU6_VERSION%%"
